@@ -88,7 +88,6 @@ describe('ProjectDispatchEditor (#670)', () => {
 
   it.each([
     ['access-source-hosted', 'переключите источник доступа на API-ключ'],
-    ['dispatch-placement-conflict', 'Сначала выберите «Любой раннер»'],
     ['dispatch-repository-unverified', 'не смогла подтвердить репозиторий'],
   ])('explains a %s refusal in an alert and keeps the stored choice', async (slug, text) => {
     const { find, choose, save } = await render({ write: () => problem(422, slug) });

@@ -26,7 +26,8 @@
   text-decoration: none;
 }
 
-.questions__attention-row:hover [tc-banner-text] {
+/* Only the rows that lead somewhere; a concurrency stop (#746) is words alone. */
+a.questions__attention-row:hover [tc-banner-text] {
   text-decoration: underline;
   text-underline-offset: var(--space-1);
 }

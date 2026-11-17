@@ -2,6 +2,7 @@ import type { APIRequestContext, Page } from '@playwright/test';
 import type { JobDto, ProjectDispatchDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { claimStatus, enrolRunner } from './support/runner';
 import { apiClient, seed } from './support/stack';
 import { switchToConsoleTracker } from './support/tracker-seed';
 
@@ -10,7 +11,8 @@ import { switchToConsoleTracker } from './support/tracker-seed';
  * in Settings › Runners, told plainly that the Actions minutes are their own spend; a subscription project is refused
  * with the reason; Run now on an Actions project is dispatched through the mock GitHub app (`actions: write` granted
  * on geeera/team-console, not on geeera/private-product), and a missing permission fails the job as
- * `dispatch-failed: permission missing`. The phone layout is checked for overflow.
+ * `dispatch-failed: permission missing`. A pinned placement is kept across the switch and picks the runner of the
+ * project's local-only jobs (#728). The phone layout is checked for overflow.
  */
 
 const ACTIONS_PROJECT = 'team-console';
@@ -116,6 +118,57 @@ test('a subscription project is refused with the reason, and a missing actions p
       metrics: { reason: 'dispatch-failed' },
       acted: false,
     });
+  } finally {
+    await api.dispose();
+  }
+});
+
+test('a pinned placement stays when the project goes to GitHub Actions, and picks the runner of its local-only jobs (#728)', async ({
+  page,
+  stack,
+}) => {
+  const api = await apiClient(stack);
+  try {
+    await useApiKey(api, ACTIONS_PROJECT);
+    const mac = await enrolRunner(api, ACTIONS_PROJECT);
+    const other = await enrolRunner(api, ACTIONS_PROJECT);
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    const editor = await openDispatch(page, ACTIONS_PROJECT);
+
+    // The project's own placement: pinned to one of the account's two runners.
+    const placement = page.getByTestId('runners-policy-project');
+    await expect(placement.getByText(ru('runners.policy.note'))).toBeVisible();
+    await placement.getByTestId('policy-mode-pinned').check();
+    await placement.getByTestId('policy-pinned').selectOption(mac.id);
+    await placement.getByTestId('runner-policy-save').click();
+    await expect(placement.getByTestId('runner-policy-saved')).toHaveText(ru('runners.policy.saved'));
+
+    // The switch to Actions is taken with the pin in place: no refusal, and the pin is kept.
+    const actions = editor.getByRole('radio', { name: ru('runners.dispatch.actions') });
+    await expect(actions).toHaveAccessibleDescription(
+      `${ru('runners.dispatch.actionsHint')} ${ru('runners.dispatch.minutes')}`,
+    );
+    await actions.check();
+    await editor.getByTestId('project-dispatch-save').click();
+    await expect(editor.getByTestId('project-dispatch-saved')).toHaveText(ru('runners.dispatch.saved'));
+    await expect(editor.getByRole('alert')).toHaveCount(0);
+    await expectAccessible(page, 'Settings › Runners, pinned placement on a GitHub Actions project');
+
+    const dispatch = (await (await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`)).json()) as ProjectDispatchDto;
+    expect(dispatch.dispatch).toBe('actions');
+    const policy = (await (await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/runner-policy`)).json()) as {
+      policy: unknown;
+    };
+    expect(policy.policy).toEqual({ mode: 'pinned', runner: mac.id });
+
+    // A local-only job stays a pull job, and only the pinned runner takes it.
+    const local = await api.post(`/api/v1/projects/${ACTIONS_PROJECT}/jobs`, {
+      data: { kind: 'slot-dev', needsLocal: true },
+    });
+    expect(local.status(), await local.text()).toBe(201);
+    expect(((await local.json()) as JobDto).dispatch).toBe('pull');
+    expect(await claimStatus(api, other)).toBe(204);
+    expect(await claimStatus(api, mac)).toBe(200);
   } finally {
     await api.dispose();
   }

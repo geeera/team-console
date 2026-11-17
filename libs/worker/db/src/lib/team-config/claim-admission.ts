@@ -1,4 +1,10 @@
-import { TEAM_CONFIG_BOUNDS, TEAM_CONFIG_PRESET_ROLES, TEAM_CONFIG_PRESETS, TEAM_ROLES } from '@shared/contracts';
+import {
+  TEAM_CONFIG_BOUNDS,
+  TEAM_CONFIG_PRESET_ROLES,
+  TEAM_CONFIG_PRESETS,
+  TEAM_ROLES,
+  entitlementsOf,
+} from '@shared/contracts';
 
 /**
  * The claim's role admission (ADR 0009 d.6, d.7; threat model C12 row 5, T6): a WHERE term on the candidate `j`
@@ -48,6 +54,64 @@ export function budgetAdmittedSql(now: string): string {
     SELECT 1 FROM project_spend ps
     WHERE ps.project_slug = j.project_slug AND ps.month = substr(${now}, 1, 7) AND ps.waived_at IS NULL
       AND ps.spent_usd >= json_extract(tc.config, '$.budget.monthly_usd'))`;
+}
+
+/**
+ * The account's entitled concurrency (#746, ADR 0008 decision 6): `entitlementsOf(account).maxConcurrency`, with the
+ * row's raw `plan` and `entitlements` it was computed from, so a write can require the row to read the same when it
+ * commits (`entitledConcurrencyAdmittedSql`).
+ */
+export interface EntitledConcurrency {
+  readonly limit: number;
+  readonly plan: string;
+  readonly entitlements: string;
+}
+
+/** `entitlementsOf` on a raw `accounts` row; an override that does not parse yields the free tier, as the guard does. */
+export function entitledConcurrencyOf(row: { readonly plan: string; readonly entitlements: string }): EntitledConcurrency {
+  let override: unknown = null;
+  try {
+    override = JSON.parse(row.entitlements) as unknown;
+  } catch (error: unknown) {
+    // 0018 CHECKs the column as a JSON object, so this is a broken row: `null` fails `isEntitlementsOverride` closed.
+    if (!(error instanceof SyntaxError)) {
+      throw error;
+    }
+  }
+  return {
+    limit: entitlementsOf({ plan: row.plan, entitlements: override }).maxConcurrency,
+    plan: row.plan,
+    entitlements: row.entitlements,
+  };
+}
+
+/**
+ * The account-wide in-flight count of the candidate `j` is below `limit` (an SQL expression), #746: every claimed or
+ * running job of `j`'s account, plus its dispatched Actions jobs no run has exchanged yet (their runs are on the way,
+ * as `roleAdmittedSql` counts them), `j` itself left out. Judged inside the write that hands `j` out (the pull claim,
+ * the dispatch's compare-and-set, the OIDC exchange), so two of them racing for the account's last slot never both
+ * pass: D1 runs one statement at a time.
+ */
+export function accountInFlightBelowSql(limit: string): string {
+  return `(SELECT COUNT(*) FROM jobs inflight
+      WHERE inflight.account_id = j.account_id AND inflight.state IN ('queued', 'claimed', 'running')
+        AND (inflight.state <> 'queued'
+             OR (inflight.dispatch = 'actions' AND inflight.dispatched_at IS NOT NULL AND inflight.runner_id IS NULL
+                 AND inflight.id <> j.id))) < ${limit}`;
+}
+
+/**
+ * `accountInFlightBelowSql` against an `EntitledConcurrency` bound as `limit`, `plan` and `entitlements` (with `a`,
+ * `j`'s account, joined): the account row must still read as it did when the limit was computed, so an operator change
+ * that commits between that read and this write takes nothing rather than the old limit.
+ */
+export function entitledConcurrencyAdmittedSql(limit: string, plan: string, entitlements: string): string {
+  return `a.plan = ${plan} AND a.entitlements = ${entitlements} AND ${accountInFlightBelowSql(limit)}`;
+}
+
+/** The values of `entitledConcurrencyAdmittedSql`'s three placeholders, in order. */
+export function entitledConcurrencyParams(entitled: EntitledConcurrency): readonly [number, string, string] {
+  return [entitled.limit, entitled.plan, entitled.entitlements];
 }
 
 /** `{ preset: { role: max_parallel } }` from the shared presets: the data the claim falls back to. */

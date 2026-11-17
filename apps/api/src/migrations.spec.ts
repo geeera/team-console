@@ -95,6 +95,7 @@ describe('migrations on a fresh D1', () => {
       '0032_team_config.sql',
       '0033_budget_waiver.sql',
       '0034_streak_excluded_index.sql',
+      '0035_jobs_account_live_index.sql',
     ]);
   });
 

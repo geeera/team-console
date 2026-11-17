@@ -273,14 +273,13 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
       if (streak.excluded) {
         logger.info('failure left out of the streak', { jobId: job.id, runnerId: runner.runnerId, reason: limitReason });
       }
-      // #716: this job's slot is free, so the project's Actions jobs held back by `max_parallel` get their run now
-      // rather than at the next sweep. The dispatch's own write judges admission; nothing here can start one too many.
-      if (job.dispatch === 'actions') {
-        await dispatchAdmittedActionsJobs(
-          { env: c.env, github, logger },
-          { projectSlug: job.projectSlug, limit: FINISH_DISPATCH_MAX },
-        );
-      }
+      // #716, #746: this job's slot is free, so the account's Actions jobs held back by a role's `max_parallel` or by the
+      // account's entitled concurrency get their run now rather than at the next sweep, whichever way this job ran. The
+      // dispatch's own write judges admission; nothing here can start one too many. No waiting job reads nothing more.
+      await dispatchAdmittedActionsJobs(
+        { env: c.env, github, logger },
+        { accountId: job.accountId, limit: FINISH_DISPATCH_MAX },
+      );
       const updated = await new JobsRepo(c.env.DB).findById(job.id);
       return c.json(updated === null ? null : jobDtoOf(updated));
     });

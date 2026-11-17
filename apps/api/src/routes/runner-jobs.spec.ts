@@ -3,7 +3,7 @@ import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
 import { IdempotencyKeysRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
-import { cancelJob, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import { cancelJob, cancelJobsInFlight, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, type TestRunner } from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
@@ -25,6 +25,9 @@ async function claim(runner: TestRunner): Promise<ClaimResponse | null> {
 async function runnerFor(slugs: readonly string[], enrol: Record<string, unknown> = {}): Promise<TestRunner> {
   return enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: slugs, enrol });
 }
+
+// More claims than the owner's entitled concurrency admits at once (#746) pile up across these cases.
+beforeEach(cancelJobsInFlight);
 
 describe('POST /api/v1/runner/jobs/claim', () => {
   it('answers 204 with Retry-After while nothing is queued, then hands out one job with a tcj_ token and a lease', async () => {
@@ -154,6 +157,74 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     });
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('runner-isolation-none');
+  });
+});
+
+describe('the account’s entitled concurrency at the claim (#746, ADR 0008 decision 6)', () => {
+  /** A free-tier account of its own (a session owner's), with one console-tracker project and `runners` runners on it. */
+  async function freeAccount(runners: number) {
+    const owner = await seedSessionUser('owner');
+    const project = await seedAccountProject(owner.account, { tracker: 'console' });
+    const enrolled: TestRunner[] = [];
+    for (let n = 0; n < runners; n += 1) {
+      enrolled.push(await enrolRunner(owner.account.id, { as: owner, allowedProjects: [project.slug] }));
+    }
+    return { owner, slug: project.slug, runners: enrolled };
+  }
+
+  const setEntitlements = (accountId: string, json: string) =>
+    env.DB.prepare(`UPDATE accounts SET entitlements = ?2 WHERE id = ?1`).bind(accountId, json).run();
+
+  it('free tier, two runners: the second claim answers 204 with Retry-After until the first job ends', async () => {
+    const { owner, slug, runners: [mac, vps] } = await freeAccount(2);
+    if (mac === undefined || vps === undefined) {
+      throw new Error('two runners were enrolled');
+    }
+    await enqueueJob(slug, { kind: 'review', role: 'qa' }, owner);
+    const second = await enqueueJob(slug, { kind: 'review', role: 'security' }, owner);
+    const first = await claim(mac);
+    expect(first).not.toBeNull();
+    // `claim` asserts the 204's Retry-After.
+    expect(await claim(vps)).toBeNull();
+
+    const finished = await sendAsRunner(mac, 'POST', `/api/v1/runner/jobs/${first?.job.id ?? ''}/finish`, { result: 'finished', summary: 'done' });
+    expect(finished.status).toBe(200);
+    expect((await claim(vps))?.job.id).toBe(second);
+  });
+
+  it('the operator’s override sets the limit: 2 admits two at once, 0 admits none', async () => {
+    // Each runner runs one job at a time (its own `maxConcurrency` 1), so three runners can reach the account's limit.
+    const { owner, slug, runners } = await freeAccount(3);
+    for (const role of ['qa', 'security', 'reviewer']) {
+      await enqueueJob(slug, { kind: 'review', role }, owner);
+    }
+    await setEntitlements(owner.account.id, '{"max_concurrency":2}');
+    const claims = [];
+    for (const runner of runners) {
+      claims.push(await claim(runner));
+    }
+    expect(claims.map((claimed) => claimed !== null)).toEqual([true, true, false]);
+
+    const stopped = await freeAccount(1);
+    await setEntitlements(stopped.owner.account.id, '{"max_concurrency":0}');
+    await enqueueJob(stopped.slug, {}, stopped.owner);
+    const [only] = stopped.runners;
+    expect(only === undefined ? null : await claim(only)).toBeNull();
+  });
+
+  it('two claims at once for the account’s last slot: one 200, one 204', async () => {
+    const { owner, slug, runners: [mac, vps] } = await freeAccount(2);
+    if (mac === undefined || vps === undefined) {
+      throw new Error('two runners were enrolled');
+    }
+    await enqueueJob(slug, { kind: 'review', role: 'qa' }, owner);
+    await enqueueJob(slug, { kind: 'review', role: 'security' }, owner);
+    const statuses = await Promise.all([mac, vps].map(async (runner) => (await sendAsRunner(runner, 'POST', CLAIM, {})).status));
+    expect(statuses.sort()).toEqual([200, 204]);
+    const live = await env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE project_slug = ?1 AND state = 'claimed'`)
+      .bind(slug)
+      .first<{ n: number }>();
+    expect(live?.n).toBe(1);
   });
 });
 

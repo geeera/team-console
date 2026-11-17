@@ -523,4 +523,36 @@ describe('QuestionList', () => {
       expect(root.querySelector('[data-testid="budget-stop-readonly"]')).not.toBeNull();
     });
   });
+
+  describe('jobs the account’s entitlement holds back (#746, max_concurrency 0)', () => {
+    it('is one plain row above the cards that says why, never the empty state', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+        ...needsYouBody([]),
+        projects: [
+          {
+            slug: 'acme',
+            name: 'Acme',
+            setup: false,
+            setupUrl: null,
+            paused: false,
+            pausedUrl: null,
+            problem: null,
+            concurrencyStop: { queuedJobs: 2 },
+          },
+        ],
+      });
+      await settle();
+
+      const rows = root.querySelectorAll('[data-testid="project-attention"] [data-testid="concurrency-stop"]');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'Acme: задания не запускаются — тариф аккаунта не допускает ни одного задания одновременно. В очереди: 2. Этот лимит меняет оператор консоли.',
+      );
+      // Nothing to press: the operator, not the owner, lifts it.
+      expect(rows[0]?.querySelector('a, button')).toBeNull();
+      expect(root.querySelector('[data-testid="empty"]')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('проектов: 1');
+    });
+  });
 });

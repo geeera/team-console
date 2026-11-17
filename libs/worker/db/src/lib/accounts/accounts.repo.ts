@@ -1,13 +1,13 @@
 import { isReservedSlug, isUlid, isValidSlug, type AccountPlan, type MemberRole } from '@shared/contracts';
 import { isConstraintError } from '../tracker/constraint-error';
-import { hostedRunnerAdmittedSql, machineBoundPolicySql } from '../team-config/access-source';
+import { hostedRunnerAdmittedSql } from '../team-config/access-source';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from './audit.repo';
 
 /**
- * A placement write: `access-source-hosted` (ADR 0009 d.3) or `placement-machine-bound` — a `pinned`/`failover`
- * policy for a project dispatched to GitHub Actions (#695 item 2), which would never run on the machines it names.
+ * A placement write: `access-source-hosted` (ADR 0009 d.3). A `pinned`/`failover` policy on a project dispatched to
+ * GitHub Actions is no refusal (#728): the claim applies it to the project's pull jobs, its `needs_local` ones.
  */
-export type PlacementWriteOutcome = 'ok' | 'access-source-hosted' | 'placement-machine-bound';
+export type PlacementWriteOutcome = 'ok' | 'access-source-hosted';
 
 /** One `accounts` row (migration 0018). `entitlements` is the operator's parsed override; read it via `entitlementsOf`. */
 export interface AccountRecord {
@@ -96,26 +96,13 @@ export class AccountsRepo {
              AND NOT EXISTS (
                SELECT 1 FROM projects sp
                WHERE sp.account_id = ?1 AND sp.runner_policy IS NULL AND sp.access_source = 'subscription'
-                 AND ${hostedRunnerAdmittedSql('sp.slug', '?2')})
-             AND NOT (${machineBoundPolicySql('?2')} AND EXISTS (
-               SELECT 1 FROM projects dp WHERE dp.account_id = ?1 AND dp.runner_policy IS NULL AND dp.dispatch = 'actions'))`,
+                 AND ${hostedRunnerAdmittedSql('sp.slug', '?2')})`,
           )
           .bind(accountId, policyJson),
         audit,
       ),
     ]);
-    if (write?.meta.changes === 1) {
-      return 'ok';
-    }
-    // The UPDATE judged it; this read only names which refusal held.
-    const bound = await this.db
-      .prepare(
-        `SELECT ${machineBoundPolicySql('?2')} AND EXISTS (
-           SELECT 1 FROM projects dp WHERE dp.account_id = ?1 AND dp.runner_policy IS NULL AND dp.dispatch = 'actions') AS hit`,
-      )
-      .bind(accountId, policyJson)
-      .first<{ hit: number }>();
-    return bound?.hit === 1 ? 'placement-machine-bound' : 'access-source-hosted';
+    return write?.meta.changes === 1 ? 'ok' : 'access-source-hosted';
   }
 
   /**
@@ -136,21 +123,13 @@ export class AccountsRepo {
           .prepare(
             `UPDATE projects SET runner_policy = ?2
              WHERE slug = ?1
-               AND NOT (projects.access_source = 'subscription' AND ${hostedRunnerAdmittedSql('?1', effective)})
-               AND NOT (projects.dispatch = 'actions' AND ${machineBoundPolicySql(effective)})`,
+               AND NOT (projects.access_source = 'subscription' AND ${hostedRunnerAdmittedSql('?1', effective)})`,
           )
           .bind(slug, policyJson),
         audit,
       ),
     ]);
-    if (write?.meta.changes === 1) {
-      return 'ok';
-    }
-    const bound = await this.db
-      .prepare(`SELECT projects.dispatch = 'actions' AND ${machineBoundPolicySql(effective)} AS hit FROM projects WHERE slug = ?1`)
-      .bind(slug, policyJson)
-      .first<{ hit: number }>();
-    return bound?.hit === 1 ? 'placement-machine-bound' : 'access-source-hosted';
+    return write?.meta.changes === 1 ? 'ok' : 'access-source-hosted';
   }
 
   async findById(id: string): Promise<AccountRecord | null> {
