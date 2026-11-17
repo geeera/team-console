@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { ENROL_CODE_ENV } from '@shared/contracts';
 import { EnrolUsageError } from './enrol';
-import { enrolCodeOf, readFirstLine, stdinCodeReader } from './enrol-code';
+import { enrolCodeOf, extractEnrolCode, readFirstLine, stdinCodeReader } from './enrol-code';
 
 const CODE = `tce_${'C'.repeat(43)}`;
 
@@ -85,5 +85,50 @@ describe('enrolCodeOf', () => {
 
   it('refuses --code - when there is no stdin to read', async () => {
     await expect(enrolCodeOf('-', {}, undefined)).rejects.toBeInstanceOf(EnrolUsageError);
+  });
+
+  // #772: the owner pasted the whole line Settings › Runners shows at the --code - prompt.
+  const LINE = `TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://team-console-dev.example.dev`;
+
+  it('takes the code out of the whole command pasted at the prompt', async () => {
+    expect(await enrolCodeOf('-', {}, async () => await Promise.resolve(LINE))).toBe(CODE);
+  });
+
+  it(`takes the code out of ${ENROL_CODE_ENV} holding the whole command`, async () => {
+    expect(await enrolCodeOf(undefined, { [ENROL_CODE_ENV]: LINE }, undefined)).toBe(CODE);
+  });
+});
+
+describe('extractEnrolCode', () => {
+  const OTHER = `tce_${'D'.repeat(43)}`;
+
+  it.each([
+    ['the bare code', CODE],
+    ['the command line', `TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://console.example`],
+    ['a quoted code', `"${CODE}"`],
+    ['a code inside prompt noise', `$ export TC_ENROL_CODE='${CODE}';`],
+  ])('finds exactly one code in %s', (_, text) => {
+    expect(extractEnrolCode(text)).toBe(CODE);
+  });
+
+  it.each([
+    ['two codes', `${CODE} ${OTHER}`, /2 tce_… codes in what was given: paste one code only/],
+    ['the same code twice', `TC_ENROL_CODE=${CODE} ${CODE}`, /2 tce_… codes/],
+    ['no code', 'team-console-runner enrol --url https://console.example', /no one-time tce_… code/],
+    ['an empty line', '', /no one-time tce_… code/],
+    ['a code too short', 'tce_abc', /no one-time tce_… code/],
+    ['a code glued to a word', `xtce_${'C'.repeat(43)}`, /no one-time tce_… code/],
+    ['a job token', `tcj_${'C'.repeat(43)}`, /no one-time tce_… code/],
+  ])('refuses %s without repeating what was given', (_, text, message) => {
+    let error: unknown;
+    try {
+      extractEnrolCode(text);
+    } catch (caught: unknown) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(EnrolUsageError);
+    expect((error as Error).message).toMatch(message);
+    expect((error as Error).message).not.toContain('C'.repeat(20));
+    expect((error as Error).message).not.toContain('D'.repeat(20));
   });
 });

@@ -5,7 +5,7 @@
   <key>Label</key><string>com.team-console.runner</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/opt/homebrew/bin/node</string>
+    <string>/opt/homebrew/opt/node/bin/node</string>
     <string>/usr/local/lib/team-console-runner/team-console-runner.mjs</string>
     <string>run</string>
     <string>--loop</string>
@@ -14,7 +14,7 @@
   <dict>
     <key>TC_RUNNER_HOME</key><string>/Users/_tcrunner</string>
     <key>HOME</key><string>/Users/_tcrunner</string>
-    <key>PATH</key><string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>PATH</key><string>/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
   </dict>
   <key>WorkingDirectory</key><string>/Users/_tcrunner</string>
   <key>Umask</key><integer>23</integer>
