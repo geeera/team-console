@@ -360,6 +360,17 @@ describe('run-once --oidc', () => {
       expect(wire.requests).toEqual([]);
     });
 
+    it('missing env vars: one refusal prefix, not two (#715)', async () => {
+      const { exit, wire } = run({
+        env: { TC_CONSOLE_URL: undefined, TC_CONSOLE_AUDIENCE: undefined, ACTIONS_ID_TOKEN_REQUEST_URL: undefined },
+      });
+      expect(await exit).toBe(EXIT_FAILED);
+      expect(err).toEqual([
+        'run-once --oidc refused: TC_CONSOLE_URL is not set; TC_CONSOLE_AUDIENCE is not set; ACTIONS_ID_TOKEN_REQUEST_URL is not set.',
+      ]);
+      expect(wire.requests).toEqual([]);
+    });
+
     it('a missing inference key, before the job’s one exchange is spent', async () => {
       const { exit, wire } = run({ env: { TC_INFERENCE_API_KEY: undefined } });
       expect(await exit).toBe(EXIT_FAILED);

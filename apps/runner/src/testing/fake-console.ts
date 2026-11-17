@@ -55,6 +55,7 @@ export const sentinels = {
   jobToken: `tcj_${'J'.repeat(43)}`,
   enrolmentCode: `tce_${'E'.repeat(43)}`,
   anthropicKey: `sk-ant-api03-${'A'.repeat(40)}`,
+  subscriptionToken: `sk-ant-oat01-${'S'.repeat(40)}`,
   githubToken: `ghs_${'G'.repeat(36)}`,
 } as const;
 

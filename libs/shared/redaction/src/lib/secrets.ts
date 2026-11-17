@@ -46,6 +46,12 @@ export const JOB_TOKEN_PREFIX = 'tcj_';
 export const ENROLMENT_CODE_PREFIX = 'tce_';
 /** The characters of the random part of a job token or an enrolment code, and how many: base64url of 32 bytes. */
 export const OPAQUE_TOKEN_TAIL = String.raw`[A-Za-z0-9_-]{43}`;
+/**
+ * A Claude subscription (OAuth) login token from `claude setup-token` (#713): never an API key, so a value that
+ * starts with this prefix must never run as `ANTHROPIC_API_KEY` on a hosted or Actions job (owner decision
+ * 2026-11-09, multi-tenant rule).
+ */
+export const ANTHROPIC_OAUTH_TOKEN_PREFIX = 'sk-ant-oat';
 
 interface SecretPattern {
   readonly kind: SecretKind;

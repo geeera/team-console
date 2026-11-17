@@ -58,6 +58,16 @@ describe('credential kinds', () => {
     ).resolves.toEqual({ kind: 'api-key', name: 'ANTHROPIC_API_KEY', value: sentinels.anthropicKey });
   });
 
+  it('refuses a subscription-shaped api-key file, and never echoes it', async () => {
+    await writeFile(join(home, 'credentials', 'anthropic.key'), `${sentinels.subscriptionToken}\n`, {
+      mode: 0o600,
+    });
+    const refused = jobCredentialOf(home, { kind: 'api-key', file: 'credentials/anthropic.key' }, 'none');
+    await expect(refused).rejects.toMatchObject({ reason: 'credential-not-allowed' });
+    const error: unknown = await refused.catch((caught: unknown) => caught);
+    expect(String((error as Error).message)).not.toContain(sentinels.subscriptionToken);
+  });
+
   it('is null when no credential is configured', async () => {
     await expect(jobCredentialOf(home, undefined, 'none')).resolves.toBeNull();
   });
@@ -270,6 +280,15 @@ describe('the api-key credential from TC_INFERENCE_API_KEY', () => {
     const refused = jobCredentialOf('/nonexistent', fromEnv, 'actions-ephemeral', env);
     await expect(refused).rejects.toThrow(LaunchRefusal);
     await expect(refused).rejects.toThrow(/^TC_INFERENCE_API_KEY does not hold one credential line$/);
+  });
+
+  it('refuses a subscription-shaped value, and never echoes it', async () => {
+    const refused = jobCredentialOf('/nonexistent', fromEnv, 'actions-ephemeral', {
+      [INFERENCE_API_KEY_ENV]: sentinels.subscriptionToken,
+    });
+    await expect(refused).rejects.toMatchObject({ reason: 'credential-not-allowed' });
+    const error: unknown = await refused.catch((caught: unknown) => caught);
+    expect(String((error as Error).message)).not.toContain(sentinels.subscriptionToken);
   });
 
   it('still refuses an OAuth kind on an Actions job', () => {

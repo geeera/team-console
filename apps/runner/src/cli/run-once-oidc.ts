@@ -163,7 +163,8 @@ export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToke
     problems.push(`${ACTIONS_RUN_ENV.claude} must be an absolute path`);
   }
   if (problems.length > 0 || apiUrl === null || idTokenRequestUrl === null || server === null) {
-    throw new ActionsRunError(`run-once --oidc cannot start: ${problems.join('; ')}.`);
+    // No own prefix here: the caller (`runOidc` in cli.ts) already prefixes every refusal once.
+    throw new ActionsRunError(`${problems.join('; ')}.`);
   }
   return {
     apiUrl,
