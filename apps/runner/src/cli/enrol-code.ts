@@ -13,10 +13,14 @@ const CODE_LINE_MAX_BYTES = 1024;
 
 export type ReadCodeLine = () => Promise<string>;
 
-/** The first line of `input`, trimmed; at most {@link CODE_LINE_MAX_BYTES}, whatever follows it is never read. */
+/**
+ * The first line of `input`, trimmed; at most `maxBytes`, whatever follows it is never read. `flag` names the option
+ * that asked for stdin, for the refusal of an overlong line.
+ */
 export async function readFirstLine(
   input: AsyncIterable<string | Buffer>,
   maxBytes: number = CODE_LINE_MAX_BYTES,
+  flag = '--code -',
 ): Promise<string> {
   let text = '';
   for await (const chunk of input) {
@@ -26,7 +30,7 @@ export async function readFirstLine(
       return text.slice(0, end).trim();
     }
     if (Buffer.byteLength(text) > maxBytes) {
-      throw new EnrolUsageError(`--code - reads one line of at most ${String(maxBytes)} bytes from stdin`);
+      throw new EnrolUsageError(`${flag} reads one line of at most ${String(maxBytes)} bytes from stdin`);
     }
   }
   return text.trim();

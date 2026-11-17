@@ -433,6 +433,49 @@ describe('the budget stop', () => {
     expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
   });
 
+  it('a budget lowered under the spend after a waiver ends it and pauses at once; the claim refuses (#737 regression)', async () => {
+    const slug = await project({ budget: { monthly_usd: 10 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    await runOne(slug, mac, 10);
+    expect((await resumeThisMonth(slug, T2)).waivedMonth).toBe('2026-11');
+    await enqueue(slug);
+    // In flight across the save: its finish must not lift the stop the save sets.
+    const inFlight = await claimAs(mac);
+    await enqueue(slug);
+    await runOne(slug, mac, 10);
+    expect((await spend.findMonth(slug, '2026-11')).spentUsd).toBe(20);
+    expect((await teamState.get(slug)).pausedAt).toBeNull();
+
+    await save(slug, { budget: { monthly_usd: 5 } }, T2);
+    expect(await waivedAtOf(slug, '2026-11')).toBeNull();
+    expect(await teamState.get(slug)).toMatchObject({ pausedBy: BUDGET_PAUSER, pausedAt: T2 });
+    expect(await teamState.budgetStopsOf([slug], T2)).toEqual([
+      { projectSlug: slug, stoppedAt: T2, month: '2026-11', spentUsd: 20, budgetUsd: 5 },
+    ]);
+    expect(await claimAs(mac)).toBeNull();
+
+    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 100 }, acted: false };
+    expect(
+      await jobs.finish(inFlight?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug), spent(100, slug)),
+    ).toBe(true);
+    expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
+    expect(await claimAs(mac)).toBeNull();
+  });
+
+  it('a save that keeps the budget keeps the waiver, whatever else it changes (#737)', async () => {
+    const slug = await project({ budget: { monthly_usd: 2 } });
+    const mac = await runner([slug]);
+    await enqueue(slug);
+    await runOne(slug, mac, 3);
+    expect((await resumeThisMonth(slug, T2)).waivedMonth).toBe('2026-11');
+    await save(slug, { budget: { monthly_usd: 2 }, language: 'en' });
+    expect(await waivedAtOf(slug, '2026-11')).toBe(T2);
+    expect((await teamState.get(slug)).pausedAt).toBeNull();
+    await enqueue(slug);
+    expect((await claimAs(mac))?.projectSlug).toBe(slug);
+  });
+
   it('resuming an owner’s pause waives nothing', async () => {
     const slug = await project({ budget: { monthly_usd: 2 } });
     expect(await teamState.pause(slug, 'owner', T1, auditOf('team.paused', slug))).toBe(true);

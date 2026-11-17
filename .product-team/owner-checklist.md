@@ -261,6 +261,49 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    кроме go на выкладку. `update` никогда не ставит версию ниже установленной или ниже минимума.
 6. **Установка на твой Mac** — `docs/runbooks/runner.md` (#576, `needs:local`).
 
+## Раннер: GitHub Actions (#671 — первый настоящий запуск на dev)
+
+Шаблон workflow (`apps/runner/templates/team-console-runner.yml`), его спека и раздел «GitHub Actions» в
+`docs/runbooks/runner.md` готовы, но настоящий запуск `workflow_dispatch` агент сделать не может: нужны тестовый
+репозиторий, установка приложения, секрет и переключатель проекта — всё это делаете вы. Порядок:
+
+1. **Первый релиз раннера.** Шаблон закреплён на версии `0.1.0` (`RUNNER_VERSION`). Нужен релиз `v0.1.0` из раздела
+   «Раннер: релизы» выше (шаги 1–3). Если вы выпустите другую версию, скажите команде: она поменяет закрепление в
+   шаблоне обычным PR.
+2. **Право `Actions: write` у приложения `team-console-dev`.** github.com → Settings → Developer settings → GitHub
+   Apps → `team-console-dev` → Permissions → Repository permissions → **Actions: Read and write** → Save, затем
+   подтвердите новое право в установке приложения (Install App → Configure → Review request). Консоль выпускает
+   токен с этим правом только для одного репозитория и на час (ADR 0008, вопрос 1 в #573). Пропустите шаг, если уже
+   сделали.
+3. **Тестовый репозиторий.** Создайте, например, `geeera/tc-actions-test`: ветка по умолчанию `main`, внутри — плагин
+   в `.claude/product-team`, как в продуктовых репозиториях. Публичный репозиторий тратит бесплатные минуты Actions,
+   приватный — минуты вашего плана.
+4. **Установите приложение на репозиторий.** github.com → Settings → Applications → `team-console-dev` → Configure →
+   Repository access → добавьте `tc-actions-test`.
+5. **Environment, секрет и переменные** (в тестовом репозитории): Settings → Environments → New environment →
+   `team-console`. Deployment branches and tags → **Selected branches and tags** → правило Ref type **Branch**,
+   имя `main`, больше ничего; без Required reviewers. В нём же:
+   - Environment secret `TC_INFERENCE_API_KEY` — API-ключ Anthropic (`sk-ant-…`) из workspace с лимитом расходов;
+   - Environment variable `TC_CONSOLE_URL` = `https://team-console-dev.geeera.workers.dev`;
+   - Environment variable `TC_CONSOLE_AUDIENCE` = `team-console:dev`.
+6. **Файл workflow.** Скопируйте шаблон без изменений в `.github/workflows/team-console-runner.yml` ветки `main`
+   тестового репозитория.
+7. **Cloudflare Access на dev — нужно ваше решение.** Раннер (любой, не только этот) ходит в
+   `/api/v1/runner/*` только со своим JWT и не умеет отправлять заголовки service token Access. Если Access
+   закрывает весь `team-console-dev.geeera.workers.dev`, запуск получит страницу входа Access вместо ответа консоли.
+   Варианты: (a) в Zero Trust → Access → Applications добавить приложение на путь
+   `team-console-dev.geeera.workers.dev/api/v1/runner/*` с политикой **Bypass** (ADR 0008 «Customer runner
+   authentication without Access»: JWT раннера там достаточен), или (b) сначала научить раннер отправлять service
+   token (отдельная задача). Ответьте команде, какой вариант.
+8. **Проект в dev-консоли.** Добавьте проект на `geeera/tc-actions-test`, источник доступа — **API-ключ**,
+   размещение — **Any runner**. Затем Settings › Runners → проект → **Where jobs run** → **On GitHub Actions** →
+   Save.
+9. **Запуск.** Поставьте задачу проекта в очередь (Run now). В Actions тестового репозитория появится запуск
+   `team-console-runner`: все шаги зелёные, в том числе «Check that root is gone»; в консоли задача заканчивается
+   `finished`, а в списке раннеров временный раннер «GitHub Actions run …» исчезает после неё. Пришлите команде
+   ссылку на запуск. Если шаг «Give up root for the rest of the run» или «Check that root is gone» упал, пришлите его
+   лог: секретов в нём нет.
+
 ## Полный список переменных и секретов
 
 Имя каждой переменной и секрета, что это такое, где она живёт (`wrangler secret`, GitHub Environment secret/variable,

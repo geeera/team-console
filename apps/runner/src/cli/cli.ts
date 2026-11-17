@@ -26,7 +26,7 @@ import { autoUpdater } from '../update/auto-update';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
 import { EnrolUsageError, enrol } from './enrol';
 import { ENROL_CODE_STDIN, enrolCodeOf, type ReadCodeLine } from './enrol-code';
-import { runOnceOidc } from './run-once-oidc';
+import { REQUEST_TOKEN_STDIN, runOnceOidc } from './run-once-oidc';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
 export interface CliDeps {
@@ -57,6 +57,8 @@ export interface CliDeps {
   readonly nodeDir?: string;
   /** `lsof` for the `actions-ephemeral` sandbox sweep; the host's when absent. */
   readonly exec?: Exec;
+  /** One line of stdin for `run-once --oidc --request-token -`; absent when the process has no stdin to read. */
+  readonly readRequestTokenLine?: () => Promise<string>;
 }
 
 export const EXIT_OK = 0;
@@ -75,9 +77,10 @@ const USAGE = [
   '        --code -, from one line of stdin (prompted on a terminal). --code <tce_…> works too, but any local user',
   '        can read an argument with ps while enrol runs.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
-  '  run-once --oidc  Inside a GitHub Actions run: exchange the run\'s OIDC token for the job in TC_JOB_ID, run it',
-  '        and exit. Reads only its env (TC_CONSOLE_URL, TC_JOB_ID, TC_CONSOLE_AUDIENCE, TC_INFERENCE_API_KEY and',
-  '        GitHub\'s); keeps nothing; prints only the job id.',
+  '  run-once --oidc [--request-token -]  Inside a GitHub Actions run: exchange the run\'s OIDC token for the job in',
+  '        TC_JOB_ID, run it and exit. Reads only its env (TC_CONSOLE_URL, TC_JOB_ID, TC_CONSOLE_AUDIENCE,',
+  '        TC_INFERENCE_API_KEY and GitHub\'s) and, with --request-token -, ACTIONS_ID_TOKEN_REQUEST_TOKEN as one line',
+  '        of stdin instead of the env; keeps nothing; prints only the job id.',
   '  run --loop  Claim and run jobs until Ctrl-C.',
   '  update [--check]  Install the release the console names after `gh attestation verify` accepts it',
   '        (never a lower version); --check only says whether one is available.',
@@ -420,8 +423,15 @@ async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
 }
 
 /** `run-once --oidc`: exit 0 once the job ran (its result is the console's), non-zero on every refusal before it. */
-async function runOidc(deps: CliDeps): Promise<number> {
+async function runOidc(deps: CliDeps, requestTokenOnStdin: boolean): Promise<number> {
   try {
+    let stdinRequestToken: string | undefined;
+    if (requestTokenOnStdin) {
+      if (deps.readRequestTokenLine === undefined) {
+        throw new EnrolUsageError('--request-token - needs stdin, which this runner cannot read');
+      }
+      stdinRequestToken = await deps.readRequestTokenLine();
+    }
     const end = await runOnceOidc({
       env: deps.env,
       fetch: deps.fetch,
@@ -432,6 +442,7 @@ async function runOidc(deps: CliDeps): Promise<number> {
       now: deps.now ?? (() => new Date()),
       shutdown: deps.shutdown ?? new AbortController().signal,
       ...(deps.exec === undefined ? {} : { exec: deps.exec }),
+      ...(stdinRequestToken === undefined ? {} : { stdinRequestToken }),
     });
     if (end.kind === 'shutdown') {
       deps.stderr('Stopped before the exchange; the job stays queued for the console to settle.');
@@ -458,9 +469,14 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       return runInstallCommand(rest, deps);
     case 'run-once':
       if (rest.length === 1 && rest[0] === '--oidc') {
-        return runOidc(deps);
+        return runOidc(deps, false);
       }
-      return rest.length === 0 ? runJobs('once', deps) : usageError(deps, 'run-once takes only --oidc.');
+      if (rest.length === 3 && rest[0] === '--oidc' && rest[1] === '--request-token' && rest[2] === REQUEST_TOKEN_STDIN) {
+        return runOidc(deps, true);
+      }
+      return rest.length === 0
+        ? runJobs('once', deps)
+        : usageError(deps, 'run-once takes only --oidc [--request-token -].');
     case 'update':
       return runUpdate(rest, deps);
     case 'run':

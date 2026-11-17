@@ -6,7 +6,7 @@ import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github
 import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
-import { scopedProjectsOf, trackerProjectOf } from '../projects/lookup';
+import { canManageProject, scopedProjectsOf, trackerProjectOf } from '../projects/lookup';
 import { projectProblemOf } from '../read-models/errors';
 import { ProjectReads } from '../read-models/project-reads';
 import { TrackerReads, readsRows } from '../read-models/tracker-reads';
@@ -29,7 +29,9 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  * which the whole answer surfaces as 429 with `Retry-After` (the longest wait any project got), because the next
  * read of any project would hit the same limit.
  *
- * A project whose team the budget stopped (#684) carries `budgetStop`, its one "Budget used up" row.
+ * A project whose team the budget stopped (#684) carries `budgetStop`, its one "Budget used up" row. Every project
+ * also carries `canManage` (#735): the caller's own standing on it, the same check `projectOwnerRefusal` makes at
+ * write time, read once here as a hint for the UI.
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
@@ -109,6 +111,8 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
         stoppedAt: stop.stoppedAt,
       });
     }
-    return c.json(buildNeedsYou(results, omitted, budgetStops));
+    // #735: a hint only, read once per project here; the write routes refuse on their own regardless of it.
+    const canManage = new Map(read.map((row) => [row.slug, canManageProject(c, row)]));
+    return c.json(buildNeedsYou(results, omitted, budgetStops, canManage));
   });
 }

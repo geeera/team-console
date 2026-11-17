@@ -7,6 +7,8 @@ export interface ProjectSpendRecord {
   readonly month: string;
   readonly spentUsd: number;
   readonly jobs: number;
+  /** "Resume this month" waived the month's budget (#684); `null` while it caps the month. */
+  readonly waivedAt: string | null;
 }
 
 /** The UTC month `YYYY-MM` of an ISO instant. */
@@ -24,9 +26,15 @@ export class ProjectSpendRepo {
   /** The project's spend in `month`; a month with no row spent nothing. */
   async findMonth(projectSlug: string, month: string): Promise<ProjectSpendRecord> {
     const row = await this.db
-      .prepare(`SELECT spent_usd, jobs FROM project_spend WHERE project_slug = ?1 AND month = ?2`)
+      .prepare(`SELECT spent_usd, jobs, waived_at FROM project_spend WHERE project_slug = ?1 AND month = ?2`)
       .bind(projectSlug, month)
-      .first<{ spent_usd: number; jobs: number }>();
-    return { projectSlug, month, spentUsd: row?.spent_usd ?? 0, jobs: row?.jobs ?? 0 };
+      .first<{ spent_usd: number; jobs: number; waived_at: string | null }>();
+    return {
+      projectSlug,
+      month,
+      spentUsd: row?.spent_usd ?? 0,
+      jobs: row?.jobs ?? 0,
+      waivedAt: row?.waived_at ?? null,
+    };
   }
 }

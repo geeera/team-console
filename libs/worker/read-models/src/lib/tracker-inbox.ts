@@ -99,14 +99,18 @@ export function trackerInboxItemsOf(
   return classifiedRows(rows).map(({ item, allowedCommands }) => ({ item, allowedCommands }));
 }
 
-export function buildTrackerInbox(rows: readonly TrackerInboxRow[]): InboxDto {
+/**
+ * `paused` is the caller's to read, from `team_state` (#739): this module classifies rows only and has no D1
+ * access of its own, so the reader (`TrackerReads`) passes it in. Defaults to `false` for a caller that has not
+ * read it (every existing one, before #739).
+ */
+export function buildTrackerInbox(rows: readonly TrackerInboxRow[], paused = false): InboxDto {
   return {
     items: classifiedRows(rows).map(({ item }) => item),
     // Rows have no `team.reviewer_logins`: the owner-only routes are the gate, so there is no setup state.
     setup: false,
     setupUrl: null,
-    // TODO(#309 Phase 4): read the pause from `team_state` once it exists; until then a row-backed team is never paused.
-    paused: false,
+    paused,
     pausedUrl: null,
   };
 }

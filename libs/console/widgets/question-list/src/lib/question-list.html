@@ -35,7 +35,7 @@
 >
   @for (stop of budgetStops(); track stop.project.slug) {
   <li>
-    <tc-budget-stop [stop]="stop" (resolved)="reload()" />
+    <tc-budget-stop [stop]="stop" [canManage]="stop.canManage" (resolved)="reload()" />
   </li>
   }
   @for (setup of setups(); track setup.project.slug) {

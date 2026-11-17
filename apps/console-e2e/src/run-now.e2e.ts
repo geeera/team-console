@@ -1,8 +1,7 @@
-import { generateKeyPairSync, randomUUID, sign, type KeyObject } from 'node:crypto';
-import type { APIRequestContext } from '@playwright/test';
-import { OWNER_ACCOUNT_ID, runnerAudienceOf, type ClaimResponse } from '@shared/contracts';
+import type { ClaimResponse } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { asRunner, enrolRunner } from './support/runner';
 import { apiClient, seed } from './support/stack';
 import { switchToConsoleTracker } from './support/tracker-seed';
 
@@ -16,67 +15,6 @@ import { switchToConsoleTracker } from './support/tracker-seed';
 
 const SLUG = 'team-console';
 
-interface Runner {
-  readonly id: string;
-  readonly key: KeyObject;
-}
-
-const base64url = (value: string | Buffer): string => Buffer.from(value).toString('base64url');
-
-/** A runner JWT as the runner binary mints one: EdDSA, `sub` the runner, this environment's audience, 4 minutes. */
-function runnerJwt(runner: Runner): string {
-  const now = Math.floor(Date.now() / 1000);
-  const header = base64url(JSON.stringify({ alg: 'EdDSA' }));
-  const claims = base64url(
-    JSON.stringify({
-      sub: runner.id,
-      aud: runnerAudienceOf('local'),
-      iat: now,
-      exp: now + 240,
-      jti: randomUUID(),
-    }),
-  );
-  const signature = sign(null, Buffer.from(`${header}.${claims}`), runner.key);
-  return `${header}.${claims}.${base64url(signature)}`;
-}
-
-/** The owner's code, then the runner's own enrolment with a fresh key pair. */
-async function enrolRunner(api: APIRequestContext): Promise<Runner> {
-  const code = await api.post(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-code`, {
-    data: { name: 'E2E Mac', allowedProjects: [SLUG] },
-  });
-  expect(code.status(), await code.text()).toBe(201);
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const jwk = publicKey.export({ format: 'jwk' });
-  const enrolled = await api.post('/api/v1/runner/enrol', {
-    data: {
-      code: ((await code.json()) as { code: string }).code,
-      publicKey: { kty: 'OKP', crv: 'Ed25519', x: jwk.x },
-      host: { os: 'darwin', arch: 'arm64', hostname: 'e2e-mac.local' },
-      capabilities: { local: true, maxConcurrency: 1 },
-      isolation: 'user',
-      version: '0.3.0',
-    },
-  });
-  expect(enrolled.status(), await enrolled.text()).toBe(201);
-  return { id: ((await enrolled.json()) as { runnerId: string }).runnerId, key: privateKey };
-}
-
-async function asRunner(
-  api: APIRequestContext,
-  runner: Runner,
-  path: string,
-  data: unknown,
-): Promise<unknown> {
-  const response = await api.post(`/api/v1/runner${path}`, {
-    data,
-    headers: { Authorization: `Bearer ${runnerJwt(runner)}` },
-  });
-  expect(response.status(), `${path}: ${await response.text()}`).toBeLessThan(300);
-  const text = await response.text();
-  return text === '' ? null : (JSON.parse(text) as unknown);
-}
-
 test.beforeEach(({ stack }) => {
   requireLocalStack(stack);
 });
@@ -89,7 +27,7 @@ test('Run now queues a job, a runner claims it, and the board shows it with the 
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
   const api = await apiClient(stack);
   try {
-    const runner = await enrolRunner(api);
+    const runner = await enrolRunner(api, SLUG);
 
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto(`/p/${SLUG}/board`);

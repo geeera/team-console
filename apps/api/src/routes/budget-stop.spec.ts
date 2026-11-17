@@ -214,6 +214,49 @@ describe('the budget stop and its Needs-you row', () => {
   });
 });
 
+describe('a save after “Resume this month” (#737: a changed budget ends the waiver)', () => {
+  async function waivedAtTwenty(): Promise<{ project: SeededProject; runner: TestRunner }> {
+    const project = await seedTrackerProject();
+    await configure(project, { budget: { monthly_usd: 10 } });
+    const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
+    const first = await enqueue(project);
+    await claim(runner);
+    expect((await finish(runner, first, { total_cost_usd: 10 })).status).toBe(200);
+    expect((await send('POST', `${P}/${project.slug}/team/resume`, { waiveBudget: true })).status).toBe(201);
+    const second = await enqueue(project);
+    expect((await claim(runner))?.job.id).toBe(second);
+    expect((await finish(runner, second, { total_cost_usd: 10 })).status).toBe(200);
+    return { project, runner };
+  }
+
+  const pausedByOf = async (project: SeededProject): Promise<string | null> =>
+    (
+      await env.DB.prepare(`SELECT paused_by FROM team_state WHERE project_slug = ?1 AND paused_at IS NOT NULL`)
+        .bind(project.slug)
+        .first<{ paused_by: string }>()
+    )?.paused_by ?? null;
+
+  it('budget 10, spend 10, resume this month, spend 20, save 5: paused by the budget, the row is back, the claim refuses', async () => {
+    const { project, runner } = await waivedAtTwenty();
+    expect(await pausedByOf(project)).toBeNull();
+
+    await configure(project, { budget: { monthly_usd: 5 } });
+    expect(await pausedByOf(project)).toBe(BUDGET_PAUSER);
+    expect(await budgetStopOf(project)).toMatchObject({ spentUsd: 20, budgetUsd: 5 });
+    await enqueue(project);
+    expect(await claim(runner)).toBeNull();
+  });
+
+  it('a save that leaves the budget at 10 keeps the waiver: nothing pauses and the claim admits', async () => {
+    const { project, runner } = await waivedAtTwenty();
+    await configure(project, { budget: { monthly_usd: 10 }, language: 'en' });
+    expect(await pausedByOf(project)).toBeNull();
+    expect(await budgetStopOf(project)).toBeUndefined();
+    const next = await enqueue(project);
+    expect((await claim(runner))?.job.id).toBe(next);
+  });
+});
+
 describe('POST …/jobs: the role’s limits at enqueue', () => {
   it('lowers a larger maxMinutes to the role’s max_minutes, and takes the role’s when none is asked', async () => {
     const project = await seedTrackerProject();

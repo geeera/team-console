@@ -26,18 +26,22 @@ export type ProjectInboxResult =
 /**
  * The cross-project union (#16): every item tagged with its project, sorted by inbox order, then project in the
  * order given (the registry's), then issue number. A project the budget stopped (#684) carries its stop, whether its
- * inbox was read or not: the stop is the console's own record, not the inbox's.
+ * inbox was read or not: the stop is the console's own record, not the inbox's. `canManage` (#735) is the caller's
+ * own standing on the project (`projectOwnerRefusal` at the route), read once here for every row read or not; a
+ * slug missing from the map (a result that predates #735, in a test) reads as `true`, today's behaviour.
  */
 export function buildNeedsYou(
   results: readonly ProjectInboxResult[],
   omittedProjects: readonly NeedsYouProjectRef[],
   budgetStops: ReadonlyMap<string, NeedsYouBudgetStopDto> = new Map(),
+  canManageOf: ReadonlyMap<string, boolean> = new Map(),
 ): NeedsYouDto {
   const items: { item: NeedsYouItemDto; projectIndex: number }[] = [];
   const projects = results.map((result, projectIndex): NeedsYouProjectDto => {
     const ref = { slug: result.project.slug, name: result.project.name };
     const stop = budgetStops.get(ref.slug);
     const budget = stop === undefined ? {} : { budgetStop: stop };
+    const canManage = canManageOf.get(ref.slug) ?? true;
     if ('problem' in result) {
       return {
         ...ref,
@@ -46,6 +50,7 @@ export function buildNeedsYou(
         paused: false,
         pausedUrl: null,
         problem: result.problem,
+        canManage,
         ...budget,
       };
     }
@@ -60,6 +65,7 @@ export function buildNeedsYou(
       paused: result.inbox.paused,
       pausedUrl: result.inbox.pausedUrl,
       problem: null,
+      canManage,
       ...budget,
     };
   });

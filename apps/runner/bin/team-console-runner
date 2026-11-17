@@ -3,4 +3,6 @@
 # to it with the `node` on PATH; the bundle reads its own directory, so `bin/job-exec` and `update` find the prefix.
 set -eu
 prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
-exec node "$prefix/team-console-runner.mjs" "$@"
+# --disable-sigusr1: a process of the same uid (on actions-ephemeral and none, the job) must not be able to open the
+# inspector with `kill -USR1` and evaluate code inside the runner, which holds its key and the job's tokens.
+exec node --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"

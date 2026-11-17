@@ -21,6 +21,7 @@ function teamStatus(overrides: Partial<TeamStatusDto> = {}): TeamStatusDto {
     pendingRequests: 0,
     pauseHolds: true,
     pauseLiftsAtNextRun: false,
+    budget: null,
     slots: [
       { slot: 'pm', setup: 'present', secrets: secrets('PM'), lastRun: null, lock: null },
       { slot: 'dev', setup: 'present', secrets: secrets('DEV'), lastRun: null, lock: null },
@@ -51,6 +52,15 @@ describe('team status model', () => {
         slots: badLock.slots.map((slot) => ({ ...slot, lock: { kind: 'started' } })),
       }),
     ).toBe(false);
+  });
+
+  it('accepts the budget stop and the month’s budget of a console-tracker team (#738, #737), and refuses malformed ones', () => {
+    const month = { month: '2026-11', spentUsd: 20, budgetUsd: 5, waivedAt: '2026-11-16T10:06:00.000Z' };
+    expect(isTeamStatusDto({ ...teamStatus(), state: 'paused-by-budget', budget: month })).toBe(true);
+    expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, budgetUsd: null, waivedAt: null } })).toBe(true);
+    expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, spentUsd: -1 } })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, waivedAt: 1 } })).toBe(false);
+    expect(isTeamStatusDto({ ...teamStatus(), budget: undefined })).toBe(false);
   });
 
   it('accepts the sprint, progress and calendar of #218 and refuses malformed ones', () => {

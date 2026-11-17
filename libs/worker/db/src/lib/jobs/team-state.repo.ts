@@ -39,6 +39,15 @@ export interface BudgetStopRecord {
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
 
 /**
+ * Whether `team_state` holds any pause, whoever by (#739): the one check both the status read
+ * (`apps/api/src/team/console-team-state.ts`'s `teamStateOf`, which also names who) and a console-tracker project's
+ * Needs-you row (`TrackerReads`, #434) make of the same record, kept here so neither re-derives it.
+ */
+export function isTeamStatePaused(record: Pick<TeamStateRecord, 'pausedAt'>): boolean {
+  return record.pausedAt !== null;
+}
+
+/**
  * A pause that lapsed this recently still backs a limit failure (#596): a short `retryAt` can pass between the
  * runner's pause post and its finish, and the two clocks differ by seconds.
  */
@@ -76,10 +85,15 @@ export interface StreakOutcome {
   readonly excluded: boolean;
 }
 
-/** The account's `job.streak-excluded` rows inside the window, narrowed by `scope`. */
+/**
+ * The account's `job.streak-excluded` rows inside the window, narrowed by `scope`. `at` and `windowFrom` are both
+ * `toISOString()` (fixed-width, UTC, `Z`-suffixed), so a plain string compare orders them exactly as `julianday`
+ * would — and, unlike it, stays sargable: migration 0034's partial index covers `(account_id, at) WHERE kind =
+ * 'job.streak-excluded'`, which only a column-direct range (not one wrapped in `julianday()`) can use (#726).
+ */
 const excludedInWindow = (accountId: string, windowFrom: string, scope: string): string =>
   `(SELECT COUNT(*) FROM audit_events WHERE account_id = ${accountId} AND kind = 'job.streak-excluded'
-      AND julianday(at) > julianday(${windowFrom}) AND ${scope})`;
+      AND at > ${windowFrom} AND ${scope})`;
 
 /**
  * The finishing runner holds a pause in force, or one that lapsed inside the grace window, and neither it nor the

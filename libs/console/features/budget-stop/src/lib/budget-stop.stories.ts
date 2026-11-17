@@ -5,6 +5,7 @@ import { BudgetStop } from './budget-stop';
 
 interface Args {
   readonly stop: QuestionBudgetStop;
+  readonly canManage: boolean;
 }
 
 const STOP: QuestionBudgetStop = {
@@ -13,6 +14,8 @@ const STOP: QuestionBudgetStop = {
   spentUsd: 201.5,
   budgetUsd: 200,
   stoppedAt: '2026-11-16T10:00:00.000Z',
+  paused: false,
+  canManage: true,
 };
 
 const meta: Meta<Args> = {
@@ -26,11 +29,11 @@ const meta: Meta<Args> = {
     props: args,
     template: `
       <div style="max-width: calc(var(--card-min-w) * 2)">
-        <tc-budget-stop [stop]="stop" />
+        <tc-budget-stop [stop]="stop" [canManage]="canManage" />
       </div>
     `,
   }),
-  args: { stop: STOP },
+  args: { stop: STOP, canManage: true },
 };
 
 export default meta;
@@ -47,4 +50,12 @@ export const LongName: Story = {
   args: {
     stop: { ...STOP, project: { slug: 'long', name: 'Платформа внутренних инструментов для отдела продаж' } },
   },
+};
+/** An owner's own pause also holds (#739): `stoppedAt` is `null`, Raise will not word it away as a restart. */
+export const BesideAnOwnerPause: Story = {
+  args: { stop: { ...STOP, stoppedAt: null, paused: true } },
+};
+/** A project member (#735): the figures only, no `Resume this month` or `Raise budget`. */
+export const MemberReadOnly: Story = {
+  args: { canManage: false },
 };

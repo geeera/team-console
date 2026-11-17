@@ -26,25 +26,37 @@ import { createPrivateSandbox, jobsRootOf } from './sandbox';
 const KILL_GRACE_MS = 3_000;
 
 /**
- * `ESRCH`: nothing at that pid (or process group) any more. `EPERM`: something is, but it is not ours — under
- * load the OS can recycle a pid for an unrelated process between our grace period and the next signal, and if
- * that process belongs to another user the kernel's permission check refuses the signal before it is ever
- * delivered (#702). Either way there is nothing here that is ours to touch, so both are "not found" to every
- * caller below. This does *not* cover the pid being recycled for a process of our *own* uid: that send would
- * succeed with no error at all, and no error code can tell it apart from the real target — `kill()` below
- * narrows that window instead of trying to detect it.
+ * `ESRCH`: nothing at that pid (or process group) any more — nothing here is ours to touch, so it is "not
+ * found" to every caller below. `EPERM`: something is, but the signal was refused; two different causes share
+ * this code and `kill()` tells them apart instead of folding both into "gone":
+ *  - the pid recycled for an unrelated process of another user between our grace period and the next signal
+ *    (#702) — that process is not ours either, so this is "not found" too;
+ *  - every remaining member of *our own* job's group changed uid (e.g. a sudo/setuid child, #720) — the job
+ *    is still there and still running, just unsignalable, and must not be reported as finished.
+ * This does *not* cover the pid being recycled for a process of our own uid: that send would succeed with no
+ * error at all, and no error code can tell it apart from the real target — the liveness check right before
+ * SIGKILL narrows that window instead of trying to detect it.
  */
-function isNotOurs(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error.code === 'ESRCH' || error.code === 'EPERM');
+function isGone(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ESRCH';
 }
 
-function signalGroup(pid: number, signal: NodeJS.Signals): boolean {
+function isRefused(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'EPERM';
+}
+
+type SignalOutcome = 'signalled' | 'gone' | 'refused';
+
+function signalGroup(pid: number, signal: NodeJS.Signals): SignalOutcome {
   try {
     process.kill(-pid, signal);
-    return true;
+    return 'signalled';
   } catch (error: unknown) {
-    if (isNotOurs(error)) {
-      return false;
+    if (isGone(error)) {
+      return 'gone';
+    }
+    if (isRefused(error)) {
+      return 'refused';
     }
     throw error;
   }
@@ -56,7 +68,7 @@ function groupAlive(pid: number): boolean {
     process.kill(-pid, 0);
     return true;
   } catch (error: unknown) {
-    if (isNotOurs(error)) {
+    if (isGone(error) || isRefused(error)) {
       return false;
     }
     throw error;
@@ -140,8 +152,14 @@ export class NoneBackend implements IsolationBackend {
   }
 
   async kill(running: RunningJob): Promise<void> {
-    if (!signalGroup(running.pid, 'SIGTERM')) {
+    const sent = signalGroup(running.pid, 'SIGTERM');
+    if (sent === 'gone') {
       return;
+    }
+    if (sent === 'refused') {
+      // Every member of the group refused the signal (#720): unlike a recycled, unrelated pid, this is the
+      // job we spawned, still running and now unsignalable — report it instead of treating it as finished.
+      throw new BackendError(`job ${String(running.pid)}'s process group refused SIGTERM (EPERM); it may still be running`);
     }
     const exited = await Promise.race([
       running.exited.then(() => true),
@@ -165,7 +183,9 @@ export class NoneBackend implements IsolationBackend {
       try {
         process.kill(pid, 'SIGKILL');
       } catch (error: unknown) {
-        if (!isNotOurs(error)) {
+        // A swept pid is not necessarily one we spawned (it only shares the sandbox dir), so both "gone" and
+        // "refused" are expected here and swallowed, unlike the job's own group in `kill()` above.
+        if (!isGone(error) && !isRefused(error)) {
           throw error;
         }
       }

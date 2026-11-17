@@ -29,6 +29,13 @@ import { hostFieldOf } from './enrol';
  * job on the `actions-ephemeral` backend through the ordinary heartbeat/events/proxy/finish protocol. The console
  * revokes the identity at `finish`.
  *
+ * The request token may come on stdin instead (`--request-token -`, #712): the workflow template passes it that way,
+ * so this process, which supervises the job for the whole run, never has it in its environment (`/proc/<pid>/environ`
+ * is readable by the job, which runs as the same uid on the VM). The token then lives in this process's memory only,
+ * together with the job's console identity. Two controls keep the job out of that memory: the template's ptrace scope
+ * 2 (no attach) and `--disable-sigusr1` (launcher and template `NODE_OPTIONS`), without which the job could open this
+ * process's Node inspector with `kill -USR1` and evaluate code in it. A local privilege escalation still reaches it.
+ *
  * Output: stdout carries the job id and nothing else; the CLI's stream goes to the job's events; the runner's own
  * lines go to stderr through the redactor. The inference key, the OIDC token, the request token and the read token
  * never reach either.
@@ -50,6 +57,11 @@ export const ACTIONS_RUN_ENV = {
   /** Optional: `${{ github.token }}` (`contents: read`), the mirror fetch's read token. */
   readToken: 'GITHUB_TOKEN',
 } as const;
+
+/** `run-once --oidc --request-token -`: the request token is one line of stdin, never an env value or an argument. */
+export const REQUEST_TOKEN_STDIN = '-';
+/** A request token is a JWT of about a kilobyte; the same bound as an env value. */
+export const REQUEST_TOKEN_MAX_BYTES = 8192;
 
 /** The runner home inside the VM's per-job temp directory, which GitHub empties after the job. */
 export const ACTIONS_HOME_DIR = 'tc';
@@ -77,9 +89,10 @@ type Env = Readonly<Record<string, string | undefined>>;
 /**
  * The run's settings from `env`, or an `ActionsRunError` naming every variable that is missing or wrong (names only,
  * never a value). `nodeDir` is where the running node lives: the job's PATH starts there, so a CLI installed with
- * that node's `npm i -g` is found.
+ * that node's `npm i -g` is found. `stdinRequestToken` is the line `--request-token -` read; with it, the variable
+ * must be unset, so which of the two was used is never a guess.
  */
-export function actionsRunSettingsOf(env: Env, nodeDir: string): ActionsRunSettings {
+export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToken?: string): ActionsRunSettings {
   const problems: string[] = [];
   const read = (name: string): string => {
     const value = env[name]?.trim() ?? '';
@@ -120,7 +133,18 @@ export function actionsRunSettingsOf(env: Env, nodeDir: string): ActionsRunSetti
   if (idTokenUrl !== '' && idTokenRequestUrl === null) {
     problems.push(`${ACTIONS_RUN_ENV.idTokenUrl} must be an https URL`);
   }
-  const idTokenToken = read(ACTIONS_RUN_ENV.idTokenToken);
+  let idTokenToken: string;
+  if (stdinRequestToken === undefined) {
+    idTokenToken = read(ACTIONS_RUN_ENV.idTokenToken);
+  } else {
+    idTokenToken = stdinRequestToken.trim();
+    if (optional(ACTIONS_RUN_ENV.idTokenToken) !== null) {
+      problems.push(`give the request token once: --request-token - or ${ACTIONS_RUN_ENV.idTokenToken}, not both`);
+    }
+    if (!TOKEN_VALUE.test(idTokenToken)) {
+      problems.push('--request-token - did not read one token from stdin');
+    }
+  }
   const serverUrl = read(ACTIONS_RUN_ENV.serverUrl);
   const server = serverUrl === '' ? null : apiOriginOf(serverUrl);
   if (serverUrl !== '' && server === null) {
@@ -179,12 +203,14 @@ export interface OidcRunDeps {
   /** `lsof` for the sandbox sweep; the host's when absent. */
   readonly exec?: Exec;
   readonly timing?: { readonly heartbeatMs?: number; readonly flushMs?: number; readonly minuteMs?: number };
+  /** The request token `--request-token -` read from stdin; absent when it comes from the env. */
+  readonly stdinRequestToken?: string;
 }
 
 export type OidcRunEnd = { readonly kind: 'ran'; readonly report: JobReport } | { readonly kind: 'shutdown' };
 
 export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
-  const settings = actionsRunSettingsOf(deps.env, deps.nodeDir);
+  const settings = actionsRunSettingsOf(deps.env, deps.nodeDir, deps.stdinRequestToken);
   const sourceEnv = jobSourceEnvOf(deps.env);
   const credential = { kind: 'api-key', env: INFERENCE_API_KEY_ENV } as const;
   try {

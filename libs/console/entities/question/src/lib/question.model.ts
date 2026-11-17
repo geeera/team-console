@@ -65,6 +65,14 @@ export interface QuestionProjectSetup {
 /** A team the month's budget stopped (#684): its one "Budget used up" row. */
 export interface QuestionBudgetStop extends NeedsYouBudgetStopDto {
   readonly project: NeedsYouProjectRef;
+  /**
+   * The project's own pause (#739), from `NeedsYouProjectDto.paused`: whether it holds regardless of the budget.
+   * `stoppedAt === null` together with this `true` means an owner's pause (or another non-budget pause) is what
+   * refuses the claim, not the budget alone, so Raise and Resume must not promise a restart.
+   */
+  readonly paused: boolean;
+  /** Whether this identity may use the row's two actions (#735), from `NeedsYouProjectDto.canManage`. */
+  readonly canManage: boolean;
 }
 
 export interface NeedsYouView {
@@ -281,6 +289,12 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
               spentUsd: project.budgetStop.spentUsd,
               budgetUsd: project.budgetStop.budgetUsd,
               stoppedAt: project.budgetStop.stoppedAt,
+              // Only `true` counts (the guard leaves `paused` unchecked, as it does `setup`): a malformed value
+              // never invents a pause the row did not get from the server.
+              paused: project.paused === true,
+              // Absent or malformed reads as `true` (a server that predates #735): today's behaviour, never a
+              // tighter restriction the server did not ask for.
+              canManage: project.canManage !== false,
             },
           ],
     ),

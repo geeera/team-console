@@ -9,6 +9,7 @@ import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import { localEnv, stubGitHub } from '../testing/github-kit';
 import { issue, readModelGitHub, type RepoState } from '../testing/read-model-kit';
+import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
 import {
   seedAsk,
   seedImportedAsk,
@@ -161,5 +162,48 @@ describe('GET /api/v1/projects/:slug/{inbox,questions} of a console project', ()
   it('is still a 404 for an unknown project', async () => {
     const response = await fetchApi('/api/v1/projects/nope-434/inbox', localEnv());
     expect(response.status).toBe(404);
+  });
+});
+
+describe('GET /api/v1/needs-you: the project’s own pause (#739)', () => {
+  it('reports `paused: true` for a console-tracker project team_state holds paused', async () => {
+    const project = await seedTrackerProject();
+    const stub = stubGitHub(readModelGitHub({}));
+    const bindings = { github: new ApiGitHub({ fetch: stub.fetch }) };
+    const paused = await fetchApi(`/api/v1/projects/${project.slug}/team/pause`, localEnv(), {
+      ...bindings,
+      method: 'POST',
+      headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'e2e' }),
+    });
+    expect(paused.status, await paused.text()).toBe(201);
+
+    const body = (await (
+      await fetchApi('/api/v1/needs-you', localEnv(), bindings)
+    ).json()) as NeedsYouDto;
+    expect(body.projects.find((row) => row.slug === project.slug)).toMatchObject({ paused: true });
+  });
+});
+
+describe('GET /api/v1/needs-you: canManage (#735)', () => {
+  it('is true for the project’s owner and false for a member of the same account', async () => {
+    const owner = await seedSessionUser('owner');
+    const member = await seedSessionUser('member');
+    // Both read the same project: the member joins the owner's account, not the other way round.
+    await env.DB.prepare('INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)')
+      .bind(owner.account.id, member.userId, 'member', '2026-11-10T00:00:00.000Z')
+      .run();
+    const project = await seedAccountProject(owner.account, { tracker: 'console' });
+    const github = new ApiGitHub({ fetch: stubGitHub(readModelGitHub({})).fetch });
+
+    const asOwner = (await (
+      await sendAsSession(owner, 'GET', '/api/v1/needs-you', undefined, { github })
+    ).json()) as NeedsYouDto;
+    expect(asOwner.projects.find((row) => row.slug === project.slug)).toMatchObject({ canManage: true });
+
+    const asMember = (await (
+      await sendAsSession(member, 'GET', '/api/v1/needs-you', undefined, { github })
+    ).json()) as NeedsYouDto;
+    expect(asMember.projects.find((row) => row.slug === project.slug)).toMatchObject({ canManage: false });
   });
 });
