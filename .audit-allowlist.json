@@ -1,3 +1,11 @@
 {
-  "entries": []
+  "entries": [
+    {
+      "ghsaId": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "reason": "ReDoS through a single-branch repeated extglob. No patched version exists (vulnerable range <= 4.0.7; first_patched_version: null). Every resolution in the lockfile (4.0.7 under @angular-devkit/build-angular -> tinyglobby/fdir, @angular-devkit/core, @angular/build, vite, vitest; 4.0.4 under @nx/angular, @nx/js, @nx/vite, @nx/workspace; 2.3.2 under micromatch via http-proxy-middleware) is dev/build tooling only (`npm ls picomatch --all --omit=dev` is empty); confirmed absent from dist/apps/api, dist/apps/hooks, dist/apps/runner and every dist/apps/console/browser/*.js chunk after a full build. The glob patterns these tools evaluate come from repository config, never untrusted input. Owner decision not required (team-decided, #768).",
+      "issue": 768,
+      "expires": "2026-12-17"
+    }
+  ]
 }
