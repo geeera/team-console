@@ -150,7 +150,7 @@ export interface TeamBudget {
 
 export interface TeamCost {
   readonly prompt_caching: boolean;
-  /** Stored, not applied yet (ADR 0009 d.5): the runner reports `not-applied`. */
+  /** Stored, not applied (ADR 0009 d.5 addendum, #689): the runner reports `unsupported` under `api_key`, `not-applied` otherwise. */
   readonly batch_api: boolean;
   readonly reviewer_context: ReviewerContext;
 }

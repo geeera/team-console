@@ -155,14 +155,14 @@ describe('runJob with the claim’s team configuration (#685)', () => {
     });
   }, 30_000);
 
-  it('turns prompt caching off only when the api_key project says so, and reports batch_api not-applied', async () => {
+  it('turns prompt caching off only when the api_key project says so, and reports batch_api unsupported', async () => {
     const { client, report } = await launch(
       viewWith('cost', { prompt_caching: false, batch_api: true, reviewer_context: 'repo' }),
     );
     expect(report?.settings).toMatchObject({ env: { DISABLE_AUTOUPDATER: '1', DISABLE_PROMPT_CACHING: '1' } });
     expect(teamNoticeOf(client)?.['cost']).toEqual({
       prompt_caching: 'off',
-      batch_api: 'not-applied',
+      batch_api: 'unsupported',
       reviewer_context: 'off',
     });
   }, 30_000);

@@ -21,11 +21,12 @@ import { ROLE_MODELS, jobRoleOf, type JobRole } from './roles';
 export type CloneContext = 'full' | 'diff';
 
 /**
- * Each `cost.*` lever's status for the job's event: `applied`; `off` (the owner switched it off); `not-applied`
- * (`batch_api` has no execution path yet, or the project runs on a subscription, where the levers are ignored, or the
- * claim had no view); `not-applicable` (`reviewer_context` on a role other than `reviewer`).
+ * Each `cost.*` lever's status for the job's event: `applied`; `off` (the owner switched it off); `unsupported`
+ * (`batch_api` has no execution path under `api_key` — every job is an interactive agent loop, ADR 0009 d.5
+ * addendum, #689); `not-applied` (the project runs on a subscription, where the levers are ignored, or the claim
+ * had no view); `not-applicable` (`reviewer_context` on a role other than `reviewer`).
  */
-export type CostLeverStatus = 'applied' | 'off' | 'not-applied' | 'not-applicable';
+export type CostLeverStatus = 'applied' | 'off' | 'unsupported' | 'not-applied' | 'not-applicable';
 export type CostLever = 'prompt_caching' | 'batch_api' | 'reviewer_context';
 
 export interface JobLaunchPlan {
@@ -54,7 +55,7 @@ function costOf(view: ResolvedTeamConfigDto, role: JobRole): Readonly<Record<Cos
   const { cost } = view;
   return {
     prompt_caching: cost.prompt_caching ? 'applied' : 'off',
-    batch_api: cost.batch_api ? 'not-applied' : 'off',
+    batch_api: cost.batch_api ? 'unsupported' : 'off',
     reviewer_context: cost.reviewer_context === 'repo' ? 'off' : role === 'reviewer' ? 'applied' : 'not-applicable',
   };
 }
