@@ -65,6 +65,12 @@ export interface ApiEnv extends WorkerBaseEnv {
    */
   readonly ALLOW_ACTIONS_SETUP_WRITE?: string;
   /**
+   * Non-secret var (#759): this console's public origin, baked into the rendered runner workflow as `TC_CONSOLE_URL`.
+   * An `https` origin with no port or path (`isConsoleOrigin`), and it must equal the origin the request arrived on,
+   * else `GET …/actions-setup/workflow` answers 503 `console-origin-misconfigured`. Never taken from a request.
+   */
+  readonly CONSOLE_PUBLIC_ORIGIN?: string;
+  /**
    * A JSON Web Key Set that stands in for GitHub's Actions OIDC keys (#668), so specs and the local integration run
    * sign their own tokens. Honoured only with ENVIRONMENT=local, passed only as `--var` (tools/workspace-checks keeps
    * it out of every `env.*` block); everywhere else the keys are GitHub's.

@@ -147,3 +147,46 @@ describe('DesignPreview of one screen', () => {
     }
   });
 });
+
+@Component({
+  imports: [DesignPreview],
+  template: `<tc-design-preview slug="tc" [issue]="277" variant="card" [worded]="true" [manifest]="manifest()" />`,
+})
+class WordedHost {
+  readonly manifest = signal<typeof MANIFEST>({ ...MANIFEST, screens: [], interactive: null });
+}
+
+describe('DesignPreview on an artifact card (#766)', () => {
+  it('says in words that there are no pictures, or only the interactive version', async () => {
+    await TestBed.configureTestingModule({ imports: [WordedHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(WordedHost);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const none = root.querySelector('[data-testid="design-thumb-none"]');
+    expect(none?.textContent?.trim()).toBe('Без картинок');
+    expect(none?.getAttribute('aria-hidden')).toBe('true');
+    expect(root.querySelector('tc-design-preview')?.classList).toContain('tc-design-preview--worded');
+
+    fixture.componentInstance.manifest.set({ ...MANIFEST, screens: [] });
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="design-thumb-none"]')?.textContent?.trim()).toBe(
+      'Только интерактивная версия',
+    );
+  });
+
+  it('says the picture did not load when the image fails', async () => {
+    await TestBed.configureTestingModule({ imports: [WordedHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(WordedHost);
+    fixture.componentInstance.manifest.set(MANIFEST);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector('img')?.dispatchEvent(new Event('error'));
+    await settle();
+    await fixture.whenStable();
+    expect(root.querySelector('[data-testid="design-thumb-failed"]')?.textContent?.trim()).toBe(
+      'Картинка не загрузилась',
+    );
+  });
+});

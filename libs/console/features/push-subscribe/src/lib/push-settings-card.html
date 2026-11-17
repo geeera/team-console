@@ -7,8 +7,18 @@
     <h3 #title tc-status-card-title tabindex="-1">{{ 'push.install.title' | transloco }}</h3>
   </div>
   <p tc-status-card-body>{{ 'push.install.body' | transloco }}</p>
-  <tc-push-install-guide />
-  <p tc-status-card-note>{{ 'push.install.already' | transloco }}</p>
+  <!-- The steps live once on the page, in Settings › App, which owns installing (#761). -->
+  <div tc-status-card-actions>
+    <button
+      tc-button
+      type="button"
+      class="push__go-to-app"
+      data-testid="push-go-to-app"
+      (click)="installGuideRequested.emit()"
+    >
+      {{ 'push.install.goToApp' | transloco }}
+    </button>
+  </div>
 </div>
 } @case ('unsupported') {
 <div tc-status-card data-testid="push-unsupported">

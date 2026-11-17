@@ -76,3 +76,73 @@
   color: var(--text-2);
   font-size: var(--fs-xs);
 }
+
+/* The card preview (#766) waits for a wide body; so do the last three skeletons. */
+.artifacts__card-thumb,
+.artifacts__skeleton--extra {
+  display: none;
+}
+
+/*
+ * #766, from a --cq-grid-min body (880 px; custom properties cannot drive @container): the design rows are cards
+ * with the 16:10 preview across the top, and the Design filter loads as six skeleton cards.
+ */
+@container (min-width: 880px) {
+  .artifacts__thumb {
+    display: none;
+  }
+
+  .artifacts__card-thumb {
+    display: block;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .artifacts__designs-loading {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(
+        max(
+          var(--artifact-card-min),
+          calc(
+            (100% - (var(--artifact-cols-max) - 1) * var(--gap-log)) / var(--artifact-cols-max) -
+              var(--space-px)
+          )
+        ),
+        1fr
+      )
+    );
+    gap: var(--gap-log);
+  }
+
+  .artifacts__skeleton,
+  .artifacts__skeleton--extra {
+    display: grid;
+    align-content: start;
+    gap: var(--space-3);
+    padding: 0 0 var(--space-4);
+    overflow: hidden;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+  }
+
+  .artifacts__skeleton + .artifacts__skeleton {
+    border-top: var(--border-w) solid var(--border);
+  }
+
+  .artifacts__skeleton-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: var(--thumb-ratio);
+    border-radius: 0;
+  }
+
+  .artifacts__skeleton-text {
+    padding: 0 var(--space-4);
+  }
+
+  .artifacts__designs-status {
+    grid-column: 1 / -1;
+  }
+}

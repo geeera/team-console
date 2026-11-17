@@ -466,6 +466,18 @@ next quiet start/resume, #311): delete the `ngsw:` caches, unregister, one navig
 client-side route (one rule each, `pwa.spec.ts` checks them against `app.routes.ts`), `ngsw.json`, `ngsw-worker.js` and
 `safety-worker.js` with `Cache-Control: no-cache` (the assets layer answers them, never the Worker code). E2e
 `pwa-updates.e2e.ts` serves a derived build B (`writeNextBuild`/`routeDeploys` in `support/service-worker.ts`).
+Install prompt (#761): `main.ts` calls `captureInstallPrompt(window)` (`@console/shared/platform`) before bootstrap, so
+Chromium's `beforeinstallprompt` is `preventDefault()`ed and kept; `InstallPrompt` exposes it with `appinstalled` and
+the pure `installPathOf(signals, state)` (`standalone|installed|native|menu|ios|ios-other|in-app|mac|mac-old|none`).
+`@console/features/install-app`: `InstallOffer` (started by `provideInstallOffer()`) allows one offer per launch on
+the landing screen once it is ready, or for a late event on the next screen opened, and the push nudge waits while
+the card has the launch (`holdsPushNudgeOn`); `InstallMemoryStore` keeps `localStorage` `tc.install-prompt.v1`
+(`{ignored:n}` | `{choice:'snoozed',until[,auto]}` | `{choice:'never'}`; 14-day snooze; 3 shown launches without an
+answer snooze it by themselves) over `deviceStorageOf`, the shared storage fallback; `InstallCard` (Needs you, the
+project space, in the page flow) and `InstallSettings` (Settings › App, between GitHub and Notifications). The Home
+Screen steps are the kit's `HomeScreenGuide`, shown once per page: Notifications and the iPhone push nudge point to
+App (`FOCUS_APP_SETTINGS_STATE`). E2e specs answer the card with `never` before the app starts (the `installPrompt`
+option in `support/fixtures.ts`); `install-prompt.e2e.ts` uses `fresh` and a synthetic `beforeinstallprompt`.
 
 ## Workers (#6)
 
@@ -599,6 +611,23 @@ returns a project to the account default; a saved account default bumps the proj
 refreshes its summary and keeps unsaved edits); page `/settings/runners` in `console-pages-settings` (lazy). The e2e
 stack sets `RUNNER_RELEASE_VERSION`/`RUNNER_MINIMUM_VERSION` (0.3.0/0.2.0) for `runners.e2e.ts`. The runner's own
 paused/usage-limit state is not shown yet: the runner reports none until 2-B.
+Settings › Team (#688, UX spec on #630): `@console/features/team-config`, page `/settings/projects/:slug/team` in
+`console-pages-settings` (its own lazy chunk, `canDeactivate` "Leave without saving?"). The form edits a complete
+`TeamDraft` (`team-draft.ts`) and turns it into a document only at save (`documentOf`): one `PUT` with `If-Match`,
+nothing saved on change; 422 marks the named field, 412 shows the conflict banner (keep mine on top / discard mine,
+never an overwrite), 403 keeps the edits read-only. Ownership is the Worker's `TeamConfigDto.canManage`, never
+decided in the client; a member sees values as text and the history, never a control or the import. History
+(`HistorySheet`, a full sheet): `GET …/revisions` read whole and shown newest first, each revision a diff in words
+(`revisionChangesOf`) with the raw JSON behind "Show raw"; there is no restore — "Use as draft" puts the revision's
+`config` in the form (`draftOfDocument`) for an ordinary review and save; a failed list is the sheet's own error
+(the partial state). Import (`ImportSheet`): `POST …/import` answers a draft that is never saved; `withImported`
+puts only the rules the file names (gates, caps, sprint, language) over the form, and the notes and ignored keys are
+shown as text. Authors are logins only (`updatedByName`, `createdByName`, never an email) and `reason`, author and
+every diff value are interpolated, never HTML (T4). The budget callout and the waived-month line read `GET
+…/team/status` `budget` (#737); "Resume this month" is `BudgetResume` in `@console/entities/team-run`, shared with
+the Needs-you row (`@console/features/budget-stop`), and "Raise budget" / the Needs-you "Open limits" link
+(`teamLimitsLinkOf`, `?focus=budget`) focus the budget field. Other screens link here through `teamSettingsUrlOf`
+(the Runners `access-source-hosted` refusal).
 Run now and the job view (#464 part B): on a console-tracker project (`isOnConsoleTracker` in `@console/entities/project`:
 `cutover|console`) the board's "Run log" tile and runs section read `GET …/jobs` instead of the GitHub run log
 (`SprintBoardProject.isOnConsoleTracker`; a GitHub project's board is unchanged and reads no jobs). `@console/entities/job`

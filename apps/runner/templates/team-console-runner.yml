@@ -1,13 +1,17 @@
 # Team Console runner on GitHub Actions (#671, #712; ADR 0008 decision 7(a′); threat model C11).
 #
-# Copy this file unchanged to `.github/workflows/team-console-runner.yml` on the default branch of the project's
-# repository. The console starts it with `workflow_dispatch` for one queued job and checks the run's OIDC token against
-# this exact path, the default branch and the `team-console` Environment, so a renamed or edited copy elsewhere is
-# refused. Setup, costs and limits: docs/runbooks/runner.md › «GitHub Actions».
+# The console renders this file from its template with its own origin and audience (#759); take the rendering from
+# the console (its pull request or its Copy button), never the template, and keep it unchanged at
+# `.github/workflows/team-console-runner.yml` on the default branch of the project's repository. The console starts
+# it with `workflow_dispatch` for one queued job and checks the run's OIDC token against this exact path, the default
+# branch and the `team-console` Environment, so a renamed or edited copy elsewhere is refused. Setup, costs and
+# limits: docs/runbooks/runner.md › «GitHub Actions».
 #
 # Why it looks the way it does:
 # - The only input is the job id, validated against the ULID pattern and read through `env:`, never interpolated
 #   into a script. No secret is ever an input.
+# - The console's origin and audience are literals of the rendering, not Environment variables: the customer sets
+#   nothing but the Environment and its one secret, and the file on the default branch is the whole configuration.
 # - No `uses:` step at all, so no `actions/checkout`, `actions/cache` or artifact upload. A JavaScript action receives
 #   the run's `ACTIONS_RUNTIME_TOKEN` (it writes the repository's Actions cache), and its post step would run after the
 #   job from files the job can change. Without one, that token never leaves the Actions runner's own process (#712).
@@ -146,8 +150,9 @@ jobs:
       - name: Run the job
         env:
           TC_JOB_ID: ${{ inputs.job_id }}
-          TC_CONSOLE_URL: ${{ vars.TC_CONSOLE_URL }}
-          TC_CONSOLE_AUDIENCE: ${{ vars.TC_CONSOLE_AUDIENCE }}
+          # Placeholders, each once, replaced by the console's renderer (@shared/actions-workflow) and checked there.
+          TC_CONSOLE_URL: '__TC_CONSOLE_URL__'
+          TC_CONSOLE_AUDIENCE: '__TC_CONSOLE_AUDIENCE__'
           TC_INFERENCE_API_KEY: ${{ secrets.TC_INFERENCE_API_KEY }}
           GITHUB_TOKEN: ${{ github.token }}
         run: |

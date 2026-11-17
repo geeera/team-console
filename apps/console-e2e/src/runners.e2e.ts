@@ -89,9 +89,14 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expectAccessible(page, 'New runner dialog');
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.enrol.onceTitle') })).toBeFocused();
-  const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
+  const command = (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
   const { url, code = '' } = COMMAND.exec(command)?.groups ?? {};
   expect(url, command).toBe(new URL(stack.baseURL).origin);
+  // #772: the bare code as well, for the `--code -` prompt, copyable on its own.
+  const codeOnly = dialog.getByTestId('enrol-code-only');
+  await expect(codeOnly.getByTestId('copy-code-text')).toHaveText(code);
+  await expect(codeOnly.getByRole('button', { name: ru('runners.enrol.copyCodeAria') })).toBeVisible();
+  await expect(dialog.getByText(ru('runners.enrol.codeOnly'))).toBeVisible();
   await expect(dialog.getByTestId('enrol-expiry')).toContainText('10');
   await expectAccessible(page, 'New runner dialog, code shown once');
   await dialog.getByTestId('enrol-done').click();
@@ -169,7 +174,7 @@ async function issueCodeInDialog(page: Page, name: string, scope: 'all' | 'selec
   await expect(dialog.getByTestId('enrol-scope')).toContainText(
     scope === 'all' ? ru('runners.enrol.scopeAll') : ru('runners.enrol.projects', { projects: 'team-console' }),
   );
-  const command = (await dialog.getByTestId('copy-code-text').textContent()) ?? '';
+  const command = (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
   const { code = '' } = COMMAND.exec(command)?.groups ?? {};
   await dialog.getByTestId('enrol-done').click();
   await expect(dialog).toHaveCount(0);

@@ -1,12 +1,16 @@
 import { DOCUMENT } from '@angular/common';
 import { inject, Injectable, signal } from '@angular/core';
+import { deviceStorageOf } from '@console/shared/platform';
 
 /** This device's "Not now" on the Needs you nudge; never sent anywhere. */
 export const PUSH_NUDGE_KEY = 'tc.push-nudge.v1';
 const DISMISSED = 'dismissed';
 
-/** Navigation state that asks Settings to bring the Notifications block into view (the nudge's "How to turn on"). */
-export const FOCUS_PUSH_SETTINGS_STATE = 'tcFocusPushSettings';
+/**
+ * Navigation state that asks Settings to open the Home Screen steps of its App section (#761): on iPhone Safari the
+ * nudge's "How to turn on" means "install first", and App owns that guide.
+ */
+export const FOCUS_APP_SETTINGS_STATE = 'tcFocusAppSettings';
 
 /**
  * Remembers on this device that the owner hid the nudge. Storage may be unavailable (private browsing, a full
@@ -14,33 +18,12 @@ export const FOCUS_PUSH_SETTINGS_STATE = 'tcFocusPushSettings';
  */
 @Injectable({ providedIn: 'root' })
 export class PushNudgeMemory {
-  private readonly storage = (() => {
-    try {
-      return inject(DOCUMENT).defaultView?.localStorage ?? null;
-    } catch (error: unknown) {
-      // Reading `localStorage` itself throws where storage is blocked.
-      console.warn('push nudge: storage unavailable', error);
-      return null;
-    }
-  })();
+  private readonly storage = deviceStorageOf(inject(DOCUMENT).defaultView, 'push nudge');
 
-  readonly isDismissed = signal(this.read());
+  readonly isDismissed = signal(this.storage.read(PUSH_NUDGE_KEY) === DISMISSED);
 
   dismiss(): void {
     this.isDismissed.set(true);
-    try {
-      this.storage?.setItem(PUSH_NUDGE_KEY, DISMISSED);
-    } catch (error: unknown) {
-      console.warn('push nudge: could not remember "Not now"', error);
-    }
-  }
-
-  private read(): boolean {
-    try {
-      return this.storage?.getItem(PUSH_NUDGE_KEY) === DISMISSED;
-    } catch (error: unknown) {
-      console.warn('push nudge: could not read "Not now"', error);
-      return false;
-    }
+    this.storage.write(PUSH_NUDGE_KEY, DISMISSED);
   }
 }

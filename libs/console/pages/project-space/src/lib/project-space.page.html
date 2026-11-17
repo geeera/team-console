@@ -1,6 +1,6 @@
 <!-- On the phone the shell's top bar already shows the name; the heading stays for assistive tech. -->
 <header class="space__head">
-  <h1 class="space__title" [class.tc-sr-only]="isPhone()">{{ project()?.displayName ?? slug() }}</h1>
+  <h1 class="space__title" tabindex="-1" [class.tc-sr-only]="isPhone()">{{ project()?.displayName ?? slug() }}</h1>
   @if (!isPhone()) {
   <nav tc-tab-bar [attr.aria-label]="'space.sections' | transloco">
     @for (item of sections; track item.section) {
@@ -75,6 +75,8 @@
 </header>
 
 <tc-paused-banner class="space__banner" [project]="commandsProject()" />
+<!-- In the flow above the section (#761): it scrolls away and never covers the bottom bar (#368). -->
+<tc-install-card class="space__banner" [ready]="project() !== undefined" (dismissed)="focusHeading()" />
 
 <div class="space__main">
   <!-- The board uses the whole main column on a wide screen (#275); text screens keep the reading width. -->

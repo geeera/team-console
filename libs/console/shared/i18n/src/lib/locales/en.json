@@ -113,10 +113,9 @@
       "s1NoteBefore": "With the Bottom or Top tab layout, tap",
       "s1NoteAfter": "right away.",
       "s2": "Scroll down and tap Add to Home Screen. Leave Open as Web App on and tap Add.",
-      "s3": "Open Team Console from its Home Screen icon and turn notifications on here, in Settings.",
       "more": "More",
       "share": "Share",
-      "already": "Already on your Home Screen? Open the app from there: notifications can’t be turned on in Safari."
+      "goToApp": "How to add it: see App above"
     },
     "denied": {
       "title": "Notifications are blocked",
@@ -159,6 +158,32 @@
       "external": "(opens GitHub)",
       "projectHint": "It was archived or never added. Its notifications lead here until it is added again.",
       "back": "Go to Needs you"
+    }
+  },
+  "install": {
+    "card": {
+      "title": "Install {{app}}",
+      "bodyPhone": "An icon on your home screen and a window of its own. Opens in one tap.",
+      "bodyDesktop": "A window of its own and an icon in your Dock or taskbar, without browser tabs.",
+      "bodyIos": "On iPhone you do it in Safari, in half a minute. Notifications only reach the installed app.",
+      "bodyIosOther": "Half a minute from this browser. Notifications only reach the installed app.",
+      "install": "Install",
+      "installAria": "Install {{app}} on this device",
+      "how": "How to install",
+      "hideSteps": "Hide steps",
+      "later": "Not now",
+      "never": "Don’t show again",
+      "mac": "Add {{app}} to your Dock: in Safari, choose File → Add to Dock…",
+      "donePhone": "{{app}} is installed. Its icon is on your home screen.",
+      "doneDesktop": "{{app}} is installed. Open it from your Dock or app list.",
+      "doneHideAria": "Hide the install message",
+      "error": "The install window didn’t open. Install from the browser menu: ⋮ → Install app."
+    },
+    "toast": "You can install it from Settings → App",
+    "guide": {
+      "s1OtherBefore": "Tap",
+      "s1OtherAfter": "Share in the browser’s address bar.",
+      "s3": "Open {{app}} from its Home Screen icon."
     }
   },
   "questions": {
@@ -744,6 +769,11 @@
       "design": "Design",
       "demo": "Demos"
     },
+    "typeOne": {
+      "decision": "Decision",
+      "design": "Design",
+      "demo": "Demo"
+    },
     "source": {
       "file": "File",
       "issue": "Issue",
@@ -801,6 +831,11 @@
     }
   },
   "designs": {
+    "tile": {
+      "none": "No pictures",
+      "html": "Interactive version only",
+      "failed": "The picture didn’t load"
+    },
     "row": {
       "screens": {
         "one": "{{n}} screen",
@@ -1067,6 +1102,24 @@
         "none": "GitHub isn’t connected: step 2 can’t be checked and answers aren’t sent.",
         "lost": "The GitHub connection was lost: answers from the console aren’t sent."
       }
+    },
+    "app": {
+      "title": "App",
+      "row": "Install on this device",
+      "rowInstalled": "Installed on this device",
+      "chipOn": "Installed",
+      "chipOff": "Not installed",
+      "subStandalone": "You’re in the {{app}} app.",
+      "subJustInstalled": "Open {{app}} from its icon.",
+      "subNative": "A window and an icon of its own, without browser tabs.",
+      "subMenu": "Install from the browser menu: ⋮ → Install {{app}}. Already installed? Open the app from its icon.",
+      "subIos": "Add it to your Home Screen. iPhone doesn’t send notifications otherwise.",
+      "subInApp": "The browser inside another app can’t install. Open this page in Safari.",
+      "copyLink": "Copy link",
+      "copyFailed": "Couldn’t copy. Copy the address from the address bar instead.",
+      "subMac": "In Safari, choose File → Add to Dock…",
+      "subMacOld": "Adding to the Dock needs Safari 17 or later (macOS Sonoma).",
+      "subUnsupported": "This browser can’t install web apps. Open the console in Chrome, Edge or Safari."
     },
     "disc": {
       "title": "Disconnect GitHub?",
@@ -2119,6 +2172,9 @@
       "copied": "Copied",
       "copyAria": "Copy the runner enrolment command",
       "copyFailed": "Couldn't copy: select the command and copy it by hand.",
+      "codeOnly": "If the command asks for the code (for example with --code -), paste just the code:",
+      "copyCodeAria": "Copy only the runner enrolment code",
+      "copyCodeFailed": "Couldn't copy: select the code and copy it by hand.",
       "expires": "The code works until {{time}} ({{minutes}} minutes) and for one machine.",
       "projects": "Projects: {{projects}}",
       "noProjects": "No projects chosen: the runner takes no jobs until you add some.",
@@ -2203,7 +2259,8 @@
       "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list.",
       "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
       "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
-      "scopeFixed": "A runner hosted by us or a GitHub Actions runner serves what the console gave it. Its projects cannot be changed."
+      "scopeFixed": "A runner hosted by us or a GitHub Actions runner serves what the console gave it. Its projects cannot be changed.",
+      "openTeam": "Open team settings"
     },
     "dispatch": {
       "title": "Where jobs run",
@@ -2466,7 +2523,8 @@
       "body": "The team stopped: {{spent}} of {{budget}} spent in {{month}} (Claude Code estimate). Running jobs finished; nothing new starts.",
       "resume": "Resume this month",
       "raise": "Raise budget",
-      "readonly": "Only the project owner decides on the budget."
+      "readonly": "Only the project owner decides on the budget.",
+      "openLimits": "Open limits"
     },
     "resume": {
       "title": "Resume the team in {{project}}?",
@@ -2786,6 +2844,81 @@
       },
       "stay": "Stay",
       "go": "Leave"
+    },
+    "history": {
+      "title": "History",
+      "open": "History",
+      "lead": "Every save is a revision. History cannot be changed; to go back, open a revision and use it as a draft.",
+      "loading": "Loading the history",
+      "failedTitle": "History did not load",
+      "failed": "The settings on the page are current; only the list of revisions did not load.",
+      "empty": "No changes yet.",
+      "back": "History",
+      "revision": "Revision {{n}}",
+      "revisionLoading": "Loading revision {{n}}",
+      "revisionFailed": "Revision {{n}} did not load",
+      "noReason": "No reason",
+      "noSettings": "No setting changed in this revision.",
+      "showRaw": "Show raw",
+      "hideRaw": "Hide raw",
+      "useAsDraft": "Use as draft",
+      "when": "{{day}} at {{time}}",
+      "settings": {
+        "one": "{{n}} setting",
+        "few": "{{n}} settings",
+        "many": "{{n}} settings",
+        "other": "{{n}} settings"
+      },
+      "more": {
+        "one": "Show {{n}} more revision",
+        "few": "Show {{n}} more revisions",
+        "many": "Show {{n}} more revisions",
+        "other": "Show {{n}} more revisions"
+      },
+      "cut": "The latest revisions are shown; older ones stay in the project's history.",
+      "notSet": "none",
+      "added": "added {{value}}",
+      "removed": "removed",
+      "used": "Revision {{n}} is now your draft. Review and save it to apply it.",
+      "replaceTitle": "Replace your edits with the revision?",
+      "replace": "Replace"
+    },
+    "import": {
+      "title": "Import from project.yml",
+      "loading": "Reading project.yml",
+      "failedTitle": "Could not read project.yml",
+      "failed": {
+        "unreadable": "The file is not on the default branch, or it has a YAML error. Nothing changed here.",
+        "rate-limited": "Too many imports in a row. Try again in a few minutes.",
+        "forbidden": "Only the project owner can import.",
+        "failed": "The console did not answer. Nothing changed here."
+      },
+      "source": {
+        "one": "From project.yml ({{ref}}, {{n}} section)",
+        "few": "From project.yml ({{ref}}, {{n}} sections)",
+        "many": "From project.yml ({{ref}}, {{n}} sections)",
+        "other": "From project.yml ({{ref}}, {{n}} sections)"
+      },
+      "values": "Values from the file",
+      "same": "The file matches your settings.",
+      "notes": "Notes",
+      "note": {
+        "never-as-code": "“{{path}}: never” is not supported; imported as “code only”.",
+        "model-ignored": "— models are not taken from the repository",
+        "key-ignored": "— not part of the team setup"
+      },
+      "ignored": "Not taken",
+      "savesNothing": "Import saves nothing: these values become your draft.",
+      "used": "The values from project.yml are now your draft. Review and save."
+    },
+    "budget": {
+      "title": "Budget used up",
+      "waivedTitle": "{{month}} — no limit",
+      "waivedBody": "On {{date}} you chose “Resume this month”. Spent {{spent}} of {{budget}}; the budget will not stop the team until {{until}}.",
+      "waivedEnds": "If you change the budget, the waiver ends: the new budget applies at once, and the team stops when the month's spend reaches it.",
+      "waivedEditing": "When you save, {{month}} is capped again at {{budget}}.",
+      "waivedEditingNone": "When you save, there is no budget: the waiver is no longer needed.",
+      "waivedReview": "ends the waiver for {{month}}"
     }
   }
 }

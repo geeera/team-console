@@ -55,6 +55,9 @@
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>{{ message }}</p>
         </div>
+        @if (isAccessSourceRefusal() && teamUrl(); as url) {
+          <a tc-button size="sm" data-testid="project-dispatch-team" [routerLink]="url">{{ 'runners.err.openTeam' | transloco }}</a>
+        }
       }
       <div class="dispatch__actions">
         <button

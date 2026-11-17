@@ -215,3 +215,12 @@ select {
     transform: none;
   }
 }
+
+/* A disclosure toggle's chevron (#761): down while its content is closed, up while it is open. */
+.tc-disclosure-chevron {
+  transition: transform var(--dur-base) var(--ease-standard);
+}
+
+[aria-expanded='true'] .tc-disclosure-chevron {
+  transform: rotate(180deg);
+}

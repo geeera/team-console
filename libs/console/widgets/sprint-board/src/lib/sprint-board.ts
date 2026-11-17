@@ -267,6 +267,11 @@ export class SprintBoard {
   readonly project = input.required<SprintBoardProject>();
   /** The `?tab=` of a deep link; anything but a `BoardTab` is ignored. */
   readonly initialTab = input<string | null>(null);
+  /**
+   * Move demo and Ask the PM by the sprint title. Off while the Commands pane beside the board shows the same two
+   * (#766: no duplicated buttons on one screen).
+   */
+  readonly sprintActions = input(true);
 
   protected readonly titleId = `tc-sprint-board-title-${nextBoardId++}`;
   protected readonly state = signal<BoardState>({ kind: 'loading' });

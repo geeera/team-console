@@ -1,0 +1,64 @@
+<tc-list [attr.aria-labelledby]="labelledBy()">
+  <tc-list-row data-testid="install-entry">
+    <tc-app-tile tc-row-leading />
+    <span tc-row-title>{{ (isInstalled() ? 'settings.app.rowInstalled' : 'settings.app.row') | transloco }}</span>
+    <span tc-row-detail data-testid="install-entry-sub">{{ subtitleKey() | transloco: { app: appName() } }}</span>
+    @if (chip(); as state) {
+    <tc-chip tc-row-trailing data-testid="install-entry-chip" [tone]="state === 'on' ? 'success' : 'neutral'">
+      {{ (state === 'on' ? 'settings.app.chipOn' : 'settings.app.chipOff') | transloco }}
+    </tc-chip>
+    }
+  </tc-list-row>
+</tc-list>
+
+@if (path() === 'native') {
+<div class="install-settings__actions">
+  <button
+    tc-button
+    type="button"
+    data-testid="install-settings-install"
+    [attr.aria-label]="'install.card.installAria' | transloco: { app: appName() }"
+    [attr.aria-disabled]="prompt.isPrompting() ? 'true' : null"
+    (click)="install()"
+  >
+    {{ 'install.card.install' | transloco }}
+  </button>
+</div>
+} @else if (isIos()) {
+<div class="install-settings__actions">
+  <button
+    tc-button
+    type="button"
+    data-testid="install-settings-how"
+    [attr.aria-expanded]="isGuideOpen()"
+    [attr.aria-controls]="isGuideOpen() ? ids.steps : null"
+    (click)="toggleGuide()"
+  >
+    {{ (isGuideOpen() ? 'install.card.hideSteps' : 'install.card.how') | transloco }}
+    <tc-icon
+      name="chevron-down"
+      size="sm"
+      class="tc-disclosure-chevron"
+    />
+  </button>
+</div>
+@if (isGuideOpen()) {
+<tc-home-screen-guide
+  [listId]="ids.steps"
+  [otherBrowser]="path() === 'ios-other'"
+  [finalStep]="'install.guide.s3' | transloco: { app: appName() }"
+/>
+} } @else if (path() === 'in-app') {
+<div class="install-settings__actions">
+  <button tc-button type="button" data-testid="install-settings-copy" (click)="copyLink()">
+    <tc-icon name="copy" size="sm" />
+    {{ (isCopied() ? 'settings.common.copied' : 'settings.app.copyLink') | transloco }}
+  </button>
+</div>
+@if (hasCopyFailed()) {
+<p class="install-settings__note" role="status">{{ 'settings.app.copyFailed' | transloco }}</p>
+} } @if (hasFailed()) {
+<p class="install-settings__error" role="alert" data-testid="install-settings-error">
+  <tc-icon name="alert" size="sm" />{{ 'install.card.error' | transloco }}
+</p>
+}

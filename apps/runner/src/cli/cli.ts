@@ -55,6 +55,10 @@ export interface CliDeps {
   readonly keys?: RunnerKeyDeps;
   /** Where the running node lives (`run-once --oidc` puts it first on the job's PATH); `process.execPath`'s when absent. */
   readonly nodeDir?: string;
+  /** How node was started (`process.argv0`: launchd's `ProgramArguments[0]`, the launcher's path); the process's when absent. */
+  readonly argv0?: string;
+  /** The running node with every link resolved (`process.execPath`); the process's when absent. */
+  readonly execPath?: string;
   /** `lsof` for the `actions-ephemeral` sandbox sweep; the host's when absent. */
   readonly exec?: Exec;
   /** One line of stdin for `run-once --oidc --request-token -`; absent when the process has no stdin to read. */
@@ -220,6 +224,15 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
   }
 }
 
+/**
+ * #772: node as it was started, not its realpath, which for Homebrew is a versioned Cellar path that `brew upgrade`
+ * removes. A bare `node` (started through PATH) says nothing about where it is, so the resolved path is the fallback.
+ */
+function launchedNodeOf(deps: CliDeps): string {
+  const given = deps.argv0 ?? process.argv0;
+  return given.startsWith('/') ? given : (deps.execPath ?? process.execPath);
+}
+
 const RUNTIME_ENV = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'XDG_RUNTIME_DIR'];
 
 function pick(env: CliDeps['env'], names: readonly string[]): Record<string, string> {
@@ -245,7 +258,7 @@ function backendOf(config: RunnerConfig, home: string, deps: CliDeps): Isolation
       return new UserBackend({
         home,
         jobExec: jobExecOf(deps.prefix ?? dirname(process.argv[1] ?? '')),
-        nodeDir: dirname(process.execPath),
+        nodeDir: dirname(launchedNodeOf(deps)),
         managedSettingsPath: SYSTEM_MANAGED_SETTINGS_PATH[platform],
       });
     }
@@ -316,7 +329,7 @@ async function runInstallCommand(args: readonly string[], deps: CliDeps): Promis
         backend,
         apply: values.yes === true,
         prefix: deps.prefix ?? dirname(process.argv[1] ?? ''),
-        node: process.execPath,
+        node: launchedNodeOf(deps),
         home: values.home,
         image: values.image,
         runtime: runtime as ContainerRuntime | undefined,
@@ -396,6 +409,14 @@ async function runUpdate(args: readonly string[], deps: CliDeps): Promise<number
 }
 
 async function runJobs(mode: 'once' | 'loop', deps: CliDeps): Promise<number> {
+  if (mode === 'loop') {
+    // #772: a node path that stopped existing shows up in logs/runner.log, not as a silent KeepAlive restart loop.
+    const launched = launchedNodeOf(deps);
+    const resolved = deps.execPath ?? process.execPath;
+    deps.stdout(
+      `team-console-runner ${RUNNER_VERSION} starting with node ${launched}${launched === resolved ? '' : ` (${resolved})`}`,
+    );
+  }
   try {
     const home = runnerHomeOf(deps.env, deps.homeDir);
     const config = await loadRunnerConfig(home);

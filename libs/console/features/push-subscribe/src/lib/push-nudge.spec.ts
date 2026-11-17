@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Toaster } from '@console/shared/ui';
-import { FOCUS_PUSH_SETTINGS_STATE, PUSH_NUDGE_KEY } from './nudge-memory';
+import { FOCUS_APP_SETTINGS_STATE, PUSH_NUDGE_KEY } from './nudge-memory';
 import { PushNudge } from './push-nudge';
 import { configurePush, DESKTOP, fakeSubscription, IPHONE_APP, settle, type PushWorld } from './testing.spec-helpers';
 import type { PlatformInfo } from '@console/shared/platform';
@@ -79,7 +79,7 @@ describe('PushNudge', () => {
     expect(byTestId('push-nudge')).toBeNull();
   });
 
-  it('leads iPhone Safari to the Home Screen guide in Settings', async () => {
+  it('leads iPhone Safari to the Home Screen guide in Settings › App', async () => {
     await render({ ...IPHONE_APP, isStandalone: false, webPush: 'install' });
     const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
 
@@ -87,6 +87,6 @@ describe('PushNudge', () => {
     byTestId('push-nudge-how')?.click();
     await settle();
 
-    expect(navigate).toHaveBeenCalledWith(['/settings'], { state: { [FOCUS_PUSH_SETTINGS_STATE]: true } });
+    expect(navigate).toHaveBeenCalledWith(['/settings'], { state: { [FOCUS_APP_SETTINGS_STATE]: true } });
   });
 });

@@ -5,6 +5,11 @@ import { RouterLink } from '@angular/router';
 /**
  * A vertical list of rows on one paper surface. Give it an accessible name
  * (`aria-label` or `aria-labelledby`) when the screen has more than one list.
+ *
+ * With `grid` (#766) the same rows become a grid of cards once the nearest size container is at least
+ * `--cq-grid-min` wide, and stay rows below it: CSS alone switches, so focus and the DOM never change. The rows'
+ * leading slot becomes the card's top, their `tc-row-kicker` shows above the title, the trailing slot is hidden from
+ * view (still read), and a `tc-list-heading` starts a new grid row. Without a size container around it the list stays rows.
  */
 @Component({
   selector: 'tc-list',
@@ -15,12 +20,34 @@ import { RouterLink } from '@angular/router';
     class: 'tc-list',
     role: 'list',
     '[class.tc-list--plain]': 'plain()',
+    '[class.tc-list--grid]': 'grid()',
   },
 })
 export class List {
   /** No surface or border: rows sit directly on the page, as in the sidebar. */
   readonly plain = input(false, { transform: booleanAttribute });
+  /** Rows that turn into a grid of cards in a container of at least `--cq-grid-min` (#766). */
+  readonly grid = input(false, { transform: booleanAttribute });
 }
+
+/**
+ * A label between the cards of a `grid` list (#766), e.g. one per type. Hidden while the list shows rows, so a row
+ * list looks as it did. It is for the eye only (`aria-hidden`): a list may hold list items alone (axe
+ * `aria-required-children`), and a list item for it would add to the count a screen reader gives. Say what it says
+ * in each row too (a visually hidden trailing chip is still read).
+ *
+ * ```html
+ * <tc-list-heading>Decisions <span>3</span></tc-list-heading>
+ * ```
+ */
+@Component({
+  selector: 'tc-list-heading',
+  template: '<ng-content />',
+  styleUrl: './list-heading.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: 'tc-list-heading', 'aria-hidden': 'true' },
+})
+export class ListHeading {}
 
 /**
  * One row: leading slot, title, subtitle, an unclamped detail line, trailing slot and trailing text. With `link`
@@ -29,6 +56,8 @@ export class List {
  *
  * A control in the `tc-row-action` slot (pin, archive…) renders **beside** the surface, not
  * inside it, so an interactive row never nests another control; give it its own `aria-label`.
+ *
+ * `tc-row-kicker` is a short line above the title (a type with its icon) shown only on the cards of a `grid` list.
  *
  * `tc-row-trailing-text` is a word at the end of the row instead of a control ("Project ›", "Archived", #194):
  * accent ink, or secondary ink on a `muted` row — still AA, never greyed below 4.5:1.

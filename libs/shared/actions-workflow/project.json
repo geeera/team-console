@@ -1,0 +1,12 @@
+{
+  "name": "shared-actions-workflow",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/actions-workflow/src",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:shared", "layer:shared"],
+  "targets": {
+    "test": {
+      "inputs": ["default", "^default", "{workspaceRoot}/apps/runner/templates/team-console-runner.yml"]
+    }
+  }
+}

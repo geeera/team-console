@@ -233,12 +233,14 @@ export {
   actionsRunnerNameOf,
   checkOidcExchangeInput,
   checkProjectDispatchInput,
+  isActionsWorkflowDto,
   isOidcExchangeResponse,
   isProjectDispatch,
   isProjectDispatchDto,
 } from './lib/actions-runner';
 export type {
   ActionsDispatchFailure,
+  ActionsWorkflowDto,
   OidcExchangeClaim,
   OidcExchangeInput,
   OidcExchangeResponse,

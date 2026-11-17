@@ -13,7 +13,16 @@ interface WorkerFixtures {
   stack: Stack;
 }
 
+/**
+ * The install card (#761) on a fresh device: `never` (the default) answers it before the app starts, so the card
+ * neither holds the push nudge nor moves the layout in specs about something else; `fresh` leaves the device as a
+ * first sign-in finds it.
+ */
+export type InstallPromptMemory = 'never' | 'fresh';
+
 interface TestFixtures {
+  installPrompt: InstallPromptMemory;
+  installPromptMemory: void;
   accessHeaders: void;
   outsideRequests: OutsideRequests;
   pageErrors: void;
@@ -59,6 +68,24 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       }
     },
     { scope: 'worker', timeout: 180_000 },
+  ],
+
+  installPrompt: ['never', { option: true }],
+
+  installPromptMemory: [
+    async ({ context, installPrompt }, use) => {
+      if (installPrompt === 'never') {
+        await context.addInitScript(() => {
+          // The app's own document only: frames (design previews, sandboxed and opaque) and about:blank or data:
+          // pages have no storage this origin may write, and reading it there throws.
+          if (window === window.top && window.location.origin !== 'null') {
+            localStorage.setItem('tc.install-prompt.v1', JSON.stringify({ choice: 'never' }));
+          }
+        });
+      }
+      await use();
+    },
+    { auto: true },
   ],
 
   baseURL: async ({ stack }, use) => {

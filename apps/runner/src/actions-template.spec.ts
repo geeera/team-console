@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { parse } from 'yaml';
+import {
+  CONSOLE_AUDIENCE_PLACEHOLDER,
+  CONSOLE_URL_PLACEHOLDER,
+  isConsoleOrigin,
+  renderRunnerWorkflow,
+} from '@shared/actions-workflow';
 import { ACTIONS_ENVIRONMENT, ACTIONS_WORKFLOW_FILE, isUlid } from '@shared/contracts';
 import { ACTIONS_RUN_ENV, REQUEST_TOKEN_STDIN } from './cli/run-once-oidc';
 import { INFERENCE_API_KEY_ENV } from './env/credential';
@@ -12,7 +18,8 @@ import {
 
 /**
  * The customer's workflow file (#671, #712; ADR 0008 decision 7(a′), threat model C11). Each control the console and
- * the threat model rely on is asserted here on the parsed template, so an edit that loosens one fails CI.
+ * the threat model rely on is asserted here on the parsed template and on every rendering the console serves (#759),
+ * so an edit that loosens one fails CI.
  */
 
 interface Step {
@@ -41,23 +48,60 @@ interface Workflow {
 
 const app = join(import.meta.dirname, '..');
 const templatePath = join(app, 'templates', 'team-console-runner.yml');
-const text = readFileSync(templatePath, 'utf8');
-const workflow = parse(text) as Workflow;
-const jobs = Object.values(workflow.jobs ?? {});
-const job: Job = jobs[0] ?? {};
-const steps: readonly Step[] = job.steps ?? [];
+const templateText = readFileSync(templatePath, 'utf8');
 
-function stepNamed(name: string): Step {
+/**
+ * What a run of the file sees: the template with its two placeholders, and the console's rendering for every deployed
+ * environment (#759, security note PR 2), with the origin and the environment each one has in apps/api/wrangler.jsonc.
+ */
+interface Subject {
+  readonly label: string;
+  readonly text: string;
+  readonly consoleUrl: string;
+  readonly audience: string;
+}
+
+function configuredConsoles(): { readonly environment: string; readonly origin: string }[] {
+  const config = readFileSync(join(app, '..', 'api', 'wrangler.jsonc'), 'utf8');
+  const environments = [...config.matchAll(/"ENVIRONMENT": "([a-z]+)"/g)].map((match) => match[1] ?? '');
+  const origins = [...config.matchAll(/"CONSOLE_PUBLIC_ORIGIN": "([^"]*)"/g)].map((match) => match[1] ?? '');
+  if (environments.join() !== 'dev,stage,production' || origins.length !== environments.length) {
+    throw new Error('apps/api/wrangler.jsonc must name ENVIRONMENT and CONSOLE_PUBLIC_ORIGIN once per deployed env');
+  }
+  return environments.map((environment, index) => ({ environment, origin: origins[index] ?? '' }));
+}
+
+const CONSOLES = configuredConsoles();
+const RENDERINGS: readonly Subject[] = await Promise.all(
+  CONSOLES.map(async ({ environment, origin }): Promise<Subject> => {
+    const outcome = await renderRunnerWorkflow({ consoleOrigin: origin, environment });
+    if (!outcome.ok) {
+      throw new Error(`the ${environment} console renders no workflow: ${outcome.failure}`);
+    }
+    const { text, audience } = outcome.rendering;
+    return { label: `the ${environment} rendering`, text, consoleUrl: origin, audience };
+  }),
+);
+const SUBJECTS: readonly Subject[] = [
+  { label: 'the template', text: templateText, consoleUrl: CONSOLE_URL_PLACEHOLDER, audience: CONSOLE_AUDIENCE_PLACEHOLDER },
+  ...RENDERINGS,
+];
+
+const envOf = (step: Step): Readonly<Record<string, unknown>> => step.env ?? {};
+const runOf = (step: Step): string => step.run ?? '';
+
+function stepsOf(text: string): readonly Step[] {
+  const workflow = parse(text) as Workflow;
+  return Object.values(workflow.jobs ?? {})[0]?.steps ?? [];
+}
+
+function stepIn(steps: readonly Step[], name: string): Step {
   const step = steps.find((candidate) => candidate.name === name);
   if (step === undefined) {
-    throw new Error(`the template has no step "${name}"`);
+    throw new Error(`the workflow has no step "${name}"`);
   }
   return step;
 }
-
-const indexOf = (name: string): number => steps.findIndex((step) => step.name === name);
-const envOf = (step: Step): Readonly<Record<string, unknown>> => step.env ?? {};
-const runOf = (step: Step): string => step.run ?? '';
 
 /** The one line of `run` that starts with `prefix`, split into words with their quotes removed. */
 function commandWords(run: string, prefix: string): string[] {
@@ -77,7 +121,15 @@ function expand(word: string, values: Readonly<Record<string, string>>): string 
 
 const ULID_CHECK = /\[\[ ! "\$\{JOB_ID\}" =~ (\S+) \]\]/;
 
-describe('apps/runner/templates/team-console-runner.yml', () => {
+describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label', (subject) => {
+  const { text } = subject;
+  const workflow = parse(text) as Workflow;
+  const jobs = Object.values(workflow.jobs ?? {});
+  const job: Job = jobs[0] ?? {};
+  const steps: readonly Step[] = job.steps ?? [];
+  const stepNamed = (name: string): Step => stepIn(steps, name);
+  const indexOf = (name: string): number => steps.findIndex((step) => step.name === name);
+
   it('is the workflow file the console verifies the token against', () => {
     expect(basename(templatePath)).toBe(ACTIONS_WORKFLOW_FILE);
   });
@@ -128,11 +180,11 @@ describe('apps/runner/templates/team-console-runner.yml', () => {
       new Set([
         '${{ inputs.job_id }}',
         '${{ github.token }}',
-        '${{ vars.TC_CONSOLE_URL }}',
-        '${{ vars.TC_CONSOLE_AUDIENCE }}',
         `\${{ secrets.${INFERENCE_API_KEY_ENV} }}`,
       ]),
     );
+    // #759: no Actions variable at all; the console's origin and audience are literals of the rendering.
+    expect(text).not.toContain('${{ vars.');
   });
 
   it('checks the job id against the ULID pattern first, read from env:', () => {
@@ -253,8 +305,8 @@ describe('apps/runner/templates/team-console-runner.yml', () => {
     it('passes exactly the variables run-once --oidc reads, the key from the Environment secret', () => {
       expect(envOf(step())).toEqual({
         [ACTIONS_RUN_ENV.jobId]: '${{ inputs.job_id }}',
-        [ACTIONS_RUN_ENV.consoleUrl]: '${{ vars.TC_CONSOLE_URL }}',
-        [ACTIONS_RUN_ENV.audience]: '${{ vars.TC_CONSOLE_AUDIENCE }}',
+        [ACTIONS_RUN_ENV.consoleUrl]: subject.consoleUrl,
+        [ACTIONS_RUN_ENV.audience]: subject.audience,
         [INFERENCE_API_KEY_ENV]: `\${{ secrets.${INFERENCE_API_KEY_ENV} }}`,
         [ACTIONS_RUN_ENV.readToken]: '${{ github.token }}',
       });
@@ -288,10 +340,60 @@ describe('apps/runner/templates/team-console-runner.yml', () => {
     });
   });
 
-  it('the launcher in the release starts node with SIGUSR1 off as well, whatever NODE_OPTIONS holds', () => {
-    const launcher = readFileSync(join(app, 'bin', 'team-console-runner'), 'utf8');
-    const execs = launcher.split('\n').filter((line) => /^\s*exec /.test(line));
-    expect(execs).toEqual(['exec node --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"']);
-    expect(launcher).not.toMatch(/--inspect/);
+});
+
+it('the launcher in the release starts node with SIGUSR1 off as well, whatever NODE_OPTIONS holds', () => {
+  const launcher = readFileSync(join(app, 'bin', 'team-console-runner'), 'utf8');
+  const execs = launcher.split('\n').filter((line) => /^\s*exec /.test(line));
+  // One exec, whichever node the launcher picked (launcher.spec.ts covers the choice).
+  expect(execs).toEqual(['exec "$node" --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"']);
+  expect(launcher).not.toMatch(/--inspect/);
+});
+
+describe('the console’s renderings of the template (#759, security note PR 2)', () => {
+  const verifyLineOf = (text: string): string =>
+    runOf(stepIn(stepsOf(text), 'Download and verify the runner'))
+      .split('\n')
+      .find((line) => line.trim().startsWith('gh attestation verify')) ?? '';
+
+  it('holds each placeholder once, as the job step’s two values, inside quotes', () => {
+    for (const placeholder of [CONSOLE_URL_PLACEHOLDER, CONSOLE_AUDIENCE_PLACEHOLDER]) {
+      expect(templateText.split(placeholder)).toHaveLength(2);
+    }
+    expect(templateText.split('__TC_')).toHaveLength(3);
+    expect(templateText).toContain(`${ACTIONS_RUN_ENV.consoleUrl}: '${CONSOLE_URL_PLACEHOLDER}'\n`);
+    expect(templateText).toContain(`${ACTIONS_RUN_ENV.audience}: '${CONSOLE_AUDIENCE_PLACEHOLDER}'\n`);
+  });
+
+  it('renders for every deployed console, from its configured https origin and its own audience', () => {
+    expect(RENDERINGS.map((rendering) => rendering.audience)).toEqual(
+      CONSOLES.map(({ environment }) => `team-console:${environment}`),
+    );
+    for (const { origin } of CONSOLES) {
+      expect(isConsoleOrigin(origin)).toBe(true);
+    }
+    for (const rendering of RENDERINGS) {
+      expect(rendering.text).not.toContain('__TC_');
+    }
+  });
+
+  it('keeps the gh attestation verify flags byte for byte in every rendering, so no console moves the trust root', () => {
+    const template = verifyLineOf(templateText);
+    expect(template).toContain('--signer-workflow github.com/geeera/team-console/.github/workflows/release-runner.yml');
+    for (const rendering of RENDERINGS) {
+      expect(verifyLineOf(rendering.text)).toBe(template);
+    }
+  });
+
+  it('differs from the template in the two literal lines only', () => {
+    const before = templateText.split('\n');
+    for (const rendering of RENDERINGS) {
+      const after = rendering.text.split('\n');
+      expect(after).toHaveLength(before.length);
+      expect(after.filter((line, index) => line !== before[index])).toEqual([
+        `          ${ACTIONS_RUN_ENV.consoleUrl}: '${rendering.consoleUrl}'`,
+        `          ${ACTIONS_RUN_ENV.audience}: '${rendering.audience}'`,
+      ]);
+    }
   });
 });

@@ -37,6 +37,7 @@ import {
 import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
 import { BudgetStop } from '@console/features/budget-stop';
 import { DesignViewer } from '@console/features/design-viewer';
+import { teamLimitsLinkOf } from '@console/features/team-config';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   type Arrival,
@@ -151,6 +152,8 @@ export class QuestionList {
   protected readonly setups = signal<readonly QuestionProjectSetup[]>([]);
   /** Teams the month's budget stopped (#684): one row each, with Resume this month and Raise budget. */
   protected readonly budgetStops = signal<readonly QuestionBudgetStop[]>([]);
+  /** Needs-you "Open limits" (#688): the project's Settings › Team at the budget. */
+  protected readonly limitsLinkOf = teamLimitsLinkOf;
   /** Projects whose queued jobs the account's entitlement keeps from starting (#746): one plain row each. */
   protected readonly concurrencyStops = signal<readonly QuestionConcurrencyStop[]>([]);
   protected readonly omitted = signal<readonly NeedsYouProjectRef[]>([]);

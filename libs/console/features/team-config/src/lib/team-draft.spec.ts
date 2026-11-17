@@ -3,11 +3,14 @@ import {
   changesOf,
   documentOf,
   draftOf,
+  draftOfDocument,
+  importedSectionCountOf,
   mergeOnTop,
   modelsChangedBy,
   overriddenRolesOf,
   overridesOf,
   resetRole,
+  withImported,
   withLeaf,
   withPreset,
 } from './team-draft';
@@ -123,5 +126,53 @@ describe('mergeOnTop', () => {
     const base = draftOf(teamConfigViewOf(stored));
     const same = withLeaf(base, 'gates.qa', 'always');
     expect(mergeOnTop(base, same, same).conflicts).toEqual([]);
+  });
+});
+
+describe('draftOfDocument', () => {
+  it('is the draft a revision gives on its own: preset, access, roles, budget', () => {
+    const draft = draftOfDocument({ ...stored, budget: { monthly_usd: 300 } }, 'subscription');
+    // `stored` already holds a budget of 200; the revision's own one wins.
+    expect(draft).toEqual({ ...draftOf(teamConfigViewOf(stored)), monthlyUsd: 300 });
+    expect(draft.source).toBe('api_key');
+  });
+
+  it('falls back to the given access source for a document without one', () => {
+    expect(draftOfDocument({ schema: TEAM_CONFIG_SCHEMA }, 'subscription').source).toBe('subscription');
+  });
+});
+
+describe('withImported', () => {
+  const imported: TeamConfig = {
+    schema: TEAM_CONFIG_SCHEMA,
+    preset: 'recommended',
+    gates: { qa: 'always', code_paths: ['apps/**', 'libs/**'] },
+    caps: { burn: { dev_tasks: 4 } },
+    language: 'en',
+  };
+
+  it('puts every rule the file names over the draft and keeps models, access, budget and the rest', () => {
+    const base = { ...draftOf(teamConfigViewOf(stored)), monthlyUsd: 200 };
+    const merged = withImported(base, imported);
+    expect(merged.gates.qa).toBe('always');
+    expect(merged.gates.code_paths).toEqual(['apps/**', 'libs/**']);
+    expect(merged.gates.reviewer).toBe(base.gates.reviewer);
+    expect(merged.caps.burn.dev_tasks).toBe(4);
+    expect(merged.caps.burn.parallel_devs).toBe(base.caps.burn.parallel_devs);
+    expect(merged.language).toBe('en');
+    expect(merged.roles).toEqual(base.roles);
+    expect(merged.source).toBe(base.source);
+    expect(merged.monthlyUsd).toBe(200);
+    expect(changesOf(base, merged).map((change) => change.path)).toEqual([
+      'gates.qa',
+      'gates.code_paths',
+      'caps.burn.dev_tasks',
+      'language',
+    ]);
+  });
+
+  it('counts the sections the file filled', () => {
+    expect(importedSectionCountOf(imported)).toBe(3);
+    expect(importedSectionCountOf({ schema: TEAM_CONFIG_SCHEMA })).toBe(0);
   });
 });

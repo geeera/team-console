@@ -186,6 +186,7 @@
       "updatedAt": "2026-11-12T10:00:00.000Z",
       "updatedBy": "local-owner",
       "updatedByName": null,
+      "reason": null,
       "canManage": true,
       "subscriptionBlocked": false
     }

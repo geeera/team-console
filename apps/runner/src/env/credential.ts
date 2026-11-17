@@ -1,5 +1,10 @@
 import { join } from 'node:path';
-import { ACCESS_SOURCES, type AccessSource, type RunnerIsolation } from '@shared/contracts';
+import {
+  ACCESS_SOURCES,
+  ACTIONS_INFERENCE_KEY_SECRET,
+  type AccessSource,
+  type RunnerIsolation,
+} from '@shared/contracts';
 import { ANTHROPIC_OAUTH_TOKEN_PREFIX } from '@shared/redaction';
 import { RunnerFileError, assertPrivateDir, readPrivateFile } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
@@ -13,9 +18,10 @@ import { LaunchRefusal } from '../jobs/refusal';
 
 /**
  * The one variable an `actions-ephemeral` run reads its inference key from: the GitHub Environment secret of that name
- * (owner decision 3 on #573), handed to the runner's process by the workflow and never written to its home.
+ * (owner decision 3 on #573), handed to the runner's process by the workflow and never written to its home. The
+ * console's readiness check (#759) looks for the secret by the same constant.
  */
-export const INFERENCE_API_KEY_ENV = 'TC_INFERENCE_API_KEY';
+export const INFERENCE_API_KEY_ENV = ACTIONS_INFERENCE_KEY_SECRET;
 
 export type CredentialConfig =
   | { readonly kind: 'api-key'; readonly file: string }

@@ -9,7 +9,6 @@ import {
   inject,
   Injector,
   input,
-  signal,
   untracked,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -24,6 +23,7 @@ import {
 } from '@console/entities/project';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { NewTaskButton } from '@console/features/create-task';
+import { InstallCard } from '@console/features/install-app';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   Button,
@@ -44,6 +44,7 @@ import {
   type CommandsProject,
 } from '@console/widgets/commands-panel';
 import { filter, map } from 'rxjs';
+import { SpacePane } from './space-pane';
 
 function isTyping(target: Element | null): boolean {
   return (
@@ -73,6 +74,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
     CommandsPane,
     Icon,
     IconButton,
+    InstallCard,
     NewTaskButton,
     PausedBanner,
     RouterLink,
@@ -85,6 +87,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
   templateUrl: './project-space.page.html',
   styleUrl: './project-space.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [SpacePane],
   host: {
     class: 'tc-space',
     '[class.tc-space--phone]': 'isPhone()',
@@ -118,7 +121,7 @@ export class ProjectSpacePage {
   /** Find a task (#435) is for projects on the console tracker; a GitHub project's tasks are on GitHub. */
   protected readonly canFind = computed(() => isOnConsoleTracker(this.project()));
   /** The Commands pane on a wide screen; the phone opens a sheet instead. */
-  protected readonly isPaneOpen = signal(false);
+  protected readonly isPaneOpen = inject(SpacePane).isOpen;
   protected readonly isPhone = isPhoneSignal();
 
   private readonly url = toSignal(
@@ -158,6 +161,11 @@ export class ProjectSpacePage {
     void this.teamStatus.refresh();
     this.isPaneOpen.set(true);
     afterNextRender(() => this.query('.cp__title')?.focus(), { injector: this.injector });
+  }
+
+  /** The install card went away by the owner's choice: keyboard users continue from the space's heading. */
+  protected focusHeading(): void {
+    this.query('.space__title')?.focus();
   }
 
   protected closePane(): void {

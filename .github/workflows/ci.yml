@@ -164,11 +164,25 @@ jobs:
   # one timing out, and keeping it on the bare runner avoids the extra minutes a container pull would add there.
   # The suite kept growing past this: `iphone`/`desktop` were at ~12-15 min against the 15 min timeout (one PR's
   # `iphone` shard was cancelled at the limit with every executed test passing). Each of those two chromium
-  # projects is now Playwright-sharded 1/2 + 2/2 (matrix `name` iphone-1/iphone-2, desktop-1/desktop-2) so the
+  # projects was Playwright-sharded 1/2 + 2/2 (matrix `name` iphone-1/iphone-2, desktop-1/desktop-2) so the
   # ~223 tests each run split two ways instead of growing the single job past budget again; `iphone-webkit`
   # (10 tests, already quick) stays a single unsharded shard in its own container. `project`/`browser`/`shard`
   # stay separate matrix fields from the display `name` so the cache key (keyed on `browser`) and the `--project`/
   # `--shard` flags below don't have to parse the display name back apart.
+  #
+  # #776: the suite grew again this chunk (team-config, team-config-history, environment-setup,
+  # entitled-concurrency, team-state-panel) and `desktop-1`/`desktop-2` were measured at 8-15 min against the
+  # same 15 min timeout; `desktop-1` on PR #776 (run 44144498245) and `iphone-2` on a push-to-dev run
+  # (44148277729, same dev head) each hit the 15 min wall and were cancelled. Per-file timing from the job logs
+  # shows the 2-way split isn't even by duration even though it is by test count: Playwright's `--shard`
+  # divides the discovered test list into contiguous blocks, so whichever half happens to contain
+  # `team-config.e2e.ts` (~21s/test, by far the heaviest file in the suite — a11y.e2e.ts, the next biggest file
+  # by test count, averages ~1.5s/test) runs 4-6 minutes longer than the other half. `iphone`/`desktop` are now
+  # sharded 1/3 + 2/3 + 3/3 instead: each new shard carries roughly two-thirds of a former shard's load (~5-6
+  # min of test time at this suite's current size) plus its own fixed per-shard overhead (stack startup,
+  # typecheck, global setup: ~2.5-4 min), landing around 8-10 min — comfortably under 15 — and splits the
+  # `team-config`-anchored cluster across more boundaries instead of keeping it whole in one shard.
+  # `iphone-webkit` is unaffected (still the single unsharded demo-path project).
   e2e-shard:
     name: e2e-shard (${{ matrix.name }})
     strategy:
@@ -178,19 +192,27 @@ jobs:
           - name: iphone-1
             project: iphone
             browser: chromium
-            shard: '1/2'
+            shard: '1/3'
           - name: iphone-2
             project: iphone
             browser: chromium
-            shard: '2/2'
+            shard: '2/3'
+          - name: iphone-3
+            project: iphone
+            browser: chromium
+            shard: '3/3'
           - name: desktop-1
             project: desktop
             browser: chromium
-            shard: '1/2'
+            shard: '1/3'
           - name: desktop-2
             project: desktop
             browser: chromium
-            shard: '2/2'
+            shard: '2/3'
+          - name: desktop-3
+            project: desktop
+            browser: chromium
+            shard: '3/3'
           - name: iphone-webkit
             project: iphone-webkit
             browser: webkit

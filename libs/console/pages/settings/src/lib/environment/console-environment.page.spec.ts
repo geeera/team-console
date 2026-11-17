@@ -319,12 +319,46 @@ describe('ConsoleEnvironmentPage (#104, at /admin since #750)', () => {
 
     fail = false;
     (root().querySelector('[data-testid="env-copy-retry"]') as HTMLButtonElement).click();
+    // The copy is a real dynamic import of two JSON chunks: on a cold CI worker it takes longer than a few ticks.
+    await vi.waitFor(
+      () => {
+        TestBed.tick();
+        expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
+      },
+      { timeout: 5000, interval: 20 },
+    );
     await settle();
-    expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
     expect(text('h1')).toBe('Окружение консоли');
     expect(text('[data-testid="env-summary"] h2')).toBe('В production не заданы 2 настройки');
     // A recovered retry is not a failed one: no fallback reload, nothing to interrupt the page the owner is on.
     expect(reload).not.toHaveBeenCalled();
+  });
+
+  it('a Try again that resolves after the page is gone renders nothing and throws nothing (NG0205)', async () => {
+    let release: () => void = () => undefined;
+    let fail = true;
+    await open('/admin/environment/production', {
+      copyLoader: async () => {
+        if (fail) {
+          throw new Error('Failed to fetch dynamically imported module');
+        }
+        await new Promise<void>((resolve) => (release = resolve));
+        return loadEnvironmentCopyChunks();
+      },
+    });
+    fail = false;
+    (root().querySelector('[data-testid="env-copy-retry"]') as HTMLButtonElement).click();
+    harness.fixture.destroy();
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      release();
+      await settle();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off('unhandledRejection', unhandled);
+    }
   });
 
   it('falls back to a full reload when Try again fails a second time: a failed dynamic import stays failed', async () => {

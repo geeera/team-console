@@ -46,6 +46,8 @@ export interface EnrolRunnerData {
 /** What the dialog shows once the code exists: the command and when it stops working — never stored anywhere. */
 interface IssuedCode {
   readonly command: string;
+  /** The bare code, for the `--code -` prompt (#772); the command already carries it. */
+  readonly code: string;
   readonly expiresAt: string;
   readonly name: string;
   readonly projectScope: RunnerProjectScope;
@@ -98,6 +100,15 @@ export function runnerNameOf(value: string): string {
           [copyLabel]="'runners.enrol.copy' | transloco"
           [copiedLabel]="'runners.enrol.copied' | transloco"
           [failedNote]="'runners.enrol.copyFailed' | transloco"
+        />
+        <p class="enrol__meta">{{ 'runners.enrol.codeOnly' | transloco }}</p>
+        <tc-copy-code
+          data-testid="enrol-code-only"
+          [code]="code.code"
+          [ariaLabel]="'runners.enrol.copyCodeAria' | transloco"
+          [copyLabel]="'runners.enrol.copy' | transloco"
+          [copiedLabel]="'runners.enrol.copied' | transloco"
+          [failedNote]="'runners.enrol.copyCodeFailed' | transloco"
         />
         <p class="enrol__meta" data-testid="enrol-expiry">
           {{ 'runners.enrol.expires' | transloco: { time: code.expiresAt | localTime, minutes: ttlMinutes } }}
@@ -262,6 +273,7 @@ export class EnrolRunnerDialog {
     }
     this.issued.set({
       command,
+      code: result.value.code,
       expiresAt: result.value.expiresAt,
       name: result.value.name,
       projectScope: result.value.projectScope,

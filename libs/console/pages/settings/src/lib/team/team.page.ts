@@ -19,7 +19,7 @@ import { Icon } from '@console/shared/ui';
           <tc-icon name="chevron-left" size="sm" />{{ projectName() }}
         </a>
       </nav>
-      <tc-team-config-editor [slug]="slug()" />
+      <tc-team-config-editor [slug]="slug()" [projectName]="projectName()" [focus]="focus() ?? null" />
     </div>
   `,
   styleUrls: ['../settings-subpage.css'],
@@ -36,6 +36,8 @@ export class TeamPage {
 
   /** The route's `:slug`, bound by the router (`withComponentInputBinding`). */
   readonly slug = input.required<string>();
+  /** `?focus=budget` from the Needs-you "Open limits" link (#688), bound by the router like the slug. */
+  readonly focus = input<string | undefined>(undefined);
 
   protected readonly projectName = computed(
     () => this.projects.bySlug(this.slug())?.displayName ?? this.slug(),

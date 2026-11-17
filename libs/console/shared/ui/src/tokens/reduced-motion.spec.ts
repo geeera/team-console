@@ -54,6 +54,13 @@ describe('reduced-motion tokens', () => {
     }
   });
 
+  it('lays a hovered card flat: no lift under reduced motion (#766)', () => {
+    for (const block of blocks) {
+      expect(block).toMatch(/--lift:\s*0px;/);
+    }
+    expect(tokensCss()).toMatch(/--lift:\s*-2px;/);
+  });
+
   it('keeps --dur-fade at 120ms in the base token block', () => {
     expect(tokensCss()).toMatch(/--dur-fade:\s*120ms;/);
   });

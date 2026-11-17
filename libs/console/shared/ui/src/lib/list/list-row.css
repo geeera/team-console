@@ -22,6 +22,11 @@
   border-top: 0;
 }
 
+/* Shown on a grid list's cards only (#766). */
+.tc-list-row__kicker {
+  display: none;
+}
+
 .tc-list-row__surface {
   display: flex;
   align-items: center;
@@ -159,4 +164,107 @@
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/*
+ * A `grid` list's card (#766), from a `--cq-grid-min` container: the leading slot across the top, then the kicker,
+ * the title (three lines at most; the accessible name keeps all of it) and the rest. The trailing slot is hidden:
+ * the list's headings or filter say what the trailing chip said. Taller rather than clipped under text spacing.
+ */
+@container (min-width: 880px) {
+  :host-context(.tc-list--grid) {
+    display: flex;
+    min-width: 0;
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__surface {
+    position: relative;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+    border: var(--border-w) solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-1);
+    transition:
+      transform var(--dur-fast) var(--ease-standard),
+      box-shadow var(--dur-fast) var(--ease-standard),
+      border-color var(--dur-fast) var(--ease-standard);
+  }
+
+  :host-context(.tc-list--grid) a.tc-list-row__surface:hover,
+  :host-context(.tc-list--grid) button.tc-list-row__surface:enabled:hover {
+    background: var(--surface);
+    border-color: var(--border-strong);
+    box-shadow: var(--shadow-2);
+    transform: translateY(var(--lift));
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__surface:focus-visible {
+    outline-offset: var(--focus-offset);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__leading {
+    display: block;
+    border-bottom: var(--border-w) solid var(--border);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__leading:empty {
+    display: none;
+  }
+
+  /* Out of view, still read (as .tc-sr-only): a card's chip is what a screen reader hears for the eye-only headings. */
+  :host-context(.tc-list--grid) .tc-list-row__trailing,
+  :host-context(.tc-list--grid) .tc-list-row__trailing-text {
+    position: absolute;
+    width: var(--space-px);
+    height: var(--space-px);
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__text {
+    flex: 1;
+    align-content: start;
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__leading:empty + .tc-list-row__text {
+    padding-top: var(--space-4);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__kicker {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    font-size: var(--fs-xs);
+    font-weight: var(--fw-semibold);
+    color: var(--text-2);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__kicker:empty {
+    display: none;
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__title {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-family: var(--font-display);
+    font-size: var(--fs-md);
+    line-height: var(--lh-tight);
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__leading:not(:empty) + .tc-list-row__text .tc-list-row__title {
+    -webkit-line-clamp: 2;
+  }
+
+  :host-context(.tc-list--grid) .tc-list-row__subtitle {
+    color: var(--text-2);
+  }
 }

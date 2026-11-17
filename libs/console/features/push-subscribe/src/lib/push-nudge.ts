@@ -12,14 +12,14 @@ import { PushStore } from '@console/entities/push';
 import { NetworkStatus } from '@console/shared/api';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Icon, IconButton, Toaster } from '@console/shared/ui';
-import { FOCUS_PUSH_SETTINGS_STATE, PushNudgeMemory } from './nudge-memory';
+import { FOCUS_APP_SETTINGS_STATE, PushNudgeMemory } from './nudge-memory';
 
 let nextId = 0;
 
 /**
  * The quiet line on Needs you while push is off on this device (#36; one line since #204): that screen promises
  * "you'll get a notification", so it says when that is not true. Turn on asks for permission from this tap only; on
- * iPhone Safari it leads to the Home Screen guide in Settings instead. Close hides it on this device.
+ * iPhone Safari it leads to the Home Screen guide in Settings › App instead (#761). Close hides it on this device.
  */
 @Component({
   selector: 'tc-push-nudge',
@@ -84,7 +84,7 @@ export class PushNudge {
   }
 
   protected async how(): Promise<void> {
-    await this.router.navigate(['/settings'], { state: { [FOCUS_PUSH_SETTINGS_STATE]: true } });
+    await this.router.navigate(['/settings'], { state: { [FOCUS_APP_SETTINGS_STATE]: true } });
   }
 
   protected later(): void {

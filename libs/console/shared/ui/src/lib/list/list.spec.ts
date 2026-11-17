@@ -1,7 +1,7 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { List, ListRow } from './list';
+import { List, ListHeading, ListRow } from './list';
 
 @Component({
   imports: [List, ListRow],
@@ -157,5 +157,53 @@ describe('ListRow variants (#194)', () => {
     const [, , addable] = await render();
     const detail = addable?.querySelector('.tc-list-row__text .tc-list-row__detail');
     expect(detail?.querySelector('button')?.textContent).toBe('See why');
+  });
+});
+
+@Component({
+  imports: [List, ListHeading, ListRow],
+  template: `
+    <tc-list grid aria-label="Artifacts">
+      <tc-list-heading>Decisions</tc-list-heading>
+      <tc-list-row href="https://github.com/o/r/blob/main/0001.md" external>
+        <span tc-row-kicker>Decision</span>
+        <span tc-row-title>ADR 0001</span>
+      </tc-list-row>
+      <tc-list-row href="https://github.com/o/r/blob/main/0002.md" external>
+        <span tc-row-title>ADR 0002</span>
+      </tc-list-row>
+    </tc-list>
+  `,
+})
+class GridRows {}
+
+describe('List grid (#766)', () => {
+  async function render() {
+    await TestBed.configureTestingModule({ imports: [GridRows] }).compileComponents();
+    const fixture = TestBed.createComponent(GridRows);
+    await fixture.whenStable();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('marks the list as a grid of cards', async () => {
+    const root = await render();
+    expect(root.querySelector('tc-list')?.classList).toContain('tc-list--grid');
+  });
+
+  it('keeps a heading for the eye only, so the list holds list items alone and counts the rows', async () => {
+    const root = await render();
+    const heading = root.querySelector('tc-list-heading');
+    expect(heading?.getAttribute('aria-hidden')).toBe('true');
+    expect(heading?.textContent?.trim()).toBe('Decisions');
+    expect(root.querySelectorAll('[role="listitem"]')).toHaveLength(2);
+  });
+
+  it('projects the kicker above the title, inside the link', async () => {
+    const root = await render();
+    const [first, second] = Array.from(root.querySelectorAll('tc-list-row'));
+    const kicker = first?.querySelector('a .tc-list-row__text > .tc-list-row__kicker');
+    expect(kicker?.textContent?.trim()).toBe('Decision');
+    expect(kicker?.nextElementSibling?.classList).toContain('tc-list-row__title');
+    expect(second?.querySelector('.tc-list-row__kicker')?.textContent?.trim()).toBe('');
   });
 });

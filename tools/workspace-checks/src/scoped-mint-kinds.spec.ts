@@ -84,6 +84,154 @@ const MINT_CALLS: readonly MintCall[] = SOURCES.flatMap((file) => {
   });
 });
 
+/** The modules besides the callers that may write a kind as a literal: the library and its token-taking helpers. */
+const KIND_LITERAL_HOLDERS: Readonly<Record<ScopedKind, readonly string[]>> = {
+  'actions-dispatch': [APP_AUTH, SCOPED_MINT, 'libs/worker/github/src/lib/actions-dispatch.ts'],
+  'environment-read': [APP_AUTH, SCOPED_MINT, 'libs/worker/github/src/lib/actions-setup-reads.ts'],
+  'workflow-pr': [APP_AUTH, SCOPED_MINT],
+};
+const CALLER_FILES: ReadonlySet<string> = new Set(Object.values(ALLOWED_CALLERS).flat());
+
+/** The string a literal, a template or a `+` of them spells, or `null` when any part is not constant. */
+function constantText(node: ts.Node): string | null {
+  if (ts.isStringLiteralLike(node)) {
+    return node.text;
+  }
+  if (ts.isTemplateExpression(node)) {
+    const parts = [node.head.text];
+    for (const span of node.templateSpans) {
+      const value = constantText(span.expression);
+      if (value === null) {
+        return null;
+      }
+      parts.push(value, span.literal.text);
+    }
+    return parts.join('');
+  }
+  if (ts.isParenthesizedExpression(node)) {
+    return constantText(node.expression);
+  }
+  if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken) {
+    const left = constantText(node.left);
+    const right = constantText(node.right);
+    return left === null || right === null ? null : left + right;
+  }
+  return null;
+}
+
+interface Mention {
+  readonly file: string;
+  readonly line: number;
+  readonly text: string;
+}
+
+const lineOf = (source: ts.SourceFile, node: ts.Node): number =>
+  source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+
+/** A direct `<receiver>.mintScoped(<literal>, …)` call: the one shape a caller may use. */
+function isDirectMintCallee(node: ts.Identifier): boolean {
+  const access = node.parent;
+  if (!ts.isPropertyAccessExpression(access) || access.name !== node) {
+    return false;
+  }
+  const call = access.parent;
+  const [first] = ts.isCallExpression(call) && call.expression === access ? call.arguments : [];
+  return first !== undefined && ts.isStringLiteralLike(first);
+}
+
+/**
+ * SEC 1 of PR 1's review: every way to name the mint or a kind that is not the reviewed shape — element access
+ * (`auth['mintScoped']`, a template key), `.bind`, destructuring, a stored reference, a kind built from pieces.
+ */
+const ALIAS_FINDINGS: { readonly names: Mention[]; readonly kinds: Mention[] } = (() => {
+  const names: Mention[] = [];
+  const kinds: Mention[] = [];
+  for (const file of SOURCES) {
+    const source = parsed(file);
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === 'mintScoped') {
+        const isDeclaration = file === APP_AUTH && ts.isMethodDeclaration(node.parent) && node.parent.name === node;
+        const isCall = CALLER_FILES.has(file) && isDirectMintCallee(node);
+        if (!isDeclaration && !isCall) {
+          names.push({ file, line: lineOf(source, node), text: node.parent.getText(source) });
+        }
+      }
+      const parent = node.parent as ts.Node | undefined;
+      const isModuleSpecifier =
+        parent !== undefined &&
+        (ts.isImportDeclaration(parent) || ts.isExportDeclaration(parent)) &&
+        parent.moduleSpecifier === node;
+      const text =
+        !isModuleSpecifier &&
+        (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node))
+          ? constantText(node)
+          : null;
+      // A `+` is judged once, as a whole; its leaves are visited too, and a bare kind leaf is caught there.
+      if (text !== null) {
+        if (text.includes('mintScoped')) {
+          names.push({ file, line: lineOf(source, node), text });
+        }
+        for (const kind of SCOPED_KINDS) {
+          const mayHold = KIND_LITERAL_HOLDERS[kind].includes(file) || ALLOWED_CALLERS[kind].includes(file);
+          if (text.includes(kind) && !mayHold) {
+            kinds.push({ file, line: lineOf(source, node), text });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  }
+  return { names, kinds };
+})();
+
+describe('no alias reaches a scoped mint (#759 SEC 1)', () => {
+  it('names mintScoped only as its declaration and as direct calls with a literal kind in the allowed callers', () => {
+    expect(ALIAS_FINDINGS.names).toEqual([]);
+  });
+
+  it('writes a kind only in the library, its token-taking helpers and the allowed callers of that kind', () => {
+    expect(ALIAS_FINDINGS.kinds).toEqual([]);
+  });
+
+  it('would catch element access, .bind, destructuring, template keys and kinds built from pieces', () => {
+    const probe = ts.createSourceFile(
+      'probe.ts',
+      [
+        "auth['mintScoped']('workflow-pr', target, audit);",
+        'auth[`mintScoped`](kind, target, audit);',
+        'const mint = auth.mintScoped.bind(auth);',
+        'const { mintScoped } = auth;',
+        "auth['mint' + 'Scoped'];",
+        "const kind = 'workflow' + '-pr';",
+        "const other = `environment-${'read'}`;",
+      ].join('\n'),
+      ts.ScriptTarget.ES2022,
+      true,
+    );
+    const identifiers: string[] = [];
+    const texts: string[] = [];
+    const visit = (node: ts.Node): void => {
+      if (ts.isIdentifier(node) && node.text === 'mintScoped' && !isDirectMintCallee(node)) {
+        identifiers.push(node.parent.getText(probe));
+      }
+      if (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) {
+        const text = constantText(node);
+        if (text !== null && (text.includes('mintScoped') || SCOPED_KINDS.some((kind) => text.includes(kind)))) {
+          texts.push(text);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(probe);
+    expect(identifiers).toEqual(['auth.mintScoped', 'mintScoped']);
+    expect(texts).toEqual(
+      expect.arrayContaining(['mintScoped', 'workflow-pr', 'environment-read']),
+    );
+    expect(texts.filter((text) => text === 'mintScoped')).toHaveLength(3);
+  });
+});
+
 describe('named scoped mints (#759, threat model C5 R8)', () => {
   it('finds the dispatch call, so the scan reads the sources it is meant to', () => {
     expect(MINT_CALLS).toContainEqual({ file: 'apps/api/src/actions/dispatch.ts', kind: 'actions-dispatch', isLiteral: true });

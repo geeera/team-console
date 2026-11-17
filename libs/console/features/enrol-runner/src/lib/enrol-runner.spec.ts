@@ -108,9 +108,16 @@ describe('EnrolRunnerDialog (#464)', () => {
     ]);
     expect(find('enrol-code')).not.toBeNull();
     expect(root.querySelector('form')).toBeNull();
-    expect(root.querySelector('[data-testid="copy-code-text"]')?.textContent).toBe(
+    expect(root.querySelector('[data-testid="enrol-command"] [data-testid="copy-code-text"]')?.textContent).toBe(
       `TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://team-console-dev.example.dev`,
     );
+    // #772: the bare code too, for the `--code -` prompt, with its own copy button named for what it copies.
+    const codeOnly = find('enrol-code-only');
+    expect(codeOnly?.querySelector('[data-testid="copy-code-text"]')?.textContent).toBe(CODE);
+    expect(codeOnly?.querySelector('button')?.getAttribute('aria-label')).toBe(
+      'Копировать только код подключения раннера',
+    );
+    expect(root.textContent).toContain('Если команда попросит код (например, с --code -), вставьте только его:');
     expect(root.textContent).toContain('Код показывается только один раз');
     expect(find('enrol-expiry')?.textContent).toMatch(/Код действует до \d{2}:\d{2} \(10 минут\)/);
     expect(root.textContent).toContain('Проекты: team-console');
