@@ -144,6 +144,36 @@ describe('none backend', () => {
     }
   });
 
+  it('reports a job whose own group refuses the signal, instead of treating it as gone (#720)', async () => {
+    // Every remaining member of the job's group changed uid (e.g. a sudo/setuid child): `kill(-pgid)` answers
+    // EPERM on the very first SIGTERM, with nothing recycled and no liveness check reached yet. Unlike the
+    // recycled-pid case (#702), this is our own job, still running and unsignalable — it must not be silently
+    // treated as finished.
+    const fakePid = 999_998;
+    const epermError = Object.assign(new Error('kill EPERM'), { code: 'EPERM' });
+    const kill = vi.spyOn(process, 'kill').mockImplementation(((pid: number) => {
+      if (pid === -fakePid) {
+        throw epermError;
+      }
+      return true;
+    }) as typeof process.kill);
+    try {
+      const running: RunningJob = {
+        pid: fakePid,
+        stdout: new Readable({ read: () => undefined }),
+        stderr: new Readable({ read: () => undefined }),
+        exited: Promise.resolve({ exitCode: null, signal: null }),
+      };
+      await expect(backend.kill(running)).rejects.toThrow(BackendError);
+      expect(kill).toHaveBeenCalledWith(-fakePid, 'SIGTERM');
+      // No liveness check or SIGKILL follows a refused SIGTERM: there is nothing more to learn from this group.
+      expect(kill).not.toHaveBeenCalledWith(-fakePid, 0);
+      expect(kill).not.toHaveBeenCalledWith(-fakePid, 'SIGKILL');
+    } finally {
+      kill.mockRestore();
+    }
+  });
+
   it('sweeps a detached process left in the sandbox, wipes the sandbox, and preflight then passes', async () => {
     const sandbox = await backend.prepare({ jobId: JOB_ID, projectSlug: 'team-console' });
     const detached = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {

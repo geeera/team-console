@@ -104,7 +104,8 @@ export function parseCredentialConfig(value: unknown): CredentialConfig | null {
     if (typeof file !== 'string' || !CREDENTIAL_FILE.test(file)) {
       return null;
     }
-    return kind === 'api-key' ? { kind, file } : { kind, file };
+    // `kind` is narrowed to the union, not a literal; both members share this shape, so TS needs the nudge.
+    return { kind, file } as Extract<CredentialConfig, { readonly file: string }>;
   }
   if (kind === 'claude-config-dir' && keys === 'kind,path') {
     return typeof path === 'string' && path.startsWith('/') && !path.split('/').includes('..')

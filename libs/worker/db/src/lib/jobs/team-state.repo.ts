@@ -76,10 +76,15 @@ export interface StreakOutcome {
   readonly excluded: boolean;
 }
 
-/** The account's `job.streak-excluded` rows inside the window, narrowed by `scope`. */
+/**
+ * The account's `job.streak-excluded` rows inside the window, narrowed by `scope`. `at` and `windowFrom` are both
+ * `toISOString()` (fixed-width, UTC, `Z`-suffixed), so a plain string compare orders them exactly as `julianday`
+ * would — and, unlike it, stays sargable: migration 0034's partial index covers `(account_id, at) WHERE kind =
+ * 'job.streak-excluded'`, which only a column-direct range (not one wrapped in `julianday()`) can use (#726).
+ */
 const excludedInWindow = (accountId: string, windowFrom: string, scope: string): string =>
   `(SELECT COUNT(*) FROM audit_events WHERE account_id = ${accountId} AND kind = 'job.streak-excluded'
-      AND julianday(at) > julianday(${windowFrom}) AND ${scope})`;
+      AND at > ${windowFrom} AND ${scope})`;
 
 /**
  * The finishing runner holds a pause in force, or one that lapsed inside the grace window, and neither it nor the
