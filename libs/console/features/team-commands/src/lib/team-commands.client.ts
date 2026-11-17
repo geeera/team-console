@@ -1,7 +1,14 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { commandFailureOf, type CommandResult } from '@console/entities/team-run';
-import type { PauseRequest, RunResponse, TeamCommandResponse, TeamSlot } from '@shared/contracts';
+import {
+  isTeamState,
+  type PauseRequest,
+  type RunResponse,
+  type TeamCommandResponse,
+  type TeamSlot,
+  type TeamStateDto,
+} from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 
 export function teamCommandUrl(slug: string, command: 'pause' | 'resume'): string {
@@ -16,16 +23,24 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isCommandResponse(value: unknown): value is TeamCommandResponse {
-  return (
-    isRecord(value) &&
-    (value['state'] === 'running' ||
-      value['state'] === 'paused-by-owner' ||
-      value['state'] === 'paused-by-team') &&
+/** What a pause or resume answers: the run-log write on GitHub's tracker, `team_state` on the console's (#467). */
+export type TeamCommandAnswer = TeamCommandResponse | TeamStateDto;
+
+function isCommandResponse(value: unknown): value is TeamCommandAnswer {
+  if (!isRecord(value)) {
+    return false;
+  }
+  const isRunLogWrite =
+    isTeamState(value['state']) &&
     typeof value['runLogUrl'] === 'string' &&
     typeof value['commentUrl'] === 'string' &&
-    typeof value['replayed'] === 'boolean'
-  );
+    typeof value['replayed'] === 'boolean';
+  const isTeamStateRow =
+    typeof value['paused'] === 'boolean' &&
+    (value['pausedAt'] === null || typeof value['pausedAt'] === 'string') &&
+    (value['pausedBy'] === null || typeof value['pausedBy'] === 'string') &&
+    typeof value['failedStreak'] === 'number';
+  return isRunLogWrite || isTeamStateRow;
 }
 
 function isRunResponse(value: unknown): value is RunResponse {
@@ -46,12 +61,12 @@ function isRunResponse(value: unknown): value is RunResponse {
 export class TeamCommandsClient {
   private readonly http = inject(HttpClient);
 
-  pause(slug: string, reason: string): Promise<CommandResult<TeamCommandResponse>> {
+  pause(slug: string, reason: string): Promise<CommandResult<TeamCommandAnswer>> {
     const body: PauseRequest = reason === '' ? {} : { reason };
     return this.post(teamCommandUrl(slug, 'pause'), body, isCommandResponse);
   }
 
-  resume(slug: string): Promise<CommandResult<TeamCommandResponse>> {
+  resume(slug: string): Promise<CommandResult<TeamCommandAnswer>> {
     return this.post(teamCommandUrl(slug, 'resume'), {}, isCommandResponse);
   }
 

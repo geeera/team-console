@@ -10,8 +10,8 @@ import {
 } from '@console/entities/team-run';
 import { localTimeOf, TranslocoService } from '@console/shared/i18n';
 import { ConfirmFailure, Sheet, type ConfirmOptions } from '@console/shared/ui';
-import type { RunResponse, SlotLock, TeamCommandResponse, TeamSlot } from '@shared/contracts';
-import { TeamCommandsClient } from './team-commands.client';
+import type { RunResponse, SlotLock, TeamSlot } from '@shared/contracts';
+import { TeamCommandsClient, type TeamCommandAnswer } from './team-commands.client';
 
 /** When `Retry-After` is missing: the routine's cap is per hour, the Worker's default is ten minutes. */
 const DEFAULT_RETRY_AFTER_S = 600;
@@ -48,12 +48,19 @@ export class TeamCommands {
 
   async resume(target: CommandTarget): Promise<CommandOutcome | null> {
     const t = this.t;
-    const pausedItself = this.store.status()?.state === 'paused-by-team';
+    const state = this.store.status()?.state;
+    // A plain resume never waives the budget (#733): while the month is at it, nothing new starts.
+    const warning =
+      state === 'paused-by-team'
+        ? t('commands.dialog.resumeTeam')
+        : state === 'paused-by-budget'
+          ? t('commands.dialog.resumeBudget')
+          : null;
     return this.confirmed(
       {
         title: t('commands.dialog.resumeTitle', { name: target.name }),
         message: t('commands.dialog.resumeBody'),
-        ...(pausedItself ? { warning: t('commands.dialog.resumeTeam') } : {}),
+        ...(warning === null ? {} : { warning }),
         confirmLabel: t('commands.dialog.resumeOk'),
       },
       async () => this.resumeOutcome(target, await this.client.resume(target.slug)),
@@ -112,7 +119,7 @@ export class TeamCommands {
     };
   }
 
-  private pauseOutcome(target: CommandTarget, result: CommandResult<TeamCommandResponse>): CommandOutcome {
+  private pauseOutcome(target: CommandTarget, result: CommandResult<TeamCommandAnswer>): CommandOutcome {
     if (result.ok) {
       this.store.applyState('paused-by-owner', new Date(this.now()).toISOString());
       return this.outcome('positive', this.t('commands.result.paused', { name: target.name }));
@@ -129,7 +136,7 @@ export class TeamCommands {
     throw this.refusal(result.failure, null);
   }
 
-  private resumeOutcome(target: CommandTarget, result: CommandResult<TeamCommandResponse>): CommandOutcome {
+  private resumeOutcome(target: CommandTarget, result: CommandResult<TeamCommandAnswer>): CommandOutcome {
     if (result.ok || result.failure.kind === 'not-paused') {
       this.store.applyState('running', null);
       return result.ok

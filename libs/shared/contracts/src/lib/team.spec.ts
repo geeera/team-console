@@ -2,9 +2,11 @@ import {
   RUN_ENTRY_STATES,
   TEAM_RUN_STATES,
   TEAM_SLOTS,
+  TEAM_STATES,
   isRunEntryState,
   isTeamRunState,
   isTeamSlot,
+  isTeamState,
 } from './team';
 
 describe('isTeamSlot', () => {
@@ -14,6 +16,16 @@ describe('isTeamSlot', () => {
 
   it.each(['slot-dev', 'DEV', '', null, 1, 'burn'])('refuses %j', (value) => {
     expect(isTeamSlot(value)).toBe(false);
+  });
+});
+
+describe('isTeamState', () => {
+  it.each(TEAM_STATES)('accepts %s', (state) => {
+    expect(isTeamState(state)).toBe(true);
+  });
+
+  it.each(['failing', 'paused', 'Paused-by-budget', '', null, 0])('refuses %j', (value) => {
+    expect(isTeamState(value)).toBe(false);
   });
 });
 

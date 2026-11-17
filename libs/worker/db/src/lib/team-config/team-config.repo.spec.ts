@@ -410,9 +410,11 @@ describe('ProjectSpendRepo', () => {
   it('reads a month with no row as nothing spent, and a row as stored', async () => {
     const slug = await project();
     const spend = new ProjectSpendRepo(env.DB);
-    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 0, jobs: 0 });
+    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 0, jobs: 0, waivedAt: null });
     await env.DB.prepare(`INSERT INTO project_spend (project_slug, month, spent_usd, jobs) VALUES (?1, '2026-11', 12.5, 3)`).bind(slug).run();
-    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 12.5, jobs: 3 });
+    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 12.5, jobs: 3, waivedAt: null });
+    await env.DB.prepare(`UPDATE project_spend SET waived_at = '2026-11-20T08:00:00.000Z' WHERE project_slug = ?1`).bind(slug).run();
+    expect((await spend.findMonth(slug, '2026-11')).waivedAt).toBe('2026-11-20T08:00:00.000Z');
     await expect(
       env.DB.prepare(`INSERT INTO project_spend (project_slug, month, spent_usd) VALUES (?1, '2026-12', -1)`).bind(slug).run(),
     ).rejects.toThrow();
