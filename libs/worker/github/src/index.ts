@@ -64,6 +64,8 @@ export type {
   ReadCacheOptions,
 } from './lib/read-cache';
 export { InvalidRepoNameError, isValidRepoName, parseRepoName, sameRepo } from './lib/repo-name';
+export { readRegisteredRepository } from './lib/registered-repository';
+export type { VerifiedRepository } from './lib/registered-repository';
 export type { RepoName } from './lib/repo-name';
 export type {
   InstallationListTokenSource,

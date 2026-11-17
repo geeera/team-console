@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { checkProjectDispatchInput, type ProjectDispatchDto } from '@shared/contracts';
 import { problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { ProjectDispatchRepo } from '@worker/db';
-import { GitHubClient, githubPath } from '@worker/github';
+import { GitHubClient, readRegisteredRepository } from '@worker/github';
 import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -19,19 +19,6 @@ const P = '/api/v1/projects/:slug';
 function refused(c: Context, type: string, detail: string): Response {
   const extensions: Record<string, ProblemExtensionValue> = { field: 'dispatch' };
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
-}
-
-interface RepositoryAnswer {
-  readonly id: number;
-  readonly default_branch: string;
-}
-
-function isRepositoryAnswer(value: unknown): value is RepositoryAnswer {
-  if (typeof value !== 'object' || value === null) {
-    return false;
-  }
-  const record = value as Record<string, unknown>;
-  return typeof record['id'] === 'number' && typeof record['default_branch'] === 'string' && record['default_branch'] !== '';
 }
 
 /**
@@ -73,15 +60,16 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
           return registered;
         }
         const { auth, fetch } = await github.connect(c.env);
-        const read = await new GitHubClient(fetch, auth.tokenSourceFor(registered)).getJson(
-          githubPath`/repos/${registered}`,
-          isRepositoryAnswer,
+        const repository = await readRegisteredRepository(
+          new GitHubClient(fetch, auth.tokenSourceFor(registered)),
+          registered,
+          row.repo_id,
         );
-        if (read.id !== row.repo_id) {
+        if (repository === null) {
           c.get('logger').warn('dispatch refused', { reason: 'repository-id-mismatch', slug: row.slug });
           return refused(c, 'dispatch-repository-unverified', 'GitHub names another repository under this name');
         }
-        defaultBranch = read.default_branch;
+        defaultBranch = repository.defaultBranch;
       }
       const at = new Date().toISOString();
       const outcome = await repo.set({

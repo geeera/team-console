@@ -109,13 +109,29 @@ export async function saveAccessSource(project: ActionsProject, source: AccessSo
 export interface SeededJobOptions {
   /** `false`: queued but never dispatched by the console (#695 item 3: a hand-started run must not take it). */
   readonly dispatched?: boolean;
+  /**
+   * The run the console's dispatch recorded for a dispatched job (#723 item 2): a fresh one by default, `null` for a
+   * dispatch that never got as far as GitHub's answer (the Worker died between `markDispatched` and the call).
+   */
+  readonly runId?: string | null;
   readonly needsLocal?: boolean;
   readonly role?: string;
 }
 
+const dispatchedRuns = new Map<string, string>();
+
+/**
+ * The run the console dispatched `jobId` to, as `seedActionsJob` recorded it; a fresh run id (one no dispatch
+ * started, like a run started by hand) for a job without one.
+ */
+export function dispatchedRunOf(jobId: string): string {
+  return dispatchedRuns.get(jobId) ?? nextRunId();
+}
+
 /**
  * A queued job of the project, dispatched to Actions unless `dispatch` says otherwise; an Actions job counts as
- * dispatched by the console (`dispatched_at` set) unless `options.dispatched` is `false`.
+ * dispatched by the console (`dispatched_at` set, and the run GitHub named recorded) unless `options.dispatched` is
+ * `false`.
  */
 export async function seedActionsJob(
   project: ActionsProject,
@@ -125,9 +141,11 @@ export async function seedActionsJob(
   const id = newUlid();
   const now = new Date().toISOString();
   const dispatchedAt = dispatch === 'actions' && options.dispatched !== false ? now : null;
+  const runId = dispatchedAt === null ? null : options.runId === undefined ? nextRunId() : options.runId;
   await env.DB.prepare(
-    `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, needs_local)
-     VALUES (?1, ?2, ?3, 'slot-dev', ?4, 'owner', ?5, ?6, ?7, ?8)`,
+    `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, needs_local,
+       actions_run_id)
+     VALUES (?1, ?2, ?3, 'slot-dev', ?4, 'owner', ?5, ?6, ?7, ?8, ?9)`,
   )
     .bind(
       id,
@@ -138,8 +156,12 @@ export async function seedActionsJob(
       dispatch,
       dispatchedAt,
       options.needsLocal === true ? 1 : 0,
+      runId,
     )
     .run();
+  if (runId !== null) {
+    dispatchedRuns.set(id, runId);
+  }
   return id;
 }
 

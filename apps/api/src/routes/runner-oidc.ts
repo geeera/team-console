@@ -145,6 +145,13 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     if (job.dispatch !== 'actions' || job.state !== 'queued' || job.runnerId !== null) {
       return refused(c, logger, 'job_id', 409, value.jobId);
     }
+    // #723 item 2: only the run the console's dispatch started, as GitHub named it, may take the job. A run started
+    // by hand with the same `job_id` input carries every other claim the console's run does; its `run_id` it cannot.
+    // A job whose dispatch never recorded a run (never dispatched, or the Worker died before the call) is taken by no
+    // run at all. The batch below holds the same term in its write.
+    if (target.dispatchedRunId !== runId) {
+      return refused(c, logger, 'run_id', 401, value.jobId);
+    }
 
     const at = now.toISOString();
     const runnerId = newUlid(now.getTime());

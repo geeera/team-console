@@ -156,12 +156,15 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       if (outcome === 'access-source-hosted') {
         return actionsOnSubscription(c);
       }
-      const queued = await new JobsRepo(c.env.DB).findInProject(row.slug, id);
-      // #670: an Actions job is dispatched now; a failed call leaves it `failed` with `dispatch-failed`.
+      const jobs = new JobsRepo(c.env.DB);
+      const queued = await jobs.findInProject(row.slug, id);
+      // #670: an Actions job is dispatched now; a failed call leaves it `failed` with `dispatch-failed`. #725: the
+      // answer is the job as the dispatch left it, read again only when the dispatch could not say.
+      let job = queued;
       if (queued?.dispatch === 'actions') {
-        await dispatchActionsJob({ env: c.env, github, logger: c.get('logger') }, queued.id);
+        const outcome = await dispatchActionsJob({ env: c.env, github, logger: c.get('logger') }, queued.id);
+        job = (outcome.kind === 'skipped' ? null : outcome.job) ?? (await jobs.findInProject(row.slug, id));
       }
-      const job = await new JobsRepo(c.env.DB).findInProject(row.slug, id);
       return c.json(job === null ? null : jobDtoOf(job), 201);
     })
 

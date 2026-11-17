@@ -1,10 +1,13 @@
 import { env } from 'cloudflare:test';
 import { TEAM_CONFIG_SCHEMA, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { newUlid } from '@worker/core';
-import { TeamConfigRepo } from '@worker/db';
+import { JobsRepo, TeamConfigRepo } from '@worker/db';
+import { generateRunnerKey } from '../testing/runner-kit';
 import {
   actionsToken,
   createTestIssuer,
+  dispatchedRunOf,
+  nextRunId,
   exchangeBodyOf,
   postExchange,
   runClaimsOf,
@@ -24,8 +27,13 @@ beforeAll(async () => {
   issuer = await createTestIssuer();
 });
 
-async function exchange(project: ActionsProject, jobId: string, options: TokenOptions = {}): Promise<Response> {
-  const token = await actionsToken(issuer, runClaimsOf(project), options);
+async function exchange(
+  project: ActionsProject,
+  jobId: string,
+  options: TokenOptions = {},
+  runId: string = dispatchedRunOf(jobId),
+): Promise<Response> {
+  const token = await actionsToken(issuer, runClaimsOf(project, runId), options);
   const request = await exchangeBodyOf(token, jobId);
   return postExchange(request.body, issuer.bindings);
 }
@@ -37,6 +45,17 @@ async function claimOf(response: Response): Promise<{ status: number; slug: stri
     slug: isProblemDetails(body) ? problemSlugOf(body.type) : null,
     claim: (body as { claim?: unknown }).claim,
   };
+}
+
+const refusedRun = { status: 401, slug: 'oidc-exchange-refused', claim: 'run_id' };
+
+async function ephemeralRunnersOf(project: ActionsProject): Promise<number> {
+  const row = await env.DB.prepare(
+    `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = json_array(?1)`,
+  )
+    .bind(project.slug)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
 }
 
 async function stateOf(jobId: string): Promise<string | undefined> {
@@ -109,12 +128,79 @@ describe('#695 item 3: only a job the console dispatched is exchanged', () => {
   it('refuses a run for a queued Actions job that was never dispatched (a hand-started run), admits it once dispatched', async () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project, 'actions', { dispatched: false });
-    expect(await claimOf(await exchange(project, jobId))).toEqual({ status: 409, slug: 'oidc-exchange-refused', claim: 'job_id' });
+    const runId = nextRunId();
+    expect(await claimOf(await exchange(project, jobId, {}, runId))).toEqual(refusedRun);
     expect(await stateOf(jobId)).toBe('queued');
 
-    await env.DB.prepare(`UPDATE jobs SET dispatched_at = ?2 WHERE id = ?1`).bind(jobId, new Date().toISOString()).run();
+    // The console's dispatch: `dispatched_at`, then the run GitHub named for it (#723).
+    await env.DB.prepare(`UPDATE jobs SET dispatched_at = ?2, actions_run_id = ?3 WHERE id = ?1`)
+      .bind(jobId, new Date().toISOString(), runId)
+      .run();
+    expect((await exchange(project, jobId, {}, runId)).status).toBe(200);
+    expect(await stateOf(jobId)).toBe('claimed');
+  });
+});
+
+describe('#723 item 2: the exchange takes a job only for the run its dispatch started', () => {
+  it('refuses a run started by hand for a job the console dispatched, and the dispatched run still takes it', async () => {
+    const project = await seedActionsProject();
+    const jobId = await seedActionsJob(project);
+    // Every claim of the console's run (repository, default branch, workflow, workflow_dispatch, Environment,
+    // github-hosted), the same job_id input: only the run id differs, as for a run started from the Actions tab.
+    const byHand = await exchange(project, jobId, {}, nextRunId());
+    expect(await claimOf(byHand)).toEqual(refusedRun);
+    expect(await stateOf(jobId)).toBe('queued');
+    expect(await ephemeralRunnersOf(project)).toBe(0);
+
     expect((await exchange(project, jobId)).status).toBe(200);
     expect(await stateOf(jobId)).toBe('claimed');
+  });
+
+  it('refuses every run for a job whose dispatch never recorded its run (the Worker died before the call)', async () => {
+    const project = await seedActionsProject();
+    const jobId = await seedActionsJob(project, 'actions', { runId: null });
+    for (const runId of [nextRunId(), nextRunId()]) {
+      expect(await claimOf(await exchange(project, jobId, {}, runId))).toEqual(refusedRun);
+    }
+    expect(await stateOf(jobId)).toBe('queued');
+    expect(await ephemeralRunnersOf(project)).toBe(0);
+  });
+
+  it("refuses the run dispatched for one job when it names another job of the project", async () => {
+    const project = await seedActionsProject();
+    const mine = await seedActionsJob(project);
+    const other = await seedActionsJob(project);
+    expect(await claimOf(await exchange(project, other, {}, dispatchedRunOf(mine)))).toEqual(refusedRun);
+    expect(await stateOf(other)).toBe('queued');
+    expect((await exchange(project, mine)).status).toBe(200);
+  });
+
+  it('holds the term in the write too: the batch takes the job for no run but the recorded one', async () => {
+    const project = await seedActionsProject();
+    const jobId = await seedActionsJob(project);
+    const key = await generateRunnerKey();
+    const at = new Date().toISOString();
+    const runId = nextRunId();
+    const audit = { accountId: project.accountId, at, actorKind: 'runner' as const, actor: 'x', kind: 'job.claimed' as const, target: jobId };
+    const outcome = await new JobsRepo(env.DB).exchangeForActions({
+      jobId,
+      runId,
+      runnerId: '01M6YSNJ0000000000000HAND1',
+      runnerName: `actions:${runId}`,
+      publicKeyJwk: key.publicKeyJwk,
+      host: { os: 'linux', arch: 'x64', hostname: 'vm' },
+      version: '0.4.0',
+      tokenHash: 'a'.repeat(64),
+      now: at,
+      leaseUntil: new Date(Date.now() + 300_000).toISOString(),
+      country: null,
+      ipHash: null,
+      enrolledAudit: { ...audit, kind: 'runner.enrolled' },
+      claimedAudit: audit,
+    });
+    expect(outcome).toEqual({ kind: 'not-claimable' });
+    expect(await stateOf(jobId)).toBe('queued');
+    expect(await ephemeralRunnersOf(project)).toBe(0);
   });
 });
 
