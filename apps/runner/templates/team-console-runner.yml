@@ -17,7 +17,7 @@
 # - Node.js, the runner release and the Claude Code CLI are each pinned and checked before use: the runner tarball
 #   with `gh attestation verify` against this product's release workflow and tag, the other two by checksum.
 # - The OIDC request token reaches the runner on stdin, so the process that supervises the job never holds it in its
-#   environment.
+#   environment, and the runner starts with SIGUSR1 off, so the job cannot open its Node inspector.
 name: team-console-runner
 
 on:
@@ -164,6 +164,8 @@ jobs:
           echo "::add-mask::${TC_INFERENCE_API_KEY}"
           export TC_CLAUDE_COMMAND="${RUNNER_TEMP}/claude-code/claude"
           # The request token goes in on stdin and out of the environment; `exec` leaves no shell holding it either.
-          exec env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN PATH="${RUNNER_TEMP}/node/bin:/usr/bin:/bin" \
+          # --disable-sigusr1: the job runs as this uid and could otherwise open the runner's Node inspector with
+          # `kill -USR1` and read the token and the job's console identity out of its memory.
+          exec env -u ACTIONS_ID_TOKEN_REQUEST_TOKEN NODE_OPTIONS=--disable-sigusr1 PATH="${RUNNER_TEMP}/node/bin:/usr/bin:/bin" \
             "${RUNNER_TEMP}/runner/bin/team-console-runner" run-once --oidc --request-token - \
             <<< "${ACTIONS_ID_TOKEN_REQUEST_TOKEN}"

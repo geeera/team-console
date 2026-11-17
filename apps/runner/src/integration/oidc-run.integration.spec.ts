@@ -241,7 +241,7 @@ describe('integration: run-once --oidc against the local stack', () => {
     expect(out.every((line) => /^[0-9A-HJKMNP-TV-Z]{26}$/.test(line))).toBe(true);
   }, 180_000);
 
-  it('the template’s job step, run by bash on the built bundle, takes the request token on stdin only (#712)', async () => {
+  it('the template’s job step, run by bash on the built bundle, takes the request token on stdin only and ignores SIGUSR1 (#712)', async () => {
     // The VM's layout as the template's earlier steps leave it: node, the release files, the CLI under RUNNER_TEMP.
     const runnerTemp = await shortTempDir('t-');
     temps.push(runnerTemp);
@@ -279,7 +279,16 @@ describe('integration: run-once --oidc against the local stack', () => {
     const child = spawn('bash', ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath], { env, stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout: string[] = [];
     const stderr: string[] = [];
-    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk.toString()));
+    // Once the job id is on stdout the exchange is done and the runner supervises the job: the moment a compromised job
+    // would send it SIGUSR1 to open the Node inspector (#712). It must neither listen nor die.
+    let signalled = false;
+    child.stdout.on('data', (chunk: Buffer) => {
+      stdout.push(chunk.toString());
+      if (!signalled && child.pid !== undefined && stdout.join('').includes(`${jobId}\n`)) {
+        process.kill(child.pid, 'SIGUSR1');
+        signalled = true;
+      }
+    });
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString()));
     const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
     // What the job sees of its supervisor: on Linux, /proc/<pid>/environ of the runner the step exec'd (same uid).
@@ -302,7 +311,9 @@ describe('integration: run-once --oidc against the local stack', () => {
     }
     const code = await exited;
     console.info(`[template job step] exit ${String(code)} stdout ${JSON.stringify(stdout.join(''))} stderr ${JSON.stringify(stderr.join(''))}`);
+    expect(signalled).toBe(true);
     expect(code).toBe(EXIT_OK);
+    expect(stderr.join('')).not.toContain('Debugger listening');
     // GitHub consumes the `::add-mask::` workflow command; what is left on the log is the job id alone.
     const lines = stdout.join('').split('\n').filter((line) => line !== '');
     expect(lines.filter((line) => !line.startsWith('::add-mask::'))).toEqual([jobId]);

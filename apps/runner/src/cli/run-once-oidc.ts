@@ -31,7 +31,10 @@ import { hostFieldOf } from './enrol';
  *
  * The request token may come on stdin instead (`--request-token -`, #712): the workflow template passes it that way,
  * so this process, which supervises the job for the whole run, never has it in its environment (`/proc/<pid>/environ`
- * is readable by the job, which runs as the same uid on the VM). The token then lives in this process's memory only.
+ * is readable by the job, which runs as the same uid on the VM). The token then lives in this process's memory only,
+ * together with the job's console identity. Two controls keep the job out of that memory: the template's ptrace scope
+ * 2 (no attach) and `--disable-sigusr1` (launcher and template `NODE_OPTIONS`), without which the job could open this
+ * process's Node inspector with `kill -USR1` and evaluate code in it. A local privilege escalation still reaches it.
  *
  * Output: stdout carries the job id and nothing else; the CLI's stream goes to the job's events; the runner's own
  * lines go to stderr through the redactor. The inference key, the OIDC token, the request token and the read token

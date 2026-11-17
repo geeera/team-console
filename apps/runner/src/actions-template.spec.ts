@@ -268,12 +268,30 @@ describe('apps/runner/templates/team-console-runner.yml', () => {
     it('hands the request token over on stdin and removes it from the environment of the runner it execs (#712)', () => {
       const run = runOf(step());
       expect(run).toContain(
-        `exec env -u ${ACTIONS_RUN_ENV.idTokenToken} PATH="\${RUNNER_TEMP}/node/bin:/usr/bin:/bin" \\`,
+        `exec env -u ${ACTIONS_RUN_ENV.idTokenToken} NODE_OPTIONS=--disable-sigusr1 PATH="\${RUNNER_TEMP}/node/bin:/usr/bin:/bin" \\`,
       );
       expect(run).toContain(`run-once --oidc --request-token ${REQUEST_TOKEN_STDIN} \\`);
       expect(run).toContain(`<<< "\${${ACTIONS_RUN_ENV.idTokenToken}}"`);
       // The token appears nowhere else in the step: not exported, not on an argument list.
       expect(run.split(ACTIONS_RUN_ENV.idTokenToken)).toHaveLength(4);
     });
+
+    it('starts the runner with SIGUSR1 off, so the job cannot open its Node inspector (#712)', () => {
+      // The job runs as the runner's uid: `kill -USR1` would otherwise open the inspector on 127.0.0.1:9229, and
+      // `Runtime.evaluate` would read the request token and the job's console identity out of the runner.
+      const run = runOf(step());
+      expect(run).toMatch(/^\s*exec env -u \S+ NODE_OPTIONS=--disable-sigusr1 /m);
+      // Nothing else in the step sets NODE_OPTIONS or an inspector flag.
+      expect(run.match(/NODE_OPTIONS/g)).toHaveLength(1);
+      expect(run).not.toMatch(/--inspect/);
+      expect(text).not.toMatch(/--inspect/);
+    });
+  });
+
+  it('the launcher in the release starts node with SIGUSR1 off as well, whatever NODE_OPTIONS holds', () => {
+    const launcher = readFileSync(join(app, 'bin', 'team-console-runner'), 'utf8');
+    const execs = launcher.split('\n').filter((line) => /^\s*exec /.test(line));
+    expect(execs).toEqual(['exec node --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"']);
+    expect(launcher).not.toMatch(/--inspect/);
   });
 });

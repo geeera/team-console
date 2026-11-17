@@ -38,6 +38,9 @@ sudo tar -xzf team-console-runner-<v>-<platform>.tar.gz --no-same-owner -C /usr/
 /usr/local/lib/team-console-runner/bin/team-console-runner version    # prints <v>
 ```
 
+The launcher needs Node.js 22.14 or later. It starts `node --disable-sigusr1`, so no process of the runner's user can
+open the runner's inspector with `kill -USR1`. An older node refuses the flag and the runner does not start.
+
 `install --backend user` refuses a directory, bundle or `job-exec` that is not root-owned or that anyone else can
 write, because the sudoers rule names that file. Run `install --dry-run` first. It lists every step and changes
 nothing. Then run the same command with `--yes`. Run the launcher by its full path, or put
@@ -189,8 +192,11 @@ starts, the template takes away the ways to reach further:
   socket is still there or ptrace is still open.
 - **The OIDC request token** (`ACTIONS_ID_TOKEN_REQUEST_TOKEN`, which mints OIDC tokens of this run for *any*
   audience) reaches the runner on stdin and is removed from its environment, so the process that supervises the job
-  does not carry it where the job's uid can read it (`/proc/<pid>/environ`); it then lives in that process's memory
-  only, which the job cannot attach to.
+  does not carry it where the job's uid can read it (`/proc/<pid>/environ`). It then lives in that process's memory,
+  with the job's console identity. The job cannot attach to that memory (ptrace scope 2), and it cannot open the
+  runner's Node inspector either: without `--disable-sigusr1` (set by the launcher and by the template's
+  `NODE_OPTIONS`), a `kill -USR1` from the job's uid would open the inspector on `127.0.0.1:9229` and let the job
+  evaluate code inside the runner.
 - **The Actions runtime token** (`ACTIONS_RUNTIME_TOKEN`, which writes the repository's Actions cache) is given only to
   JavaScript actions. The template has none, so it stays inside GitHub's runner process.
 
