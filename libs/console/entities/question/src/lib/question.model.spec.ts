@@ -263,10 +263,25 @@ describe('the budget stop (#684)', () => {
       projects: [{ ...body.projects[0]!, budgetStop: stop }, body.projects[1]!, { ...body.projects[2]!, budgetStop: stop }],
     });
     expect(view.budgetStops).toEqual([
-      { project: { slug: 'team-console', name: 'Team Console' }, ...stop },
-      { project: { slug: 'broken', name: 'Broken' }, ...stop },
+      { project: { slug: 'team-console', name: 'Team Console' }, ...stop, paused: false },
+      { project: { slug: 'broken', name: 'Broken' }, ...stop, paused: false },
     ]);
     expect(needsYouViewOf(body).budgetStops).toEqual([]);
+  });
+
+  it('carries the project’s own pause (#739): a non-budget pause beside `stoppedAt: null` the row must not word away', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [
+        { ...body.projects[0]!, paused: true, budgetStop: { ...stop, stoppedAt: null } },
+        body.projects[1]!,
+        body.projects[2]!,
+      ],
+    });
+    expect(view.budgetStops).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, ...stop, stoppedAt: null, paused: true },
+    ]);
   });
 
   it.each([

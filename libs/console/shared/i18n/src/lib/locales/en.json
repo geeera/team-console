@@ -2424,7 +2424,8 @@
       "title": "Budget used up — {{project}}",
       "body": "The team stopped: {{spent}} of {{budget}} spent in {{month}} (Claude Code estimate). Running jobs finished; nothing new starts.",
       "resume": "Resume this month",
-      "raise": "Raise budget"
+      "raise": "Raise budget",
+      "readonly": "Only the project owner decides on the budget."
     },
     "resume": {
       "title": "Resume the team in {{project}}?",
@@ -2434,11 +2435,13 @@
     "raise": {
       "title": "Raise budget — {{project}}",
       "message": "Spent in {{month}}: {{spent}}. A budget above that starts the team again.",
+      "messagePaused": "Spent in {{month}}: {{spent}}. The team stays paused — that is your own pause; a new budget will not lift it.",
       "label": "Monthly budget, USD",
       "hint": "An estimate from Claude Code, not a hard cap. The hard cap is your Anthropic workspace limit.",
       "confirm": "Save budget",
       "invalid": "Enter whole dollars from {{min}} to {{max}}.",
-      "tooLow": "The budget must be above what is already spent ({{spent}}), or the team stays paused."
+      "tooLow": "The budget must be above what is already spent ({{spent}}), or the team stays paused.",
+      "savedStillPaused": "Budget saved. The team stays paused — you paused it."
     },
     "overshoot": "Overshoot is bounded by the jobs already running, each up to its minutes limit. The figure here is a floor; the hard cap is your Anthropic workspace limit.",
     "cancel": "Cancel",

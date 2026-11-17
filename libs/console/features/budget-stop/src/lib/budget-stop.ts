@@ -46,8 +46,12 @@ let nextBudgetStopId = 0;
  * The Needs-you row "Budget used up" (#684; UX spec on #630): the figures of the stop and its two actions. `Resume this
  * month` asks one line first, "Spending may exceed {budget}." (team decision on #630), then resumes the team, which
  * waives the budget for the rest of the UTC month. `Raise budget` asks for the new monthly budget, with the overshoot
- * bound under the field, and saves it; a budget above the spend lifts the stop. Both end in "Team resumed." and
- * `resolved`, so the list reads Needs you again.
+ * bound under the field, and saves it; a budget above the spend lifts the stop. Both end in `resolved`, so the list
+ * reads Needs you again; the toast after a successful raise says "Team resumed" only when nothing else holds the
+ * team paused (#739) — beside an owner's own pause (`stoppedAt === null` and `stop().paused`) it says the pause
+ * stays, since raising the budget never touches it. `canManage` is `false` for a project member (#735, the read-only
+ * rule of the Settings › Team UX spec, #630): the row then shows the figures only, with neither action, since both
+ * write as the project's owner and would refuse with "Это может сделать только владелец проекта." anyway.
  */
 @Component({
   selector: 'tc-budget-stop',
@@ -67,19 +71,31 @@ let nextBudgetStopId = 0;
       <p class="budget-stop__body" data-testid="budget-stop-body">
         {{ 'budget.stop.body' | transloco: figures() }}
       </p>
-      <div class="budget-stop__actions">
-        <button tc-button variant="primary" type="button" data-testid="budget-resume" (click)="resume()">
-          {{ 'budget.stop.resume' | transloco }}
-        </button>
-        <button tc-button type="button" data-testid="budget-raise" (click)="raise()">
-          {{ 'budget.stop.raise' | transloco }}
-        </button>
-      </div>
+      @if (canManage()) {
+        <div class="budget-stop__actions">
+          <button tc-button variant="primary" type="button" data-testid="budget-resume" (click)="resume()">
+            {{ 'budget.stop.resume' | transloco }}
+          </button>
+          <button tc-button type="button" data-testid="budget-raise" (click)="raise()">
+            {{ 'budget.stop.raise' | transloco }}
+          </button>
+        </div>
+      } @else {
+        <p class="budget-stop__readonly" data-testid="budget-stop-readonly">
+          {{ 'budget.stop.readonly' | transloco }}
+        </p>
+      }
     </section>
   `,
   styles: `
-    .budget-stop__body {
+    .budget-stop__body,
+    .budget-stop__readonly {
       margin: 0;
+    }
+
+    .budget-stop__readonly {
+      margin-top: var(--space-3);
+      color: var(--text-2);
     }
 
     .budget-stop__actions {
@@ -101,6 +117,11 @@ export class BudgetStop {
   });
 
   readonly stop = input.required<QuestionBudgetStop>();
+  /**
+   * Whether this identity may use the two actions (#735): `false` for a project member, who sees the figures only.
+   * Defaults to `true` so every caller that does not yet carry the owner/member signal keeps today's behaviour.
+   */
+  readonly canManage = input<boolean>(true);
   /** The stop was lifted from this row: the caller reads Needs you again. */
   readonly resolved = output<void>();
 
@@ -113,6 +134,11 @@ export class BudgetStop {
       budget: budgetMoneyOf(stop.budgetUsd, lang),
       month: budgetMonthOf(stop.month, lang),
     };
+  });
+  /** A non-budget pause holds beside this row (#739): raising the budget will not start the team again. */
+  protected readonly staysPaused = computed(() => {
+    const stop = this.stop();
+    return stop.stoppedAt === null && stop.paused;
   });
 
   protected async resume(): Promise<void> {
@@ -130,9 +156,10 @@ export class BudgetStop {
   protected async raise(): Promise<void> {
     const stop = this.stop();
     const { spent, month } = this.figures();
+    const staysPaused = this.staysPaused();
     const isDone = await this.sheet.confirm({
       title: this.t('budget.raise.title', { project: stop.project.name }),
-      message: this.t('budget.raise.message', { spent, month }),
+      message: this.t(staysPaused ? 'budget.raise.messagePaused' : 'budget.raise.message', { spent, month }),
       note: this.t('budget.overshoot'),
       input: {
         label: this.t('budget.raise.label'),
@@ -149,7 +176,8 @@ export class BudgetStop {
       action: async (value: string) =>
         this.settled(await this.client.raise(stop.project.slug, Number(value))),
     });
-    this.done(isDone);
+    // Raise never touches a pause set for another reason (#739): the toast must not claim it did.
+    this.done(isDone, staysPaused ? 'budget.raise.savedStillPaused' : 'budget.resumed');
   }
 
   private dialogLabels(): {
@@ -173,9 +201,9 @@ export class BudgetStop {
     }
   }
 
-  private done(isDone: boolean): void {
+  private done(isDone: boolean, toastKey = 'budget.resumed'): void {
     if (isDone) {
-      this.toaster.show(this.t('budget.resumed'));
+      this.toaster.show(this.t(toastKey));
       this.resolved.emit();
     }
   }
