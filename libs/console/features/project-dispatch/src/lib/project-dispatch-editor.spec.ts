@@ -1,5 +1,6 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { RunnersApi, runnerFailureOf, type RunnerResult } from '@console/entities/runner';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { PROBLEM_TYPE_PREFIX, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
@@ -28,6 +29,7 @@ describe('ProjectDispatchEditor (#670)', () => {
     TestBed.configureTestingModule({
       providers: [
         provideConsoleI18n(),
+        provideRouter([]),
         {
           provide: RunnersApi,
           useValue: {
@@ -42,6 +44,7 @@ describe('ProjectDispatchEditor (#670)', () => {
     });
     const fixture = TestBed.createComponent(ProjectDispatchEditor);
     fixture.componentRef.setInput('slug', 'team-console');
+    fixture.componentRef.setInput('teamUrl', '/settings/projects/team-console/team');
     const settle = async (): Promise<void> => {
       for (let i = 0; i < 3; i += 1) {
         await fixture.whenStable();
@@ -97,6 +100,21 @@ describe('ProjectDispatchEditor (#670)', () => {
     expect(banner?.getAttribute('role')).toBe('alert');
     expect(banner?.textContent).toContain(text);
     expect(find('project-dispatch-saved')?.textContent?.trim()).toBe('');
+  });
+
+  it('links an access-source refusal to the project’s Team settings, and no other refusal (#688)', async () => {
+    const hosted = await render({ write: () => problem(422, 'access-source-hosted') });
+    await hosted.choose('actions');
+    await hosted.save();
+    const link = hosted.find<HTMLAnchorElement>('project-dispatch-team');
+    expect(link?.getAttribute('href')).toBe('/settings/projects/team-console/team');
+    expect(link?.textContent?.trim()).toBe('Открыть настройки команды');
+    TestBed.resetTestingModule();
+    const other = await render({ write: () => problem(422, 'dispatch-repository-unverified') });
+    await other.choose('actions');
+    await other.save();
+    expect(other.find('project-dispatch-error')).not.toBeNull();
+    expect(other.find('project-dispatch-team')).toBeNull();
   });
 
   it('offers a retry when the dispatch cannot be read', async () => {

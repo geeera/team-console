@@ -18,6 +18,7 @@ import { issue } from '../testing/read-model-kit';
 
 const REPO = 'geeera/team-console';
 const WEB = `https://github.com/${REPO}`;
+const DEV_SHA = '2'.repeat(40);
 
 function fileAnswer(text: string): Response {
   const bytes = new TextEncoder().encode(text);
@@ -49,7 +50,13 @@ interface World {
   readonly decisionCount?: number;
   /** A path prefix that answers 503, to break one reader. */
   readonly failing?: string;
+  /** Paths the docs/design Git tree answers, relative to `docs/design/`; one read whatever the count (#770). */
+  readonly designFiles?: readonly string[];
+  /** The tree answer's own `truncated` flag (GitHub's, over 100,000 entries), not a folder count of ours. */
+  readonly designTreeTruncated?: boolean;
 }
+
+const DEFAULT_DESIGN_FILES = ['features/24-settings.html', 'features/board.js', 'src/gen.html', 'references.md'];
 
 const DESIGN_ISSUES = [
   issue(24, ['ux-spec', 'design:approved'], { updated_at: '2026-09-20T00:00:00Z', state: 'closed' }),
@@ -58,6 +65,7 @@ const DESIGN_ISSUES = [
 const DEMO_ISSUES = [issue(70, ['team:demo'], { title: 'Sprint 1 demo', state: 'closed' })];
 
 function handlerFor(world: World): (call: GitHubCall) => Response {
+  const designFiles = world.designFiles ?? DEFAULT_DESIGN_FILES;
   return (call) => {
     const path = decodeURIComponent(call.url.pathname.replace(`/repos/${REPO}/`, ''));
     if (
@@ -84,11 +92,24 @@ function handlerFor(world: World): (call: GitHubCall) => Response {
     if (decision !== null) {
       return fileAnswer(`# Decision ${decision[1]}\n\ntext`);
     }
-    if (path === 'contents/docs/design') {
-      return listing('docs/design', ['features', 'src', 'references.md']);
+    if (path === `/repos/${REPO}`) {
+      return json(200, { default_branch: 'dev' });
     }
-    if (path === 'contents/docs/design/features') {
-      return listing('docs/design/features', ['24-settings.html', 'board.js']);
+    if (path === 'branches/dev') {
+      return json(200, { name: 'dev', commit: { sha: DEV_SHA } });
+    }
+    const tree = /^git\/trees\/([0-9a-f]{40})$/.exec(path);
+    if (tree !== null) {
+      return json(200, {
+        sha: tree[1],
+        truncated: world.designTreeTruncated === true,
+        tree: designFiles.map((file, index) => ({
+          path: `docs/design/${file}`,
+          type: 'blob',
+          sha: `${String(index + 1).padStart(2, '0')}${'d'.repeat(38)}`,
+          size: 10,
+        })),
+      });
     }
     if (path === 'issues') {
       const label = call.url.searchParams.get('labels') ?? '';
@@ -172,7 +193,7 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
         {
           type: 'design',
           title: 'features/24-settings.html',
-          url: `${WEB}/blob/dev/docs/design/features/24-settings.html`,
+          url: `${WEB}/blob/${DEV_SHA}/docs/design/features/24-settings.html`,
           updatedAt: null,
           source: 'file',
           state: null,
@@ -180,7 +201,7 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
         {
           type: 'design',
           title: 'references.md',
-          url: `${WEB}/blob/dev/docs/design/references.md`,
+          url: `${WEB}/blob/${DEV_SHA}/docs/design/references.md`,
           updatedAt: null,
           source: 'file',
           state: null,
@@ -195,8 +216,35 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
         },
       ],
     });
-    // lookup + mint + project.yml + decisions listing + 2 titles + 3 design labels + docs/design + features + demo
-    expect(stub.calls).toHaveLength(12);
+    // lookup + mint + project.yml + decisions listing + 2 titles + 3 design labels + repository + branch + tree + demo
+    expect(stub.calls).toHaveLength(13);
+  });
+
+  it('lists every file under docs/design in one Git tree read, however many sub-folders it has (#770)', async () => {
+    const designFiles = Array.from({ length: 7 }, (_, index) => `folder-${index + 1}/a.html`);
+    const { github, stub } = setup({ designFiles });
+    const body = (await (await artifacts(github)).json()) as ArtifactsResponse;
+
+    const files = body.items.filter((item) => item.type === 'design' && item.source === 'file');
+    expect(files.map((item) => item.title)).toEqual(designFiles);
+    expect(body.partial).toBeUndefined();
+    // One Git tree read regardless of how many sub-folders docs/design has: no per-folder Contents call.
+    expect(stub.calls.filter((call) => call.url.pathname.includes('/git/trees/'))).toHaveLength(1);
+    expect(stub.calls.some((call) => call.url.pathname.includes('/contents/docs/design'))).toBe(false);
+  });
+
+  it('skips generator sources (`src`) at any depth under docs/design', async () => {
+    const { github } = setup({ designFiles: ['src/gen.html', '277-viewer/src/build.html'] });
+    const body = (await (await artifacts(github)).json()) as ArtifactsResponse;
+
+    expect(body.items.some((item) => item.type === 'design' && item.source === 'file')).toBe(false);
+  });
+
+  it('reports design-files only when the tree answer itself says truncated, not by folder count (#770)', async () => {
+    const { github } = setup({ designTreeTruncated: true });
+    const body = (await (await artifacts(github)).json()) as ArtifactsResponse;
+
+    expect(body.partial).toEqual(['design-files']);
   });
 
   it('answers a second request within the TTL from the read cache', async () => {
@@ -224,14 +272,16 @@ describe('GET /api/v1/projects/:slug/artifacts', () => {
     expect(stub.reads().length - before).toBe(before);
   });
 
-  it('fills again with fresh=1 ("Check again") but leaves project.yml to its own TTL', async () => {
+  it('fills again with fresh=1 ("Check again") but leaves project.yml and the default branch sha to their own TTL', async () => {
     const { github, stub } = setup();
     await artifacts(github);
     const before = stub.reads().length;
 
     await artifacts(github, '?fresh=1');
 
-    expect(stub.reads().length - before).toBe(before - 1);
+    // Skipped: project.yml, repository and branch-head (#770) — shared reads on their own TTL, not Artifacts' own
+    // cache. The docs/design tree itself is still read fresh, since it lives inside the design-files fill.
+    expect(stub.reads().length - before).toBe(before - 3);
   });
 
   it('reports a failing type in partial and still answers the others', async () => {

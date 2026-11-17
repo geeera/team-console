@@ -16,9 +16,11 @@ import {
 } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { DeploymentStore } from '@console/entities/app-info';
+import { ProjectEnvironmentStatuses } from '@console/entities/environment';
 import { ConnectGitHubButton, GitHubConnectionStore } from '@console/entities/github-connection';
 import {
   pendingSetupSteps,
+  projectEnvironmentRouteOf,
   ProjectSetupApi,
   ProjectsStore,
   SetupChecklist,
@@ -35,6 +37,7 @@ import { LocalTimePipe, TranslocoPipe, TranslocoPluralPipe, TranslocoService } f
 import { Button, Callout, Card, focusAfterRender, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { ProjectSetupDto } from '@shared/contracts';
 import { readNavigationState } from './settings-navigation';
+import { ProjectEnvironmentEntry } from './environment/project-environment-entry';
 
 /**
  * `/settings/projects/:slug` (#24): one project's five-step setup as the Worker reports it, Check again (bypasses the
@@ -54,6 +57,7 @@ import { readNavigationState } from './settings-navigation';
     LocalTimePipe,
     RouterLink,
     SetupChecklist,
+    ProjectEnvironmentEntry,
     StateBlock,
     TranslocoPipe,
     TranslocoPluralPipe,
@@ -70,6 +74,7 @@ export class ProjectSetupPage {
   private readonly setupApi = inject(ProjectSetupApi);
   private readonly archiver = inject(ArchiveProject);
   private readonly deployment = inject(DeploymentStore);
+  private readonly projectEnvironment = inject(ProjectEnvironmentStatuses);
 
   protected readonly projects = inject(ProjectsStore);
   protected readonly connection = inject(GitHubConnectionStore);
@@ -114,8 +119,13 @@ export class ProjectSetupPage {
       repoOwner: setup?.repoOwnerLogin ?? null,
       lastEventAt: setup?.lastEventAt ?? null,
       environment: this.deployment.environment(),
+      environmentRoute: this.environmentRoute(),
     };
   });
+  /** Step 5's link to the project's environment (#750): only once its status answered 200, like the row. */
+  private readonly environmentRoute = computed(() =>
+    this.projectEnvironment.of(this.slug()).snapshot() === null ? null : projectEnvironmentRouteOf(this.slug()),
+  );
   /** The connection the setup status reported; Connect is offered here when it is missing (ADR 0003). */
   protected readonly connectionBanner = computed<'none' | 'lost' | null>(() => {
     const view = this.connection.view();

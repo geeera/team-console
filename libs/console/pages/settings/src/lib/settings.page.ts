@@ -18,12 +18,14 @@ import { InstallSettings } from '@console/features/install-app';
 import { FOCUS_APP_SETTINGS_STATE, PushSettingsCard } from '@console/features/push-subscribe';
 import { ConsoleLang, ConsoleLanguage, TranslocoPipe } from '@console/shared/i18n';
 import { Button, Chip, Icon, List, ListRow, SrOnlyOnPhone } from '@console/shared/ui';
+import { CONSOLE_ENVIRONMENT_PATH } from './environment/environment-paths';
 import { readNavigationState } from './settings-navigation';
 
 /**
- * `/settings` (#24): the GitHub connection, installing the app (#761), notifications, the language switch and the
- * build facts. Settings holds
- * settings only (owner decision on #194): projects are listed and added on All projects.
+ * `/settings` (#24): the GitHub connection, installing the app (#761), notifications, Runners, the language switch,
+ * the console operator's environment row (#750, operator only) and the build facts. Settings holds settings only
+ * (owner decision on #194): projects are listed and added on All projects, and a project's environment lives on its
+ * setup page.
  */
 @Component({
   selector: 'tc-settings-page',
@@ -53,7 +55,12 @@ export class SettingsPage {
   /** Its `env.*` copy is a lazy chunk; when it failed, the row is a readable error with Try again instead. */
   protected readonly environmentCopy = inject(EnvironmentCopy);
 
-  /** The Environment row (#104): the same status call as the screen it opens. */
+  /**
+   * The operator section (#750): shown only once the console's environment status answered 200 in this session —
+   * never after a 403 (a customer, a member, the service identity). The row opens `/admin/environment/:env`.
+   */
+  protected readonly isOperator = computed(() => this.environmentStatus.snapshot() !== null);
+  /** Its row's chip (#104): the same status call as the screen it opens. */
   protected readonly entryChip = computed(() =>
     entryChipOf(this.environmentStatus.state(), this.environmentStatus.snapshot()),
   );
@@ -67,7 +74,7 @@ export class SettingsPage {
   protected readonly environmentName = computed(() => this.thisEnvironment() ?? '…');
   protected readonly environmentLink = computed(() => {
     const environment = this.thisEnvironment();
-    return environment === null ? ['/settings/environment'] : ['/settings/environment', environment];
+    return environment === null ? [CONSOLE_ENVIRONMENT_PATH] : [CONSOLE_ENVIRONMENT_PATH, environment];
   });
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');

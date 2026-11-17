@@ -103,6 +103,11 @@ test('a subscription project is refused with the reason, and a missing actions p
     await editor.getByTestId('project-dispatch-save').click();
     const alert = editor.getByRole('alert');
     await expect(alert).toHaveText(ru('runners.err.accessSourceHosted'));
+    // The refusal leads to where the access source changes: the project's Settings › Team (#688).
+    await expect(editor.getByRole('link', { name: ru('runners.err.openTeam') })).toHaveAttribute(
+      'href',
+      `/settings/projects/${NO_PERMISSION_PROJECT}/team`,
+    );
     await expectAccessible(page, 'Settings › Runners, dispatch refused for a subscription');
     const unchanged = await api.get(`/api/v1/projects/${NO_PERMISSION_PROJECT}/dispatch`);
     expect(((await unchanged.json()) as ProjectDispatchDto).dispatch).toBe('pull');

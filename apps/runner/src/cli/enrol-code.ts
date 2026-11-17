@@ -1,4 +1,5 @@
 import { ENROL_CODE_ENV } from '@shared/contracts';
+import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import { EnrolUsageError } from './enrol';
 
 /**
@@ -43,15 +44,36 @@ export function stdinCodeReader(
 ): ReadCodeLine {
   return async () => {
     if (stdin.isTTY === true) {
-      prompt('Paste the one-time code from Settings › Runners and press Enter: ');
+      prompt('Paste the one-time code (or the whole command) from Settings › Runners and press Enter: ');
     }
     return await readFirstLine(stdin);
   };
 }
 
+/** A code inside pasted text: not glued to a longer word on the left, as long as it runs on the right. */
+const CODE_IN_TEXT = new RegExp(`(?<![A-Za-z0-9_-])${ENROLMENT_CODE_PREFIX}[A-Za-z0-9_-]{20,}`, 'g');
+
+/**
+ * #772: Settings › Runners shows the whole `TC_ENROL_CODE=tce_… team-console-runner enrol …` line, and that is what
+ * gets pasted at the prompt. The code is taken out of it when the text holds exactly one; none or several is refused.
+ * The refusal never repeats the text, which holds the code.
+ */
+export function extractEnrolCode(text: string): string {
+  const found = text.match(CODE_IN_TEXT) ?? [];
+  if (found.length === 1 && found[0] !== undefined) {
+    return found[0];
+  }
+  throw new EnrolUsageError(
+    found.length === 0
+      ? `no one-time ${ENROLMENT_CODE_PREFIX}… code in what was given: paste the code or the command from Settings › Runners`
+      : `${String(found.length)} ${ENROLMENT_CODE_PREFIX}… codes in what was given: paste one code only`,
+  );
+}
+
 /**
  * Where the code comes from: `--code -` reads stdin, `--code <value>` is the value, no `--code` reads
  * `TC_ENROL_CODE`. Both a flag and the variable is refused: which one won would be a guess. `undefined` for none.
+ * Whatever the source, the code is extracted from it (`extractEnrolCode`).
  */
 export async function enrolCodeOf(
   flag: string | undefined,
@@ -67,7 +89,8 @@ export async function enrolCodeOf(
     if (readCodeLine === undefined) {
       throw new EnrolUsageError('--code - needs stdin, which this runner cannot read');
     }
-    return await readCodeLine();
+    return extractEnrolCode(await readCodeLine());
   }
-  return flag ?? (hasEnv ? fromEnv : undefined);
+  const given = flag ?? (hasEnv ? fromEnv : undefined);
+  return given === undefined ? undefined : extractEnrolCode(given);
 }

@@ -50,6 +50,17 @@
   margin-top: var(--space-px);
 }
 
+.tc-confirm__link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 .tc-confirm__field {
   display: grid;
   gap: var(--space-1);

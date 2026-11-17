@@ -13,3 +13,20 @@ export const ADD_PROJECT_URL = `${ADD_PROJECT_PATH}#${ADD_PROJECT_FRAGMENT}`;
 export function projectSetupRouteOf(slug: string): readonly string[] {
   return ['/settings/projects', slug];
 }
+
+/**
+ * Router commands for a project's environment screen (#750): a sub-page of its setup, so it moves with setup when
+ * setup leaves `/settings`.
+ */
+export function projectEnvironmentRouteOf(slug: string): readonly string[] {
+  return [...projectSetupRouteOf(slug), 'environment'];
+}
+
+/** One item's guide on that screen: `:env` is in the guide's URL only, `name` the expanded secret name. */
+export function projectEnvironmentGuideRouteOf(
+  slug: string,
+  environment: string,
+  name: string,
+): readonly string[] {
+  return [...projectEnvironmentRouteOf(slug), environment, name];
+}

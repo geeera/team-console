@@ -15,7 +15,7 @@ export const SYSTEMD_UNIT_NAME = 'team-console-runner.service';
 export const SAFE_PATH = /^\/[A-Za-z0-9._/-]{1,200}$/;
 
 export interface ServiceFiles {
-  /** The `node` the service runs (`process.execPath` at install). */
+  /** The `node` the service runs: the path install was started with, never its realpath (#772). */
   readonly node: string;
   /** The directory holding `team-console-runner.mjs` and `bin/job-exec`. */
   readonly prefix: string;
@@ -23,7 +23,7 @@ export interface ServiceFiles {
 }
 
 export const DOCUMENTED_DEFAULTS: ServiceFiles = {
-  node: '/opt/homebrew/bin/node',
+  node: '/opt/homebrew/opt/node/bin/node',
   prefix: '/usr/local/lib/team-console-runner',
   home: '/Users/_tcrunner',
 };
@@ -31,6 +31,30 @@ export const DOCUMENTED_DEFAULTS: ServiceFiles = {
 export const jobExecOf = (prefix: string): string => `${prefix}/bin/job-exec`;
 export const bundleOf = (prefix: string): string => `${prefix}/team-console-runner.mjs`;
 const dirOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
+
+/** Homebrew's prefixes: Apple silicon, Intel and Linux. */
+const HOMEBREW_PREFIXES = ['/opt/homebrew', '/usr/local', '/home/linuxbrew/.linuxbrew'] as const;
+
+/**
+ * `<prefix>/bin` when `node` is one of Homebrew's (its `bin`, a versionless `opt/<formula>` link or a Cellar keg),
+ * else `null`. #772: the runner process should find Homebrew's `git` and `claude` the way the operator's shell does.
+ */
+export function homebrewBinOf(node: string): string | null {
+  for (const prefix of HOMEBREW_PREFIXES) {
+    const rest = node.startsWith(`${prefix}/`) ? node.slice(prefix.length) : null;
+    if (rest !== null && /^\/(?:bin|opt\/[^/]+\/bin|Cellar\/[^/]+\/[^/]+\/bin)\/node$/.test(rest)) {
+      return `${prefix}/bin`;
+    }
+  }
+  return null;
+}
+
+/** The runner process's PATH: the node's own directory first, then Homebrew's `bin` when node is Homebrew's. */
+export function servicePathOf(node: string): string {
+  const brew = homebrewBinOf(node);
+  const dirs = [dirOf(node), ...(brew === null || brew === dirOf(node) ? [] : [brew])];
+  return [...dirs, '/usr/bin', '/bin', '/usr/sbin', '/sbin'].join(':');
+}
 
 /** The one rule (threat model L3): `_tcrunner` may run `job-exec` as `_tcjob`, nothing else, with no password. */
 export function sudoersRule(prefix: string): string {
@@ -57,7 +81,7 @@ function plist(entries: readonly string[]): string {
 }
 
 function serviceEntries(files: ServiceFiles, umask: number): string[] {
-  const path = `${dirOf(files.node)}:/usr/bin:/bin:/usr/sbin:/sbin`;
+  const path = servicePathOf(files.node);
   return [
     `<key>Label</key><string>${LAUNCH_LABEL}</string>`,
     '<key>ProgramArguments</key>',

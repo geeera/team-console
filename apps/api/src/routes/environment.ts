@@ -1,16 +1,23 @@
 import { Hono } from 'hono';
-import { isEnvironment } from '@shared/contracts';
-import { environmentStatusOf, type EnvironmentStatusDto } from '@shared/environment';
+import { isEnvironment, isValidSlug } from '@shared/contracts';
+import {
+  ENVIRONMENT_STATUS_PROJECT_PARAM,
+  environmentStatusOf,
+  type EnvironmentStatusDto,
+} from '@shared/environment';
 import { problem, type WorkerHonoEnv } from '@worker/core';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
-import { scopedProjectsOf } from '../projects/lookup';
+import { findProject, projectNotFound } from '../projects/lookup';
 
 /**
- * `GET /api/v1/environment/status` (#104): which manifest items this Worker's own environment has, set or missing.
- * Owner-only — the list is the owner's map of the environment, so the dev/stage service identity gets 403. Each
- * binding is looked up by the name the manifest gives and reduced to a boolean at once; no value, length, prefix or
- * hash reaches the response or a log line.
+ * `GET /api/v1/environment/status[?project=<slug>]` (#104, #750): which manifest items this Worker's own environment
+ * has, set or missing. Without `project`, the console's own rows only (the operator screen and its Settings row);
+ * with it, that one project's rows only, the project reached through `findProject` (404 `project-not-found` outside
+ * the request's scope, the same as an unknown slug). Owner-only — the list is the operator's map of the
+ * environment, so the dev/stage service identity and a session user get 403. Each binding is looked up by the name
+ * the manifest gives and reduced to a boolean at once; no value, length, prefix or hash reaches the response or a
+ * log line.
  */
 export function createEnvironmentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
   const routes = new Hono<WorkerHonoEnv<ApiEnv>>();
@@ -27,15 +34,32 @@ export function createEnvironmentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         detail: 'This Worker does not know which environment it runs in',
       });
     }
-    const projects = await scopedProjectsOf(c);
+    const slug = c.req.query(ENVIRONMENT_STATUS_PROJECT_PARAM);
+    let project: string | null = null;
+    if (slug !== undefined) {
+      if (!isValidSlug(slug)) {
+        return problem(c, {
+          type: 'query-invalid',
+          title: 'Invalid query',
+          status: 400,
+          detail: 'project is a project slug',
+        });
+      }
+      const row = await findProject(c, slug);
+      if (row === null) {
+        return projectNotFound(c);
+      }
+      project = row.slug;
+    }
     // Per-project secrets have names known only at run time, so the bindings are read by name.
     const bindings = c.env as unknown as Readonly<Record<string, unknown>>;
     const body: EnvironmentStatusDto = environmentStatusOf(
       environment,
       (name) => (Object.hasOwn(bindings, name) ? bindings[name] : undefined),
-      projects.map((project) => project.slug),
+      project,
     );
     c.get('logger').info('environment status', {
+      scope: project === null ? 'console' : 'project',
       items: body.items.length,
       missing: body.items.filter((item) => item.status === 'missing').length,
     });

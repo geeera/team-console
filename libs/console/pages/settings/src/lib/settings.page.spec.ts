@@ -122,9 +122,9 @@ describe('SettingsPage', () => {
       'GitHub',
       'Приложение',
       'Уведомления',
-      'Окружение',
       'Раннеры',
       'Язык интерфейса',
+      'Оператор консоли',
     ]);
     expect(root().querySelector('[data-testid="runners-entry"] a')?.getAttribute('href')).toBe('/settings/runners');
     expect(text('[data-testid="gh-connected"] h3')).toBe('Подключено как geeera');
@@ -146,9 +146,9 @@ describe('SettingsPage', () => {
       'GitHub',
       'App',
       'Notifications',
-      'Environment',
       'Runners',
       'Interface language',
+      'Console operator',
     ]);
     expect(languageStorage.value).toBe('en');
 
@@ -161,14 +161,19 @@ describe('SettingsPage', () => {
     expect(languageStorage.value).toBe('ru');
   });
 
-  it("has an Environment setup row that opens this console's environment with the missing count (#104)", async () => {
+  it("ends with the console operator's row, which opens /admin/environment with the missing count (#750)", async () => {
     await open('/settings');
 
-    const row = root().querySelector('[data-testid="env-entry"] a') as HTMLAnchorElement;
-    expect(row.getAttribute('href')).toBe('/settings/environment/dev');
-    expect(row.textContent).toContain('Настройка окружения');
-    expect(row.textContent).toContain('dev · секреты и переменные');
+    const section = root().querySelector('[data-testid="env-section"]') as HTMLElement;
+    expect(section.querySelector('h2')?.textContent?.trim()).toBe('Оператор консоли');
+    const row = section.querySelector('[data-testid="env-entry"] a') as HTMLAnchorElement;
+    expect(row.getAttribute('href')).toBe('/admin/environment/dev');
+    expect(row.textContent).toContain('Окружение консоли');
+    expect(row.textContent).toContain('dev · Worker’ы, GitHub, локальный запуск');
     expect(text('[data-testid="env-entry-chip"]')).toBe('Не задано: 2');
+    // Last of the sections, right above the version line: nothing above it moves when it appears.
+    const sections = Array.from(root().querySelectorAll('section.settings__section'));
+    expect(sections[sections.length - 1]).toBe(section);
   });
 
   it('says "All set" when nothing is missing', async () => {
@@ -178,9 +183,11 @@ describe('SettingsPage', () => {
     expect(text('[data-testid="env-entry-chip"]')).toBe('Всё задано');
   });
 
-  it('says "Not checked" when the status call is refused (403)', async () => {
+  it('shows no operator section to a sign-in the status call refuses (403): no environment row at all', async () => {
     await open('/settings', { environment: 403 });
-    expect(text('[data-testid="env-entry-chip"]')).toBe('Не проверено');
+    expect(root().querySelector('[data-testid="env-section"]')).toBeNull();
+    expect(root().querySelector('[data-testid="env-entry"]')).toBeNull();
+    expect(root().textContent).not.toContain('Оператор консоли');
   });
 
   it('waits for a slow env.* copy chunk before Settings renders (the guard is awaited, not timed)', async () => {

@@ -2,6 +2,7 @@ import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { ApplicationInitStatus, Component, inject, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmFailure } from './confirm-dialog';
@@ -34,7 +35,7 @@ describe('Sheet', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [Host],
-      providers: [provideConsoleI18n()],
+      providers: [provideConsoleI18n(), provideRouter([{ path: 'fix', children: [] }])],
     }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     sheet = TestBed.inject(Sheet);
@@ -281,6 +282,39 @@ describe('Sheet', () => {
       ok.click();
       await expect(pending).resolves.toBe(true);
       expect(seen).toEqual(['отпуск', 'отпуск']);
+    });
+
+    it('#750: a refusal with a link offers the way out; following it closes every sheet and navigates', async () => {
+      const below = sheet.open(Content, { title: 'Commands', data: { text: 'panel' } });
+      const belowClosed = firstValueFrom(below.closed);
+      const pending = sheet.confirm({
+        title: 'Run QA now?',
+        message: 'QA checks the open PRs.',
+        action: async () => {
+          throw new ConfirmFailure('Run now isn’t set up for QA.', undefined, {
+            label: 'Set the token',
+            route: ['/fix'],
+          });
+        },
+      });
+      await settle();
+      const dialogs = overlay().querySelectorAll('tc-sheet-container');
+      const dialog = dialogs[dialogs.length - 1] as HTMLElement;
+      expect(dialog.querySelector('[data-testid="confirm-failure-link"]')).toBeNull();
+
+      (dialog.querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+      await settle();
+      TestBed.tick();
+      const link = dialog.querySelector('[data-testid="confirm-failure-link"]') as HTMLAnchorElement;
+      expect(link.textContent?.trim()).toBe('Set the token');
+      expect(link.getAttribute('href')).toBe('/fix');
+
+      link.click();
+      await settle();
+      await expect(pending).resolves.toBe(false);
+      await expect(belowClosed).resolves.toBeUndefined();
+      expect(sheet.hasOpen()).toBe(false);
+      expect(TestBed.inject(Router).url).toBe('/fix');
     });
 
     it('#218/#307: a checked date field follows the value, holds Confirm on an error and refills on a conflict', async () => {

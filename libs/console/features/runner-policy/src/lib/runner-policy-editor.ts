@@ -17,6 +17,7 @@ import {
   type RunnerFailure,
   type RunnerPolicyScope,
 } from '@console/entities/runner';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   Banner,
@@ -57,7 +58,7 @@ let nextEditorId = 0;
  */
 @Component({
   selector: 'tc-runner-policy-editor',
-  imports: [Banner, Button, Choice, ChoiceGroup, Field, FieldControl, Icon, IconButton, StateBlock, TranslocoPipe],
+  imports: [Banner, Button, Choice, ChoiceGroup, Field, FieldControl, Icon, IconButton, RouterLink, StateBlock, TranslocoPipe],
   templateUrl: './runner-policy-editor.html',
   styleUrl: './runner-policy-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -72,6 +73,8 @@ export class RunnerPolicyEditor {
   readonly runners = input.required<readonly RunnerDto[]>();
   /** Bumped by the parent when something this policy falls back to changed (the account default): read it again. */
   readonly revision = input(0);
+  /** Settings › Team of the project in scope (#688): linked from an `access-source-hosted` refusal. */
+  readonly teamUrl = input<string | null>(null);
   /** The policy as the Worker stored it after a save. */
   readonly saved = output<RunnerPolicyDto>();
 
@@ -84,6 +87,8 @@ export class RunnerPolicyEditor {
   protected readonly form = signal<PolicyForm>(policyFormOf(null, false));
   protected readonly saving = signal(false);
   protected readonly saveFailure = signal<string | null>(null);
+  /** The last save was refused for the project's access source (`access-source-hosted`): Team is where it changes. */
+  protected readonly isAccessSourceRefusal = signal(false);
   protected readonly isSaved = signal(false);
   protected readonly formError = signal<PolicyFormError | null>(null);
 
@@ -205,6 +210,7 @@ export class RunnerPolicyEditor {
     this.formError.set(null);
     this.saving.set(true);
     this.saveFailure.set(null);
+    this.isAccessSourceRefusal.set(false);
     this.isSaved.set(false);
     const key = this.scopeKey();
     const result = await this.api.setPolicy(this.scope(), check.policy);
@@ -214,6 +220,7 @@ export class RunnerPolicyEditor {
     }
     if (!result.ok) {
       this.saveFailure.set(this.t(runnerFailureKeyOf(result.failure)));
+      this.isAccessSourceRefusal.set(result.failure.slug === 'access-source-hosted');
       return;
     }
     this.apply(result.value);

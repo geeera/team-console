@@ -10,8 +10,9 @@ import { scopeOf } from './scope';
  * `routeScopeMiddleware` refuses an unlisted route at run time too, so a route added without a row is unreachable
  * rather than open.
  *
- * - `project`: a `:slug` route; the project is reached only through `projects/lookup.ts`, which answers 404
- *   `project-not-found` outside the request's scope — the same answer as a slug that does not exist.
+ * - `project`: a `:slug` route (or the environment status's `?project=<slug>`, #750); the project is reached only
+ *   through `projects/lookup.ts`, which answers 404 `project-not-found` outside the request's scope — the same
+ *   answer as a slug that does not exist.
  * - `projects`: a listing over the scope's projects (`scopedProjectsOf`), never the environment's — or, for
  *   `GET /accounts`, over the caller's own memberships (`membershipsOf`).
  * - `account`: `/api/v1/accounts/:id/*`, owner-of-account; a non-member gets 404 `account-not-found`.
@@ -112,8 +113,9 @@ export const ROUTE_SCOPES = {
   'PUT /api/v1/push/subscriptions': 'own-user',
   'DELETE /api/v1/push/subscriptions': 'own-user',
   'POST /api/v1/push/test': 'own-user',
-  // The owner's map of the environment, with the scope's project slugs.
-  'GET /api/v1/environment/status': 'projects',
+  // The operator's map of the environment (#750): the console's own rows, or one `?project=` reached through
+  // `findProject`; never a listing of projects.
+  'GET /api/v1/environment/status': PROJECT,
   // The caller's own memberships (#464): a listing over the scope's accounts, read from the identity alone.
   'GET /api/v1/accounts': 'projects',
   'GET /api/v1/accounts/:id/settings': 'account',

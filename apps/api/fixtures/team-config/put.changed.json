@@ -232,6 +232,7 @@
       "updatedAt": "2026-11-12T10:00:00.000Z",
       "updatedBy": "local-owner",
       "updatedByName": null,
+      "reason": "Cheaper models for the beta",
       "canManage": true,
       "subscriptionBlocked": false
     }

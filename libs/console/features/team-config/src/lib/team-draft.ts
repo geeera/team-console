@@ -75,7 +75,66 @@ export function draftOf(view: TeamConfigDto): TeamDraft {
   };
 }
 
+/**
+ * The draft a stored document gives on its own: a revision's `config` for "Use as draft" (#688). The document always
+ * names its access source; `source` is only for one that does not.
+ */
+export function draftOfDocument(config: TeamConfig, source: AccessSource): TeamDraft {
+  const resolved = resolveTeamConfig(config, { revision: 0, accessSource: config.access?.source ?? source });
+  return {
+    preset: config.preset ?? 'recommended',
+    source: resolved.access.source,
+    roles: resolved.roles,
+    gates: resolved.gates,
+    caps: resolved.caps,
+    sprint: resolved.sprint,
+    language: resolved.language,
+    monthlyUsd: budgetOf(config).monthly_usd,
+    cost: resolved.cost,
+  };
+}
+
 const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+
+/** The sections an import may fill (ADR 0009 "Migration" 2); models, access, budget and cost stay the console's. */
+export const IMPORTED_SECTIONS = ['gates', 'caps', 'sprint', 'language'] as const;
+
+const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** The leaves an imported document names, by document path (arrays are leaves): only those go into the draft. */
+function importedLeavesOf(imported: TeamConfig): Array<readonly [string, unknown]> {
+  const known = new Set(leavesOf(draftOfDocument({ schema: TEAM_CONFIG_SCHEMA }, 'api_key')).map(([path]) => path));
+  const leaves: Array<readonly [string, unknown]> = [];
+  const walk = (value: unknown, path: string): void => {
+    if (isPlainRecord(value)) {
+      for (const [key, member] of Object.entries(value)) {
+        walk(member, `${path}.${key}`);
+      }
+    } else if (known.has(path)) {
+      leaves.push([path, value]);
+    }
+  };
+  for (const section of IMPORTED_SECTIONS) {
+    if (imported[section] !== undefined) {
+      walk(imported[section], section);
+    }
+  }
+  return leaves;
+}
+
+/** How many of the import's sections the file filled ("From project.yml (main, 3 sections)"). */
+export function importedSectionCountOf(imported: TeamConfig): number {
+  return IMPORTED_SECTIONS.filter((section) => imported[section] !== undefined).length;
+}
+
+/**
+ * The draft with an import's values over it (#688, UX spec §2.7): every rule the file names replaces the draft's,
+ * everything else — preset, roles and models, access, budget, cost — stays as the owner has it.
+ */
+export function withImported(draft: TeamDraft, imported: TeamConfig): TeamDraft {
+  return importedLeavesOf(imported).reduce((next, [path, value]) => withLeaf(next, path, value), draft);
+}
 
 /** Every leaf of a draft by its document path, in the order the page shows the sections. */
 export function leavesOf(draft: TeamDraft): ReadonlyArray<readonly [string, unknown]> {

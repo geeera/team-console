@@ -160,6 +160,12 @@ describe('apps/api/wrangler.jsonc', () => {
     expect(readWorkerConfig('api', 'production').vars['ALLOW_SERVICE_TOKEN']).toBe('false');
   });
 
+  it('keeps the Actions setup write path switched off on stage and production (#759 kill switch)', () => {
+    expect(readWorkerConfig('api', 'stage').vars['ALLOW_ACTIONS_SETUP_WRITE']).toBe('false');
+    expect(readWorkerConfig('api', 'production').vars['ALLOW_ACTIONS_SETUP_WRITE']).toBe('false');
+    expect(readWorkerConfig('hooks', 'production').vars).not.toHaveProperty('ALLOW_ACTIONS_SETUP_WRITE');
+  });
+
   it.each(ENVIRONMENTS)('is the only Worker that applies migrations (env %s)', (env) => {
     expect(readWorkerConfig('api', env).d1_databases[0]?.migrations_dir).toBe('migrations');
     expect(readWorkerConfig('hooks', env).d1_databases[0]?.migrations_dir).toBeUndefined();

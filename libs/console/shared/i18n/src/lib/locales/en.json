@@ -803,7 +803,7 @@
       "design": "Couldn't load the designs.",
       "demo": "Couldn't load the demos.",
       "decision-titles": "Some decisions are shown by file name.",
-      "design-files": "Not every docs/design folder is listed.",
+      "design-files": "Not every file in docs/design is shown: there are more than the console reads at once.",
       "hint": "Press “Check again” to retry."
     },
     "error": {
@@ -1270,7 +1270,8 @@
         "done": "{{secret}} is set.",
         "missing": "No {{secret}} secret. Until it’s set, the PM doesn’t answer in chat.",
         "how": "Create the PM routine for this repo with an API trigger and store its token:",
-        "copyAria": "Copy command"
+        "copyAria": "Copy command",
+        "link": "Open the project environment"
       }
     },
     "archive": {
@@ -1434,6 +1435,7 @@
       "badToken": "Claude Code refused the trigger token for {{slot}}: it was regenerated or mistyped. Save {{secret}} again. Nothing started.",
       "badRoutine": "Claude Code knows no routine with this id for {{slot}}. Check {{secret}}. Nothing started.",
       "notConfigured": "Run now isn’t set up for {{slot}}. Refresh the status to see what to set up.",
+      "setLink": "Set the token",
       "runPaused": "Development is paused. Resume it first; nothing started.",
       "github": "GitHub didn’t answer. Nothing changed.",
       "githubRate": "GitHub asks to wait until {{time}}. Nothing changed.",
@@ -1813,6 +1815,11 @@
       "dateWarning": "Freeze starts at once: no new issues will be taken.",
       "dateConflict": "The demo date changed while this was open (now {{date}}). Check it and move again.",
       "dateDone": "The demo moved",
+      "runOpen": "Run now…",
+      "runTitle": "Run QA now?",
+      "runMessage": "QA checks the open PRs.",
+      "runNotConfigured": "Run now isn’t set up for QA. Refresh the status to see what to set up.",
+      "runSetLink": "Set the token",
       "openFooter": "Sheet with a footer",
       "footerTitle": "Add {{repo}}",
       "footerBody": "Long content scrolls while the actions stay at the bottom: stacked with the primary first on the phone, in a row with the primary on the right in the dialog.",
@@ -2148,6 +2155,9 @@
       "copied": "Copied",
       "copyAria": "Copy the runner enrolment command",
       "copyFailed": "Couldn't copy: select the command and copy it by hand.",
+      "codeOnly": "If the command asks for the code (for example with --code -), paste just the code:",
+      "copyCodeAria": "Copy only the runner enrolment code",
+      "copyCodeFailed": "Couldn't copy: select the code and copy it by hand.",
       "expires": "The code works until {{time}} ({{minutes}} minutes) and for one machine.",
       "projects": "Projects: {{projects}}",
       "noProjects": "No projects chosen: the runner takes no jobs until you add some.",
@@ -2230,7 +2240,8 @@
       "notSuspect": "The runner is no longer marked. Refresh the list.",
       "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list.",
       "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
-      "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it."
+      "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
+      "openTeam": "Open team settings"
     },
     "dispatch": {
       "title": "Where jobs run",
@@ -2481,7 +2492,8 @@
       "body": "The team stopped: {{spent}} of {{budget}} spent in {{month}} (Claude Code estimate). Running jobs finished; nothing new starts.",
       "resume": "Resume this month",
       "raise": "Raise budget",
-      "readonly": "Only the project owner decides on the budget."
+      "readonly": "Only the project owner decides on the budget.",
+      "openLimits": "Open limits"
     },
     "resume": {
       "title": "Resume the team in {{project}}?",
@@ -2801,6 +2813,81 @@
       },
       "stay": "Stay",
       "go": "Leave"
+    },
+    "history": {
+      "title": "History",
+      "open": "History",
+      "lead": "Every save is a revision. History cannot be changed; to go back, open a revision and use it as a draft.",
+      "loading": "Loading the history",
+      "failedTitle": "History did not load",
+      "failed": "The settings on the page are current; only the list of revisions did not load.",
+      "empty": "No changes yet.",
+      "back": "History",
+      "revision": "Revision {{n}}",
+      "revisionLoading": "Loading revision {{n}}",
+      "revisionFailed": "Revision {{n}} did not load",
+      "noReason": "No reason",
+      "noSettings": "No setting changed in this revision.",
+      "showRaw": "Show raw",
+      "hideRaw": "Hide raw",
+      "useAsDraft": "Use as draft",
+      "when": "{{day}} at {{time}}",
+      "settings": {
+        "one": "{{n}} setting",
+        "few": "{{n}} settings",
+        "many": "{{n}} settings",
+        "other": "{{n}} settings"
+      },
+      "more": {
+        "one": "Show {{n}} more revision",
+        "few": "Show {{n}} more revisions",
+        "many": "Show {{n}} more revisions",
+        "other": "Show {{n}} more revisions"
+      },
+      "cut": "The latest revisions are shown; older ones stay in the project's history.",
+      "notSet": "none",
+      "added": "added {{value}}",
+      "removed": "removed",
+      "used": "Revision {{n}} is now your draft. Review and save it to apply it.",
+      "replaceTitle": "Replace your edits with the revision?",
+      "replace": "Replace"
+    },
+    "import": {
+      "title": "Import from project.yml",
+      "loading": "Reading project.yml",
+      "failedTitle": "Could not read project.yml",
+      "failed": {
+        "unreadable": "The file is not on the default branch, or it has a YAML error. Nothing changed here.",
+        "rate-limited": "Too many imports in a row. Try again in a few minutes.",
+        "forbidden": "Only the project owner can import.",
+        "failed": "The console did not answer. Nothing changed here."
+      },
+      "source": {
+        "one": "From project.yml ({{ref}}, {{n}} section)",
+        "few": "From project.yml ({{ref}}, {{n}} sections)",
+        "many": "From project.yml ({{ref}}, {{n}} sections)",
+        "other": "From project.yml ({{ref}}, {{n}} sections)"
+      },
+      "values": "Values from the file",
+      "same": "The file matches your settings.",
+      "notes": "Notes",
+      "note": {
+        "never-as-code": "“{{path}}: never” is not supported; imported as “code only”.",
+        "model-ignored": "— models are not taken from the repository",
+        "key-ignored": "— not part of the team setup"
+      },
+      "ignored": "Not taken",
+      "savesNothing": "Import saves nothing: these values become your draft.",
+      "used": "The values from project.yml are now your draft. Review and save."
+    },
+    "budget": {
+      "title": "Budget used up",
+      "waivedTitle": "{{month}} — no limit",
+      "waivedBody": "On {{date}} you chose “Resume this month”. Spent {{spent}} of {{budget}}; the budget will not stop the team until {{until}}.",
+      "waivedEnds": "If you change the budget, the waiver ends: the new budget applies at once, and the team stops when the month's spend reaches it.",
+      "waivedEditing": "When you save, {{month}} is capped again at {{budget}}.",
+      "waivedEditingNone": "When you save, there is no budget: the waiver is no longer needed.",
+      "waivedReview": "ends the waiver for {{month}}"
     }
   }
 }

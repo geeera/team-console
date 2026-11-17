@@ -7,7 +7,7 @@
 <article class="guide" data-testid="env-guide" [attr.aria-labelledby]="'guide-title'">
   <nav class="guide__crumb" [attr.aria-label]="'settings.breadcrumb' | transloco">
     <a [routerLink]="backLink()"
-      ><tc-icon name="chevron-left" size="sm" />{{ 'env.g.back' | transloco: { env: env() } }}</a
+      ><tc-icon name="chevron-left" size="sm" />{{ backLine().key | transloco: backLine().params }}</a
     >
   </nav>
   <a
@@ -30,7 +30,7 @@
     }
     <li class="guide__tag">{{ 'env.g.kind.' + view.row.item.kind | transloco }}</li>
     <li class="guide__tag">
-      {{ 'env.g.place.' + view.row.group | transloco: { env: env(), project: view.row.project ?? '' } }}
+      {{ 'env.g.place.' + view.row.group | transloco: { env: environment(), project: view.row.project ?? '' } }}
     </li>
     @if (source(); as source) {
     <li class="guide__tag">{{ 'env.g.src.' + source | transloco }}</li>
@@ -88,7 +88,7 @@
     <p>{{ 'env.g.howCheck' | transloco }}</p>
     <tc-copy-code
       [code]="checkCommand()"
-      [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: env() }"
+      [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: environment() }"
       [copyLabel]="'settings.common.copy' | transloco"
       [copiedLabel]="'settings.common.copied' | transloco"
       [failedNote]="'settings.common.copyFailed' | transloco"
@@ -110,15 +110,13 @@
       [copiedLabel]="'settings.common.copied' | transloco"
       [failedNote]="'settings.common.copyFailed' | transloco"
     />
-    } } @if (view.status === 'set' && screen.status.checkedAt(); as checkedAt) {
+    } } @if (view.status === 'set' && screen.status().checkedAt(); as checkedAt) {
     <p class="guide__checked">{{ 'env.g.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</p>
     }
   </section>
-  } @else if (waiting()) {
-  <tc-state-block kind="loading" [title]="'env.checkingSr' | transloco" />
   } @else {
   <h1 #heading id="guide-title" class="guide__title guide__title--plain" tabindex="-1">
-    {{ 'env.g.notFound.title' | transloco: { env: env() } }}
+    {{ notFoundLine().key | transloco: notFoundLine().params }}
   </h1>
   <tc-state-block kind="empty" [title]="'env.g.notFound.body' | transloco" data-testid="env-guide-missing" />
   }

@@ -282,3 +282,67 @@ test('beside an owner’s own pause, Raise says the team stays paused and never 
     await api.dispose();
   }
 });
+
+test('Needs you "Open limits" opens Team at the budget; the Team callout resumes the month; Limits says a changed budget ends the waiver (#688)', async ({
+  page,
+  stack,
+}, testInfo) => {
+  const { api, runner, name } = await stopped(stack, testInfo.workerIndex);
+  try {
+    await page.goto('/needs-you');
+    await expectRow(page, name);
+    await page.getByRole('link', { name: ru('budget.stop.openLimits') }).click();
+    await expect(page).toHaveURL(new RegExp(`/settings/projects/${SLUG}/team\\?focus=budget$`));
+    const budget = page.getByTestId('input-budget.monthly_usd');
+    await expect(budget).toBeFocused();
+
+    const callout = page.getByRole('region', { name: ru('teamConfig.budget.title') });
+    expect(spaced((await callout.getByTestId('team-budget-body').textContent()) ?? '')).toBe(
+      spaced(ru('budget.stop.body', { spent: money(1.5), budget: money(1), month: month() })),
+    );
+    await expectAccessible(page, 'Settings › Team, budget used up');
+
+    // Raise budget is an ordinary edit: it takes the owner to the same field.
+    await page.getByTestId('team-title').focus();
+    await callout.getByRole('button', { name: ru('budget.stop.raise') }).click();
+    await expect(budget).toBeFocused();
+
+    await callout.getByRole('button', { name: ru('budget.stop.resume') }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText(spaced(ru('budget.resume.message', { budget: money(1) })));
+    await dialog.getByRole('button', { name: ru('budget.resume.confirm') }).click();
+    await expect(page.getByRole('status').filter({ hasText: ru('budget.resumed') })).toBeVisible();
+    await expect(callout).toHaveCount(0);
+
+    // The waived month: Limits says why the budget does not stop the team, and that a changed budget ends it.
+    const waived = page.getByTestId('team-waived');
+    const monthName = month();
+    await expect(waived.getByRole('heading')).toHaveText(
+      ru('teamConfig.budget.waivedTitle', { month: monthName.charAt(0).toUpperCase() + monthName.slice(1) }),
+    );
+    await expect(waived.getByTestId('team-waived-ends')).toHaveText(ru('teamConfig.budget.waivedEnds'));
+    await expectAccessible(page, 'Settings › Team, waived month');
+    await api.post(`/api/v1/projects/${SLUG}/jobs`, { data: { kind: 'review', role: 'qa' } });
+    expect(await claimStatus(api, runner)).toBe(200);
+
+    // While the budget changes, the note says the month is capped again, and the review says it ends the waiver.
+    await budget.fill('30');
+    await expect(waived).toHaveAttribute('data-editing', 'true');
+    await expect(waived.getByTestId('team-waived-ends')).toHaveText(
+      ru('teamConfig.budget.waivedEditing', { month: monthName, budget: money(30) }),
+    );
+    await page.getByTestId('save-bar-review').click();
+    await expect(page.getByRole('dialog').getByTestId('change-note-budget.monthly_usd')).toHaveText(
+      ru('teamConfig.budget.waivedReview', { month: monthName }),
+    );
+    await page.getByRole('dialog').getByTestId('review-save').click();
+    await expect(page.getByTestId('team-title')).toBeFocused();
+    await expect(waived).toHaveCount(0);
+    const status = (await (await api.get(`/api/v1/projects/${SLUG}/team/status`)).json()) as {
+      budget: { waivedAt: string | null; budgetUsd: number | null };
+    };
+    expect(status.budget).toMatchObject({ waivedAt: null, budgetUsd: 30 });
+  } finally {
+    await api.dispose();
+  }
+});

@@ -1,6 +1,7 @@
-import { DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
+import { Dialog, DIALOG_DATA, DialogRef } from '@angular/cdk/dialog';
 import { ChangeDetectionStrategy, Component, computed, forwardRef, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button } from '../button/button';
 import { DatePicker, type DatePickerProblem } from '../date-picker/date-picker';
@@ -43,15 +44,23 @@ export interface ConfirmInput {
  * Thrown by a confirmation's `action` to say why it did not happen, in words the owner can act on (a rate limit and
  * when to try again). The dialog stays open with the message as an alert; any other error shows `errorMessage`.
  * `refill` replaces the field's value (a conflict: the live value the owner should look at before sending again).
+ * `link` is the one place the refusal is fixed (#750: "Set the token"); following it closes every open sheet.
  */
 export class ConfirmFailure extends Error {
   constructor(
     message: string,
     readonly refill?: string,
+    readonly link?: ConfirmFailureLink,
   ) {
     super(message);
     this.name = 'ConfirmFailure';
   }
+}
+
+/** A way out of a refusal: router commands and their label, already translated. */
+export interface ConfirmFailureLink {
+  readonly label: string;
+  readonly route: readonly string[];
 }
 
 export interface ConfirmOptions {
@@ -92,7 +101,7 @@ let nextFieldId = 0;
 @Component({
   selector: 'tc-confirm-dialog',
   // forwardRef: DatePicker opens its calendar through `Sheet`, which opens this dialog — a module cycle.
-  imports: [Button, forwardRef(() => DatePicker), FormsModule, Icon, SheetFooter, TranslocoPipe],
+  imports: [Button, forwardRef(() => DatePicker), FormsModule, Icon, RouterLink, SheetFooter, TranslocoPipe],
   template: `
     @if (options.warning) {
       <p class="tc-confirm__warning"><tc-icon name="alert" size="sm" />{{ options.warning }}</p>
@@ -167,6 +176,16 @@ let nextFieldId = 0;
     }
     @if (failure(); as message) {
       <p class="tc-confirm__error" role="alert"><tc-icon name="alert" size="sm" />{{ message }}</p>
+      @if (failureLink(); as link) {
+        <a
+          class="tc-confirm__link"
+          data-testid="confirm-failure-link"
+          [routerLink]="link.route"
+          (click)="leave()"
+        >
+          {{ link.label }}<tc-icon name="chevron-right" size="sm" />
+        </a>
+      }
     }
     <!-- In the frame's footer, so Cancel and Confirm stay in view however long the text is (#274). -->
     <ng-template tcSheetFooter="primary">
@@ -206,12 +225,14 @@ let nextFieldId = 0;
 export class ConfirmDialog {
   protected readonly options = inject<ConfirmDialogData>(DIALOG_DATA);
   private readonly ref = inject<DialogRef<boolean>>(DialogRef);
+  private readonly dialogs = inject(Dialog);
   private readonly transloco = inject(TranslocoService);
 
   protected readonly fieldId = `tc-confirm-field-${nextFieldId++}`;
   protected readonly running = signal(false);
   /** The alert after a failed action; `null` while none failed. */
   protected readonly failure = signal<string | null>(null);
+  protected readonly failureLink = signal<ConfirmFailureLink | null>(null);
   protected readonly value = signal(this.options.input?.value ?? '');
   /** The date field's own finding (text that is not a date, a day outside min/max); `null` for a text field. */
   protected readonly pickerProblem = signal<DatePickerProblem | null>(null);
@@ -250,6 +271,11 @@ export class ConfirmDialog {
     }
   }
 
+  /** The failure's link leads to another screen: no sheet stays over it (the commands sheet below this one too). */
+  protected leave(): void {
+    this.dialogs.closeAll();
+  }
+
   protected cancel(): void {
     if (!this.running()) {
       this.ref.close(false);
@@ -267,6 +293,7 @@ export class ConfirmDialog {
     }
     this.running.set(true);
     this.failure.set(null);
+    this.failureLink.set(null);
     // aria-disabled, not disabled: the focused Confirm keeps focus while the work runs.
     this.ref.disableClose = true;
     try {
@@ -281,6 +308,7 @@ export class ConfirmDialog {
       if (error instanceof ConfirmFailure && error.refill !== undefined) {
         this.value.set(error.refill);
       }
+      this.failureLink.set(error instanceof ConfirmFailure ? (error.link ?? null) : null);
       return;
     } finally {
       this.running.set(false);

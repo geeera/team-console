@@ -43,7 +43,7 @@ const SCREENS: readonly { path: string; isTall: boolean; waitFor?: string }[] = 
   { path: '/settings', isTall: false },
   { path: '/settings/runners', isTall: false },
   { path: '/settings/projects/team-console', isTall: false },
-  { path: '/settings/environment', isTall: false },
+  { path: '/admin/environment', isTall: false },
   // Project not found: an unknown slug, and an address outside every route.
   { path: '/p/no-such-project/questions', isTall: false },
   { path: '/no-such-page', isTall: false },

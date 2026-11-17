@@ -1,5 +1,5 @@
-import { GitHubError, type FetchLike } from '@worker/github';
-import { fakeGitHubFetch, localIssueThreads } from './github';
+import { GitHubError, type FetchLike, type ScopedMintAudit } from '@worker/github';
+import { ApiGitHub, fakeGitHubFetch, localIssueThreads, mapGitHubError, setupWriteOf } from './github';
 import { localEnv } from './testing/github-kit';
 
 function recording(): { fetch: FetchLike; urls: string[] } {
@@ -109,5 +109,42 @@ describe('localIssueThreads (GITHUB_MOCK + GITHUB_FAKE_ORIGIN, #114)', () => {
     await expect(served.json()).resolves.toEqual([{ number: 4 }]);
     const other = await fetch('https://api.github.com/repos/geeera/fieldnote/milestones?state=all', {});
     await expect(other.json()).resolves.toEqual([{ number: 1 }]);
+  });
+});
+
+describe('ALLOW_ACTIONS_SETUP_WRITE, the kill switch of the Actions setup write (#759)', () => {
+  // geeera/team-console of the mock world: installation 1001, repository id 900001, every new permission accepted.
+  const TARGET = { installationId: 1001, repositoryId: 900001 };
+  const noAudit: ScopedMintAudit = async () => undefined;
+
+  it.each([
+    [undefined, 'disabled'],
+    ['false', 'disabled'],
+    ['TRUE', 'disabled'],
+    ['1', 'disabled'],
+    ['true', 'enabled'],
+  ] as const)('reads %s as %s', (value, expected) => {
+    expect(setupWriteOf(value === undefined ? {} : { ALLOW_ACTIONS_SETUP_WRITE: value })).toBe(expected);
+  });
+
+  it('refuses the workflow-pr mint with 503 github-write-disabled while the switch is off', async () => {
+    const github = new ApiGitHub();
+    const { auth } = await github.connect(localEnv({ GITHUB_MOCK: 'true', ALLOW_ACTIONS_SETUP_WRITE: 'false' }));
+    const error = await auth.mintScoped('workflow-pr', TARGET, noAudit).catch((caught: unknown) => caught);
+    expect(mapGitHubError(error)?.problem).toMatchObject({ type: 'github-write-disabled', status: 503 });
+    // The read kind is not behind the switch.
+    await expect(auth.mintScoped('environment-read', TARGET, noAudit)).resolves.toMatchObject({ kind: 'environment-read' });
+  });
+
+  it('mints it once the switch is on, and switches back off with the variable', async () => {
+    const github = new ApiGitHub();
+    const on = await github.connect(localEnv({ GITHUB_MOCK: 'true', ALLOW_ACTIONS_SETUP_WRITE: 'true' }));
+    const token = await on.auth.mintScoped('workflow-pr', TARGET, noAudit);
+    expect(token.kind).toBe('workflow-pr');
+    await on.auth.revokeScoped(token);
+
+    // Unset is off (the spec bindings carry dev's `true`, hence the explicit `undefined`).
+    const off = await github.connect(localEnv({ GITHUB_MOCK: 'true', ALLOW_ACTIONS_SETUP_WRITE: undefined }));
+    await expect(off.auth.mintScoped('workflow-pr', TARGET, noAudit)).rejects.toBeInstanceOf(GitHubError);
   });
 });
