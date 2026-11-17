@@ -1,0 +1,2256 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #750 · Environment setup per project</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+
+/* on a real phone the frame fills the screen even when a state's content is narrow (skeleton, error) */
+@media (max-width:520px){.device--phone{width:100%;justify-items:stretch}}
+
+/* screenshot mode (?shot=1, set by a page runtime): only the device frame, no page chrome */
+:root[data-shot] .note{display:none}
+:root[data-shot] body{background:var(--bg)}
+:root[data-shot] .stage{padding:0;gap:0;max-width:none}
+:root[data-shot] .device__label{display:none}
+:root[data-shot] .mac-frame{border-radius:0;box-shadow:none;zoom:1!important}
+/* ===== #24 Settings: GitHub connection and projects, on the Paper Desk tokens (ADR 0002) =====
+   Shared page parts (tokens, buttons, fields, result notes, dialogs, toast) are in kit.css. */
+
+/* ----- mac: settings in the main column ----- */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.set-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.set-inner{max-width:var(--set-max);margin:0 auto;padding:var(--sp-8) var(--pad-x) var(--sp-10);display:flex;flex-direction:column;gap:var(--sp-6)}
+.app[data-app=phone] .set-inner{padding:var(--sp-2) var(--sp-4) var(--sp-10);gap:var(--sp-5)}
+.crumbs ol{display:flex;align-items:center;gap:var(--sp-2);list-style:none;margin:0;padding:0;font-size:var(--fs-sm);color:var(--text-3)}
+.crumbs li{display:flex;align-items:center;gap:var(--sp-2)}
+.crumbs li+li::before{content:"/";color:var(--border-strong)}
+.crumbs a{color:var(--text-2);text-decoration:none;border-radius:var(--r-sm);padding:var(--sp-1)}
+.crumbs a:hover{color:var(--text);background:var(--hover)}
+.crumbs [aria-current=page]{color:var(--text);font-weight:600}
+.side-item--settings{margin-bottom:var(--sp-1)}
+.side-item--settings[aria-current=page]{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+.side-foot__row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-2);width:100%}
+
+/* ----- phone: pushed settings pages ----- */
+.app[data-app=phone]{overflow:clip} /* focus() must never scroll the device frame itself */
+.p-bar{flex:none;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;min-height:var(--target);padding:0 var(--sp-2) var(--sp-1)}
+.p-back{justify-self:start;display:inline-flex;align-items:center;border:0;background:none;color:var(--accent-text);min-height:var(--target);padding:0 var(--sp-2) 0 0;font-size:var(--fs-md);border-radius:var(--r-md)}
+.p-back .ico{width:22px;height:22px;stroke-width:2.2}
+.p-bar__title{font-weight:600;font-size:var(--fs-md)}
+.p-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.p-stub{flex:1;display:grid;align-content:start;gap:var(--sp-5);padding:var(--sp-4)}
+.p-stub p{margin:0;font-family:var(--font-display);font-size:var(--fs-md);color:var(--text-2);line-height:1.62}
+.sheet-foot{display:grid;gap:1px;margin:var(--sp-2) var(--sp-2) 0;padding-top:var(--sp-2);border-top:1px solid var(--border)}
+.sheet-foot .side-item{min-height:48px;font-size:var(--fs-md)}
+.side-item--add{color:var(--accent-text);font-weight:600}
+.sheet-row__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ----- headings ----- */
+.set-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.set-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.set-lead{margin:var(--sp-1) 0 0;color:var(--text-2);font-size:var(--fs-sm)}
+.set-head--proj{align-items:center;justify-content:flex-start;flex-wrap:nowrap}
+.set-head--proj .prod-mono{width:48px;height:48px;font-size:var(--fs-xl);border-radius:var(--r-md)}
+.set-meta{margin:var(--sp-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-1) var(--sp-3);font-size:var(--fs-sm);color:var(--text-3)}
+.app[data-app=phone] .set-head .btn--primary{width:100%}
+
+/* ----- project list ----- */
+.plist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.prow{display:flex;align-items:center;gap:var(--sp-1);padding-right:var(--sp-2);border-top:1px solid var(--border);background:var(--surface)}
+.prow:first-child{border-top:0}
+.prow__link{flex:1;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);color:inherit;text-decoration:none;border-radius:var(--r-md);transition:background-color var(--dur-fast) var(--ease-standard)}
+.prow__link:hover{background:var(--hover)}
+.prow__link>.ico{color:var(--text-3)}
+.prow .prod-mono{width:34px;height:34px;font-size:16px}
+.prow__txt{display:grid;min-width:0}
+.prow__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.prow__repo{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.prow__arch{min-height:var(--target);color:var(--text-2);font-weight:400}
+.app[data-app=mac] .prow__arch .ico{display:none}
+.prow__arch:hover{color:var(--danger-text);background:var(--danger-soft)}
+.app[data-app=phone] .prow__link{grid-template-columns:auto minmax(0,1fr) auto;padding-left:var(--sp-3)}
+.app[data-app=phone] .prow .setchip{grid-column:2;grid-row:2;justify-self:start}
+.app[data-app=phone] .prow__link>.ico{grid-column:3;grid-row:1/span 2}
+.app[data-app=phone] .prow .prod-mono{grid-row:1/span 2}
+.app[data-app=phone] .prow__arch{width:var(--target);padding:0}
+.app[data-app=phone] .prow__archtxt{display:none}
+.app[data-app=phone] .prow__arch .ico{width:20px;height:20px}
+
+/* setup chip on a row: the word carries the status, the icon only repeats it */
+.setchip{height:auto;min-height:22px;padding:1px var(--sp-2);gap:var(--sp-1);white-space:normal}
+.setchip .ico{width:13px;height:13px;stroke-width:2.4}
+.setchip--missing{background:var(--warning-soft);color:var(--warning-text)}
+.setchip--checking,.setchip--unknown{background:var(--bg-sunken);color:var(--text-2)}
+.setchip .typing{padding:0;gap:2px}
+.setchip .typing i{width:4px;height:4px}
+
+/* ----- the checklist: a ledger of four steps ----- */
+.ledger{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.step{display:grid;grid-template-columns:var(--mark) minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-top:1px solid var(--border)}
+.step:first-child{border-top:0}
+.app[data-app=phone] .step{padding:var(--sp-4) var(--sp-3)}
+.step__mark{width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-sm);font-weight:600;font-variant-numeric:lining-nums}
+.step__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.step__mark .typing{padding:0;gap:2px}.step__mark .typing i{width:4px;height:4px}
+.step__body{display:grid;justify-items:start;gap:var(--sp-1);min-width:0}
+.step__head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:0 var(--sp-3);width:100%;min-height:var(--mark)}
+.step__title{margin:0;font-size:var(--fs-md);font-weight:600;line-height:var(--lh-tight);align-self:center}
+.step__state{font-size:var(--fs-sm);font-weight:600;font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase;white-space:nowrap}
+.step__fix{margin:0;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.step--done .step__mark{background:var(--success-soft);color:var(--success-text)}
+.step--done .step__state{color:var(--success-text)}
+.step--missing .step__mark{background:var(--warning-soft);color:var(--warning-text)}
+.step--missing .step__state{color:var(--warning-text)}
+.step--pending .step__state,.step--unknown .step__state{color:var(--text-2)}
+.step--skipped .step__mark{background:none;border:1px dashed var(--border-strong);color:var(--text-3)}
+.step--skipped .step__title{color:var(--text-2)}
+.step--skipped .step__state{color:var(--text-3)}
+
+/* ink: a step that just turned done draws its check, in step order */
+.step.is-new .step__mark{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
+.step.is-new.step--done .step__mark path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) calc(var(--i, 0) * var(--stagger) + var(--dur-fast)) forwards}
+@media (prefers-reduced-motion:reduce){.step.is-new .step__mark,.step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .step.is-new .step__mark,:root[data-motion=reduce] .step.is-new.step--done .step__mark path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* ----- actions and the separated archive ----- */
+.danger-zone{display:flex;padding-top:var(--sp-5);border-top:1px solid var(--border)}
+.app[data-app=phone] .danger-zone .btn{width:100%}
+
+/* ----- settings sections ----- */
+.sec{display:grid;gap:var(--sp-3)}
+.sec-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:var(--sp-3) var(--sp-4)}
+.sec-title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.app[data-app=phone] .sec-head .btn--primary{width:100%}
+
+/* ----- the GitHub connection card: one card, the state is its words ----- */
+.gh{display:grid;justify-items:start;gap:var(--sp-3);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .gh{padding:var(--sp-4)}
+.gh__row{display:flex;align-items:center;flex-wrap:wrap;gap:var(--sp-2) var(--sp-3);width:100%}
+.gh__mark{flex:none;width:var(--mark);height:var(--mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2)}
+.gh__mark .ico{width:16px;height:16px;stroke-width:2.4}
+.gh--ok .gh__mark{background:var(--success-soft);color:var(--success-text)}
+.gh--warn .gh__mark{background:var(--surface);color:var(--warning-text)}
+.gh__who{flex:1;min-width:0;display:grid;gap:2px}
+.gh__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.gh__title code{font-size:.9em}
+.gh__meta{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.gh__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.app[data-app=phone] .gh__actions .btn{flex:1 1 auto}
+.gh__disc{color:var(--danger-text)}
+.app[data-app=phone] .gh__disc{flex-basis:100%;justify-content:flex-start;margin-left:var(--mark);padding-left:var(--sp-3)}
+.gh__title code{white-space:nowrap}
+.gh__disc:hover{background:var(--danger-soft)}
+.gh__off{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.gh__off .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.gh--warn{background:var(--warning-soft);border-color:transparent;box-shadow:none}
+.gh--warn .gh__title,.gh--warn .gh__body{color:var(--warning-text)}
+.gh--bad{background:var(--danger-soft);border-color:transparent;box-shadow:none}
+.gh--bad .gh__title,.gh--bad .gh__body{color:var(--danger-text)}
+.gh__skel{border-radius:50%}
+.gh .skel-stack{flex:1}
+/* the "connected" tick is drawn once, after the round trip to GitHub */
+.gh__mark.is-new{animation:mark-in var(--dur-base) var(--ease-emph) both}
+.gh__mark.is-new path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@media (prefers-reduced-motion:reduce){.gh__mark.is-new,.gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}}
+:root[data-motion=reduce] .gh__mark.is-new,:root[data-motion=reduce] .gh__mark.is-new path{animation:fade var(--dur-fade) linear both;stroke-dasharray:none}
+
+/* connection reminders below Settings */
+.conn-banner{max-width:none;flex-wrap:wrap}
+.conn-banner .ico{flex:none}
+.conn-banner .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:var(--warning-text);font-weight:600}
+.app[data-app=phone] .conn-banner .btn{width:100%}
+.need-conn .btn{margin-top:var(--sp-2)}
+.app[data-app=phone] .need-conn{padding-right:0}
+.app[data-app=phone] .need-conn .btn{width:100%}
+
+/* sync state in the Mac sidebar footer and the iPhone sheet */
+.side-foot__sync .sync-dot--none,.sheet-foot__sync .sync-dot--none{background:var(--text-3)}
+.side-foot__sync .sync-dot--lost,.sheet-foot__sync .sync-dot--lost{background:var(--warning-text)}
+.side-foot__sync .sync-dot--loading,.sheet-foot__sync .sync-dot--loading{background:var(--border-strong)}
+.sheet-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2);font-weight:400}
+.sheet-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+
+/* ----- GitHub's authorize page, mocked for the demo only ----- */
+.gh-mock__note{margin:0;padding:var(--sp-2) var(--sp-3);border:1px dashed var(--border-strong);border-radius:var(--r-md);font-size:var(--fs-xs);color:var(--text-2)}
+.gh-mock{display:grid;justify-items:center;gap:var(--sp-3);padding:var(--sp-6) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);text-align:center;font-family:var(--font-body)}
+.gh-mock h1{margin:0;font-size:var(--fs-xl);font-weight:600;outline:none;overflow-wrap:anywhere}
+.gh-mock__logos{display:flex;align-items:center;gap:var(--sp-3);color:var(--text-3)}
+.gh-mock__logos .mark{width:40px;height:40px;color:var(--accent)}
+.gh-mock__logos .avatar{width:40px;height:40px;font-size:var(--fs-md)}
+.gh-mock p,.gh-mock ul{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.gh-mock ul{text-align:left;padding-left:1.2em;display:grid;gap:var(--sp-1)}
+.gh-mock .form-actions{width:100%;justify-content:center}
+.p-bar__url{justify-self:center;padding:var(--sp-1) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.crumbs__url{font-family:var(--font-mono);font-weight:400}
+/* ===== #104 Environment setup, on the Paper Desk tokens (ADR 0002) =====
+   Shared page parts (spacing, target, buttons, codeline, skeletons, blocks, result notes) are in kit.css; the
+   Settings shell (crumbs, pushed phone pages, section titles, the GitHub card, project rows) in settings.css.
+   Proposed token additions for this screen: the Mac list column, the tab height, the summary mark and the
+   guide step mark. */
+:root{--env-list-w:440px;--env-tab-h:52px;--env-mark:40px;--g-step:24px;--env-rule:3px}
+
+/* ----- Settings: the new Environment section and its one row ----- */
+.erow-entry .prow__link{grid-template-columns:auto minmax(0,1fr) auto auto}
+.env-ico{width:34px;height:34px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.env-ico .ico{width:18px;height:18px}
+.entry__name{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.entry__sub{font-size:var(--fs-xs);color:var(--text-2);overflow-wrap:anywhere}
+.entry__sub code{font-size:inherit;color:var(--text)}
+.app[data-app=phone] .erow-entry .prow__link{grid-template-columns:auto minmax(0,1fr) auto}
+.app[data-app=phone] .erow-entry .est{grid-column:2;grid-row:3;justify-self:start;margin-top:var(--sp-1)}
+.app[data-app=phone] .erow-entry .prow__link>.ico{grid-column:3;grid-row:1/span 3}
+.app[data-app=phone] .erow-entry .env-ico{grid-row:1/span 3;align-self:start}
+.erow-entry .prow__txt{gap:2px}
+/* the Settings context cards (#24, #36), shown quietly around the new section */
+.ctx-card{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-4) var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .ctx-card{padding:var(--sp-4)}
+.ctx-card__txt{flex:1;min-width:0;display:grid;gap:2px}
+.ctx-card__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.ctx-card__meta{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.ctx-card .gh__mark{flex:none}
+.ctx-card--warn{background:var(--warning-soft);border-color:transparent;box-shadow:none;flex-wrap:wrap}
+.ctx-card--warn .ctx-card__title,.ctx-card--warn .ctx-card__meta{color:var(--warning-text)}
+.ctx-card--warn .gh__mark{background:var(--surface);color:var(--warning-text)}
+.ctx-card--warn .btn{min-height:var(--target);background:var(--surface);border-color:transparent;color:var(--warning-text)}
+.app[data-app=phone] .ctx-card--warn .btn{width:100%}
+.lang-seg{display:inline-flex;gap:2px;padding:var(--sp-1);border-radius:var(--r-lg);background:var(--bg-sunken)}
+.lang-seg button{min-height:var(--target);min-width:64px;border:0;background:none;border-radius:var(--r-md);font-weight:600;font-size:var(--fs-sm);color:var(--text-2)}
+.lang-seg button[aria-pressed=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+
+/* ----- status chips: a word and an icon, never colour alone ----- */
+.est{height:auto;min-height:22px;padding:1px var(--sp-2);gap:var(--sp-1);white-space:normal}
+.est .ico{width:13px;height:13px;stroke-width:2.4;flex:none}
+.est--missing{background:var(--warning-soft);color:var(--warning-text)}
+.est--unseen,.est--checking,.est--unknown{background:var(--bg-sunken);color:var(--text-2)}
+.est .typing{padding:0;gap:2px}
+.est .typing i{width:4px;height:4px}
+.etag{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--sp-2);border:1px solid var(--border-strong);border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap}
+.etag--opt{font-variant:small-caps;letter-spacing:var(--ls-caps);text-transform:lowercase}
+.est.is-new{animation:mark-in var(--dur-base) var(--ease-emph) calc(var(--i, 0) * var(--stagger)) both}
+@media (prefers-reduced-motion:reduce){.est.is-new{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .est.is-new{animation:fade var(--dur-fade) linear both}
+
+/* ----- the screen ----- */
+.env-head h1{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.env-head .set-lead{max-width:60ch}
+.env-panel{display:grid;gap:var(--sp-6);min-width:0}
+.app[data-app=phone] .env-panel{gap:var(--sp-5)}
+.env-panel:focus-visible{outline:2px solid var(--focus);outline-offset:4px;border-radius:var(--r-md)}
+
+/* environment tabs: four index tabs on a sunken strip; this console's tab carries a moss dot and "this console" */
+.etabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:2px;padding:var(--sp-1);border-radius:var(--r-lg);background:var(--bg-sunken)}
+.etab{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;min-width:0;min-height:var(--env-tab-h);padding:var(--sp-1);border:0;border-radius:var(--r-md);background:none;color:var(--text-2);font:inherit;font-size:var(--fs-sm);font-weight:600;line-height:var(--lh-tight);text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background-color var(--dur-fast) var(--ease-standard),color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.etab:hover{color:var(--text);background:var(--hover)}
+.etab[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.etab:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.etab__name{overflow-wrap:anywhere}
+.etab__this{display:inline-flex;align-items:center;gap:var(--sp-1);margin-top:2px;font-size:var(--fs-xs);font-weight:400;color:var(--accent-text);white-space:nowrap}
+.etab__this i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.app[data-app=mac] .etabs{max-width:var(--set-max)}
+@media (prefers-reduced-motion:reduce){.etab{transition:none}}
+:root[data-motion=reduce] .etab{transition:none}
+
+/* the summary card: a to-do slip when something is missing, a plain sheet otherwise */
+.esum{position:relative;display:grid;gap:var(--sp-3);padding:var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.app[data-app=phone] .esum{padding:var(--sp-4)}
+.esum--todo{border:1px dashed var(--border-strong);box-shadow:none;background:var(--surface)}
+.esum--quiet{background:var(--surface-2);box-shadow:none}
+.esum__top{display:flex;align-items:flex-start;gap:var(--sp-3)}
+.esum__mark{flex:none;width:var(--env-mark);height:var(--env-mark);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);font-variant-numeric:lining-nums}
+.esum__mark .ico{width:20px;height:20px;stroke-width:2.2}
+.esum--todo .esum__mark{background:var(--warning-soft);color:var(--warning-text)}
+.esum--ok .esum__mark{background:var(--success-soft);color:var(--success-text)}
+.esum__title{margin:0;align-self:center;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none;overflow-wrap:anywhere}
+.esum p{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:62ch}
+.esum__unseen{display:grid;gap:var(--sp-2);padding-top:var(--sp-3);border-top:1px dashed var(--border)}
+.esum__unseen p{display:flex;gap:var(--sp-2);align-items:flex-start}
+.esum__unseen .ico{width:16px;height:16px;flex:none;margin-top:2px;color:var(--text-3)}
+.esum__foot{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2) var(--sp-3);padding-top:var(--sp-1)}
+.esum__foot .res__time{margin:0}
+.esum__foot .btn{min-height:var(--target)}
+.esum__reason{flex-basis:100%;margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.app[data-app=phone] .esum__foot .btn{flex:1 1 auto}
+.esum .link-btn{justify-self:start}
+.app .esum--stamped .esum__top{padding-right:calc(var(--stamp-sm) + var(--sp-2))}
+.esum .stamp{right:var(--sp-5);top:var(--sp-4);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+.esum.is-new .esum__mark{animation:mark-in var(--dur-base) var(--ease-emph) both}
+@media (prefers-reduced-motion:reduce){.esum.is-new .esum__mark{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .esum.is-new .esum__mark{animation:fade var(--dur-fade) linear both}
+.esum-skel{display:grid;gap:var(--sp-3)}
+.esum-skel .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+.esum-skel .skel--c{width:72%;height:var(--sp-5)}.esum-skel .skel--d{width:92%}.esum-skel .skel--e{width:44%;height:var(--target)}
+@media (prefers-reduced-motion:reduce){.esum-skel .skel{animation:none}}
+:root[data-motion=reduce] .esum-skel .skel{animation:none}
+.env-note{max-width:none;flex-wrap:wrap}
+.env-note .ico{flex:none}
+.env-note--plain{background:var(--bg-sunken);color:var(--text-2)}
+.block .ico-lead{width:22px;height:22px;color:var(--text-2)}
+.block--lock{border-style:solid;border-color:var(--border);background:var(--surface-2)}
+.copy-fail{margin:0;font-size:var(--fs-xs);color:var(--danger-text);font-weight:600}
+
+/* groups: where the item lives */
+.egrp{display:grid;gap:var(--sp-2);min-width:0}
+.egrp__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight)}
+.egrp__hint{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0 0 var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.egrp__hint .ico{width:14px;height:14px;flex:none;margin-top:2px}
+.egrp--unseen .egrp__title{color:var(--text-2)}
+
+/* item rows: the name in monospace (wraps, never truncates), its purpose, the status */
+.elist{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.erow{position:relative;border-top:1px solid var(--border);background:var(--surface)}
+.erow:first-child{border-top:0}
+.erow--missing{box-shadow:inset var(--env-rule) 0 0 var(--warning-text)}
+.erow[aria-current=true]{background:var(--surface-2);box-shadow:inset var(--env-rule) 0 0 var(--accent)}
+.erow__btn{width:100%;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-4));padding:var(--sp-3) var(--sp-2) var(--sp-3) var(--sp-4);border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background-color var(--dur-fast) var(--ease-standard)}
+.erow__btn:hover{background:var(--hover)}
+.erow__btn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:var(--r-md)}
+.erow__btn>.ico{color:var(--text-3)}
+.erow__txt{display:grid;gap:2px;min-width:0}
+.erow__name{font-family:var(--font-mono);font-size:var(--fs-sm);font-weight:600;line-height:1.35;overflow-wrap:anywhere}
+.erow__purpose{font-size:var(--fs-xs);color:var(--text-2);line-height:1.45}
+.erow__chips{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--sp-1)}
+.erow__chips:empty{display:none}
+.erow__fix{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:var(--sp-2);padding:0 var(--sp-2) var(--sp-3) var(--sp-4)}
+.erow__fix-label{font-size:var(--fs-xs);font-weight:600;color:var(--warning-text)}
+.erow__fix .copy-fail{grid-column:1/-1}
+.app[data-app=phone] .erow__btn{grid-template-columns:minmax(0,1fr) auto;padding-left:var(--sp-4)}
+.app[data-app=phone] .erow__chips{grid-column:1;grid-row:2;justify-content:flex-start}
+.app[data-app=phone] .erow__btn>.ico{grid-column:2;grid-row:1/span 2}
+.app[data-app=phone] .erow__fix{grid-template-columns:minmax(0,1fr);gap:var(--sp-1)}
+.erow.is-flash{animation:flash var(--dur-sig) var(--ease-standard) var(--dur-fast) both}
+@keyframes flash{from{background:var(--warning-soft)}}
+@media (prefers-reduced-motion:reduce){.erow.is-flash{animation:none}}
+:root[data-motion=reduce] .erow.is-flash{animation:none}
+.erow-skel .skel{background:var(--bg-sunken)}
+
+/* projects: one collapsible block each */
+.eprojs{display:grid;gap:var(--sp-2)}
+.eproj{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);overflow:hidden}
+.eproj__btn{width:100%;display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-3));padding:var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-4);border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.eproj__btn:hover{background:var(--hover)}
+.eproj__btn:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;border-radius:var(--r-lg)}
+.eproj__btn .prod-mono{width:28px;height:28px;font-size:var(--fs-sm)}
+.eproj__name{flex:1;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);overflow-wrap:anywhere}
+.eproj__btn>.ico{color:var(--text-3);transition:transform var(--dur-base) var(--ease-standard)}
+.eproj__btn[aria-expanded=true]>.ico{transform:rotate(180deg)}
+.eproj .elist{border:0;border-top:1px solid var(--border);border-radius:0;box-shadow:none}
+@media (prefers-reduced-motion:reduce){.eproj__btn>.ico{transition:none}}
+:root[data-motion=reduce] .eproj__btn>.ico{transition:none}
+.egrp .block{padding:var(--sp-4) var(--sp-5)}
+.egrp .block p{margin:0}
+.egrp .block--error{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.egrp .block--error .btn{min-height:var(--target);background:var(--surface)}
+
+/* ----- Mac: list-detail, the guide in a pane beside the list ----- */
+.env-split{display:grid;grid-template-columns:var(--env-list-w) minmax(0,1fr);flex:1;min-height:0}
+.env-split__list{min-height:0;overflow-y:auto;overscroll-behavior:contain;border-right:1px solid var(--border)}
+.env-split__list .set-inner{max-width:none;padding:var(--sp-6) var(--sp-6) var(--sp-10)}
+.env-split__pane{min-height:0;overflow-y:auto;overscroll-behavior:contain;background:var(--surface-2)}
+.env-split .esum__foot .btn{flex:none}
+.gpane__bar{position:sticky;top:0;z-index:1;display:flex;justify-content:flex-end;padding:var(--sp-2) var(--sp-3);background:var(--surface-2)}
+.gpane__bar .icon-btn{width:var(--target);height:var(--target)}
+
+/* ----- the guide: a letter of instructions ----- */
+.guide{display:grid;gap:var(--sp-5);min-width:0}
+.env-split__pane .guide{max-width:var(--set-max);padding:0 var(--sp-8) var(--sp-10)}
+.guide__h{margin:0;font-family:var(--font-mono);font-size:var(--fs-xl);font-weight:600;line-height:var(--lh-tight);overflow-wrap:anywhere;outline:none}
+.app[data-app=phone] .guide__h{font-size:var(--fs-lg)}
+.guide__meta{display:flex;flex-wrap:wrap;gap:var(--sp-1) var(--sp-2);margin-top:var(--sp-3)}
+.guide__time{margin:var(--sp-2) 0 0;font-size:var(--fs-xs);color:var(--text-2);font-variant-numeric:tabular-nums}
+.gnever{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);border-left:2px solid var(--border-strong);font-family:var(--font-display);font-style:italic;font-size:var(--fs-md);color:var(--text-2)}
+.gnever .ico{width:16px;height:16px;flex:none;margin-top:4px}
+.gsec{display:grid;gap:var(--sp-2);min-width:0}
+.gsec__h{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.gsec p{margin:0;font-size:var(--fs-sm);overflow-wrap:anywhere}
+.gsec--purpose p{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.gsteps{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-3);counter-reset:gstep}
+.gsteps li{display:grid;grid-template-columns:var(--g-step) minmax(0,1fr);gap:var(--sp-3);align-items:start;font-size:var(--fs-sm);counter-increment:gstep}
+.gsteps li::before{content:counter(gstep);width:var(--g-step);height:var(--g-step);border-radius:50%;display:grid;place-items:center;background:var(--bg-sunken);color:var(--text-2);font-family:var(--font-display);font-size:var(--fs-xs);font-weight:600;font-variant-numeric:lining-nums}
+.gsteps .gstep__txt{display:grid;justify-items:start;gap:var(--sp-1);min-width:0;padding-top:2px;overflow-wrap:anywhere}
+.gsteps .ext{min-height:var(--target);align-items:center}
+.gplain{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2)}
+.gperms{list-style:none;margin:0;padding:var(--sp-3) var(--sp-4);display:grid;gap:var(--sp-2);border-radius:var(--r-md);background:var(--bg-sunken)}
+.gperms li{display:flex;align-items:flex-start;gap:var(--sp-2);font-family:var(--font-mono);font-size:var(--fs-xs);overflow-wrap:anywhere}
+.gperms .ico{width:14px;height:14px;flex:none;margin-top:2px;color:var(--success-text);stroke-width:2.4}
+.ggotchas{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.ggotchas li{padding:var(--sp-1) 0 var(--sp-1) var(--sp-3);border-left:2px solid var(--warning-text);font-size:var(--fs-sm);overflow-wrap:anywhere}
+.ghow{display:grid;gap:var(--sp-3);padding:var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
+.env-split__pane .ghow{background:var(--surface)}
+.ghow p{color:var(--text-2)}
+.gnf{display:grid;justify-items:start;gap:var(--sp-3)}
+.gnf__h{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-2xl);line-height:var(--lh-tight);outline:none}
+.gnf p{margin:0;color:var(--text-2)}
+
+/* codeline additions: a tap selects the whole command; the code wraps like the names */
+.codeline code{user-select:all;-webkit-user-select:all}
+.codeline .cw{white-space:nowrap}
+.app .codeline .btn,.app .egrp .block--error .btn{min-height:var(--target)}
+.app[data-app=phone] .codeline code{font-size:var(--fs-sm)}
+
+/* ----- moving between pages: the phone pushes, the Mac pane slides in; reduced motion fades ----- */
+.is-push{animation:push-in var(--dur-base) var(--ease-enter) both}
+.is-pop{animation:pop-in var(--dur-base) var(--ease-enter) both}
+.is-pane{animation:pane-in var(--dur-base) var(--ease-enter) both}
+@keyframes push-in{from{opacity:0;transform:translateX(var(--sp-6))}}
+@keyframes pop-in{from{opacity:0;transform:translateX(calc(-1 * var(--sp-6)))}}
+@keyframes pane-in{from{opacity:0;transform:translateX(var(--sp-4))}}
+@media (prefers-reduced-motion:reduce){.is-push,.is-pop,.is-pane{animation:fade var(--dur-fade) linear both}}
+:root[data-motion=reduce] .is-push,:root[data-motion=reduce] .is-pop,:root[data-motion=reduce] .is-pane{animation:fade var(--dur-fade) linear both}
+
+/* the phone back crumb carries "‹ production environment": give it the whole bar, never two lines */
+.app[data-app=phone] .p-bar .p-back{grid-column:1/-1;max-width:100%;white-space:nowrap}
+.app[data-app=phone] .p-bar .p-back span{overflow:hidden;text-overflow:ellipsis}
+/* ===== #750 Environment setup per project, on the Paper Desk tokens (ADR 0002) =====
+   Builds on #104 (env.css): rows, chips, summary slip, guide and list-detail are reused as they are. This file
+   adds only what #750 introduces: environment sections instead of tabs on the project screen, the required /
+   optional sub-lists, the quiet "nothing elsewhere" line, the setup page's new row, the Settings operator section
+   and the version line. No new tokens. */
+
+/* ----- project screen: one section per environment that has rows for this project ----- */
+.psec{display:grid;gap:var(--sp-4);min-width:0}
+.psec__title{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--sp-1) var(--sp-3);margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.psec__title code{font-family:var(--font-mono);font-size:var(--fs-lg);font-weight:600}
+.psec__this{display:inline-flex;align-items:center;gap:var(--sp-1);font-family:var(--font-body);font-size:var(--fs-xs);font-weight:400;color:var(--accent-text);white-space:nowrap}
+.psec__this i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.psub{display:grid;gap:var(--sp-2);min-width:0}
+.psub__h{margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.esum .esum__opt{color:var(--text-2)}
+.psec .esum__title{font-size:var(--fs-lg)}
+.psec__title code{padding:0;background:none}
+.pnone{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;padding-top:var(--sp-4);border-top:1px dashed var(--border);font-size:var(--fs-sm);color:var(--text-2)}
+.pnone .ico{width:16px;height:16px;flex:none;margin-top:3px;color:var(--text-3)}
+.pempty{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
+.pempty p{margin:0;flex:1 1 12rem}
+.pempty .esum__mark{background:var(--success-soft);color:var(--success-text)}
+.block--lock .btn{justify-self:start;min-height:var(--target);background:var(--surface)}
+
+/* ----- the guide: manifest prose is Russian for now; the English UI says so once ----- */
+.guide__prose{display:grid;gap:var(--sp-5);min-width:0}
+.gru{font-size:var(--fs-xs)}
+
+/* ----- project setup: the new row sits right under the checklist, before the actions ----- */
+.setup-env{margin-top:calc(-1 * var(--sp-1))}
+.how__link{display:inline-flex;align-items:center;gap:var(--sp-1);min-height:var(--target);font-weight:600;color:var(--accent-text);text-decoration:none}
+.how__link:hover{text-decoration:underline}
+.how__link .ico{width:16px;height:16px}
+.how__link:focus-visible{outline:2px solid var(--focus);outline-offset:2px;border-radius:var(--r-sm)}
+
+/* ----- Settings: the operator section comes last, before the version line, so nothing above it shifts ----- */
+.set-version{margin:0;font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+/* the open step 5 carries a command and a link: its column must not grow past 375 px; on the phone Copy goes under the command */
+.step__body{grid-template-columns:minmax(0,1fr)}
+.app[data-app=phone] .how .codeline{flex-wrap:wrap}
+.app[data-app=phone] .how .codeline code{flex-basis:100%}
+.block--lock a.btn{text-decoration:none}
+/* the Mac content column scrolls on its own, under the crumbs */
+.env-body{display:flex;flex-direction:column;flex:1;min-height:0}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #750 · design for approval</div><h1 data-i18n="page.title">Environment setup per project</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.state">State</span><select id="d-state"><option value="setup" data-i18n="demo.s.setup">setup</option><option value="setupAdded" data-i18n="demo.s.setupAdded">setupAdded</option><option value="missing" data-i18n="demo.s.missing">missing</option><option value="allSet" data-i18n="demo.s.allSet">allSet</option><option value="unseen" data-i18n="demo.s.unseen">unseen</option><option value="loading" data-i18n="demo.s.loading">loading</option><option value="error" data-i18n="demo.s.error">error</option><option value="offline" data-i18n="demo.s.offline">offline</option><option value="offline0" data-i18n="demo.s.offline0">offline0</option><option value="rate" data-i18n="demo.s.rate">rate</option><option value="forbidden" data-i18n="demo.s.forbidden">forbidden</option><option value="notFound" data-i18n="demo.s.notFound">notFound</option><option value="empty" data-i18n="demo.s.empty">empty</option><option value="guide" data-i18n="demo.s.guide">guide</option><option value="guideOpt" data-i18n="demo.s.guideOpt">guideOpt</option><option value="guideNotFound" data-i18n="demo.s.guideNotFound">guideNotFound</option><option value="settings" data-i18n="demo.s.settings">settings</option><option value="settingsCustomer" data-i18n="demo.s.settingsCustomer">settingsCustomer</option><option value="admin" data-i18n="demo.s.admin">admin</option><option value="adminOther" data-i18n="demo.s.adminOther">adminOther</option><option value="adminGuide" data-i18n="demo.s.adminGuide">adminGuide</option><option value="adminForbidden" data-i18n="demo.s.adminForbidden">adminForbidden</option></select></label>
+    <label><span data-i18n="demo.next">Next Check again</span><select id="d-next"><option value="same" data-i18n="demo.n.same">same</option><option value="fixed" data-i18n="demo.n.fixed">fixed</option><option value="error" data-i18n="demo.n.error">error</option></select></label>
+    <label><input type="checkbox" id="d-copy"><span data-i18n="demo.copyFail">Clipboard refuses</span></label>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How environment setup looks once it leaves Settings (#750): each project gets its own screen under project setup, and the console’s own rows move to an operator-only area. iPhone first, then the Mac, light and dark, ru and en. Flow, states and copy follow the UX spec on #750 and your answers (operator area <code>/admin/environment/:env</code>, build now, adding a project still ends on project setup). Everything else is the approved #104 design, reused as it is.</p>
+<ul>
+<li><b>Project setup gains one row.</b> Right under the five-step checklist: a key mark, “Project environment”, <code>production</code> · project secrets and the #104 chip (Missing: 1 / All set / Checking… / Not checked). On the iPhone the chip moves under the title. Step 5’s “How to fix” ends with the moss link “Open the project environment”. A customer never sees the row.</li>
+<li><b>The project screen</b> (<code>/settings/projects/storify/environment</code>) has no tabs: one section per environment that has rows for this project, this console’s first with the moss dot and “this console”. Today that is one section, production. The environments with nothing to set share one quiet dashed line at the end.</li>
+<li><b>Inside a section:</b> the #104 summary slip (count in an ochre circle, one <code>setup --env production</code> command, “Go to the first missing one”, Check again), then “Required” and “Optional — for Run now” as small caps headings. The required row carries the ochre rule and its one-line fix; optional rows carry the small caps “optional” tag, never the rule, and never count: when only they are missing the summary is the moss “Everything storify needs in production is set” with a plain “Optional not set: 2”.</li>
+<li><b>Guides</b> are the #104 letter: the name in monospace, tags (status, secret, “api Worker · project storify”, you enter it, needed by), the never-value line, What it’s for · What breaks · Where to get it · Lifetime · Gotchas · How to set it. A page of its own on the iPhone (back reads “storify environment”), a pane beside the list on the Mac. The manifest prose is Russian; in English the guide says so once, in a grey note.</li>
+<li><b>States:</b> loading (rows already listed, no status word), all set, missing, not visible from here (a dev console shows “Not visible here” and the <code>--check</code> command), failed with Try again, offline with and without a snapshot, rate limited, nothing to set, an unknown project (the setup page’s not-found), a guide name that is not this project’s, and 403: a lock block “The console operator sets this project’s secrets” with no row names at all and a way back to project setup.</li>
+<li><b>Operator area.</b> Settings ends with a “Console operator” section: one row, “Console environment”, <code>production</code> · Workers, GitHub, local runs, and the chip. It sits last, above the version line, so it never shifts anything when it appears; a customer’s Settings has no Environment section at all. It opens <code>/admin/environment/production</code>: the #104 screen with its four tabs and the projects group gone. A customer who types the URL gets the lock block “Only the console’s operator can see its environment”.</li>
+<li><b>Motion.</b> Nothing new: page push, pane slide and the #104 ink stamp when Check again finds the last required item set. Optional rows never trigger it. Reduced motion: a 120 ms fade.</li>
+</ul>
+<p class="try">Try on iPhone: Project setup → Project environment → “Go to the first missing one” → open the row → Copy. Back, set “Next Check again” to “you ran setup” and press Check again. Then Settings: the operator section, its console screen, and the customer variants in the State list.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only. Ochre: missing (a to-do, not an error). Moss: set, this console, the next action. Grey (sunken): not visible here, not checked, the forbidden lock. Clay: only when the check itself failed.</dd>
+<dt>Type</dt><dd>Source Serif 4 for titles and the summary; Source Sans 3 for the interface and the small caps sub-headings; Source Code Pro for names, environments and commands. All OFL, self-hosted.</dd>
+<dt>New tokens</dt><dd>None. Everything is on #104’s additions (list column 440, summary mark 40, row rule 3) and the base scale.</dd>
+<dt>New kit parts</dt><dd>None. Reused: <code>tc-list-row</code> with <code>tc-chip</code> (the two entry rows), StatusChip, Tag, CodeLine, state-block (lock), the #104 summary, row and guide. The section heading with the “this console” dot is the #104 tab label laid flat.</dd>
+<dt>Motion</dt><dd>fast 140 · base 240 · stamp 620 ms; only transform, opacity and stroke draw; one polite announcement per check.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что вы утверждаете.</b> Как выглядит настройка окружения, когда она уходит из «Настроек» (#750): у каждого проекта свой экран внутри настройки проекта, а строки самой консоли переезжают в область оператора. Сначала iPhone, потом Mac, светлая и тёмная тема, русский и английский. Сценарий, состояния и тексты — по UX-спеке на #750 и вашим ответам (область оператора <code>/admin/environment/:env</code>, делаем сейчас, добавление проекта по-прежнему заканчивается на настройке проекта). Всё остальное — утверждённый дизайн #104 без изменений.</p>
+<ul>
+<li><b>В настройке проекта появляется одна строка.</b> Сразу под пятью шагами: значок ключа, «Окружение проекта», <code>production</code> · секреты проекта и чип из #104 («Не задано: 1» / «Всё задано» / «Проверяем…» / «Не проверено»). На iPhone чип уходит под заголовок. «Как сделать» у шага 5 заканчивается ссылкой цвета мха «Открыть окружение проекта». Клиент эту строку не видит.</li>
+<li><b>Экран проекта</b> (<code>/settings/projects/storify/environment</code>) без вкладок: по секции на каждое окружение, где у проекта есть строки, первым — окружение этой консоли с точкой цвета мха и подписью «эта консоль». Сейчас это одна секция, production. Окружения, где задавать нечего, собраны в одну тихую строку под пунктиром в конце.</li>
+<li><b>Внутри секции:</b> сводка из #104 (число в охристом круге, одна команда <code>setup --env production</code>, «К первой незаданной», «Проверить снова»), затем «Обязательные» и «Необязательные — для „Запустить сейчас“» капителью. У обязательной строки — охристая черта и однострочное исправление; у необязательных — капитель «необязательно», без черты, и в счёт они не идут: если не хватает только их, сводка зелёная — «Для storify в production задано всё обязательное» — с простой строкой «Необязательных не задано: 2».</li>
+<li><b>Инструкции</b> — письмо из #104: имя моноширинным, метки (статус, секрет, «Worker api · проект storify», вводите вы, кому нужен), строка о том, что значение не показывается, затем «Зачем» · «Что сломается» · «Где взять» · «Срок жизни» · «Подводные камни» · «Как задать». На iPhone — отдельная страница (назад — «Окружение storify»), на Mac — панель рядом со списком. Текст из манифеста — на русском; в английском интерфейсе инструкция один раз говорит об этом серой заметкой.</li>
+<li><b>Состояния:</b> загрузка (строки уже в списке, без слова статуса), всё задано, не задано, отсюда не видно (консоль dev показывает «Отсюда не видно» и команду с <code>--check</code>), ошибка с «Повторить», нет сети со снимком и без, слишком много проверок, задавать нечего, неизвестный проект (как «не найден» у настройки), имя инструкции не этого проекта, и 403: блок с замком «Секреты проекта задаёт оператор консоли» — без единого имени строки — и путь назад к настройке проекта.</li>
+<li><b>Область оператора.</b> «Настройки» заканчиваются разделом «Оператор консоли»: одна строка «Окружение консоли», <code>production</code> · Worker’ы, GitHub, локальный запуск, и чип. Раздел стоит последним, над строкой версии, поэтому, появляясь, ничего не сдвигает; у клиента в «Настройках» раздела про окружение нет совсем. Строка открывает <code>/admin/environment/production</code>: экран #104 с четырьмя вкладками, но уже без группы проектов. Клиент, набравший адрес вручную, видит блок с замком «Окружение консоли видит только её оператор».</li>
+<li><b>Движение.</b> Ничего нового: переход страницы, выезд панели и чернильный штамп из #104, когда «Проверить снова» находит последнюю обязательную настройку заданной. Необязательные строки его не вызывают. При «Меньше движения» — затухание 120 мс.</li>
+</ul>
+<p class="try">Попробуйте на iPhone: «Настройка проекта» → «Окружение проекта» → «К первой незаданной» → откройте строку → «Копировать». Вернитесь, поставьте «Следующая „Проверить снова“: вы запустили setup» и нажмите «Проверить снова». Потом «Настройки»: раздел оператора, экран консоли и варианты для клиента в списке «Состояние».</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk. Охра — «не задано» (дело, а не ошибка). Мох — «задано», «эта консоль», следующее действие. Серый (утоплённый) — «отсюда не видно», «не проверено», замок 403. Глина — только если не удалась сама проверка.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовки и сводка; Source Sans 3 — интерфейс и подзаголовки капителью; Source Code Pro — имена, окружения и команды. Все под OFL, шрифты у нас.</dd>
+<dt>Новые токены</dt><dd>Нет. Всё стоит на добавлениях #104 (колонка списка 440, значок сводки 40, черта строки 3) и базовой шкале.</dd>
+<dt>Новое в ките</dt><dd>Нет. Переиспользуются: <code>tc-list-row</code> с <code>tc-chip</code> (обе строки входа), StatusChip, Tag, CodeLine, state-block (замок), сводка, строка и инструкция из #104. Заголовок секции с точкой «эта консоль» — подпись вкладки из #104, положенная в строку.</dd>
+<dt>Движение</dt><dd>быстро 140 · обычно 240 · штамп 620 мс; двигаются только transform, opacity и прорисовка линий; одно вежливое объявление на проверку.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #104 Environment setup: status and a step-by-step guide per item (never values). Russian is the
+   reference copy and uses the polite «вы»; English second. Keys follow the UX spec on #104 (`env.*` for the screen,
+   `env.g.*` for the guide chrome) so they can move into the app's catalogue as they are; Copy reuses the shipped
+   `settings.common.copy*` text word for word. Guide content (purpose, where to get it, …) is manifest data (#102),
+   not catalogue keys: it lives in env.js next to the mock manifest.
+   Values are strings with {vars} or functions (vars, plural, {esc}) for counted phrases; t() HTML-escapes vars. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #104 · design for approval',
+    'page.title': 'Environment setup',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+
+    'demo.aria': 'Demo states',
+    'demo.screen': 'Open', 'demo.this': 'This console runs on', 'demo.call': 'Status call', 'demo.allSet': 'Everything visible is set',
+    'demo.proj': 'Projects', 'demo.next': 'Next “Check again”', 'demo.copyFail': 'Clipboard refuses',
+    'demo.s.settings': 'Settings (entry)', 'demo.s.env': 'Environment setup', 'demo.s.gCf': 'Guide: CLOUDFLARE_API_TOKEN',
+    'demo.s.gOwner': 'Guide: OWNER_EMAIL', 'demo.s.gAud': 'Guide: ACCESS_AUD', 'demo.s.gVapid': 'Guide: VAPID_PRIVATE_KEY (missing)',
+    'demo.s.gRoutine': 'Guide: ROUTINE_TOKEN_STORIFY', 'demo.s.gApp': 'Guide: GITHUB_APP_PRIVATE_KEY', 'demo.s.gGen': 'Guide: TOKEN_ENCRYPTION_KEY (generated)',
+    'demo.s.gUnknown': 'Guide: unknown name in the URL', 'demo.s.deep': 'Deep link from Notifications (push 503)',
+    'demo.s.tabOther': 'Tab: another environment', 'demo.s.tabLocal': 'Tab: local',
+    'demo.c.ok': 'loaded', 'demo.c.loading': 'loading', 'demo.c.error': 'failed (5xx)', 'demo.c.offline': 'offline, loaded earlier',
+    'demo.c.offline0': 'offline, never loaded', 'demo.c.forbidden': 'not the owner (403)', 'demo.c.rate': 'too many checks (429)',
+    'demo.p.two': 'two', 'demo.p.none': 'none', 'demo.p.error': 'failed to load',
+    'demo.n.same': 'nothing changed', 'demo.n.fixed': 'you ran setup: all set', 'demo.n.error': 'fails',
+    'demo.help': 'Try on iPhone: Settings → Environment setup → “Go to the first missing one” → open the row → Copy. Then set “Next Check again” to “you ran setup” and press Check again: the rows turn Set and the summary is stamped. Once a tab has focus, ←/→ move between them. On the Mac the guide opens beside the list; Esc closes it.',
+    'demo.space': 'Project spaces are in the Paper Desk prototype',
+
+    'nav.needs': 'Needs you', 'nav.all': 'All projects', 'nav.projects': 'Projects', 'nav.settings': 'Settings',
+    'nav.aria': 'Projects and settings', 'nav.crumbs': 'You are here', 'shell.owner': 'Owner',
+
+    'set.gh': 'GitHub', 'set.gh.title': 'Connected as {login}', 'set.gh.meta': 'Since 3 October · app team-console-{env}',
+    'set.push': 'Notifications', 'set.push.on': 'On for this iPhone', 'set.push.onMac': 'On for this Mac', 'set.push.meta': 'Questions and links from the team arrive as notifications.',
+    'set.push.off': 'The server isn’t set up for notifications', 'set.push.offBody': 'This environment is missing the key notifications are signed with.', 'set.push.guide': 'How to set it up',
+    'set.projects': 'Projects', 'set.lang': 'Language',
+
+    'env.entry.section': 'Environment',
+    'env.entry.row': 'Environment setup',
+    'env.entry.sub': '{env} · secrets and variables: what is set and how to set the rest',
+    'env.entry.checking': 'Checking…', 'env.entry.missing': 'Missing: {n}', 'env.entry.ok': 'All set', 'env.entry.unknown': 'Not checked',
+
+    'env.title': 'Environment setup',
+    'env.lead': 'Which secrets and variables are set, and how to set the missing ones. The console never shows or keeps their values.',
+    'env.tabs': 'Environment', 'env.tab.this': 'this console',
+    'env.sum.missing': (v, pl) => `${v.n} ${pl(v.n, ['setting', 'settings'])} missing in ${v.env}`,
+    'env.sum.missingBody': 'Set them with one command on your computer, in the repository folder — it asks only for what is missing:',
+    'env.sum.ok': 'Everything visible from here is set in {env}',
+    'env.sum.unseen': (v, pl) => `The console can’t see ${v.n} more ${pl(v.n, ['setting', 'settings'])} from here — setup checks ${pl(v.n, ['it', 'them'])}:`,
+    'env.sum.other': 'This is the {this} console. What is set in {env} shows in the {env} console, or with a command on your computer:',
+    'env.sum.local': 'These values live only on your computer — the console can’t see them. To check:',
+    'env.sum.checkedAt': 'Checked at {time}', 'env.sum.recheck': 'Check again', 'env.sum.rechecking': 'Checking…',
+    'env.sum.jump': 'Go to the first missing one',
+    'env.sum.offReason': 'Check again works once you’re back online.', 'env.sum.rateReason': 'Available again after {time}.',
+    'env.copyAriaEnv': 'Copy the command for {env}',
+
+    'env.group.api': 'Console Worker (api)', 'env.group.api.hint': 'The console checks these itself.',
+    'env.group.ghvar': 'GitHub environment variables', 'env.group.ghvar.hint': 'Checked on the Worker: the value reached it with the last deploy.',
+    'env.group.project': 'Projects', 'env.group.project.hint': 'Each project has its own routine tokens.',
+    'env.group.hooks': 'Webhook Worker (hooks)', 'env.group.hooks.hint': 'The console can’t see these — setup checks them.',
+    'env.group.ghsec': 'GitHub environment secrets', 'env.group.ghsec.hint': 'The console can’t see these — setup checks them.',
+    'env.group.repo': 'Repository secrets', 'env.group.repo.hint': 'Shared by every environment. The console can’t see these — setup checks them.',
+    'env.group.local': 'On your computer', 'env.group.local.hint': 'Needed only to run the e2e tests against stage.',
+
+    'env.st.set': 'Set', 'env.st.missing': 'Missing', 'env.st.unseen': 'Not visible here', 'env.st.optional': 'optional',
+    'env.row.fix': 'Set it:', 'env.row.check': 'Check:', 'env.row.copyAria': 'Copy the command for {name}',
+    'env.proj.count': '{set} of {total} set', 'env.proj.none': 'No projects yet — routine tokens show up here once you add a project.',
+    'env.proj.error': 'Couldn’t load the projects.',
+
+    'env.loading': 'Checking the environment…',
+    'env.err.load.title': 'Couldn’t check the environment', 'env.err.load.body': 'The console didn’t answer. The guides still open without a check.',
+    'env.err.offline': 'You’re offline. This is the state at {time}.',
+    'env.err.offline0': 'You’re offline — we’ll check once you’re back. The guides work offline.',
+    'env.err.forbidden.title': 'Only the owner can see the environment', 'env.err.forbidden.body': 'This session isn’t signed in as you, so nothing is shown.',
+    'env.err.rate': 'Too many checks in a row. Check again after {time}.',
+
+    'env.g.back': '{env} environment', 'env.g.close': 'Close the guide',
+    'env.g.kind.secret': 'Secret', 'env.g.kind.var': 'Variable',
+    'env.g.place.api': 'api Worker', 'env.g.place.hooks': 'hooks Worker', 'env.g.place.ghvar': 'GitHub environment variable, {env}',
+    'env.g.place.ghsec': 'GitHub environment secret, {env}', 'env.g.place.repo': 'Repository secret', 'env.g.place.project': 'api Worker · project {project}',
+    'env.g.place.local': 'Your computer',
+    'env.g.src.owner': 'You enter it', 'env.g.src.gen': 'setup generates it', 'env.g.src.app': 'setup creates it with the GitHub App',
+    'env.g.needs': 'Needed by: {who}',
+    'env.g.never': 'The console never shows or keeps the value — only whether it is set.',
+    'env.g.purpose': 'What it’s for', 'env.g.impact': 'What breaks without it', 'env.g.where': 'Where to get it', 'env.g.perms': 'Permissions to choose',
+    'env.g.life': 'Lifetime and rotation', 'env.g.gotchas': 'Gotchas', 'env.g.how': 'How to set it',
+    'env.g.where.gen': 'Nothing to get: setup generates the value itself.',
+    'env.g.where.app': 'Nothing to get by hand: setup creates this environment’s GitHub App and puts the value in place. You only confirm the app on GitHub.',
+    'env.g.how.body': 'On your computer, in the repository folder. setup asks for the value with hidden input and checks that it landed:',
+    'env.g.how.rotate': 'To replace a value that is already set — the command asks you to confirm:',
+    'env.g.how.check': 'The console can’t see this value. To check whether it is set:',
+    'env.g.external': '(opens in a new tab)',
+    'env.g.notFound.title': 'There’s no such setting in {env}', 'env.g.notFound.body': 'It may have been removed from the list, or it belongs to another environment.',
+    'env.g.back.settings': 'Settings',
+
+    'common.copy': 'Copy', 'common.copied': 'Copied', 'common.copyFailed': 'Couldn’t copy: select the command and copy it by hand.',
+    'common.retry': 'Try again',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #104 · дизайн на утверждение',
+    'page.title': 'Настройка окружения',
+    'page.layout': 'Раскладка', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что вы утверждаете и на каких токенах это построено',
+    'page.phoneAria': 'Раскладка iPhone', 'page.macAria': 'Раскладка Mac', 'page.macLabel': 'Mac · окно',
+
+    'demo.aria': 'Состояния для демо',
+    'demo.screen': 'Открыть', 'demo.this': 'Эта консоль работает в', 'demo.call': 'Проверка статуса', 'demo.allSet': 'Всё видимое задано',
+    'demo.proj': 'Проекты', 'demo.next': 'Следующая «Проверить снова»', 'demo.copyFail': 'Буфер обмена отказывает',
+    'demo.s.settings': 'Настройки (вход)', 'demo.s.env': 'Настройка окружения', 'demo.s.gCf': 'Инструкция: CLOUDFLARE_API_TOKEN',
+    'demo.s.gOwner': 'Инструкция: OWNER_EMAIL', 'demo.s.gAud': 'Инструкция: ACCESS_AUD', 'demo.s.gVapid': 'Инструкция: VAPID_PRIVATE_KEY (не задан)',
+    'demo.s.gRoutine': 'Инструкция: ROUTINE_TOKEN_STORIFY', 'demo.s.gApp': 'Инструкция: GITHUB_APP_PRIVATE_KEY', 'demo.s.gGen': 'Инструкция: TOKEN_ENCRYPTION_KEY (генерируется)',
+    'demo.s.gUnknown': 'Инструкция: неизвестное имя в адресе', 'demo.s.deep': 'Ссылка из «Уведомлений» (push 503)',
+    'demo.s.tabOther': 'Вкладка: другое окружение', 'demo.s.tabLocal': 'Вкладка: local',
+    'demo.c.ok': 'загружено', 'demo.c.loading': 'загружается', 'demo.c.error': 'ошибка (5xx)', 'demo.c.offline': 'нет сети, загружено раньше',
+    'demo.c.offline0': 'нет сети, не загружалось', 'demo.c.forbidden': 'не владелец (403)', 'demo.c.rate': 'много проверок (429)',
+    'demo.p.two': 'два', 'demo.p.none': 'нет', 'demo.p.error': 'не загрузились',
+    'demo.n.same': 'ничего не изменилось', 'demo.n.fixed': 'вы запустили setup: всё задано', 'demo.n.error': 'ошибка',
+    'demo.help': 'Попробуйте на iPhone: «Настройки» → «Настройка окружения» → «К первой незаданной» → откройте строку → «Копировать». Потом поставьте «Следующая „Проверить снова“: вы запустили setup» и нажмите «Проверить снова»: строки станут «Задано», а на сводку ляжет штамп. Вкладки переключаются ←/→, когда на них фокус. На Mac инструкция открывается рядом со списком; Esc её закрывает.',
+    'demo.space': 'Пространства проектов — в прототипе Paper Desk',
+
+    'nav.needs': 'Ждут вас', 'nav.all': 'Все проекты', 'nav.projects': 'Проекты', 'nav.settings': 'Настройки',
+    'nav.aria': 'Проекты и настройки', 'nav.crumbs': 'Где вы', 'shell.owner': 'Владелец',
+
+    'set.gh': 'GitHub', 'set.gh.title': 'Подключено как {login}', 'set.gh.meta': 'С 3 октября · приложение team-console-{env}',
+    'set.push': 'Уведомления', 'set.push.on': 'Включены на этом iPhone', 'set.push.onMac': 'Включены на этом Mac', 'set.push.meta': 'Вопросы и ссылки от команды приходят уведомлениями.',
+    'set.push.off': 'Сервер не настроен для уведомлений', 'set.push.offBody': 'В этом окружении не задан ключ, которым подписываются уведомления.', 'set.push.guide': 'Как настроить',
+    'set.projects': 'Проекты', 'set.lang': 'Язык интерфейса',
+
+    'env.entry.section': 'Окружение',
+    'env.entry.row': 'Настройка окружения',
+    'env.entry.sub': '{env} · секреты и переменные: что задано и как задать недостающие',
+    'env.entry.checking': 'Проверяем…', 'env.entry.missing': 'Не задано: {n}', 'env.entry.ok': 'Всё задано', 'env.entry.unknown': 'Не проверено',
+
+    'env.title': 'Настройка окружения',
+    'env.lead': 'Какие секреты и переменные заданы и как задать недостающие. Значений консоль не показывает и не хранит.',
+    'env.tabs': 'Окружение', 'env.tab.this': 'эта консоль',
+    'env.sum.missing': (v, pl) => `В ${v.env} ${pl(v.n, ['не задана', 'не заданы', 'не задано'])} ${v.n} ${pl(v.n, ['настройка', 'настройки', 'настроек'])}`,
+    'env.sum.missingBody': 'Задайте их одной командой на своём компьютере, в папке репозитория — она спросит только то, чего не хватает:',
+    'env.sum.ok': 'В {env} задано всё, что видно отсюда',
+    'env.sum.unseen': (v, pl) => `Ещё ${v.n} ${pl(v.n, ['настройку', 'настройки', 'настроек'])} консоль отсюда не видит — ${pl(v.n, ['её', 'их', 'их'])} проверяет setup:`,
+    'env.sum.other': 'Это консоль {this}. Что задано в {env}, видно в консоли {env} или командой на вашем компьютере:',
+    'env.sum.local': 'Эти значения живут только на вашем компьютере — консоль их не видит. Проверить:',
+    'env.sum.checkedAt': 'Проверено в {time}', 'env.sum.recheck': 'Проверить снова', 'env.sum.rechecking': 'Проверяем…',
+    'env.sum.jump': 'К первой незаданной',
+    'env.sum.offReason': 'Проверить снова можно, когда вернётся связь.', 'env.sum.rateReason': 'Снова доступно после {time}.',
+    'env.copyAriaEnv': 'Копировать команду для {env}',
+
+    'env.group.api': 'Worker консоли (api)', 'env.group.api.hint': 'Консоль проверяет их сама.',
+    'env.group.ghvar': 'Переменные окружения GitHub', 'env.group.ghvar.hint': 'Проверено по Worker’у: значение дошло до него с последним деплоем.',
+    'env.group.project': 'Проекты', 'env.group.project.hint': 'У каждого проекта свои токены рутин.',
+    'env.group.hooks': 'Worker вебхуков (hooks)', 'env.group.hooks.hint': 'Консоль их не видит — проверяет setup.',
+    'env.group.ghsec': 'Секреты окружения GitHub', 'env.group.ghsec.hint': 'Консоль их не видит — проверяет setup.',
+    'env.group.repo': 'Секреты репозитория', 'env.group.repo.hint': 'Общие для всех окружений. Консоль их не видит — проверяет setup.',
+    'env.group.local': 'На вашем компьютере', 'env.group.local.hint': 'Нужны только для e2e-тестов против stage.',
+
+    'env.st.set': 'Задано', 'env.st.missing': 'Не задано', 'env.st.unseen': 'Отсюда не видно', 'env.st.optional': 'необязательно',
+    'env.row.fix': 'Задать:', 'env.row.check': 'Проверить:', 'env.row.copyAria': 'Копировать команду для {name}',
+    'env.proj.count': 'задано {set} из {total}', 'env.proj.none': 'Проектов пока нет — токены рутин появятся здесь, когда вы добавите проект.',
+    'env.proj.error': 'Не удалось загрузить проекты.',
+
+    'env.loading': 'Проверяем окружение…',
+    'env.err.load.title': 'Не удалось проверить окружение', 'env.err.load.body': 'Консоль не ответила. Инструкции открываются и без проверки.',
+    'env.err.offline': 'Нет сети. Показано состояние на {time}.',
+    'env.err.offline0': 'Нет сети — проверим, когда связь вернётся. Инструкции доступны и без сети.',
+    'env.err.forbidden.title': 'Состояние окружения видит только владелец', 'env.err.forbidden.body': 'Этот вход сделан не от вашего имени, поэтому ничего не показано.',
+    'env.err.rate': 'Слишком много проверок подряд. Проверьте снова после {time}.',
+
+    'env.g.back': 'Окружение {env}', 'env.g.close': 'Закрыть инструкцию',
+    'env.g.kind.secret': 'Секрет', 'env.g.kind.var': 'Переменная',
+    'env.g.place.api': 'Worker api', 'env.g.place.hooks': 'Worker hooks', 'env.g.place.ghvar': 'Переменная окружения GitHub {env}',
+    'env.g.place.ghsec': 'Секрет окружения GitHub {env}', 'env.g.place.repo': 'Секрет репозитория', 'env.g.place.project': 'Worker api · проект {project}',
+    'env.g.place.local': 'Ваш компьютер',
+    'env.g.src.owner': 'Вводите вы', 'env.g.src.gen': 'Генерирует setup', 'env.g.src.app': 'Создаёт setup вместе с GitHub App',
+    'env.g.needs': 'Нужен: {who}',
+    'env.g.never': 'Значение консоль не показывает и не хранит — только задано оно или нет.',
+    'env.g.purpose': 'Зачем', 'env.g.impact': 'Что сломается без него', 'env.g.where': 'Где взять', 'env.g.perms': 'Какие права выбрать',
+    'env.g.life': 'Срок жизни и замена', 'env.g.gotchas': 'Подводные камни', 'env.g.how': 'Как задать',
+    'env.g.where.gen': 'Получать ничего не нужно: setup сгенерирует значение сам.',
+    'env.g.where.app': 'Получать вручную ничего не нужно: setup создаёт GitHub App этого окружения и сам кладёт значение на место. Вы только подтверждаете создание приложения на GitHub.',
+    'env.g.how.body': 'На своём компьютере, в папке репозитория. setup спросит значение со скрытым вводом и сам проверит, что оно легло:',
+    'env.g.how.rotate': 'Заменить уже заданное значение — команда спросит подтверждение:',
+    'env.g.how.check': 'Консоль это значение не видит. Проверить, задано ли оно:',
+    'env.g.external': '(откроется в новой вкладке)',
+    'env.g.notFound.title': 'Такой настройки в {env} нет', 'env.g.notFound.body': 'Возможно, её убрали из списка или она нужна в другом окружении.',
+    'env.g.back.settings': 'Настройки',
+
+    'common.copy': 'Копировать', 'common.copied': 'Скопировано', 'common.copyFailed': 'Не удалось скопировать: выделите команду и скопируйте вручную.',
+    'common.retry': 'Повторить',
+  },
+};
+
+/* UI strings for #750 Environment setup per project. Extends #104's table (env-i18n.js): every `env.*` key not
+   listed here is reused as it is (statuses, rows, summary chrome, errors, guide chrome). New keys follow the UX spec
+   on #750 (§8): `proj.*` for the project screen and its guide, `console.*` for the operator area. The project setup
+   page's step texts repeat #24's shipped copy (settings-i18n.js cannot load next to env-i18n.js: both declare the
+   table). Russian is the reference and uses the polite «вы»; English second. */
+Object.assign(I18N.en, {
+  'page.kicker': 'Team Console · #750 · design for approval',
+  'page.title': 'Environment setup per project',
+
+  'demo.state': 'State', 'demo.next': 'Next “Check again”', 'demo.copyFail': 'Clipboard refuses',
+  'demo.s.settings': 'Settings: the operator', 'demo.s.settingsCustomer': 'Settings: a customer',
+  'demo.s.setup': 'Project setup: the new row', 'demo.s.setupAdded': 'Project setup: just added, step 5 open',
+  'demo.s.missing': 'Project environment: missing', 'demo.s.allSet': 'Project environment: all set',
+  'demo.s.unseen': 'Project environment: not visible from here (dev console)', 'demo.s.loading': 'Project environment: loading',
+  'demo.s.error': 'Project environment: failed (5xx)', 'demo.s.offline': 'Project environment: offline, loaded earlier',
+  'demo.s.offline0': 'Project environment: offline, never loaded', 'demo.s.rate': 'Project environment: too many checks (429)',
+  'demo.s.forbidden': 'Project environment: a customer (403)', 'demo.s.notFound': 'Project environment: unknown project (404)',
+  'demo.s.empty': 'Project environment: nothing to set', 'demo.s.guide': 'Guide: ROUTINE_TOKEN_STORIFY (missing)',
+  'demo.s.guideOpt': 'Guide: SLOT_TOKEN_STORIFY_QA (optional)', 'demo.s.guideNotFound': 'Guide: not this project’s name',
+  'demo.s.admin': 'Console environment (operator)', 'demo.s.adminOther': 'Console environment: the stage tab',
+  'demo.s.adminGuide': 'Console guide: VAPID_PRIVATE_KEY', 'demo.s.adminForbidden': 'Console environment: a customer’s typed URL',
+  'demo.n.same': 'nothing changed', 'demo.n.fixed': 'you ran setup: required set', 'demo.n.error': 'fails',
+  'demo.help': 'Try on iPhone: Project setup → Project environment → “Go to the first missing one” → open the row → Copy. Back, set “Next Check again” to “you ran setup” and press Check again: the row turns Set and the summary is stamped; the two optional QA rows stay “Missing · optional” and never warn. Settings → Console operator opens the console’s own screen, without the projects group. On the Mac guides open beside the list; Esc closes them.',
+  'demo.space': 'Project spaces are in the Paper Desk prototype',
+
+  'set.runners': 'Runners', 'set.runners.row': 'Runners and placement', 'set.runners.sub': 'Enrol machines, allowed projects, which runner runs the jobs',
+  'set.lang.switch': 'Русский', 'set.version': 'Team Console · 0.42.0 · built 17 Nov, 11:40',
+
+  'proj.title': 'Project environment',
+  'proj.lead': '{project}’s secrets: which are set and how to set the missing ones. The console never shows or keeps their values.',
+  'proj.section.this': 'this console',
+  'proj.required': 'Required', 'proj.optional': 'Optional — for “Run now”',
+  'proj.sum.missing': (v, pl) => `${v.project} is missing ${v.n} required ${pl(v.n, ['setting', 'settings'])} in ${v.env}`,
+  'proj.sum.missingBody': 'Set them with one command on your computer, in the console repository’s folder. It only asks for what is missing:',
+  'proj.sum.ok': 'Everything {project} needs in {env} is set',
+  'proj.sum.optionalLeft': (v) => `Optional not set: ${v.n}`,
+  'proj.none': (v) => `Nothing to set for this project in ${v.list}.`,
+  'proj.list.local': 'on your computer', 'proj.list.and': ' or ',
+  'proj.empty': 'This project needs nothing set.',
+  'proj.checkingSr': 'Checking the project’s environment…',
+  'proj.err.load': 'Couldn’t check the project’s environment',
+  'proj.err.forbidden.title': 'The console operator sets this project’s secrets',
+  'proj.err.forbidden.body': 'Your sign-in can’t see them, so nothing is shown.',
+  'proj.err.forbidden.back': 'Back to project setup',
+  'proj.g.back': '{project} environment',
+  'proj.g.notFound': '{project} has no such setting in {env}',
+  'proj.g.ruOnly': 'The guide text is in Russian for now.',
+  'proj.entry.row': 'Project environment', 'proj.entry.sub': '{env} · project secrets',
+  'proj.crumb.env': 'Environment',
+  'proj.notFound.title': 'Project not found', 'proj.notFound.body': '“{slug}” isn’t on the project list, or it is archived.',
+
+  'console.title': 'Console environment',
+  'console.lead': 'The console’s own secrets and variables: Workers, GitHub, local runs. The console never shows or keeps their values.',
+  'console.section': 'Console operator',
+  'console.entry.sub': '{env} · Workers, GitHub, local runs',
+  'console.err.forbidden.title': 'Only the console’s operator can see its environment',
+
+  'setup.repoLink': '{repo} on GitHub', 'setup.checkedAt': 'Checked at {time}', 'setup.checkAgain': 'Check again',
+  'setup.open': 'Open project', 'setup.archive': 'Archive project', 'setup.stepsAria': 'Setup steps',
+  'setup.incomplete.title': (v, pl) => `${v.n} ${pl(v.n, ['step missing', 'steps missing'])}`,
+  'setup.ready.title': '{name} is ready', 'setup.ready.body': 'All five steps are done.',
+  'add.saved.title': (v, pl) => `Project added. ${v.n} ${pl(v.n, ['step left', 'steps left'])}`,
+  'add.saved.body': 'It’s on your project list now. The console shows what’s missing until everything is set.',
+  'step.done': 'Done', 'step.missing': 'Missing', 'step.how': 'How to fix',
+  'step.app.title': 'The <code>team-console</code> app is installed on the repo', 'step.app.done': 'The console reads <code>{repo}</code> through the app.',
+  'step.owner.title': 'The repo’s owner is the connected account', 'step.owner.done': 'Owned by <code>geeera</code>, so your answers count.',
+  'step.yml.title': '<code>.product-team/project.yml</code> exists', 'step.yml.done': 'Found on the default branch.',
+  'step.events.title': 'Events arrive', 'step.events.done': 'Last event at {time}.',
+  'step.routine.title': 'Routine token set', 'step.routine.done': '<code>ROUTINE_TOKEN_{SLUG}</code> is set.',
+  'step.routine.missing': 'No <code>ROUTINE_TOKEN_{SLUG}</code> secret. Until it’s set, the PM doesn’t answer in chat.',
+  'step.routine.how': 'Create the PM routine for this repo with an API trigger and store its token:',
+  'step.routine.copyAria': 'Copy command',
+  'setup.step.routine.link': 'Open the project environment',
+});
+
+Object.assign(I18N.ru, {
+  'page.kicker': 'Team Console · #750 · дизайн на утверждение',
+  'page.title': 'Окружение для каждого проекта',
+
+  'demo.state': 'Состояние', 'demo.next': 'Следующая «Проверить снова»', 'demo.copyFail': 'Буфер обмена отказывает',
+  'demo.s.settings': 'Настройки: оператор', 'demo.s.settingsCustomer': 'Настройки: клиент',
+  'demo.s.setup': 'Настройка проекта: новая строка', 'demo.s.setupAdded': 'Настройка проекта: только что добавлен, шаг 5 раскрыт',
+  'demo.s.missing': 'Окружение проекта: не задано', 'demo.s.allSet': 'Окружение проекта: всё задано',
+  'demo.s.unseen': 'Окружение проекта: отсюда не видно (консоль dev)', 'demo.s.loading': 'Окружение проекта: загрузка',
+  'demo.s.error': 'Окружение проекта: ошибка (5xx)', 'demo.s.offline': 'Окружение проекта: нет сети, загружено раньше',
+  'demo.s.offline0': 'Окружение проекта: нет сети, не загружалось', 'demo.s.rate': 'Окружение проекта: много проверок (429)',
+  'demo.s.forbidden': 'Окружение проекта: клиент (403)', 'demo.s.notFound': 'Окружение проекта: неизвестный проект (404)',
+  'demo.s.empty': 'Окружение проекта: задавать нечего', 'demo.s.guide': 'Инструкция: ROUTINE_TOKEN_STORIFY (не задан)',
+  'demo.s.guideOpt': 'Инструкция: SLOT_TOKEN_STORIFY_QA (необязательный)', 'demo.s.guideNotFound': 'Инструкция: имя не этого проекта',
+  'demo.s.admin': 'Окружение консоли (оператор)', 'demo.s.adminOther': 'Окружение консоли: вкладка stage',
+  'demo.s.adminGuide': 'Инструкция консоли: VAPID_PRIVATE_KEY', 'demo.s.adminForbidden': 'Окружение консоли: клиент ввёл адрес',
+  'demo.n.same': 'ничего не изменилось', 'demo.n.fixed': 'вы запустили setup: обязательное задано', 'demo.n.error': 'ошибка',
+  'demo.help': 'Попробуйте на iPhone: «Настройка проекта» → «Окружение проекта» → «К первой незаданной» → откройте строку → «Копировать». Вернитесь, поставьте «Следующая „Проверить снова“: вы запустили setup» и нажмите «Проверить снова»: строка станет «Задано», на сводку ляжет штамп, а две необязательные строки QA останутся «Не задано · необязательно» и не дадут предупреждения. «Настройки» → «Оператор консоли» открывает экран самой консоли, уже без группы проектов. На Mac инструкции открываются рядом со списком, Esc их закрывает.',
+  'demo.space': 'Пространства проектов — в прототипе Paper Desk',
+
+  'set.runners': 'Раннеры', 'set.runners.row': 'Раннеры и размещение', 'set.runners.sub': 'Подключение машин, разрешённые проекты, на каком раннере выполнять задания',
+  'set.lang.switch': 'English', 'set.version': 'Team Console · 0.42.0 · собрано 17 нояб., 11:40',
+
+  'proj.title': 'Окружение проекта',
+  'proj.lead': 'Секреты {project}: что задано и как задать недостающие. Значений консоль не показывает и не хранит.',
+  'proj.section.this': 'эта консоль',
+  'proj.required': 'Обязательные', 'proj.optional': 'Необязательные — для «Запустить сейчас»',
+  'proj.sum.missing': (v, pl) => `Для ${v.project} в ${v.env} ${pl(v.n, ['не задана', 'не заданы', 'не задано'])} ${v.n} ${pl(v.n, ['обязательная настройка', 'обязательные настройки', 'обязательных настроек'])}`,
+  'proj.sum.missingBody': 'Задайте их одной командой на своём компьютере, в папке репозитория консоли — она спросит только то, чего не хватает:',
+  'proj.sum.ok': 'Для {project} в {env} задано всё обязательное',
+  'proj.sum.optionalLeft': (v) => `Необязательных не задано: ${v.n}`,
+  'proj.none': (v) => `В ${v.list} проекту ничего задавать не нужно.`,
+  'proj.list.local': 'на вашем компьютере', 'proj.list.and': ' и ',
+  'proj.empty': 'Этому проекту задавать ничего не нужно.',
+  'proj.checkingSr': 'Проверяем окружение проекта…',
+  'proj.err.load': 'Не удалось проверить окружение проекта',
+  'proj.err.forbidden.title': 'Секреты проекта задаёт оператор консоли',
+  'proj.err.forbidden.body': 'Вашему входу они не видны, поэтому ничего не показано.',
+  'proj.err.forbidden.back': 'К настройке проекта',
+  'proj.g.back': 'Окружение {project}',
+  'proj.g.notFound': 'У проекта {project} нет такой настройки в {env}',
+  'proj.g.ruOnly': 'Текст инструкции пока только на русском.',
+  'proj.entry.row': 'Окружение проекта', 'proj.entry.sub': '{env} · секреты проекта',
+  'proj.crumb.env': 'Окружение',
+  'proj.notFound.title': 'Проект не найден', 'proj.notFound.body': 'Проекта «{slug}» нет в списке, или он в архиве.',
+
+  'console.title': 'Окружение консоли',
+  'console.lead': 'Секреты и переменные самой консоли: Worker’ы, GitHub, локальный запуск. Значений консоль не показывает и не хранит.',
+  'console.section': 'Оператор консоли',
+  'console.entry.sub': '{env} · Worker’ы, GitHub, локальный запуск',
+  'console.err.forbidden.title': 'Окружение консоли видит только её оператор',
+
+  'setup.repoLink': '{repo} на GitHub', 'setup.checkedAt': 'Проверено в {time}', 'setup.checkAgain': 'Проверить снова',
+  'setup.open': 'Открыть проект', 'setup.archive': 'Архивировать проект', 'setup.stepsAria': 'Шаги настройки',
+  'setup.incomplete.title': (v, pl) => `Не хватает ${v.n} ${pl(v.n, ['шага', 'шагов', 'шагов'])}`,
+  'setup.ready.title': '{name} готов', 'setup.ready.body': 'Все пять шагов выполнены.',
+  'add.saved.title': (v, pl) => `Проект добавлен. ${pl(v.n, ['Остался', 'Осталось', 'Осталось'])} ${v.n} ${pl(v.n, ['шаг', 'шага', 'шагов'])}`,
+  'add.saved.body': 'Он уже в списке проектов. Консоль показывает, чего не хватает, пока всё не будет готово.',
+  'step.done': 'Готово', 'step.missing': 'Не хватает', 'step.how': 'Как сделать',
+  'step.app.title': 'Приложение <code>team-console</code> установлено на репозиторий', 'step.app.done': 'Консоль читает <code>{repo}</code> через приложение.',
+  'step.owner.title': 'Владелец репозитория — подключённый аккаунт', 'step.owner.done': 'Владелец — <code>geeera</code>, ответы засчитываются.',
+  'step.yml.title': 'В репозитории есть <code>.product-team/project.yml</code>', 'step.yml.done': 'Есть в основной ветке.',
+  'step.events.title': 'События приходят', 'step.events.done': 'Последнее событие в {time}.',
+  'step.routine.title': 'Токен рутины задан', 'step.routine.done': 'Секрет <code>ROUTINE_TOKEN_{SLUG}</code> задан.',
+  'step.routine.missing': 'Секрета <code>ROUTINE_TOKEN_{SLUG}</code> нет. Пока его нет, PM не отвечает в чате.',
+  'step.routine.how': 'Создайте рутину PM для этого репозитория с API-триггером и сохраните её токен:',
+  'step.routine.copyAria': 'Копировать команду',
+  'setup.step.routine.link': 'Открыть окружение проекта',
+});
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #750 Environment setup per project. Design prototype runtime with mock data only; the real app asks the
+   presence-only endpoint scoped to one project (`?project=<slug>`, booleans only) and renders the guides from the
+   manifest. Three places: the project's own environment screen under project setup, the setup page's new row, and
+   the operator's console screen at /admin/environment/:env (the #104 screen without the projects group). Two
+   independent instances (iPhone, Mac) share the demo controls and the environment's state. */
+(() => {
+  'use strict';
+  const { isReduced, wait, esc, plain, I, dots } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t, hhmm } = L;
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const IX = {
+    ...I,
+    eye: svg('<path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/>'),
+    eyeOff: svg('<path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 4.5l15 15"/>'),
+    laptop: svg('<rect x="5" y="5.5" width="14" height="9.5" rx="1.5"/><path d="M3 18.5h18"/>'),
+    bell: svg('<path d="M6.5 16.5V11a5.5 5.5 0 0111 0v5.5l1.5 1.5h-14z"/><path d="M10 20.5h4"/>'),
+    server: svg('<rect x="4" y="4.5" width="16" height="6" rx="1.5"/><rect x="4" y="13.5" width="16" height="6" rx="1.5"/><path d="M8 7.5h.01M8 16.5h.01"/>'),
+  };
+  const lang = () => L.lang;
+  const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+
+  /* ---------- the project and its manifest rows (three patterns, all production, all on the api Worker) ---------- */
+  const PROJECT = { slug: 'storify', name: 'storify', repo: 'geeera/storify' };
+  const PROJECTS = [PROJECT, { slug: 'team-console', name: 'team-console' }];
+  const SLUG = PROJECT.slug.toUpperCase().replace(/-/g, '_');
+  const SLOTS = ['PM', 'DEV', 'QA'];
+  const ENVS = ['dev', 'stage', 'production', 'local'];
+  const ALL3 = ['dev', 'stage', 'production'];
+  const ROW_ENVS = ['production'];
+  function projectRows() {
+    if (D.empty) return [];
+    const out = [{ id: 'R', n: `ROUTINE_TOKEN_${SLUG}`, g: 'routine' }];
+    for (const sl of SLOTS) {
+      out.push({ id: `T:${sl}`, n: `SLOT_TOKEN_${SLUG}_${sl}`, g: 'slotToken', slot: sl, opt: true });
+      out.push({ id: `I:${sl}`, n: `SLOT_ROUTINE_${SLUG}_${sl}`, g: 'slotId', slot: sl, opt: true });
+    }
+    return out.map((r) => ({ ...r, k: 'secret', p: 'project', src: 'owner', who: 'api', envs: ROW_ENVS, proj: PROJECT }));
+  }
+  // Manifest prose is Russian only (spec §9): the guide keeps lang="ru" and says so in English.
+  const PG = {
+    routine: { purpose: 'Bearer-токен API-триггера рутины PM проекта {project}. Им консоль будит PM, когда вы пишете в чат.',
+      impact: 'PM проекта {project} не отвечает в чате.',
+      where: [['Откройте claude.ai/code/routines → рутину PM проекта {project}.', 'https://claude.ai/code/routines'], ['Добавьте триггер: Add trigger → API.'], ['Скопируйте токен: Claude показывает его один раз.']],
+      life: 'Живёт, пока вы не удалите триггер. Если токен утёк, создайте новый триггер и задайте токен командой замены ниже — старый просто перестанет работать.',
+      gotchas: ['Имя секрета строится из slug проекта заглавными буквами, «-» становится «_»: {slug} → {name}.', 'Обычно нужен только в production: dev и stage не управляют настоящими проектами.'] },
+    slotToken: { purpose: 'Bearer-токен API-триггера рутины «{slot}» проекта {project} — для «Запустить сейчас».',
+      impact: 'В пространстве проекта «Запустить сейчас» для «{slot}» показывает карточку настройки вместо запуска. Пауза и возобновление работают и без него.',
+      where: [['Откройте claude.ai/code/routines → рутину slot-{slotLow} проекта {project}.', 'https://claude.ai/code/routines'], ['Добавьте API-триггер; токен (sk-ant-oat01-…) Claude показывает один раз.']],
+      life: 'Живёт, пока вы не удалите триггер. Если токен утёк, создайте новый API-триггер.',
+      gotchas: ['Задаётся парой с {pair}: без id рутины токен не используется.'] },
+    slotId: { purpose: 'Id (trig_…) рутины «{slot}» проекта {project}, чтобы он не лежал в публичном репозитории.',
+      impact: '«Запустить сейчас» для «{slot}» не знает, какую рутину будить.',
+      where: [['Тот же экран триггера, что и для {pair}: id виден в адресе триггера.', 'https://claude.ai/code/routines']],
+      life: 'Меняется вместе с {pair}, если триггер пересоздаётся.',
+      gotchas: ['По формату значение не секретное, но хранится как секрет вместе со своим токеном.'] },
+  };
+  const pairOf = (i) => (i.g === 'slotToken' ? `SLOT_ROUTINE_${SLUG}_${i.slot}` : `SLOT_TOKEN_${SLUG}_${i.slot}`);
+  const pvars = (i) => ({ project: PROJECT.name, slug: PROJECT.slug, name: i.n, slot: i.slot || '', slotLow: (i.slot || '').toLowerCase(), pair: i.slot ? pairOf(i) : '' });
+
+  /* ---------- the console's own rows for the operator screen (#104's manifest minus the projects group) ---------- */
+  const PLACES = ['api', 'ghvar', 'hooks', 'ghsec', 'repo', 'local'];
+  const VISIBLE = new Set(['api', 'ghvar']);
+  const CITEMS = [
+    { id: 'api:OWNER_EMAIL', n: 'OWNER_EMAIL', k: 'secret', p: 'api', src: 'owner', who: 'api', pu: { ru: 'Адрес, с которым вы входите через Cloudflare Access.', en: 'The address you sign in with through Cloudflare Access.' } },
+    { id: 'api:GITHUB_APP_PRIVATE_KEY', n: 'GITHUB_APP_PRIVATE_KEY', k: 'secret', p: 'api', src: 'app', who: 'api', pu: { ru: 'Закрытый ключ GitHub App этого окружения: им консоль читает репозитории.', en: 'This environment’s GitHub App private key: the console reads the repositories with it.' } },
+    { id: 'api:TOKEN_ENCRYPTION_KEY', n: 'TOKEN_ENCRYPTION_KEY', k: 'secret', p: 'api', src: 'gen', who: 'api', pu: { ru: 'Ключ, которым консоль шифрует токены GitHub в базе.', en: 'The key the console encrypts GitHub tokens with in its database.' } },
+    { id: 'api:VAPID_PRIVATE_KEY', n: 'VAPID_PRIVATE_KEY', k: 'secret', p: 'api', src: 'gen', who: 'api, hooks', pu: { ru: 'Закрытый ключ веб-пушей: им консоль подписывает уведомления.', en: 'The web push private key: the console signs notifications with it.' },
+      g: { ru: { impact: 'Уведомления не приходят; в «Настройках» блок «Уведомления» пишет, что сервер не настроен.', life: 'Не истекает. После замены каждое устройство нужно подписать заново.', gotchas: ['У каждого окружения своя пара: ключ из dev не подходит к production.'] },
+        en: { impact: 'No notifications arrive; the Notifications block in Settings says the server isn’t set up.', life: 'Doesn’t expire. After a replacement every device has to subscribe again.', gotchas: ['Each environment has its own pair: a dev key doesn’t work in production.'] } } },
+    { id: 'var:ACCESS_AUD', n: 'ACCESS_AUD', k: 'var', p: 'ghvar', src: 'owner', who: 'deploy.yml → api', pu: { ru: 'Метка приложения Access (AUD) этого окружения.', en: 'This environment’s Access application tag (AUD).' } },
+    { id: 'var:VAPID_PUBLIC_KEY', n: 'VAPID_PUBLIC_KEY', k: 'var', p: 'ghvar', src: 'gen', who: 'deploy.yml → api', pu: { ru: 'Открытый ключ веб-пушей; пара к VAPID_PRIVATE_KEY.', en: 'The web push public key; pairs with VAPID_PRIVATE_KEY.' } },
+    { id: 'var:CONSOLE_GITHUB_APP_ID', n: 'CONSOLE_GITHUB_APP_ID', k: 'var', p: 'ghvar', src: 'app', who: 'deploy.yml → api', pu: { ru: 'Номер GitHub App этого окружения.', en: 'This environment’s GitHub App id.' } },
+    { id: 'hooks:WEBHOOK_SECRET', n: 'WEBHOOK_SECRET', k: 'secret', p: 'hooks', src: 'app', who: 'hooks', pu: { ru: 'Подпись событий от GitHub.', en: 'Signs GitHub’s events.' } },
+    { id: 'sec:CLOUDFLARE_API_TOKEN', n: 'CLOUDFLARE_API_TOKEN', k: 'secret', p: 'ghsec', src: 'owner', who: 'deploy.yml', pu: { ru: 'Даёт GitHub Actions право деплоить Worker’ы и базу D1.', en: 'Lets GitHub Actions deploy the Workers and the D1 database.' } },
+    { id: 'sec:CLOUDFLARE_ACCOUNT_ID', n: 'CLOUDFLARE_ACCOUNT_ID', k: 'secret', p: 'ghsec', src: 'owner', who: 'deploy.yml', pu: { ru: 'Номер аккаунта Cloudflare для деплоя.', en: 'The Cloudflare account id, for deploys.' } },
+    { id: 'repo:PT_NTFY_TOPIC', n: 'PT_NTFY_TOPIC', k: 'secret', p: 'repo', src: 'owner', opt: true, who: 'product-team', pu: { ru: 'Тема ntfy для уведомлений команды.', en: 'The ntfy topic for team notifications.' } },
+    { id: 'local:CF_ACCESS_CLIENT_ID', n: 'CF_ACCESS_CLIENT_ID', k: 'secret', p: 'local', src: 'owner', envs: ['local'], who: 'console-e2e', pu: { ru: 'Client ID сервисного токена — e2e против stage на вашем Mac.', en: 'The service token client id — e2e against stage on your Mac.' } },
+    { id: 'local:CF_ACCESS_CLIENT_SECRET', n: 'CF_ACCESS_CLIENT_SECRET', k: 'secret', p: 'local', src: 'owner', envs: ['local'], who: 'console-e2e', pu: { ru: 'Client Secret того же токена.', en: 'The same token’s client secret.' } },
+  ];
+  const CMISSING = new Set(['api:VAPID_PRIVATE_KEY', 'var:VAPID_PUBLIC_KEY']);
+
+  /* ---------- shared state (one console, both frames read it) ---------- */
+  const minsAgo = (m) => new Date(Date.now() - m * 60000);
+  const fresh0 = () => ({ thisEnv: 'production', call: 'ok', allSet: false, fixed: false, empty: false, customer: false, next: 'same', copyFail: false, checking: false, checkedAt: minsAgo(4), fresh: null, stamp: false, rateUntil: new Date(Date.now() + 9 * 60000) });
+  const D = fresh0();
+  const offlineAt = minsAgo(26);
+  const unknownCall = () => ['loading', 'error', 'offline0', 'forbidden'].includes(D.call);
+  const cmd = (env, flag) => `setup --env ${env}${flag ? ` ${flag}` : ''}`;
+  const PMISSING = new Set(['R', 'T:QA', 'I:QA']);
+
+  function pStatus(i, env) {
+    if (env !== D.thisEnv) return 'unseen';
+    if (unknownCall()) return null;
+    if ((D.allSet || D.fixed) && !i.opt) return 'set';
+    return PMISSING.has(i.id) ? 'missing' : 'set';
+  }
+  function pCounts(env) {
+    let missing = 0; let optLeft = 0;
+    for (const i of projectRows()) { const s = pStatus(i, env); if (s === 'missing') { if (i.opt) optLeft += 1; else missing += 1; } }
+    return { missing, optLeft };
+  }
+  // Sections: only environments with rows for this project, this console's environment first.
+  const pEnvs = () => { const has = ENVS.filter((e) => projectRows().some((r) => r.envs.includes(e))); return [...has.filter((e) => e === D.thisEnv), ...has.filter((e) => e !== D.thisEnv)]; };
+  const pQuietEnvs = () => ENVS.filter((e) => !pEnvs().includes(e));
+
+  function cItems(env) { return CITEMS.filter((i) => (i.envs || ALL3).includes(env)); }
+  function cStatus(i, env) {
+    if (env === 'local' || env !== D.thisEnv || !VISIBLE.has(i.p)) return 'unseen';
+    if (unknownCall()) return null;
+    if (D.allSet || D.fixed) return 'set';
+    return CMISSING.has(i.id) ? 'missing' : 'set';
+  }
+  function cCounts(env) {
+    let missing = 0; let unseen = 0;
+    for (const i of cItems(env)) { const s = cStatus(i, env); if (s === 'missing' && !i.opt) missing += 1; if (s === 'unseen') unseen += 1; }
+    return { missing, unseen };
+  }
+
+  const hosts = [...document.querySelectorAll('[data-app]')];
+  let pageChrome = null;
+
+  /* ---------- one app instance ---------- */
+  function mountApp(host, kind, keep) {
+    const S = keep || { route: 'setup', env: D.thisEnv, item: null, copyFailKey: null, listTop: 0, how: {}, anim: null, justAdded: false, notFound: false, adminDenied: false };
+    host.S = S;
+    const uid = `${kind}-${Math.random().toString(36).slice(2, 7)}`;
+    const $ = (s) => host.querySelector(s);
+    const domId = (id) => `${uid}-${id.replace(/[^A-Za-z0-9]/g, '_')}`;
+    const mac = kind === 'mac';
+    const isAdmin = () => S.route === 'admin' || S.route === 'aguide';
+    const isProj = () => S.route === 'penv' || S.route === 'pguide';
+    const findP = (id) => projectRows().find((i) => i.id === id);
+    const findC = (id) => cItems(S.env).find((i) => i.id === id);
+
+    host.innerHTML = mac ? `<div class="win">
+        <div class="win__bar"><span class="lights" aria-hidden="true"><i></i><i></i><i></i></span><span class="win__title">Team Console</span></div>
+        <div class="win__body">
+          <nav class="sidebar" aria-label="${t('nav.aria')}">
+            <div class="brand">${IX.mark}<span>Team Console</span></div>
+            <ul class="side-list side-list--top">
+              <li><button type="button" class="side-item" data-act="space">${IX.inbox}<span>${t('nav.needs')}</span></button></li>
+              <li><button type="button" class="side-item" data-act="go-setup" data-nav="all">${IX.grid}<span>${t('nav.all')}</span></button></li>
+            </ul>
+            <div class="side-label">${t('nav.projects')}</div>
+            <ul class="side-list">${PROJECTS.map((p) => `<li><button type="button" class="side-item" data-act="space"><span class="prod-mono" aria-hidden="true">${esc(p.slug[0])}</span><span class="side-prod__label">${esc(p.name)}</span></button></li>`).join('')}</ul>
+            <div class="side-foot">
+              <button type="button" class="side-item side-item--settings" data-act="go-settings" data-nav="settings" data-fk="nav-settings">${IX.gear}<span>${t('nav.settings')}</span></button>
+              <div class="side-foot__row"><span class="avatar avatar--owner" aria-hidden="true">K</span><span>${t('shell.owner')}</span></div>
+            </div>
+          </nav>
+          <section class="set-main" aria-label="${t('nav.settings')}">
+            <header class="convo__head"><nav class="crumbs" aria-label="${t('nav.crumbs')}" data-slot="crumbs"></nav></header>
+            <div class="env-body" data-slot="body"></div>
+          </section>
+        </div>
+      </div>
+      <div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`
+      : `<div class="p-status" aria-hidden="true"><span>9:41</span><span class="p-island"></span><span class="p-status__icons">${IX.bars}${IX.battery}</span></div>
+      <div data-slot="phead"></div>
+      <main class="p-scroll" data-slot="scroll"><div class="set-inner" data-slot="screen"></div></main>
+      <div class="home-ind" aria-hidden="true"></div>
+      <div class="toast" role="status" data-slot="toast" hidden></div><div class="sr-only" aria-live="polite" data-slot="live"></div>`;
+
+    /* ----- markup pieces (the #104 vocabulary) ----- */
+    const dis = (on, reason) => (on ? ` aria-disabled="true"${reason ? ` aria-describedby="${reason}"` : ''}` : '');
+    function codeline(value, aria, key) {
+      const fail = S.copyFailKey === key ? `<p class="copy-fail" role="status">${t('common.copyFailed')}</p>` : '';
+      const words = String(value).split(' ').map((w) => `<span class="cw">${esc(w)}</span>`).join(' ');
+      return `<div class="codeline"><code>${words}</code><button type="button" class="btn btn--sm" data-act="copy" data-value="${esc(value)}" data-key="${esc(key)}" data-fk="copy-${esc(key)}" aria-label="${esc(aria)}">${IX.copy}<span aria-hidden="true">${t('common.copy')}</span></button></div>${fail}`;
+    }
+    const extLink = (href, fk) => `<a class="ext" href="${esc(href)}" target="_blank" rel="noopener noreferrer"${fk ? ` data-fk="${fk}"` : ''}>${esc(href.replace(/^https:\/\//, '').replace(/\/$/, ''))}<span class="sr-only"> ${t('env.g.external')}</span>${IX.ext}</a>`;
+    function chip(s, i, id, optAlways) {
+      const isFresh = D.fresh && i && D.fresh.includes(i.id);
+      const freshAttr = isFresh ? ` is-new" style="--i:${D.fresh.indexOf(i.id)}` : '';
+      const idAttr = id ? ` id="${id}"` : '';
+      let c = '';
+      if (s === 'set') c = `<span class="status est est--set${freshAttr}"${idAttr}>${IX.check}${t('env.st.set')}</span>`;
+      if (s === 'missing') c = `<span class="status est est--missing${freshAttr}"${idAttr}>${IX.bang}${t('env.st.missing')}</span>`;
+      if (s === 'unseen') c = `<span class="status est est--unseen"${idAttr}>${IX.eyeOff}${t('env.st.unseen')}</span>`;
+      const opt = i && i.opt && (optAlways || s !== 'set') ? `<span class="etag etag--opt">${t('env.st.optional')}</span>` : '';
+      return c + opt;
+    }
+    const mono = (slug) => `<span class="prod-mono" aria-hidden="true">${esc(slug[0])}</span>`;
+    const lock = (title, body, back) => `<div class="block block--lock" role="alert">${IX.lock.replace('class="ico"', 'class="ico ico-lead"')}<h2 tabindex="-1" data-fk="sum-h">${title}</h2><p>${body}</p>${back || ''}</div>`;
+    const skelSummary = (sr) => `<div class="esum"><span class="sr-only">${sr}</span><div class="esum__top" aria-hidden="true"><span class="esum__mark skel" style="width:var(--env-mark);height:var(--env-mark);border-radius:50%"></span><div class="esum-skel" style="flex:1"><span class="skel skel--c"></span><span class="skel skel--d"></span></div></div><div class="esum-skel" aria-hidden="true"><span class="skel skel--e"></span></div></div>`;
+    const stampSVG = '<div class="stamp" aria-hidden="true"><svg viewBox="0 0 64 64"><circle cx="32" cy="32" r="28"/><circle class="stamp__inner" cx="32" cy="32" r="23"/><path d="M21 33l8 8 15-17"/></svg></div>';
+    // The summary foot: Checked at · Check again (aria-disabled with its reason while offline or rate limited).
+    function sumFoot() {
+      const off = D.call === 'offline' || D.call === 'rate';
+      const reason = D.call === 'offline' ? t('env.sum.offReason') : D.call === 'rate' ? t('env.sum.rateReason', { time: hhmm(D.rateUntil) }) : '';
+      return `<div class="esum__foot"><p class="res__time">${t('env.sum.checkedAt', { time: hhmm(D.checkedAt) })}</p>
+        <button type="button" class="btn btn--tall" data-act="recheck" data-fk="recheck"${dis(off || D.checking, off ? `${uid}-reason` : '')}>${IX.refresh}${D.checking ? t('env.sum.rechecking') : t('env.sum.recheck')}</button>
+        ${off ? `<p class="esum__reason" id="${uid}-reason">${reason}</p>` : ''}</div>`;
+    }
+    const callNotes = () => (D.call === 'offline' ? `<div class="paused env-note" role="status">${IX.wifi}<span>${t('env.err.offline', { time: hhmm(offlineAt) })}</span></div>`
+      : D.call === 'rate' ? `<div class="paused env-note" role="status">${IX.clock}<span>${t('env.err.rate', { time: hhmm(D.rateUntil) })}</span></div>` : '');
+    function entryRow({ href, act, fk, title, sub, chipHTML, testid }) {
+      return `<ul class="plist"><li class="prow erow-entry"><a class="prow__link" href="${href}" data-act="${act}" data-fk="${fk}" data-testid="${testid}">
+        <span class="env-ico" aria-hidden="true">${IX.key}</span>
+        <span class="prow__txt"><span class="entry__name">${title}</span><span class="entry__sub">${sub}</span></span>
+        ${chipHTML}${IX.chev}</a></li></ul>`;
+    }
+    const subWithEnv = (key, env = D.thisEnv) => t(key, { env: 'ENV_SLOT' }).replace('ENV_SLOT', `<code>${esc(env)}</code>`);
+
+    /* ----- Settings: the operator gets the last section, a customer never sees it ----- */
+    function cEntryChip() {
+      if (D.call === 'loading' || D.checking) return `<span class="status est est--checking">${dots}${t('env.entry.checking')}</span>`;
+      if (['error', 'offline0', 'rate'].includes(D.call)) return `<span class="status est est--unknown">${IX.q}${t('env.entry.unknown')}</span>`;
+      const c = cCounts(D.thisEnv);
+      if (c.missing) return `<span class="status est est--missing">${IX.bang}${t('env.entry.missing', { n: c.missing })}</span>`;
+      return `<span class="status est est--set">${IX.check}${t('env.entry.ok')}</span>`;
+    }
+    function settingsScreen() {
+      const card = (icon, title, meta) => `<div class="ctx-card"><span class="gh__mark" style="background:var(--success-soft);color:var(--success-text)" aria-hidden="true">${icon}</span><div class="ctx-card__txt"><h3 class="ctx-card__title">${title}</h3><p class="ctx-card__meta">${meta}</p></div></div>`;
+      const operator = D.customer ? '' : `<section class="sec sec--late" aria-labelledby="${uid}-s-op"><h2 class="sec-title" id="${uid}-s-op">${t('console.section')}</h2>
+          ${entryRow({ href: `#/admin/environment/${D.thisEnv}`, act: 'go-admin', fk: 'entry', title: t('console.title'), sub: subWithEnv('console.entry.sub'), chipHTML: cEntryChip(), testid: 'console-env-entry' })}</section>`;
+      return `<div class="set-head"><h1 tabindex="-1" data-fk="h1">${t('nav.settings')}</h1></div>
+        <section class="sec" aria-labelledby="${uid}-s-gh"><h2 class="sec-title" id="${uid}-s-gh">${t('set.gh')}</h2>${card(IX.check, t('set.gh.title', { login: 'geeera' }), t('set.gh.meta', { env: D.thisEnv }))}</section>
+        <section class="sec" aria-labelledby="${uid}-s-push"><h2 class="sec-title" id="${uid}-s-push">${t('set.push')}</h2>${card(IX.bell, t(mac ? 'set.push.onMac' : 'set.push.on'), t('set.push.meta'))}</section>
+        <section class="sec" aria-labelledby="${uid}-s-run"><h2 class="sec-title" id="${uid}-s-run">${t('set.runners')}</h2>
+          <ul class="plist"><li class="prow erow-entry"><a class="prow__link" href="#/settings/runners" data-act="space"><span class="env-ico" aria-hidden="true">${IX.server}</span><span class="prow__txt"><span class="entry__name">${t('set.runners.row')}</span><span class="entry__sub">${t('set.runners.sub')}</span></span><span></span>${IX.chev}</a></li></ul></section>
+        <section class="sec" aria-labelledby="${uid}-s-lang"><h2 class="sec-title" id="${uid}-s-lang">${t('set.lang')}</h2>
+          <div><button type="button" class="btn btn--tall" data-act="lang" data-v="${lang() === 'ru' ? 'en' : 'ru'}" lang="${lang() === 'ru' ? 'en' : 'ru'}">${t('set.lang.switch')}</button></div></section>
+        ${operator}
+        <p class="set-version" data-fk="version">${t('set.version')}</p>`;
+    }
+
+    /* ----- project setup: the checklist, then the new "Project environment" row ----- */
+    const STEPS = ['app', 'owner', 'yml', 'events', 'routine'];
+    function stepsNow() { const routine = pStatus(projectRows()[0] || { id: 'R' }, 'production'); return ['done', 'done', 'done', 'done', D.empty || routine === 'set' || D.thisEnv !== 'production' ? 'done' : 'missing']; }
+    function pEntryChip() {
+      if (D.call === 'loading' || D.checking) return `<span class="status est est--checking">${dots}${t('env.entry.checking')}</span>`;
+      if (['error', 'offline0', 'rate'].includes(D.call) || D.thisEnv !== 'production') return `<span class="status est est--unknown">${IX.q}${t('env.entry.unknown')}</span>`;
+      const c = pCounts(D.thisEnv);
+      if (c.missing) return `<span class="status est est--missing">${IX.bang}${t('env.entry.missing', { n: c.missing })}</span>`;
+      return `<span class="status est est--set">${IX.check}${t('env.entry.ok')}</span>`;
+    }
+    function setupScreen() {
+      const steps = stepsNow(); const n = steps.filter((s) => s === 'missing').length;
+      const ready = !n;
+      let tone = 'warn'; let title; let body = '';
+      if (S.justAdded) { tone = ''; title = t('add.saved.title', { n }); body = t('add.saved.body'); }
+      else if (ready) { tone = 'ready'; title = t('setup.ready.title', { name: PROJECT.name }); body = t('setup.ready.body'); }
+      else title = t('setup.incomplete.title', { n });
+      const vars = { repo: PROJECT.repo, SLUG, time: hhmm(minsAgo(38)) };
+      const ledger = `<ol class="ledger" aria-label="${t('setup.stepsAria')}">${steps.map((st, i) => {
+        const k = STEPS[i];
+        const mark = st === 'done' ? IX.check : IX.bang;
+        const fix = t(`step.${k}.${st === 'done' ? 'done' : 'missing'}`, vars);
+        let how = '';
+        if (st === 'missing') {
+          const id = `${uid}-how-${i}`; const open = !!S.how[i];
+          how = `<button type="button" class="btn btn--quiet btn--sm how-btn" data-act="how" data-key="${i}" aria-expanded="${open}" aria-controls="${id}" data-fk="how-${i}">${t('step.how')}${IX.down}</button>
+            <div class="how" id="${id}"${open ? '' : ' hidden'}><p>${t('step.routine.how')}</p>${codeline(`npx wrangler secret put ROUTINE_TOKEN_${SLUG} --env production`, plain(t('step.routine.copyAria')), 'step-cmd')}
+            <a class="how__link" href="#/settings/projects/${PROJECT.slug}/environment" data-act="go-penv" data-fk="how-link">${t('setup.step.routine.link')}${IX.chev}</a></div>`;
+        }
+        return `<li class="step step--${st}"><span class="step__mark" aria-hidden="true">${mark}</span>
+          <div class="step__body"><div class="step__head"><h3 class="step__title">${t(`step.${k}.title`, vars)}</h3><span class="step__state">${t(`step.${st}`)}</span></div>
+          <p class="step__fix">${fix}</p>${how}</div></li>`;
+      }).join('')}</ol>`;
+      const envRow = D.customer ? '' : `<div class="setup-env">${entryRow({ href: `#/settings/projects/${PROJECT.slug}/environment`, act: 'go-penv', fk: 'penv-entry', title: t('proj.entry.row'), sub: subWithEnv('proj.entry.sub', ROW_ENVS[0]), chipHTML: pEntryChip(), testid: 'project-env-entry' })}</div>`;
+      return `<div class="set-head set-head--proj">${mono(PROJECT.slug)}<div><h1 tabindex="-1" data-fk="h1">${esc(PROJECT.name)}</h1>
+          <p class="set-meta">${extLink(`https://github.com/${PROJECT.repo}`)}<code>/p/${esc(PROJECT.slug)}</code></p></div></div>
+        <section class="res${tone ? ` res--${tone}` : ''}" aria-labelledby="${uid}-res" data-res><h2 id="${uid}-res" tabindex="-1" data-fk="res">${title}</h2>${body ? `<p>${body}</p>` : ''}<p class="res__time">${t('setup.checkedAt', { time: hhmm(minsAgo(3)) })}</p>${ready && !S.justAdded ? stampSVG : ''}</section>
+        ${ledger}${envRow}
+        <div class="form-actions"><button type="button" class="btn ${ready ? '' : 'btn--primary'} btn--tall" data-act="space">${t('setup.checkAgain')}</button>
+          <button type="button" class="btn ${ready ? 'btn--primary' : ''} btn--tall" data-act="space">${t('setup.open')}</button></div>
+        <div class="danger-zone"><button type="button" class="btn btn--danger-quiet btn--tall" data-act="space">${IX.archive}${t('setup.archive')}</button></div>`;
+    }
+
+    /* ----- the project's environment screen: sections per environment, required rows first ----- */
+    function pRow(i, env) {
+      const s = pStatus(i, env);
+      const did = domId(`p-${i.id}`);
+      const cur = S.item === i.id && mac && S.route === 'pguide' ? ' aria-current="true"' : '';
+      const fix = s === 'missing' && !i.opt ? `<div class="erow__fix"><span class="erow__fix-label" aria-hidden="true">${t('env.row.fix')}</span>${codeline(cmd(env), t('env.row.copyAria', { name: i.n }), `row-${i.id}`)}</div>` : '';
+      return `<li class="erow${s === 'missing' && !i.opt ? ' erow--missing' : ''}" data-row="${esc(i.id)}"${cur}>
+        <button type="button" class="erow__btn" data-act="pitem" data-id="${esc(i.id)}" data-fk="row-${esc(i.id)}" aria-labelledby="${did}-n${s ? ` ${did}-st` : ''}" aria-describedby="${did}-p">
+          <span class="erow__txt"><span class="erow__name" id="${did}-n">${esc(i.n)}</span><span class="erow__purpose" id="${did}-p" lang="ru">${esc(fill(PG[i.g].purpose, pvars(i)))}</span></span>
+          <span class="erow__chips">${chip(s, i, `${did}-st`, true)}</span>${IX.chev}</button>${fix}</li>`;
+    }
+    function pSummary(env) {
+      const own = env === D.thisEnv;
+      const v = { project: PROJECT.name, env };
+      if (!own) return `<div class="esum esum--quiet"><div class="esum__top"><span class="esum__mark" aria-hidden="true">${IX.eyeOff}</span><p style="align-self:center">${t('env.sum.other', { this: D.thisEnv, env })}</p></div>${codeline(cmd(env, '--check'), t('env.copyAriaEnv', { env }), `sum-other-${env}`)}</div>`;
+      if (D.call === 'loading') return skelSummary(t('proj.checkingSr'));
+      if (D.call === 'error') return `<div class="block block--error" role="alert"><h3 tabindex="-1" data-fk="sum-h">${t('proj.err.load')}</h3><p>${t('env.err.load.body')}</p><button type="button" class="btn btn--tall" data-act="retry" data-fk="retry">${t('common.retry')}</button></div>`;
+      if (D.call === 'offline0') return `<div class="paused env-note env-note--plain" role="status">${IX.wifi}<span>${t('env.err.offline0')}</span></div>`;
+      const c = pCounts(env);
+      const stamped = !c.missing && S.stamp;
+      let h = callNotes();
+      h += `<div class="esum ${c.missing ? 'esum--todo' : 'esum--ok'}${stamped ? ' esum--stamped' : ''}${D.fresh ? ' is-new' : ''}" data-sum>`;
+      if (c.missing) {
+        h += `<div class="esum__top"><span class="esum__mark" aria-hidden="true">${c.missing}</span><h3 class="esum__title" tabindex="-1" data-fk="sum-h">${t('proj.sum.missing', { ...v, n: c.missing })}</h3></div>
+          <p>${t('proj.sum.missingBody')}</p>${codeline(cmd(env), t('env.copyAriaEnv', { env }), 'sum-set')}
+          <button type="button" class="link-btn" data-act="jump" data-fk="jump">${t('env.sum.jump')}</button>`;
+      } else {
+        h += `<div class="esum__top"><span class="esum__mark" aria-hidden="true">${IX.check}</span><h3 class="esum__title" tabindex="-1" data-fk="sum-h">${t('proj.sum.ok', v)}</h3></div>`;
+        if (c.optLeft) h += `<p class="esum__opt">${t('proj.sum.optionalLeft', { n: c.optLeft })}</p>`;
+      }
+      h += sumFoot();
+      if (stamped) h += stampSVG;
+      return `${h}</div>`;
+    }
+    function pSection(env) {
+      const own = env === D.thisEnv;
+      const rows = projectRows().filter((r) => r.envs.includes(env));
+      const req = rows.filter((r) => !r.opt); const opt = rows.filter((r) => r.opt);
+      const hid = `${uid}-sec-${env}`;
+      const mine = own ? `<span class="psec__this"><span class="sr-only">, </span><i aria-hidden="true"></i>${t('proj.section.this')}</span>` : '';
+      const list = (key, its) => (its.length ? `<div class="psub"><h3 class="psub__h" id="${hid}-${key}">${t(`proj.${key}`)}</h3><ul class="elist" aria-labelledby="${hid}-${key}">${its.map((i) => pRow(i, env)).join('')}</ul></div>` : '');
+      return `<section class="psec" aria-labelledby="${hid}"><h2 class="psec__title" id="${hid}"><code>${esc(env)}</code>${mine}</h2>
+        ${pSummary(env)}${list('required', req)}${list('optional', opt)}</section>`;
+    }
+    function quietLine() {
+      const q = pQuietEnvs(); if (!q.length || !pEnvs().length) return '';
+      const words = q.map((e) => (e === 'local' ? t('proj.list.local') : e));
+      const list = words.length > 1 ? `${words.slice(0, -1).join(', ')}${t('proj.list.and')}${words[words.length - 1]}` : words[0];
+      return `<p class="pnone">${IX.laptop}<span>${t('proj.none', { list: esc(list) })}</span></p>`;
+    }
+    function penvScreen() {
+      const busy = D.call === 'loading' || D.checking;
+      const head = `<div class="env-head"><h1 tabindex="-1" data-fk="h1">${t('proj.title')}</h1>${D.call === 'forbidden' ? '' : `<p class="set-lead">${t('proj.lead', { project: PROJECT.name })}</p>`}</div>`;
+      if (D.call === 'forbidden') return head + lock(t('proj.err.forbidden.title'), t('proj.err.forbidden.body'), `<a class="btn btn--tall" href="#/settings/projects/${PROJECT.slug}" data-act="go-setup" data-fk="forbidden-back">${IX.back}${t('proj.err.forbidden.back')}</a>`);
+      if (!pEnvs().length) return `${head}<div class="block pempty"><span class="esum__mark" aria-hidden="true">${IX.check}</span><p>${t('proj.empty')}</p></div>`;
+      return `${head}<div class="env-panel"${busy ? ' aria-busy="true"' : ''}>${pEnvs().map(pSection).join('')}${quietLine()}</div>`;
+    }
+    function notFoundScreen() {
+      return `<div class="env-head"><h1 tabindex="-1" data-fk="h1">${t('proj.notFound.title')}</h1></div>
+        <div class="block pempty"><p>${t('proj.notFound.body', { slug: 'storyfy' })}</p><button type="button" class="btn btn--tall" data-act="space">${t('nav.all')}</button></div>`;
+    }
+
+    /* ----- the guide: one renderer for both screens ----- */
+    function guideHTML(pane, i, env, s, content, backBtn) {
+      const hl = pane ? 2 : 1;
+      const sec = (key, body, cls = '') => `<section class="gsec${cls}" aria-labelledby="${uid}-gs-${key}"><h${hl + 1} class="gsec__h" id="${uid}-gs-${key}">${t(`env.g.${key}`)}</h${hl + 1}>${body}</section>`;
+      const own = env === D.thisEnv && env !== 'local';
+      let h = `<header><h${hl} class="guide__h" id="${uid}-gh" tabindex="-1" data-fk="g-h">${esc(i.n)}</h${hl}>
+        <div class="guide__meta">${s ? chip(s, i, '', true) : ''}<span class="etag">${t(`env.g.kind.${i.k}`)}</span><span class="etag">${t(`env.g.place.${i.p}`, { env, project: PROJECT.name })}</span><span class="etag">${t(`env.g.src.${i.src}`)}</span><span class="etag">${t('env.g.needs', { who: i.who })}</span></div>
+        ${s === 'set' && own && !unknownCall() ? `<p class="guide__time">${t('env.sum.checkedAt', { time: hhmm(D.checkedAt) })}</p>` : ''}</header>
+        <p class="gnever">${IX.lock}<span>${t('env.g.never')}</span></p>`;
+      if (content.ruOnly && lang() !== 'ru') h += `<p class="gplain gru">${t('proj.g.ruOnly')}</p>`;
+      const L_ = content.ruOnly ? ' lang="ru"' : '';
+      h += `<div class="guide__prose"${L_}>`;
+      h += sec('purpose', `<p>${esc(content.purpose)}</p>`, ' gsec--purpose');
+      if (content.impact) h += sec('impact', `<p>${esc(content.impact)}</p>`);
+      if (i.src === 'gen') h += sec('where', `<p class="gplain">${t('env.g.where.gen')}</p>`);
+      else if (i.src === 'app') h += sec('where', `<p class="gplain">${t('env.g.where.app')}</p>`);
+      else if (content.where) h += sec('where', `<ol class="gsteps">${content.where.map(([txt, url], n) => `<li><span class="gstep__txt"><span>${esc(txt)}</span>${url ? extLink(url, `g-link-${n}`) : ''}</span></li>`).join('')}</ol>`);
+      if (content.life) h += sec('life', `<p>${esc(content.life)}</p>`);
+      if (content.gotchas) h += sec('gotchas', `<ul class="ggotchas">${content.gotchas.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>`);
+      h += '</div>';
+      const aria = t('env.row.copyAria', { name: i.n });
+      let how;
+      if (s === 'unseen') how = `<p>${t('env.g.how.check')}</p>${codeline(cmd(env, '--check'), aria, 'g-check')}<p>${t('env.g.how.body')}</p>${codeline(cmd(env), aria, 'g-set')}`;
+      else if (s === 'set') how = `<p>${t('env.g.how.rotate')}</p>${codeline(cmd(env, '--rotate'), aria, 'g-rotate')}`;
+      else how = `<p>${t('env.g.how.body')}</p>${codeline(cmd(env), aria, 'g-set')}`;
+      h += sec('how', `<div class="ghow">${how}</div>`);
+      return `<article class="guide" aria-labelledby="${uid}-gh">${pane ? '' : backBtn || ''}${h}</article>`;
+    }
+    function guideNotFound(pane, title, body) {
+      const hl = pane ? 2 : 1;
+      return `<div class="gnf"><h${hl} class="gnf__h" id="${uid}-gh" tabindex="-1" data-fk="g-h">${title}</h${hl}><p>${body}</p></div>`;
+    }
+    function pGuide(pane) {
+      const env = 'production'; const i = findP(S.item);
+      if (!i) return guideNotFound(pane, t('proj.g.notFound', { project: PROJECT.name, env }), t('env.g.notFound.body'));
+      const g = PG[i.g]; const v = pvars(i);
+      const content = { ruOnly: true, purpose: fill(g.purpose, v), impact: fill(g.impact, v), where: g.where.map(([x, u]) => [fill(x, v), u]), life: fill(g.life, v), gotchas: g.gotchas.map((x) => fill(x, v)) };
+      return guideHTML(pane, i, env, pStatus(i, env), content);
+    }
+    function cGuide(pane) {
+      const env = S.env; const i = findC(S.item);
+      if (!i) return guideNotFound(pane, t('env.g.notFound.title', { env }), t('env.g.notFound.body'));
+      const g = i.g ? i.g[lang()] : {};
+      return guideHTML(pane, i, env, cStatus(i, env), { purpose: i.pu[lang()], impact: g.impact, life: g.life, gotchas: g.gotchas });
+    }
+
+    /* ----- the operator's console screen: #104 unchanged, minus the projects group ----- */
+    function tabs() {
+      return `<div class="etabs" role="tablist" aria-label="${t('env.tabs')}">${ENVS.map((e) => {
+        const sel = e === S.env;
+        const mine = e === D.thisEnv ? `<span class="etab__this"><i aria-hidden="true"></i>${t('env.tab.this')}</span>` : '';
+        return `<button type="button" role="tab" class="etab" id="${uid}-tab-${e}" aria-selected="${sel}" aria-controls="${uid}-panel" tabindex="${sel ? 0 : -1}" data-act="tab" data-env="${e}" data-fk="tab-${e}"><span class="etab__name">${e}</span>${mine}</button>`;
+      }).join('')}</div>`;
+    }
+    function cSummary() {
+      const env = S.env;
+      if (env === 'local') return `<section class="esum esum--quiet" aria-labelledby="${uid}-sum"><div class="esum__top"><span class="esum__mark" aria-hidden="true">${IX.laptop}</span><h2 class="sr-only" id="${uid}-sum">${t('env.group.local')}</h2><p style="align-self:center">${t('env.sum.local')}</p></div>${codeline(cmd('local', '--check'), t('env.copyAriaEnv', { env: 'local' }), 'sum-local')}</section>`;
+      if (env !== D.thisEnv) return `<section class="esum esum--quiet" aria-labelledby="${uid}-sum"><div class="esum__top"><span class="esum__mark" aria-hidden="true">${IX.eyeOff}</span><h2 class="sr-only" id="${uid}-sum">${t('env.st.unseen')}</h2><p style="align-self:center">${t('env.sum.other', { this: D.thisEnv, env })}</p></div>${codeline(cmd(env, '--check'), t('env.copyAriaEnv', { env }), 'sum-other')}</section>`;
+      if (D.call === 'loading') return skelSummary(t('env.loading'));
+      if (D.call === 'error') return `<div class="block block--error" role="alert"><h2 tabindex="-1" data-fk="sum-h">${t('env.err.load.title')}</h2><p>${t('env.err.load.body')}</p><button type="button" class="btn btn--tall" data-act="retry" data-fk="retry">${t('common.retry')}</button></div>`;
+      if (D.call === 'offline0') return `<div class="paused env-note env-note--plain" role="status">${IX.wifi}<span>${t('env.err.offline0')}</span></div>`;
+      const c = cCounts(env);
+      let h = callNotes();
+      h += `<section class="esum ${c.missing ? 'esum--todo' : 'esum--ok'}" aria-labelledby="${uid}-sum" data-sum>`;
+      if (c.missing) {
+        h += `<div class="esum__top"><span class="esum__mark" aria-hidden="true">${c.missing}</span><h2 class="esum__title" id="${uid}-sum" tabindex="-1" data-fk="sum-h">${t('env.sum.missing', { n: c.missing, env })}</h2></div>
+          <p>${t('env.sum.missingBody')}</p>${codeline(cmd(env), t('env.copyAriaEnv', { env }), 'sum-set')}`;
+      } else h += `<div class="esum__top"><span class="esum__mark" aria-hidden="true">${IX.check}</span><h2 class="esum__title" id="${uid}-sum" tabindex="-1" data-fk="sum-h">${t('env.sum.ok', { env })}</h2></div>`;
+      if (c.unseen) h += `<div class="esum__unseen"><p>${IX.eyeOff}<span>${t('env.sum.unseen', { n: c.unseen })}</span></p>${codeline(cmd(env, '--check'), t('env.copyAriaEnv', { env }), 'sum-check')}</div>`;
+      return `${h}${sumFoot()}</section>`;
+    }
+    function cRow(i, env) {
+      const s = cStatus(i, env);
+      const did = domId(`c-${i.id}`);
+      const cur = S.item === i.id && mac ? ' aria-current="true"' : '';
+      const fix = s === 'missing' ? `<div class="erow__fix"><span class="erow__fix-label" aria-hidden="true">${t('env.row.fix')}</span>${codeline(cmd(env), t('env.row.copyAria', { name: i.n }), `row-${i.id}`)}</div>` : '';
+      return `<li class="erow${s === 'missing' ? ' erow--missing' : ''}" data-row="${esc(i.id)}"${cur}>
+        <button type="button" class="erow__btn" data-act="citem" data-id="${esc(i.id)}" data-fk="row-${esc(i.id)}" aria-labelledby="${did}-n${s ? ` ${did}-st` : ''}" aria-describedby="${did}-p">
+          <span class="erow__txt"><span class="erow__name" id="${did}-n">${esc(i.n)}</span><span class="erow__purpose" id="${did}-p">${esc(i.pu[lang()])}</span></span>
+          <span class="erow__chips">${chip(s, i, `${did}-st`)}</span>${IX.chev}</button>${fix}</li>`;
+    }
+    function cGroups() {
+      const env = S.env; const own = env === D.thisEnv;
+      const RANK = { missing: 0, unseen: 1, set: 2 };
+      let h = '';
+      for (const p of env === 'local' ? ['local'] : PLACES.filter((x) => x !== 'local')) {
+        const its = cItems(env).filter((i) => i.p === p).map((i, n) => ({ i, n })).sort((a, b) => ((RANK[cStatus(a.i, env)] ?? 3) - (RANK[cStatus(b.i, env)] ?? 3)) || a.n - b.n).map((x) => x.i);
+        if (!its.length) continue;
+        const visible = own && VISIBLE.has(p);
+        const icon = p === 'local' ? IX.laptop : visible ? IX.eye : IX.eyeOff;
+        const hint = own || ['local', 'repo', 'hooks', 'ghsec'].includes(p) ? `env.group.${p}.hint` : 'env.group.hooks.hint';
+        h += `<section class="egrp${visible || p === 'local' ? '' : ' egrp--unseen'}" aria-labelledby="${uid}-g-${p}"><h2 class="egrp__title" id="${uid}-g-${p}">${t(`env.group.${p}`)}</h2><p class="egrp__hint">${icon}<span>${t(hint)}</span></p><ul class="elist">${its.map((i) => cRow(i, env)).join('')}</ul></section>`;
+      }
+      return h;
+    }
+    function adminScreen() {
+      const head = `<div class="env-head"><h1 tabindex="-1" data-fk="h1">${t('console.title')}</h1>${S.adminDenied ? '' : `<p class="set-lead">${t('console.lead')}</p>`}</div>`;
+      if (S.adminDenied) return head + lock(t('console.err.forbidden.title'), t('proj.err.forbidden.body'), `<a class="btn btn--tall" href="#/settings" data-act="go-settings" data-fk="forbidden-back">${IX.back}${t('nav.settings')}</a>`);
+      const busy = S.env === D.thisEnv && (D.call === 'loading' || D.checking);
+      return `${head}${tabs()}<div class="env-panel" role="tabpanel" id="${uid}-panel" aria-labelledby="${uid}-tab-${S.env}"${busy ? ' aria-busy="true"' : ''}>${cSummary()}${cGroups()}</div>`;
+    }
+
+    /* ----- chrome per route ----- */
+    function backLabel() {
+      return { settings: t('nav.projects'), admin: t('nav.settings'), aguide: t('env.g.back', { env: S.env }), setup: t('nav.all'), penv: PROJECT.name, pguide: t('proj.g.back', { project: PROJECT.name }) }[S.route];
+    }
+    function chrome() {
+      if (mac) {
+        const c = []; const a = (href, act, fk, label) => `<li><a href="${href}" data-act="${act}" data-fk="${fk}">${label}</a></li>`;
+        const here = (label, url) => `<li><span aria-current="page"${url ? ' class="crumbs__url"' : ''}>${label}</span></li>`;
+        if (S.route === 'settings') c.push(here(t('nav.settings')));
+        if (isAdmin()) {
+          c.push(a('#/settings', 'go-settings', 'crumb-settings', t('nav.settings')));
+          if (S.item) { c.push(a(`#/admin/environment/${S.env}`, 'close-guide', 'crumb-env', t('console.title'))); const i = findC(S.item); c.push(here(esc(i ? i.n : S.item.split(':').pop()), true)); }
+          else c.push(here(t('console.title')));
+        }
+        if (S.route === 'setup' || isProj()) {
+          c.push(a('#/overview', 'space', 'crumb-all', t('nav.all')));
+          if (S.route === 'setup') c.push(here(esc(PROJECT.name)));
+          else if (S.notFound) c.push(here(t('proj.notFound.title')));
+          else {
+            c.push(a(`#/settings/projects/${PROJECT.slug}`, 'go-setup', 'crumb-setup', esc(PROJECT.name)));
+            if (S.item) { c.push(a(`#/settings/projects/${PROJECT.slug}/environment`, 'close-guide', 'crumb-env', t('proj.crumb.env'))); const i = findP(S.item); c.push(here(esc(i ? i.n : 'ROUTINE_TOKEN_TEAM_CONSOLE'), true)); }
+            else c.push(here(t('proj.crumb.env')));
+          }
+        }
+        $('[data-slot=crumbs]').innerHTML = `<ol>${c.join('')}</ol>`;
+        host.querySelectorAll('[data-nav]').forEach((b) => { const on = (b.dataset.nav === 'settings' && (S.route === 'settings' || isAdmin())) || (b.dataset.nav === 'all' && (S.route === 'setup' || isProj())); if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+        return;
+      }
+      $('[data-slot=phead]').innerHTML = `<header class="p-bar"><button type="button" class="p-back" data-act="back" data-fk="back">${IX.back}<span>${esc(backLabel())}</span></button><span></span><span></span></header>`;
+    }
+
+    /* ----- render with focus kept by data-fk ----- */
+    const scroller = () => host.querySelector('.env-split__list, .set-scroll, .p-scroll');
+    function screenBody() {
+      if (S.route === 'settings') return settingsScreen();
+      if (S.route === 'setup') return setupScreen();
+      if (isProj() && S.notFound) return notFoundScreen();
+      if (isProj()) return penvScreen();
+      return adminScreen();
+    }
+    function render(opts = {}) {
+      const active = host.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+      const sc = scroller(); const top = sc ? sc.scrollTop : 0;
+      const paneEl = host.querySelector('.env-split__pane'); const paneTop = paneEl ? paneEl.scrollTop : 0;
+      chrome();
+      let animEl = null;
+      const guideFor = (pane) => (isAdmin() ? cGuide(pane) : pGuide(pane));
+      if (mac) {
+        const body = $('[data-slot=body]');
+        if (S.item && (isAdmin() || isProj()) && !S.notFound) {
+          body.innerHTML = `<div class="env-split"><div class="env-split__list"><div class="set-inner">${screenBody()}</div></div>
+            <section class="env-split__pane" aria-labelledby="${uid}-gh" data-pane><div class="gpane__bar"><button type="button" class="icon-btn" data-act="close-guide" data-fk="g-close" aria-label="${t('env.g.close')}">${IX.x}</button></div>${guideFor(true)}</section></div>`;
+          animEl = host.querySelector('[data-pane]');
+        } else body.innerHTML = `<div class="set-scroll"><div class="set-inner">${screenBody()}</div></div>`;
+      } else {
+        const screen = $('[data-slot=screen]');
+        screen.innerHTML = S.route === 'pguide' || S.route === 'aguide' ? guideFor(false) : screenBody();
+        animEl = screen;
+      }
+      if (S.anim && animEl && !opts.noAnim) {
+        const cls = { push: 'is-push', pop: 'is-pop', pane: 'is-pane' }[S.anim];
+        if (cls && (S.anim !== 'pane' || mac)) { animEl.classList.add(cls); animEl.addEventListener('animationend', () => animEl.classList.remove(cls), { once: true }); }
+      }
+      S.anim = null;
+      const sc2 = scroller();
+      if (sc2) sc2.scrollTop = opts.scrollTop === 'top' ? 0 : opts.scrollTop != null ? opts.scrollTop : top;
+      const pane2 = host.querySelector('.env-split__pane'); if (pane2 && !opts.newPane) pane2.scrollTop = paneTop;
+      const target = opts.focus ? host.querySelector(`[data-fk="${opts.focus}"]`) : active ? host.querySelector(`[data-fk="${active}"]`) : null;
+      if (target) target.focus({ preventScroll: !opts.focus });
+      if (opts.focus && target && opts.reveal) target.scrollIntoView({ block: 'center', behavior: isReduced() ? 'auto' : 'smooth' });
+      if (D.stampNow && host.querySelector('[data-sum] .stamp')) stamp();
+    }
+    const announce = (txt) => { const l = $('[data-slot=live]'); l.textContent = ''; setTimeout(() => { l.textContent = txt; }, 30); };
+    let toastTimer;
+    function toast(txt) {
+      const el = $('[data-slot=toast]'); el.textContent = txt; el.hidden = false;
+      clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, Proto.ms('--dur-toast'));
+    }
+    // #104's signature moment, reused: the ink stamp presses onto the summary when the last required item is set.
+    function stamp() {
+      const s = host.querySelector('[data-sum] .stamp'); if (!s || s.dataset.done) return;
+      s.dataset.done = '1';
+      if (isReduced()) { Proto.play(s, [{ opacity: 0 }, { opacity: 1 }], { duration: Proto.ms('--dur-fade') }); return; }
+      const strokes = [...s.querySelectorAll('circle,path')];
+      strokes.forEach((p) => { const l = p.getTotalLength(); p.style.strokeDasharray = l; p.style.strokeDashoffset = l; });
+      Proto.play(s, [{ opacity: 0, transform: 'rotate(-20deg) scale(1.4)' }, { opacity: 1, transform: 'rotate(-9deg) scale(1)' }], { duration: Proto.ms('--dur-base'), easing: Proto.cssVar('--ease-emph') });
+      strokes.forEach((p, n) => Proto.play(p, [{ strokeDashoffset: p.style.strokeDashoffset }, { strokeDashoffset: 0 }], { duration: Proto.ms('--dur-sig') * 0.6, delay: n * Proto.ms('--stagger'), easing: Proto.cssVar('--ease-emph'), fill: 'forwards' }));
+    }
+
+    /* ----- navigation ----- */
+    function go(route, opts = {}) { S.route = route; S.item = null; S.anim = opts.anim || 'push'; render({ focus: opts.focus || 'h1', scrollTop: 'top' }); }
+    function openItem(id, route) {
+      const sc = scroller(); if (!mac && sc) S.listTop = sc.scrollTop;
+      S.item = id;
+      S.route = route;
+      if (mac) { S.anim = 'pane'; render({ focus: 'g-h', newPane: true }); host.querySelector('.env-split__pane').scrollTop = 0; return; }
+      S.anim = 'push'; render({ focus: 'g-h', scrollTop: 'top' });
+    }
+    function closeItem() {
+      const id = S.item; S.item = null;
+      S.route = S.route === 'pguide' || S.route === 'penv' ? 'penv' : 'admin';
+      if (!mac) { S.anim = 'pop'; render({ focus: `row-${id}`, scrollTop: S.listTop }); return; }
+      render({ focus: `row-${id}` });
+    }
+    function back() {
+      if (S.route === 'settings') toast(t('demo.space'));
+      else if (S.route === 'admin') { S.adminDenied = false; go('settings', { anim: 'pop', focus: 'entry' }); }
+      else if (S.route === 'setup') toast(t('demo.space'));
+      else if (S.route === 'penv') { S.notFound = false; go('setup', { anim: 'pop', focus: 'penv-entry' }); }
+      else closeItem();
+    }
+    function selectTab(env) {
+      if (env === S.env) return;
+      S.env = env; S.item = null; S.copyFailKey = null; if (S.route === 'aguide') S.route = 'admin';
+      render({ focus: `tab-${env}` });
+      const h = host.querySelector('[data-fk=sum-h]') || host.querySelector('.esum p, .env-note');
+      if (h) announce(plain(h.textContent));
+    }
+    function jump() {
+      const first = projectRows().find((i) => pStatus(i, D.thisEnv) === 'missing' && !i.opt);
+      if (!first) return;
+      render({ focus: `row-${first.id}`, reveal: true });
+      const li = host.querySelector(`[data-row="${CSS.escape(first.id)}"]`);
+      if (li) { li.classList.remove('is-flash'); void li.offsetWidth; li.classList.add('is-flash'); }
+    }
+    async function copy(btn) {
+      const key = btn.dataset.key;
+      try {
+        if (D.copyFail) throw new Error('Clipboard refused (demo)');
+        await navigator.clipboard.writeText(btn.dataset.value);
+      } catch (err) {
+        console.warn('Copy failed; showing the copy-it-by-hand note', err);
+        S.copyFailKey = key; render({ focus: btn.dataset.fk });
+        announce(t('common.copyFailed'));
+        return;
+      }
+      if (S.copyFailKey) { S.copyFailKey = null; render(); }
+      const b = host.querySelector(`[data-fk="${CSS.escape(btn.dataset.fk)}"]`) || btn;
+      const label = b.querySelector('span'); label.textContent = t('common.copied'); b.dataset.copied = '';
+      announce(t('common.copied'));
+      setTimeout(() => { if (b.isConnected) { label.textContent = t('common.copy'); delete b.dataset.copied; } }, 2000);
+    }
+
+    host.onclick = (e) => {
+      const el = e.target.closest('[data-act]'); if (!el || !host.contains(el)) return;
+      const act = el.dataset.act;
+      if (el.tagName === 'A' && act) e.preventDefault();
+      if (el.getAttribute('aria-disabled') === 'true') return;
+      switch (act) {
+        case 'go-settings': S.adminDenied = false; go('settings', { anim: 'pop' }); break;
+        case 'go-admin': S.env = D.thisEnv; go('admin'); break;
+        case 'go-setup': S.notFound = false; go('setup', { anim: 'pop' }); break;
+        case 'go-penv': go('penv'); break;
+        case 'pitem': openItem(el.dataset.id, 'pguide'); break;
+        case 'citem': openItem(el.dataset.id, 'aguide'); break;
+        case 'close-guide': closeItem(); break;
+        case 'back': back(); break;
+        case 'tab': selectTab(el.dataset.env); break;
+        case 'jump': jump(); break;
+        case 'recheck': recheck(host); break;
+        case 'retry': retry(host); break;
+        case 'how': S.how[el.dataset.key] = el.getAttribute('aria-expanded') !== 'true'; render(); break;
+        case 'copy': copy(el); break;
+        case 'lang': if (pageChrome) pageChrome.setControl('lang', el.dataset.v); break;
+        case 'space': toast(t('demo.space')); break;
+        default: break;
+      }
+    };
+    host.onkeydown = (e) => {
+      const tab = e.target.closest('[role=tab]');
+      if (tab) {
+        const i = ENVS.indexOf(tab.dataset.env);
+        const next = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: ENVS.length - 1 }[e.key];
+        if (next != null) { e.preventDefault(); selectTab(ENVS[(next + ENVS.length) % ENVS.length]); }
+        return;
+      }
+      if (e.key === 'Escape' && mac && S.item) { e.preventDefault(); closeItem(); }
+    };
+
+    const app = {
+      render, S, announce,
+      state(v) {
+        Object.assign(S, { route: 'setup', env: D.thisEnv, item: null, copyFailKey: null, how: {}, justAdded: false, notFound: false, adminDenied: false, stamp: false });
+        const P = ['missing', 'allSet', 'unseen', 'loading', 'error', 'offline', 'offline0', 'rate', 'forbidden', 'empty'];
+        if (v === 'settings' || v === 'settingsCustomer') S.route = 'settings';
+        else if (v === 'setupAdded') { S.justAdded = true; S.how[4] = true; }
+        else if (P.includes(v)) S.route = 'penv';
+        else if (v === 'notFound') { S.route = 'penv'; S.notFound = true; }
+        else if (v === 'guide' || v === 'guideOpt' || v === 'guideNotFound') { S.route = 'penv'; render({ noAnim: true }); openItem({ guide: 'R', guideOpt: 'T:QA', guideNotFound: 'X' }[v], 'pguide'); return; }
+        else if (v === 'admin') S.route = 'admin';
+        else if (v === 'adminOther') { S.route = 'admin'; S.env = 'stage'; }
+        else if (v === 'adminForbidden') { S.route = 'admin'; S.adminDenied = true; }
+        else if (v === 'adminGuide') { S.route = 'admin'; render({ noAnim: true }); openItem('api:VAPID_PRIVATE_KEY', 'aguide'); return; }
+        render({ focus: 'h1', scrollTop: 'top' });
+      },
+      reveal(fk) { const el = host.querySelector(`[data-fk="${fk}"]`); const sc = scroller(); if (el && sc) sc.scrollTop += el.getBoundingClientRect().top - sc.getBoundingClientRect().top - 24; },
+    };
+    host.app = app;
+    render();
+    return app;
+  }
+
+  /* ---------- shared actions: one status call per console, both frames show it ---------- */
+  function renderAll(except) { hosts.forEach((h) => { if (h.app && h !== except) h.app.render(); }); }
+  async function recheck(host) {
+    if (D.checking) return;
+    const env = D.thisEnv; const proj = host.S.route === 'penv' || host.S.route === 'pguide';
+    const before = new Map(projectRows().map((i) => [i.id, pStatus(i, env)]));
+    const had = pCounts(env).missing > 0;
+    D.checking = true; renderAll(); host.app.announce(plain(t(proj ? 'proj.checkingSr' : 'env.loading')));
+    await wait(1100);
+    D.checking = false;
+    if (D.next === 'error') { D.call = 'error'; renderAll(host); host.app.render({ focus: 'sum-h' }); return; }
+    if (D.next === 'fixed') D.fixed = true;
+    D.call = 'ok'; D.checkedAt = new Date();
+    D.fresh = projectRows().filter((i) => before.get(i.id) !== pStatus(i, env)).map((i) => i.id);
+    if (had && !pCounts(env).missing) hosts.forEach((h) => { if (h.S) h.S.stamp = true; });
+    D.stampNow = true;
+    renderAll(host); host.app.render({ focus: 'recheck' });
+    D.fresh = null; D.stampNow = false;
+    const h = host.querySelector('[data-fk=sum-h]'); if (h) host.app.announce(plain(h.textContent));
+  }
+  async function retry(host) {
+    D.call = 'loading'; renderAll();
+    await wait(900);
+    D.call = 'ok'; D.checkedAt = new Date();
+    renderAll(host); host.app.render({ focus: 'sum-h' });
+  }
+
+  /* ---------- page controls ---------- */
+  const mountAll = (keep) => hosts.forEach((h) => { const prev = keep && h.S ? h.S : null; h.className = 'app'; mountApp(h, h.dataset.app, prev); });
+  pageChrome = Proto.page({ L, title: 'Team Console · #750', onLang: () => mountAll(true) });
+  const sel = (id) => document.getElementById(id);
+  function applyState(v) {
+    const keep = { next: D.next, copyFail: D.copyFail };
+    Object.assign(D, fresh0(), keep);
+    if (v === 'settingsCustomer' || v === 'forbidden' || v === 'adminForbidden') D.customer = true;
+    if (v === 'forbidden') D.call = 'forbidden';
+    if (v === 'allSet') D.allSet = true;
+    if (v === 'unseen') D.thisEnv = 'dev';
+    if (v === 'empty') D.empty = true;
+    if (['loading', 'error', 'offline', 'offline0', 'rate'].includes(v)) D.call = v;
+    hosts.forEach((h) => h.app.state(v));
+  }
+  sel('d-state').addEventListener('change', (e) => applyState(e.target.value));
+  sel('d-next').addEventListener('change', (e) => { D.next = e.target.value; });
+  sel('d-copy').addEventListener('change', (e) => { D.copyFail = e.target.checked; });
+  document.querySelector('[data-reset]').addEventListener('click', () => { D.next = 'same'; D.copyFail = false; sel('d-next').value = 'same'; sel('d-copy').checked = false; sel('d-state').value = 'setup'; applyState('setup'); });
+
+  // ?state=…&view=…&theme=…&lang=…&motion=…&scroll=<data-fk>&shot=1 opens a state directly (used for the screenshots).
+  const q = new URLSearchParams(location.search);
+  if (q.has('shot')) Proto.root.dataset.shot = '';
+  if (q.get('lang') === 'en' || q.get('lang') === 'ru') { L.save(q.get('lang')); pageChrome.setControl('lang', q.get('lang')); }
+  mountAll(false);
+  ['view', 'theme', 'motion'].forEach((k) => { if (q.get(k)) pageChrome.setControl(k, q.get(k)); });
+  if (q.get('copy') === 'fail') { D.copyFail = true; sel('d-copy').checked = true; }
+  const st = q.get('state') || 'setup';
+  sel('d-state').value = st;
+  applyState(st);
+  if (q.get('scroll')) hosts.forEach((h) => h.app.reveal(q.get('scroll')));
+  pageChrome.fit();
+})();
+
+</script>
+</body>
+</html>
