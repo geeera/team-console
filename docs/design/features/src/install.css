@@ -1,0 +1,101 @@
+/* ===== #761 PWA install prompt, on the Paper Desk tokens (ADR 0002) =====
+   Builds on #36 (push.css): the sunken-paper surface of the push nudge, the Home Screen guide and the system-mock
+   frame are reused as they are. The card is an offer, not a status line, so it is the nudge grown to a title, a body
+   and a row of actions. It is always in the page flow (never fixed or sticky), so it cannot cover the bottom bar.
+   Proposed tokens: the app-icon tile (the mark as it will look on a Home Screen) and the bottom bar height the
+   toast lifts above (the app already has --tab-bar-h, #192). */
+:root{--app-tile:40px;--app-tile-r:10px;--app-tile-lg:56px;--tab-bar-h:56px}
+
+/* ----- the app icon tile: the Paper Desk mark on a squircle, as the installed icon ----- */
+.app-tile{flex:none;width:var(--app-tile);height:var(--app-tile);border-radius:var(--app-tile-r);display:grid;place-items:center;background:var(--surface);box-shadow:var(--shadow-1),0 0 0 1px var(--border)}
+.app-tile .mark{width:calc(var(--app-tile) * .72);height:calc(var(--app-tile) * .72);color:var(--accent)}
+.app-tile--lg{width:var(--app-tile-lg);height:var(--app-tile-lg);border-radius:calc(var(--app-tile-r) * 1.4)}
+.app-tile--sm{width:var(--mark);height:var(--mark);border-radius:var(--r-sm)}
+
+/* ----- the install card ----- */
+.inst{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--sp-1) var(--sp-3);padding:var(--sp-4);border-radius:var(--r-lg);background:var(--bg-sunken);border:1px solid var(--border)}
+.inst .app-tile{grid-row:1/span 2}
+.inst__title{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.inst__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:60ch}
+.inst__acts{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2);margin-top:var(--sp-2)}
+.inst__acts .btn{min-height:var(--target)}
+.inst__acts .btn--quiet{color:var(--text)}
+.app[data-app=phone] .inst__acts .btn{flex:1 1 0;min-width:max-content}
+.inst__never{grid-column:1/-1;justify-self:start;min-height:var(--target);padding:0 var(--sp-1);margin-left:calc(-1 * var(--sp-1));border:0;background:none;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm);text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em}
+.inst__never:hover{color:var(--text);background:var(--hover)}
+.app[data-app=mac] .inst__acts .inst__never{margin-left:auto}
+.inst__steps{grid-column:1/-1;margin-top:var(--sp-1);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border)}
+.app[data-app=phone] .inst__steps{padding:var(--sp-3)}
+.inst__err{grid-column:1/-1;display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600;max-width:60ch}
+.inst__err .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.toggle-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.toggle-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.app[data-app=phone] .inst__acts .toggle-btn{flex:1 1 0}
+
+/* the macOS Safari hint: one line, no install button (Safari has no install API) */
+.inst--line{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3);padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3)}
+.inst--line .inst__body{flex:1 1 32ch;color:var(--text)}
+.inst--line .inst__acts{margin:0;flex:none}
+.inst--line .inst__never{margin-left:0}
+
+/* the success line: a margin note, as the push nudge's "on" line; the icon lands like an app on a Home Screen */
+.inst-done{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-2) var(--sp-1) var(--sp-2) var(--sp-4);border-left:2px solid var(--accent);outline:none}
+.inst-done p{flex:1;margin:0;font-size:var(--fs-sm);color:var(--text)}
+.inst-done .icon-btn{width:var(--target);height:var(--target)}
+.inst-done.is-new .app-tile{animation:land var(--dur-slow) var(--ease-emph) both}
+@keyframes land{0%{transform:translateY(-6px) scale(.6);opacity:0}60%{transform:translateY(0) scale(1.06);opacity:1}100%{transform:none}}
+.inst.is-in{animation:fade var(--dur-fast) var(--ease-enter) both}
+@media (prefers-reduced-motion:reduce){.inst-done.is-new .app-tile,.inst.is-in{animation:none}}
+:root[data-motion=reduce] .inst-done.is-new .app-tile,:root[data-motion=reduce] .inst.is-in{animation:none}
+
+/* ----- Settings › App ----- */
+.app-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:var(--sp-1) var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4)}
+.app-row .app-tile{grid-row:1/span 2}
+.app-row__title{font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md);line-height:var(--lh-tight)}
+.app-row__sub{grid-column:2;font-size:var(--fs-sm);color:var(--text-2);overflow-wrap:anywhere}
+.app-row .status{grid-column:3;grid-row:1}
+.app[data-app=phone] .app-row{grid-template-columns:auto minmax(0,1fr);padding:var(--sp-3)}
+.app[data-app=phone] .app-row .status{grid-column:2;grid-row:auto;justify-self:start}
+.app-acts{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app-steps{padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border)}
+.status--neutral{background:var(--bg-sunken);color:var(--text-2)}
+.app-err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.app-err .ico{flex:none;width:16px;height:16px;margin-top:2px}
+
+/* ----- the project space on the phone: lanes and the bottom section bar (#368) ----- */
+.space-head{display:flex;align-items:center;gap:var(--sp-3)}
+.lane{display:grid;gap:var(--sp-2)}
+.lane__h{margin:0;font-size:var(--fs-xs);font-weight:600;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.lane ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.ticket{display:flex;align-items:baseline;gap:var(--sp-2);width:100%;min-height:var(--target);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);box-shadow:var(--shadow-1);text-align:left;color:var(--text);font-size:var(--fs-sm)}
+.ticket__n{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.mac-lanes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--sp-4)}
+.app.has-tabs .toast{bottom:calc(var(--tab-bar-h) + var(--sp-10))}
+/* Safari's own toolbar sits under the page on iPhone: the toast lifts above it too */
+.app.has-browser-bar .toast{bottom:calc(var(--target) + var(--sp-10) + var(--sp-6))}
+.app.has-tabs.has-browser-bar .toast{bottom:calc(var(--tab-bar-h) + var(--target) + var(--sp-10) + var(--sp-6))}
+.app.has-browser-bar .tabs{padding-bottom:var(--sp-2)!important}
+
+/* ----- browser mocks: Chrome's address bar and its install window (never our UI) ----- */
+.crbar{flex:none;display:flex;align-items:center;gap:var(--sp-2);padding:var(--sp-1) var(--sp-2) var(--sp-2) var(--sp-3);background:var(--surface);border-bottom:1px solid var(--border)}
+.crbar__url{flex:1;min-width:0;height:36px;display:flex;align-items:center;gap:var(--sp-2);padding:0 var(--sp-3);border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crbar__url .ico{width:14px;height:14px;flex:none}
+.crbar__btn{flex:none;width:36px;height:36px;display:grid;place-items:center;color:var(--text-2)}
+.crbar__btn .ico{width:20px;height:20px}
+.win__url{margin:0 auto;min-width:0;width:min(46%,420px);height:24px;display:flex;align-items:center;justify-content:center;gap:var(--sp-1);padding:0 var(--sp-3);border-radius:var(--r-sm);background:var(--bg-sunken);font-size:var(--fs-xs);color:var(--text-2);white-space:nowrap;overflow:hidden}
+.win__url .ico{width:13px;height:13px;flex:none}
+.sysmodal--mac-inst{place-items:start end;padding:44px var(--sp-6) 0}
+.sysinst{position:relative;width:min(100%,320px);display:grid;gap:var(--sp-3);padding:var(--sp-5);background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-2);font-family:system-ui,var(--font-body)}
+.sysinst .sysprompt__mock{margin:0;text-align:left}
+.sysinst h2{margin:0;font-size:var(--fs-lg);font-weight:600;line-height:var(--lh-tight)}
+.sysinst__app{display:flex;align-items:center;gap:var(--sp-3)}
+.sysinst__app b{display:block;font-size:var(--fs-md)}
+.sysinst__app span{display:block;font-size:var(--fs-xs);color:var(--text-2)}
+.sysinst__acts{display:flex;justify-content:flex-end;gap:var(--sp-2)}
+.sysinst__acts button{min-height:var(--target);padding:0 var(--sp-4);border-radius:999px;border:0;background:none;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--accent-text)}
+.sysinst__acts button[data-v=accepted]{background:var(--accent);color:var(--accent-contrast)}
+.sysinst__acts button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* review aid: where focus lands after an action (not part of the product) */
+.is-focus-demo{outline:2px dashed var(--focus)!important;outline-offset:3px;border-radius:var(--r-sm)}
+.focus-tag{position:absolute;z-index:var(--z-toast);padding:1px var(--sp-2);border-radius:999px;background:var(--focus);color:var(--accent-contrast);font-size:11px;font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;pointer-events:none}
