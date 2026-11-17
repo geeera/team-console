@@ -173,22 +173,6 @@ async function pausedThenStopped(
   return { api, runner, name: projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG };
 }
 
-/**
- * A console-tracker project's own pause does not reach `GET /needs-you` yet (#309 Phase 4; `tracker-inbox.ts`
- * hardcodes `paused: false` until the cutover reads it from `team_state`). This patches the one field the Worker
- * will fill in once that lands, so the row's copy (#739) is exercised against the shape it will actually get.
- */
-async function markProjectPaused(page: Page): Promise<void> {
-  await page.route('**/api/v1/needs-you', async (route) => {
-    const response = await route.fetch();
-    const body = (await response.json()) as { projects: Record<string, unknown>[] };
-    const projects = body.projects.map((project) =>
-      project['slug'] === SLUG ? { ...project, paused: true } : project,
-    );
-    await route.fulfill({ response, json: { ...body, projects } });
-  });
-}
-
 async function expectRow(page: Page, name: string): Promise<void> {
   const row = page.getByRole('region', { name: ru('budget.stop.title', { project: name }) });
   await expect(row).toBeVisible();
@@ -272,7 +256,6 @@ test('beside an owner’s own pause, Raise says the team stays paused and never 
 }, testInfo) => {
   const { api, runner, name } = await pausedThenStopped(stack, testInfo.workerIndex);
   try {
-    await markProjectPaused(page);
     await page.goto('/needs-you');
     await expectRow(page, name);
 
