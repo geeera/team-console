@@ -1,4 +1,4 @@
-# Runner — install, enrol, the runner key, credentials, pause, update, revoke and the manual isolation check
+# Runner — install, enrol, GitHub Actions, the runner key, credentials, pause, update, revoke and the manual isolation check
 
 The runner runs on the customer's machine and claims jobs from the console. It runs each job as a separate
 locked-down user (`user` backend, macOS) or in its own container (`container` backend). `none` is for local
@@ -121,6 +121,89 @@ Each job runs in its own `--rm` container from that image:
 - The clone is the only writable mount. The socket directory, the plugin, the managed settings and a
   `claude-config-dir` are mounted read-only. `TC_RUNNER_HOME` is never mounted.
 - The job's environment reaches it on stdin, never as `-e`.
+
+## GitHub Actions (#573, #671, #712)
+
+With GitHub Actions no machine of yours stays on. For every queued job of the project, the console starts the
+`team-console-runner.yml` workflow in the project's own repository (`workflow_dispatch`, on the default branch, with
+the job id as the only input). The run exchanges its GitHub OIDC token for that one job, runs it on a GitHub-hosted
+VM and exits. GitHub then discards the VM. There is nothing to install or enrol: the runner identity exists for one
+job and is revoked at its `finish`.
+
+**What it costs, and who pays.** Both costs are yours, the console pays for and sees neither:
+
+- **GitHub Actions minutes.** One run per job, on `ubuntu-24.04`, up to 6 hours (GitHub's limit for a hosted job; the
+  runner stops a job at its own `maxMinutes` first). The minutes are billed to the GitHub account that owns the
+  repository, on its plan: public repositories run free, private ones use the plan's included minutes and then
+  paid minutes.
+- **The model's API usage**, on the Anthropic API key you put in the `team-console` Environment. Set a spend limit on
+  that key's workspace in the Anthropic Console: it is the only hard cap (RR11).
+
+### Set it up (a repository admin, once per repository)
+
+1. **Environment `team-console`.** Settings → Environments → New environment → `team-console` (this exact name). Under
+   Deployment branches and tags choose **Selected branches and tags** → Add deployment branch or tag rule → Ref type
+   **Branch**, the default branch's name (for example `main`), nothing else. Do not add required reviewers: every job
+   would then wait for an approval.
+2. **Secret `TC_INFERENCE_API_KEY`.** In that Environment → Environment secrets → Add environment secret, name
+   `TC_INFERENCE_API_KEY` (this exact name), value an Anthropic API key (`sk-ant-…`). Never make it a repository or
+   organisation secret: a workflow on any branch could read those. Only the default branch can reach the
+   Environment's secret.
+3. **Variables `TC_CONSOLE_URL` and `TC_CONSOLE_AUDIENCE`.** In the same Environment → Environment variables:
+   `TC_CONSOLE_URL` is the console's origin, `TC_CONSOLE_AUDIENCE` is `team-console:<environment>`. For the dev
+   console these are `https://team-console-dev.geeera.workers.dev` and `team-console:dev`.
+4. **The workflow file.** Copy `apps/runner/templates/team-console-runner.yml` unchanged to
+   `.github/workflows/team-console-runner.yml` and merge it into the default branch. The console checks the run's
+   token for exactly that path on the default branch, the `team-console` Environment, a `workflow_dispatch` event and
+   a GitHub-hosted runner. A copy under another name, on another branch, or running on a self-hosted runner is
+   refused.
+5. **The console's GitHub App** is installed on the repository (it already is when the project exists) and has the
+   **Actions: write** permission, which the console uses only through a token for this one repository.
+6. **Switch the project.** In the console: Settings › Runners → the project → **Where jobs run** → **On GitHub
+   Actions** → Save. The console refuses the switch while the project's access source is a subscription (switch it
+   to an API key first) or while its placement pins a runner (choose **Any runner** first). Jobs marked "own machine
+   only" still wait for a runner of yours.
+
+### What a run does
+
+The template's steps, in order: it checks that `job_id` is a job id (ULID) read through `env:`; gives up root for
+the rest of the run (below); installs Node.js and the Claude Code CLI, each pinned by version and checksum; downloads
+the pinned runner release and verifies it with `gh attestation verify` against this product's release workflow and
+`v<version>` tag, as `update` does, then checks the tarball's own `SHA256SUMS`; and, as the last step, runs
+`team-console-runner run-once --oidc --request-token -`. The run's log shows the job id and nothing else from the
+runner; the CLI's stream goes to the job's events in the console, redacted. The template uses no action at all (no
+`actions/checkout`, no `actions/cache`, no artifact), and its spec (`apps/runner/src/actions-template.spec.ts`) keeps
+every one of these controls. To move to a newer runner release, take the template of that release: its pins move
+together.
+
+### What a job on this workflow can reach (#712)
+
+The job runs as the VM's own user, with the inference key and the run's `github.token` (`contents: read` on this
+repository, it dies with the run) in reach for the length of the run (RR11). A compromised job (a prompt injection
+through repository content, a malicious dependency) can therefore use the key and read the repository. Before it
+starts, the template takes away the ways to reach further:
+
+- **Root is given up first.** Every sudo rule is removed (`/etc/sudoers` admits only root, `/etc/sudoers.d` is gone),
+  the Docker daemon and its socket are stopped (the `docker` group is root), and `kernel.yama.ptrace_scope` is set to
+  2, so no process of the job can attach to another. The next step fails the run if `sudo -n true` still works, the
+  socket is still there or ptrace is still open.
+- **The OIDC request token** (`ACTIONS_ID_TOKEN_REQUEST_TOKEN`, which mints OIDC tokens of this run for *any*
+  audience) reaches the runner on stdin and is removed from its environment, so the process that supervises the job
+  does not carry it where the job's uid can read it (`/proc/<pid>/environ`); it then lives in that process's memory
+  only, which the job cannot attach to.
+- **The Actions runtime token** (`ACTIONS_RUNTIME_TOKEN`, which writes the repository's Actions cache) is given only to
+  JavaScript actions. The template has none, so it stays inside GitHub's runner process.
+
+That holds as long as the VM has no local privilege escalation. GitHub's image is large and a kernel or setuid bug is
+not exotic, so plan for the case where it fails:
+
+- **Never trust this workflow in a cloud OIDC role.** Do not let an AWS, GCP or Azure role (or any other relying party)
+  trust the subject `repo:<owner>/<repo>:environment:team-console`, or a wildcard subject on this repository such as
+  `repo:<owner>/<repo>:*`. A job on this workflow could then mint a token that role accepts. Trust a dedicated
+  Environment of your deploy workflow, and pin `job_workflow_ref` where the cloud supports it.
+- **Assume a job on this workflow can write the repository's Actions cache.** A cache entry written by a run on the
+  default branch can be restored by workflows on every branch. Do not restore caches in a workflow that signs,
+  releases or deploys; build those from the lockfile with no restored cache.
 
 ## The one-time code (#582)
 
@@ -315,6 +398,18 @@ able to replace what root installed. Update by hand, as an admin:
 2. Run `sudo tar -xzf team-console-runner-<v>-<platform>.tar.gz --no-same-owner -C /usr/local/lib/team-console-runner`.
 3. Run `sudo launchctl kickstart -k system/com.team-console.runner`.
 4. Run the manual check below again.
+
+### Upgrade notes: check these before you update
+
+- **A runner enrolled with `--credential api-key` that serves a `subscription` project now fails every job** with
+  `credential-source-mismatch` (#685). An `api_key` project needs an `api-key` credential; a `subscription` project
+  takes `setup-token`, `claude-config-dir` or none. Before you update, switch the project's access source to an API
+  key in the console, or enrol a runner with a subscription credential for it.
+- **A `config.json` that still has `roles` stops the runner at start** (#685). Every command that loads the config
+  (`run`, `run-once`, `update`) exits with `config.json: roles is no longer read: … remove the key`. Each role's model
+  now comes from the project's team configuration in the console (Settings › Team). Remove `roles` from
+  `config.json` before you update. On `update.policy: auto` the service otherwise restarts the new version every
+  30 seconds, and the console only shows the runner going offline.
 
 ## Revoke a runner
 

@@ -1,4 +1,8 @@
-import { readFile, rm } from 'node:fs/promises';
+import { execFileSync, spawn } from 'node:child_process';
+import { copyFile, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { build } from 'esbuild';
+import { parse } from 'yaml';
 import {
   OWNER_ACCOUNT_ID,
   isJobDto,
@@ -24,7 +28,8 @@ import {
   type TokenEndpoint,
 } from '../testing/actions-run';
 import { basicAuthorizationOf, startGitHttpServer, type GitHttpServer } from '../testing/git-http-server';
-import { SCENARIO } from '../testing/job-fixture';
+import { CLAUDE_FAKE, SCENARIO } from '../testing/job-fixture';
+import { bundleOptions } from '../../build.mjs';
 import { startLocalStack, type LocalStack } from '../testing/local-stack';
 
 /**
@@ -234,5 +239,86 @@ describe('integration: run-once --oidc against the local stack', () => {
       expect(text).not.toMatch(/tcj_[A-Za-z0-9_-]{43}/);
     }
     expect(out.every((line) => /^[0-9A-HJKMNP-TV-Z]{26}$/.test(line))).toBe(true);
+  }, 180_000);
+
+  it('the template’s job step, run by bash on the built bundle, takes the request token on stdin only (#712)', async () => {
+    // The VM's layout as the template's earlier steps leave it: node, the release files, the CLI under RUNNER_TEMP.
+    const runnerTemp = await shortTempDir('t-');
+    temps.push(runnerTemp);
+    await mkdir(join(runnerTemp, 'node', 'bin'), { recursive: true });
+    await symlink(process.execPath, join(runnerTemp, 'node', 'bin', 'node'));
+    // The specs' git next to node (first on the template's PATH): on a Mac /usr/bin/git is Apple's, whose built-in
+    // config (`credential.helper`) the runner's allow-list refuses; the VM's /usr/bin/git has none.
+    const specGit = execFileSync('sh', ['-c', 'command -v git'], { env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin' } })
+      .toString()
+      .trim();
+    await symlink(specGit, join(runnerTemp, 'node', 'bin', 'git'));
+    await mkdir(join(runnerTemp, 'runner', 'bin'), { recursive: true });
+    await build({ ...bundleOptions(), outfile: join(runnerTemp, 'runner', 'team-console-runner.mjs'), metafile: false });
+    await copyFile(join(import.meta.dirname, '..', '..', 'bin', 'team-console-runner'), join(runnerTemp, 'runner', 'bin', 'team-console-runner'));
+    await mkdir(join(runnerTemp, 'claude-code'));
+    await symlink(CLAUDE_FAKE, join(runnerTemp, 'claude-code', 'claude'));
+    const template = parse(
+      await readFile(join(import.meta.dirname, '..', '..', 'templates', 'team-console-runner.yml'), 'utf8'),
+    ) as { jobs: Record<string, { steps: { name?: string; run?: string }[] }> };
+    const script = Object.values(template.jobs)[0]?.steps.find((step) => step.name === 'Run the job')?.run ?? '';
+    expect(script).toContain('--request-token -');
+    const scriptPath = join(runnerTemp, 'run-the-job.sh');
+    await writeFile(scriptPath, script, { mode: 0o600 });
+
+    const runId = freshRunId();
+    nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId, audience });
+    const jobId = await queueActionsJob(SCENARIO.ok);
+    const env: Record<string, string> = {
+      ...actionsEnvOf({ consoleUrl: stack.origin, jobId, runnerTemp, idTokenUrl: tokens.url, serverUrl: git.origin, audience: AUDIENCE }),
+      PATH: '/usr/bin:/bin',
+    };
+    // The template sets the CLI's path itself.
+    delete env['TC_CLAUDE_COMMAND'];
+    // How GitHub runs a `shell: bash` step.
+    const child = spawn('bash', ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk.toString()));
+    child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString()));
+    const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
+    // What the job sees of its supervisor: on Linux, /proc/<pid>/environ of the runner the step exec'd (same uid).
+    const environSamples: string[] = [];
+    if (process.platform === 'linux' && child.pid !== undefined) {
+      const pid = child.pid;
+      while (child.exitCode === null && child.signalCode === null) {
+        try {
+          const cmdline = await readFile(`/proc/${String(pid)}/cmdline`, 'utf8');
+          if (cmdline.includes('team-console-runner.mjs')) {
+            environSamples.push(await readFile(`/proc/${String(pid)}/environ`, 'utf8'));
+          }
+        } catch (error: unknown) {
+          if (!(error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ESRCH'))) {
+            throw error;
+          }
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+    }
+    const code = await exited;
+    console.info(`[template job step] exit ${String(code)} stdout ${JSON.stringify(stdout.join(''))} stderr ${JSON.stringify(stderr.join(''))}`);
+    expect(code).toBe(EXIT_OK);
+    // GitHub consumes the `::add-mask::` workflow command; what is left on the log is the job id alone.
+    const lines = stdout.join('').split('\n').filter((line) => line !== '');
+    expect(lines.filter((line) => !line.startsWith('::add-mask::'))).toEqual([jobId]);
+    expect(lines.filter((line) => line.startsWith('::'))).toEqual([`::add-mask::${actionsSecrets.inferenceKey}`]);
+    const done = await readBack(jobId);
+    show('template', done.job, done.events);
+    expect(done.job).toMatchObject({ state: 'finished', dispatch: 'actions', result: { summary: 'Done: nothing to do' } });
+    expect(tokens.audiences.at(-1)).toBe(AUDIENCE);
+    if (process.platform === 'linux') {
+      expect(environSamples.length).toBeGreaterThan(0);
+      for (const environ of environSamples) {
+        expect(environ).toContain('TC_JOB_ID=');
+        expect(environ).not.toContain('ACTIONS_ID_TOKEN_REQUEST_TOKEN=');
+        expect(environ).not.toContain(actionsSecrets.idTokenRequestToken);
+      }
+    }
+    expect([...stdout, ...stderr].join('')).not.toContain(actionsSecrets.idTokenRequestToken);
   }, 180_000);
 });
