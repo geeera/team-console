@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { intlLocaleOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { intlLocaleOf, localUsdOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Callout, ConfirmFailure, Sheet, Toaster, type ConfirmCheck } from '@console/shared/ui';
 import type { QuestionBudgetStop } from '@console/entities/question';
 import { TEAM_CONFIG_BOUNDS } from '@shared/contracts';
@@ -8,13 +8,7 @@ import { BudgetStopClient, type BudgetActionResult } from './budget-stop.client'
 
 /** Dollars in the language's own form (`201,50 $`, `$201.50`); whole dollars without cents. */
 export function budgetMoneyOf(usd: number, lang: string): string {
-  return new Intl.NumberFormat(intlLocaleOf(lang), {
-    style: 'currency',
-    currency: 'USD',
-    currencyDisplay: 'narrowSymbol',
-    minimumFractionDigits: Number.isInteger(usd) ? 0 : 2,
-    maximumFractionDigits: 2,
-  }).format(usd);
+  return localUsdOf(usd, lang);
 }
 
 /** The UTC month `YYYY-MM` by name (`ноябрь`, `November`); the month string itself when it is not one. */

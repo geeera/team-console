@@ -134,6 +134,15 @@ export class TeamConfigRepo {
     return row?.access_source ?? null;
   }
 
+  /** `subscription` would be refused for the project now: the same terms the save judges inside its own write. */
+  async isSubscriptionBlocked(projectSlug: string): Promise<boolean> {
+    const row = await this.db
+      .prepare(`SELECT ${subscriptionHostedSql('?1', `'subscription'`)} AS blocked`)
+      .bind(projectSlug)
+      .first<{ blocked: number }>();
+    return row?.blocked === 1;
+  }
+
   /**
    * The compare-and-set save (threat model C12 row 1): the current row moves from `expectedRevision` to the next one
    * only if it still is `expectedRevision` and the access rule holds, both judged by the write itself; the revision

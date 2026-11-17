@@ -30,3 +30,21 @@
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+
+@media (max-width: 519.98px) {
+  :host(.tc-segmented--stack-phone) .tc-segmented__options {
+    grid-auto-flow: row;
+  }
+
+  /* Rows divided by a top rule, words from the start, so a long name wraps rather than truncates. */
+  :host(.tc-segmented--stack-phone) ::ng-deep .tc-segment {
+    justify-content: flex-start;
+    padding: 0 var(--space-3);
+    text-align: start;
+  }
+
+  :host(.tc-segmented--stack-phone) ::ng-deep .tc-segment + .tc-segment {
+    border-left: 0;
+    border-top: var(--border-w) solid var(--border-strong);
+  }
+}
