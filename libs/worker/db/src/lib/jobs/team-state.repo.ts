@@ -39,6 +39,15 @@ export interface BudgetStopRecord {
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
 
 /**
+ * Whether `team_state` holds any pause, whoever by (#739): the one check both the status read
+ * (`apps/api/src/team/console-team-state.ts`'s `teamStateOf`, which also names who) and a console-tracker project's
+ * Needs-you row (`TrackerReads`, #434) make of the same record, kept here so neither re-derives it.
+ */
+export function isTeamStatePaused(record: Pick<TeamStateRecord, 'pausedAt'>): boolean {
+  return record.pausedAt !== null;
+}
+
+/**
  * A pause that lapsed this recently still backs a limit failure (#596): a short `retryAt` can pass between the
  * runner's pause post and its finish, and the two clocks differ by seconds.
  */

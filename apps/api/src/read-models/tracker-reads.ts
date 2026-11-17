@@ -1,7 +1,7 @@
 import { itemKeyOf, type AnswerCommand, type InboxDto, type QuestionsDto } from '@shared/contracts';
 import { withoutInvisibles } from '@shared/plain-text';
 import type { Logger } from '@worker/core';
-import { INBOX_ROW_CAP, InboxRepo, type TrackerProject } from '@worker/db';
+import { INBOX_ROW_CAP, InboxRepo, TeamStateRepo, isTeamStatePaused, type TrackerProject } from '@worker/db';
 import {
   buildTrackerInbox,
   buildTrackerQuestions,
@@ -56,8 +56,14 @@ export class TrackerReads {
     }));
   }
 
+  /** Whether `team_state` holds a pause for this project (#739): one row, whoever paused it. */
+  private async paused(): Promise<boolean> {
+    return isTeamStatePaused(await new TeamStateRepo(this.db).get(this.project.slug));
+  }
+
   async inbox(): Promise<InboxDto> {
-    return buildTrackerInbox(await this.rows());
+    const [rows, paused] = await Promise.all([this.rows(), this.paused()]);
+    return buildTrackerInbox(rows, paused);
   }
 
   async questions(): Promise<QuestionsDto> {
@@ -69,9 +75,9 @@ export class TrackerReads {
     readonly inbox: InboxDto;
     readonly allowedCommands: ReadonlyMap<number, readonly AnswerCommand[]>;
   }> {
-    const rows = await this.rows();
+    const [rows, paused] = await Promise.all([this.rows(), this.paused()]);
     return {
-      inbox: buildTrackerInbox(rows),
+      inbox: buildTrackerInbox(rows, paused),
       allowedCommands: new Map(
         trackerInboxItemsOf(rows).map(({ item, allowedCommands }) => [item.number, allowedCommands]),
       ),

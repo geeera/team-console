@@ -75,17 +75,25 @@ export function trackerProjectOf(row: ProjectRow): TrackerProject {
 }
 
 /**
- * 403 `account-owner-only` unless the identity is an `owner` of the project's account (#482 security review: the
- * owner-grade project writes — registry edits, answers, team and sprint commands, snooze — are the account owner's,
- * not any member's, and not the Access owner's on an account it is merely a member of). The dev/stage service
- * identity keeps the path its own gates give it. Called after `findProject`, so it never reveals a slug.
+ * Whether the identity may make the project's owner-grade writes (#482 security review: registry edits, answers,
+ * team and sprint commands, snooze) — the account owner's, not any member's, and not the Access owner's on an
+ * account it is merely a member of. The dev/stage service identity always may. No logging: this is also read at
+ * display time (`needs-you`'s `canManage`, #735), where a `false` is not a refused write.
+ */
+export function canManageProject(c: WorkerContext<ApiEnv>, project: ProjectRow): boolean {
+  const identity = c.get('identity');
+  return identity.kind === 'service' || roleIn(identity, c.env, project.account_id) === 'owner';
+}
+
+/**
+ * 403 `account-owner-only` unless `canManageProject` allows it. Called after `findProject`, so it never reveals a
+ * slug.
  */
 export function projectOwnerRefusal(c: WorkerContext<ApiEnv>, project: ProjectRow): Response | null {
-  const identity = c.get('identity');
-  if (identity.kind === 'service' || roleIn(identity, c.env, project.account_id) === 'owner') {
+  if (canManageProject(c, project)) {
     return null;
   }
-  c.get('logger').warn('project write refused', { reason: 'account-owner-only', identity: identity.kind });
+  c.get('logger').warn('project write refused', { reason: 'account-owner-only', identity: c.get('identity').kind });
   return problem(c, {
     type: 'account-owner-only',
     title: 'Forbidden',

@@ -16,6 +16,8 @@ const STOP: QuestionBudgetStop = {
   spentUsd: 201.5,
   budgetUsd: 200,
   stoppedAt: '2026-11-16T10:00:00.000Z',
+  paused: false,
+  canManage: true,
 };
 
 async function settle(): Promise<void> {
@@ -228,5 +230,79 @@ describe('BudgetStop', () => {
     retry.flush({});
     await settle();
     expect(resolved).toBe(1);
+  });
+
+  it('beside an owner’s own pause (#739), Raise says the team stays paused and the toast does not claim a restart', async () => {
+    fixture.componentRef.setInput('stop', { ...STOP, stoppedAt: null, paused: true });
+    await fixture.whenStable();
+    button('budget-raise').click();
+    await settle();
+    expect(overlay().textContent?.replace(/\s/g, ' ')).toContain(
+      'Команда остаётся на паузе, которую поставили вы: новый бюджет её не снимет.',
+    );
+    expect(overlay().textContent).not.toContain('снова запустит команду');
+    const field = overlay().querySelector('input') as HTMLInputElement;
+    field.value = '300';
+    field.dispatchEvent(new Event('input'));
+    await settle();
+    confirmButton().click();
+    await settle();
+    http
+      .expectOne((request) => request.method === 'GET')
+      .flush({ config: { schema: TEAM_CONFIG_SCHEMA, budget: { monthly_usd: 200 } }, revision: 1 });
+    await settle();
+    http.expectOne((request) => request.method === 'PUT').flush({});
+    await settle();
+    expect(TestBed.inject(Toaster).message()).toBe(
+      'Бюджет сохранён. Команда остаётся на паузе, которую поставили вы.',
+    );
+    expect(resolved).toBe(1);
+  });
+
+  it('switches the paused copy to en too', async () => {
+    const transloco = TestBed.inject(TranslocoService);
+    await firstValueFrom(transloco.load('en'));
+    transloco.setActiveLang('en');
+    await settle();
+    fixture.componentRef.setInput('stop', { ...STOP, stoppedAt: null, paused: true });
+    await fixture.whenStable();
+    button('budget-raise').click();
+    await settle();
+    expect(overlay().textContent?.replace(/\s/g, ' ')).toContain(
+      'The team stays paused — that is your own pause; a new budget will not lift it.',
+    );
+  });
+
+  it('after a plain resume (stoppedAt null, not paused) the Raise toast stays “Team resumed.”', async () => {
+    fixture.componentRef.setInput('stop', { ...STOP, stoppedAt: null, paused: false });
+    await fixture.whenStable();
+    button('budget-raise').click();
+    await settle();
+    expect(overlay().textContent?.replace(/\s/g, ' ')).toContain('снова запустит команду');
+    const field = overlay().querySelector('input') as HTMLInputElement;
+    field.value = '300';
+    field.dispatchEvent(new Event('input'));
+    await settle();
+    confirmButton().click();
+    await settle();
+    http
+      .expectOne((request) => request.method === 'GET')
+      .flush({ config: { schema: TEAM_CONFIG_SCHEMA, budget: { monthly_usd: 200 } }, revision: 1 });
+    await settle();
+    http.expectOne((request) => request.method === 'PUT').flush({});
+    await settle();
+    expect(TestBed.inject(Toaster).message()).toBe('Команда возобновила работу.');
+  });
+
+  it('a project member (#735) sees the figures without the owner-only actions', async () => {
+    fixture.componentRef.setInput('canManage', false);
+    await fixture.whenStable();
+    expect(button('budget-resume')).toBeNull();
+    expect(button('budget-raise')).toBeNull();
+    expect(host().querySelector('[data-testid="budget-stop-readonly"]')?.textContent?.trim()).toBe(
+      'Решения о бюджете принимает только владелец проекта.',
+    );
+    // The figures stay visible, read-only.
+    expect(host().querySelector('[data-testid="budget-stop-body"]')).not.toBeNull();
   });
 });

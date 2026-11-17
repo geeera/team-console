@@ -89,16 +89,25 @@ async function setBudget(api: APIRequestContext, monthlyUsd: number): Promise<vo
   expect(saved.status(), await saved.text()).toBe(200);
 }
 
-/** One review job, claimed by the runner and finished at `costUsd` (Claude Code's own `total_cost_usd`). */
-async function runJob(api: APIRequestContext, runner: Runner, costUsd: number): Promise<void> {
+/** Queues one review job and has the runner claim it, before the job itself finishes. */
+async function claimJob(api: APIRequestContext, runner: Runner): Promise<ClaimResponse> {
   const queued = await api.post(`/api/v1/projects/${SLUG}/jobs`, { data: { kind: 'review', role: 'qa' } });
   expect(queued.status(), await queued.text()).toBe(201);
-  const claim = (await asRunner(api, runner, '/jobs/claim', {})) as ClaimResponse;
-  await asRunner(api, runner, `/jobs/${claim.job.id}/finish`, {
+  return (await asRunner(api, runner, '/jobs/claim', {})) as ClaimResponse;
+}
+
+async function finishJob(api: APIRequestContext, runner: Runner, jobId: string, costUsd: number): Promise<void> {
+  await asRunner(api, runner, `/jobs/${jobId}/finish`, {
     result: 'finished',
     summary: 'Reviewed',
     metrics: { total_cost_usd: costUsd },
   });
+}
+
+/** One review job, claimed by the runner and finished at `costUsd` (Claude Code's own `total_cost_usd`). */
+async function runJob(api: APIRequestContext, runner: Runner, costUsd: number): Promise<void> {
+  const claim = await claimJob(api, runner);
+  await finishJob(api, runner, claim.job.id, costUsd);
 }
 
 async function claimStatus(api: APIRequestContext, runner: Runner): Promise<number> {
@@ -132,6 +141,31 @@ async function stopped(
   const runner = await enrolRunner(api);
   await setBudget(api, 1);
   await runJob(api, runner, 1.5);
+  const projects = (await (await api.get('/api/v1/projects')).json()) as {
+    slug: string;
+    displayName: string;
+  }[];
+  return { api, runner, name: projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG };
+}
+
+/**
+ * The same stop, but the owner pauses the team between claim and finish (#739's repro): a job claimed before the
+ * budget was reached finishes after both the pause and the budget crossing, so `budgetStopsOf` reports
+ * `stoppedAt: null` — an owner's pause is kept and never replaced by the budget mechanism.
+ */
+async function pausedThenStopped(
+  stack: Stack,
+  workerIndex: number,
+): Promise<{ api: APIRequestContext; runner: Runner; name: string }> {
+  await seed(stack, ['geeera/team-console']);
+  await switchToConsoleTracker(workerIndex, SLUG, 'TC');
+  const api = await apiClient(stack);
+  const runner = await enrolRunner(api);
+  await setBudget(api, 1);
+  const claim = await claimJob(api, runner);
+  const paused = await api.post(`/api/v1/projects/${SLUG}/team/pause`, { data: { reason: 'owner pause' } });
+  expect(paused.status(), await paused.text()).toBe(201);
+  await finishJob(api, runner, claim.job.id, 1.5);
   const projects = (await (await api.get('/api/v1/projects')).json()) as {
     slug: string;
     displayName: string;
@@ -211,6 +245,39 @@ test('Raise budget states the overshoot bound and saves a budget above the spend
     expect(config.budget.monthly_usd).toBe(25);
     await api.post(`/api/v1/projects/${SLUG}/jobs`, { data: { kind: 'review', role: 'qa' } });
     expect(await claimStatus(api, runner)).toBe(200);
+  } finally {
+    await api.dispose();
+  }
+});
+
+test('beside an owner’s own pause, Raise says the team stays paused and never claims a restart (#739)', async ({
+  page,
+  stack,
+}, testInfo) => {
+  const { api, runner, name } = await pausedThenStopped(stack, testInfo.workerIndex);
+  try {
+    await page.goto('/needs-you');
+    await expectRow(page, name);
+
+    await page.getByRole('button', { name: ru('budget.stop.raise') }).click();
+    const dialog = page.getByRole('alertdialog');
+    await expect(dialog).toContainText(
+      spaced(ru('budget.raise.messagePaused', { spent: money(1.5), month: month() })),
+    );
+    expect(await dialog.textContent()).not.toContain('снова запустит команду');
+    await expectAccessible(page, 'Raise budget, stays paused');
+
+    const field = dialog.getByRole('textbox', { name: ru('budget.raise.label') });
+    await field.fill('25');
+    await dialog.getByRole('button', { name: ru('budget.raise.confirm') }).click();
+
+    await expect(page.getByRole('status').filter({ hasText: ru('budget.raise.savedStillPaused') })).toBeVisible();
+    await expect(page.getByRole('status').filter({ hasText: ru('budget.resumed') })).toHaveCount(0);
+    await expect(page.getByTestId('budget-stop')).toHaveCount(0);
+
+    // The owner's own pause (real, in `team_state`) still holds: the claim keeps refusing past the raised budget.
+    await api.post(`/api/v1/projects/${SLUG}/jobs`, { data: { kind: 'review', role: 'qa' } });
+    expect(await claimStatus(api, runner)).toBe(204);
   } finally {
     await api.dispose();
   }

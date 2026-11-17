@@ -160,6 +160,11 @@ describe('buildTrackerInbox', () => {
     expect(item).toMatchObject({ authorTrusted: false, context: null });
   });
 
+  it('carries the pause the caller read from `team_state` (#739); defaults to false', () => {
+    expect(buildTrackerInbox([ROW]).paused).toBe(false);
+    expect(buildTrackerInbox([ROW], true).paused).toBe(true);
+  });
+
   it('leaves out rows no section takes and the plugin’s bookkeeping items, and orders by section then number', () => {
     const rows: TrackerInboxRow[] = [
       { ...ROW, number: 3, key: 'TC-3' },
