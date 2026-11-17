@@ -20,7 +20,10 @@ export type EnvironmentGroup = (typeof ENVIRONMENT_GROUPS)[number];
 
 /** One line of the screen: a manifest item in one place, a pattern expanded with a real project slug. */
 export interface EnvironmentRow {
-  /** The guide's URL below `/settings/environment/:env/`: `api/OWNER_EMAIL`, `project/storify/ROUTINE_TOKEN_STORIFY`. */
+  /**
+   * `api/OWNER_EMAIL` (the console guide's URL below `/admin/environment/:env/`) or
+   * `project/storify/ROUTINE_TOKEN_STORIFY` (a project guide's, `/settings/projects/storify/environment/:env/<name>`).
+   */
   readonly id: string;
   readonly group: EnvironmentGroup;
   /** The real name, placeholders filled. */
@@ -161,4 +164,33 @@ export function environmentRowsOf(
     }
   }
   return rows;
+}
+
+/** The console's own rows of `environment` (the operator screen, #750): every group but `projects`. */
+export function consoleRowsOf(
+  environment: Environment,
+  items: readonly ManifestItem[] = ENVIRONMENT_MANIFEST.items,
+): EnvironmentRow[] {
+  return environmentRowsOf(environment, [], items);
+}
+
+/**
+ * One project's rows of `environment` (#750 UX spec §4): required before optional, in manifest order, and a slotted
+ * pattern's names per slot (`SLOT_TOKEN_X_PM`, `SLOT_ROUTINE_X_PM`, then DEV, then QA) so a slot's two secrets sit
+ * together. An empty list for a slug that is not slug-shaped.
+ */
+export function projectRowsOf(
+  environment: Environment,
+  slug: string,
+  items: readonly ManifestItem[] = ENVIRONMENT_MANIFEST.items,
+): EnvironmentRow[] {
+  const rows = environmentRowsOf(environment, [slug], items).filter((row) => row.group === 'projects');
+  const rank = (row: EnvironmentRow): number => {
+    const slot = TEAM_SLOTS.findIndex((candidate) => row.name.endsWith(`_${candidate.toUpperCase()}`));
+    return (row.item.optional === true ? 1 : 0) * 100 + (row.item.name.includes('<SLOT>') ? slot + 1 : 0);
+  };
+  return rows
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => rank(a.row) - rank(b.row) || a.index - b.index)
+    .map(({ row }) => row);
 }

@@ -1,0 +1,123 @@
+<ng-template #headingText let-text>
+  @if (headingLevel() === 3) {
+  <h3 #heading class="env__summary-title" [id]="id" tabindex="-1">{{ text }}</h3>
+  } @else {
+  <h2 #heading class="env__summary-title" [id]="id" tabindex="-1">{{ text }}</h2>
+  }
+</ng-template>
+
+@if (!isThisConsole()) {
+<section class="env__summary env__summary--other" data-testid="env-summary" [attr.aria-labelledby]="id">
+  <p class="env__summary-line" [id]="id"><tc-icon name="eye-off" size="sm" />{{ otherLine() }}</p>
+  <tc-copy-code
+    [code]="checkCommand()"
+    [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: environment() }"
+    [copyLabel]="'settings.common.copy' | transloco"
+    [copiedLabel]="'settings.common.copied' | transloco"
+    [failedNote]="'settings.common.copyFailed' | transloco"
+  />
+</section>
+} @else if (!hasAnswer()) { @if (checking()) {
+<div class="env__summary env__skeleton" data-testid="env-summary" aria-hidden="true">
+  <span class="env__bar env__bar--wide"></span><span class="env__bar"></span
+  ><span class="env__bar env__bar--short"></span>
+</div>
+} @else if (problem()?.kind === 'offline') {
+<p class="env__note" role="status" data-testid="env-offline">{{ 'env.err.offline0' | transloco }}</p>
+} @else if (rateUntil(); as until) {
+<p class="env__note" role="status" data-testid="env-rate">
+  {{ 'env.err.rate' | transloco: { time: (until | localTime) } }}
+</p>
+} @else {
+<section
+  class="env__summary env__summary--error"
+  role="alert"
+  data-testid="env-error"
+  [attr.aria-labelledby]="id"
+>
+  <ng-container *ngTemplateOutlet="headingText; context: { $implicit: errorTitle() }" />
+  <p class="env__summary-line">{{ 'env.err.load.body' | transloco }}</p>
+  <div>
+    <button tc-button type="button" data-testid="env-retry" (click)="recheck()">
+      <tc-icon name="refresh" size="sm" />{{ 'env.err.retry' | transloco }}
+    </button>
+  </div>
+</section>
+} } @else {
+<section
+  class="env__summary"
+  [class.env__summary--missing]="missing() > 0"
+  data-testid="env-summary"
+  [attr.aria-labelledby]="id"
+>
+  <div class="env__summary-head">
+    @if (missing() > 0) {
+    <span class="env__count" aria-hidden="true">{{ missing() }}</span>
+    } @else {
+    <span class="env__count env__count--ok" aria-hidden="true"><tc-icon name="check" /></span>
+    }
+    <ng-container *ngTemplateOutlet="headingText; context: { $implicit: title() }" />
+  </div>
+  @if (missing() > 0) {
+  <p class="env__summary-line">{{ missingBody() }}</p>
+  <tc-copy-code
+    [code]="setCommand()"
+    [ariaLabel]="'env.sum.copySetAria' | transloco: { env: environment() }"
+    [copyLabel]="'settings.common.copy' | transloco"
+    [copiedLabel]="'settings.common.copied' | transloco"
+    [failedNote]="'settings.common.copyFailed' | transloco"
+  />
+  <a class="env__jump" href="#" data-testid="env-jump" (click)="onJump($event)">
+    {{ 'env.sum.jump' | transloco }}
+  </a>
+  } @if (unseen() > 0) {
+  <div class="env__unseen">
+    <p class="env__summary-line">
+      <tc-icon name="eye-off" size="sm" />{{ 'env.sum.unseen' | translocoPlural: unseen() }}
+    </p>
+    <tc-copy-code
+      [code]="checkCommand()"
+      [ariaLabel]="'env.sum.copyCheckAria' | transloco: { env: environment() }"
+      [copyLabel]="'settings.common.copy' | transloco"
+      [copiedLabel]="'settings.common.copied' | transloco"
+      [failedNote]="'settings.common.copyFailed' | transloco"
+    />
+  </div>
+  } @if (optionalMissing() > 0) {
+  <p class="env__optional" data-testid="env-optional-left">
+    {{ 'env.project.sum.optionalLeft' | transloco: { n: optionalMissing() } }}
+  </p>
+  } @if (problem()?.kind === 'offline') {
+  <p class="env__note" role="status" data-testid="env-offline">
+    {{ 'env.err.offline' | transloco: { time: (checkedAt() | localTime) } }}
+  </p>
+  } @else if (rateUntil(); as until) {
+  <p class="env__note" role="status" data-testid="env-rate">
+    {{ 'env.err.rate' | transloco: { time: (until | localTime) } }}
+  </p>
+  } @else if (problem()?.kind === 'failed') {
+  <p class="env__note env__note--error" role="alert">{{ errorTitle() }}</p>
+  }
+  <div class="env__summary-foot">
+    @if (checkedAt(); as checkedAt) {
+    <span class="env__checked">{{ 'env.sum.checkedAt' | transloco: { time: (checkedAt | localTime) } }}</span>
+    }
+    <button
+      tc-button
+      type="button"
+      data-testid="env-recheck"
+      [loading]="checking()"
+      [attr.aria-disabled]="recheckOff() ? 'true' : null"
+      [attr.aria-describedby]="!network.online() ? id + '-offline' : null"
+      (click)="recheck()"
+    >
+      @if (!checking()) {
+      <tc-icon name="refresh" size="sm" />
+      } {{ (checking() ? 'env.sum.rechecking' : 'env.sum.recheck') | transloco }}
+    </button>
+    @if (!network.online()) {
+    <span [id]="id + '-offline'" class="tc-sr-only">{{ 'env.err.offlineWhy' | transloco }}</span>
+    }
+  </div>
+</section>
+}

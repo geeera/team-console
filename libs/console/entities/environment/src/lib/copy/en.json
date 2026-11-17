@@ -1,18 +1,63 @@
 {
   "entry": {
-    "section": "Environment",
-    "row": "Environment setup",
-    "sub": "{{env}} · secrets and variables: what is set and how to set the rest",
     "checking": "Checking…",
     "missing": "Missing: {{n}}",
     "ok": "All set",
     "unknown": "Not checked"
   },
-  "title": "Environment setup",
-  "lead": "Which secrets and variables are set, and how to set the missing ones. The console never shows or keeps their values.",
+  "console": {
+    "title": "Console environment",
+    "lead": "The console’s own secrets and variables: Workers, GitHub, local runs. The console never shows or keeps their values.",
+    "section": "Console operator",
+    "sub": "{{env}} · Workers, GitHub, local runs",
+    "forbidden": "Only the console’s operator can see its environment"
+  },
+  "project": {
+    "title": "Project environment",
+    "lead": "{{project}}’s secrets: which are set and how to set the missing ones. The console never shows or keeps their values.",
+    "this": "this console",
+    "required": "Required",
+    "optional": "Optional — for “Run now”",
+    "sum": {
+      "missing": {
+        "one": "{{project}} is missing {{n}} required setting in {{env}}",
+        "few": "{{project}} is missing {{n}} required settings in {{env}}",
+        "many": "{{project}} is missing {{n}} required settings in {{env}}",
+        "other": "{{project}} is missing {{n}} required settings in {{env}}"
+      },
+      "missingBody": "Set them with one command on your computer, in the console repository’s folder. It only asks for what is missing:",
+      "ok": "Everything {{project}} needs in {{env}} is set",
+      "optionalLeft": "Optional not set: {{n}}"
+    },
+    "none": "Nothing to set for this project in {{list}}.",
+    "list": {
+      "local": "on your computer",
+      "and": " or "
+    },
+    "empty": "This project needs nothing set.",
+    "checkingSr": "Checking the project’s environment…",
+    "err": {
+      "load": "Couldn’t check the project’s environment",
+      "forbidden": {
+        "title": "The console operator sets this project’s secrets",
+        "body": "Your sign-in can’t see them, so nothing is shown.",
+        "back": "Back to project setup"
+      }
+    },
+    "g": {
+      "back": "{{project}} environment",
+      "notFound": "{{project}} has no such setting in {{env}}"
+    },
+    "entry": {
+      "row": "Project environment",
+      "sub": "{{env}} · project secrets"
+    }
+  },
   "crumb": "Settings",
   "tabs": "Environments",
-  "tab": { "this": "this console" },
+  "tab": {
+    "this": "this console"
+  },
   "checkingSr": "Checking the environment…",
   "sum": {
     "missing": {
@@ -40,12 +85,14 @@
     "copyCheckAria": "Copy the check command for {{env}}"
   },
   "group": {
-    "api": { "title": "Console Worker (api)", "hint": "The console checks these itself." },
+    "api": {
+      "title": "Console Worker (api)",
+      "hint": "The console checks these itself."
+    },
     "github-vars": {
       "title": "GitHub environment variables",
       "hint": "Checked on the Worker: the value reached it with the last deploy."
     },
-    "projects": { "title": "Projects", "hint": "Each project has its own routine tokens." },
     "hooks": {
       "title": "Webhook Worker (hooks)",
       "hint": "The console can't see these — setup checks them."
@@ -76,12 +123,6 @@
     "copyAria": "Copy the command for {{name}}",
     "aria": "{{name}}, {{status}}"
   },
-  "proj": {
-    "count": "{{set}} of {{total}} set",
-    "none": "No projects yet — routine tokens show up here once you add a project.",
-    "error": "Couldn't load the projects.",
-    "retry": "Try again"
-  },
   "err": {
     "load": {
       "title": "Couldn't check the environment",
@@ -92,7 +133,6 @@
     "offline0": "You're offline — we'll check once you're back. The guides work offline.",
     "offlineWhy": "You're offline — nothing can be checked right now.",
     "forbidden": {
-      "title": "Only the owner can see the environment",
       "body": "This session isn't signed in as you, so nothing is shown."
     },
     "rate": "Too many checks in a row. Check again after {{time}}."
@@ -109,7 +149,10 @@
     "gotchas": "Gotchas",
     "how": "How to set it",
     "metaAria": "About this setting",
-    "kind": { "secret": "Secret", "variable": "Variable" },
+    "kind": {
+      "secret": "Secret",
+      "variable": "Variable"
+    },
     "src": {
       "owner": "You enter it",
       "generated": "setup generates it",

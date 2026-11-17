@@ -12,6 +12,7 @@ import { NetworkStatus } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { ProjectSetupDto } from '@shared/contracts';
+import { ENVIRONMENT_STATUS_URL, type EnvironmentStatusDto } from '@shared/environment';
 import { settingsRoutes } from './settings.routes';
 
 const SETUP_URL = '/api/v1/projects/fieldnote/setup';
@@ -56,6 +57,19 @@ async function settle(): Promise<void> {
 describe('ProjectSetupPage', () => {
   let http: HttpTestingController;
   let harness: RouterTestingHarness;
+  /** The project's environment status (#750): a 403 unless a case says otherwise, as for a customer. */
+  let environmentAnswer: EnvironmentStatusDto | number = 403;
+
+  function answerEnvironment(): void {
+    for (const request of http.match((req) => req.url === ENVIRONMENT_STATUS_URL)) {
+      expect(request.request.params.get('project')).toBe('fieldnote');
+      if (typeof environmentAnswer === 'number') {
+        request.flush(null, { status: environmentAnswer, statusText: 'Refused' });
+      } else {
+        request.flush(environmentAnswer);
+      }
+    }
+  }
 
   const root = (): HTMLElement => harness.routeNativeElement as HTMLElement;
   const result = (): string =>
@@ -101,11 +115,58 @@ describe('ProjectSetupPage', () => {
     ]);
     await navigation;
     await settle();
+    answerEnvironment();
+    await settle();
   }
 
   afterEach(() => {
+    answerEnvironment();
+    environmentAnswer = 403;
     harness?.fixture.nativeElement.remove();
     http.verify();
+  });
+
+  describe('the Project environment row (#750)', () => {
+    const PRODUCTION: EnvironmentStatusDto = {
+      environment: 'production',
+      items: [
+        { id: 'project/fieldnote/ROUTINE_TOKEN_FIELDNOTE', status: 'missing', optional: false },
+        { id: 'project/fieldnote/SLOT_TOKEN_FIELDNOTE_PM', status: 'missing', optional: true },
+      ],
+    };
+
+    it('is there once the project’s status answered, with the #104 chip, and step 5 links to the screen', async () => {
+      environmentAnswer = PRODUCTION;
+      await open({ [JUST_ADDED_STATE]: true });
+      setupRequest().flush(MISSING_APP);
+      await settle();
+
+      const entry = root().querySelector('[data-testid="project-env-entry"] a') as HTMLAnchorElement;
+      expect(entry.getAttribute('href')).toBe('/settings/projects/fieldnote/environment');
+      expect(entry.textContent).toContain('Окружение проекта');
+      expect(entry.textContent).toContain('production · секреты проекта');
+      // The optional token never counts.
+      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe('Не задано: 1');
+      const link = root().querySelector('[data-step="routine"] [data-testid="step-environment-link"]');
+      expect(link?.getAttribute('href')).toBe('/settings/projects/fieldnote/environment');
+      expect(link?.textContent).toContain('Открыть окружение проекта');
+    });
+
+    it('says "Not checked" where this console cannot see the project’s secrets', async () => {
+      environmentAnswer = { environment: 'dev', items: [] };
+      await open();
+      setupRequest().flush(MISSING_APP);
+      await settle();
+      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe('Не проверено');
+    });
+
+    it('is not there for a sign-in the status refuses (403), and step 5 has no link', async () => {
+      await open();
+      setupRequest().flush(MISSING_APP);
+      await settle();
+      expect(root().querySelector('[data-testid="project-env-entry"]')).toBeNull();
+      expect(root().querySelector('[data-testid="step-environment-link"]')).toBeNull();
+    });
   });
 
   it('first shows the Worker’s cached status: steps as words, the install link, and the steps left', async () => {

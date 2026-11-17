@@ -1,4 +1,6 @@
 import { inject, Injectable } from '@angular/core';
+import { EnvironmentStatusStore } from '@console/entities/environment';
+import { projectEnvironmentGuideRouteOf } from '@console/entities/project';
 import {
   TeamStatusStore,
   slotOf,
@@ -10,7 +12,8 @@ import {
 } from '@console/entities/team-run';
 import { localTimeOf, TranslocoService } from '@console/shared/i18n';
 import { ConfirmFailure, Sheet, type ConfirmOptions } from '@console/shared/ui';
-import type { RunResponse, SlotLock, TeamSlot } from '@shared/contracts';
+import { slotSecretNames, type RunResponse, type SlotLock, type TeamSlot } from '@shared/contracts';
+import { PROJECT_SECRETS_ENVIRONMENT } from '@shared/environment';
 import { TeamCommandsClient, type TeamCommandAnswer } from './team-commands.client';
 
 /** When `Retry-After` is missing: the routine's cap is per hour, the Worker's default is ten minutes. */
@@ -28,6 +31,7 @@ export class TeamCommands {
   private readonly client = inject(TeamCommandsClient);
   private readonly store = inject(TeamStatusStore);
   private readonly transloco = inject(TranslocoService);
+  private readonly environment = inject(EnvironmentStatusStore);
   /** The clock the messages use; a seam for specs. */
   now: () => number = () => Date.now();
 
@@ -76,7 +80,7 @@ export class TeamCommands {
         note: t('commands.dialog.quota'),
         confirmLabel: t('commands.dialog.runOk'),
       },
-      async () => this.runOutcome(slot, await this.client.run(target.slug, slot)),
+      async () => this.runOutcome(target, slot, await this.client.run(target.slug, slot)),
     );
   }
 
@@ -146,7 +150,11 @@ export class TeamCommands {
     throw this.refusal(result.failure, null);
   }
 
-  private runOutcome(slot: TeamSlot, result: CommandResult<RunResponse>): CommandOutcome {
+  private async runOutcome(
+    target: CommandTarget,
+    slot: TeamSlot,
+    result: CommandResult<RunResponse>,
+  ): Promise<CommandOutcome> {
     const name = this.t(`commands.slot.${slot}`);
     if (result.ok) {
       this.store.applyLock(slot, {
@@ -192,8 +200,33 @@ export class TeamCommands {
         return this.outcome('warning', this.t('commands.result.timeout', { time: this.time(until) }));
       }
       default:
-        throw this.refusal(failure, slot);
+        throw await this.runRefusal(failure, slot, target.slug);
     }
+  }
+
+  /** A slot that is not set up offers its token's guide (#750 UX spec §2), to the operator only. */
+  private async runRefusal(failure: CommandFailure, slot: TeamSlot, slug: string): Promise<ConfirmFailure> {
+    const refusal = this.refusal(failure, slot);
+    if (failure.kind !== 'not-configured' || !(await this.canSeeEnvironment())) {
+      return refusal;
+    }
+    return new ConfirmFailure(refusal.message, undefined, {
+      label: this.t('commands.error.setLink'),
+      route: projectEnvironmentGuideRouteOf(
+        slug,
+        PROJECT_SECRETS_ENVIRONMENT,
+        slotSecretNames(slug, slot).token,
+      ),
+    });
+  }
+
+  /**
+   * Whether this sign-in may open the environment screens: the console's status answered 200 in this session (the
+   * operator signal of #750; one call, kept for the session). A customer never gets a link to a screen it cannot see.
+   */
+  private async canSeeEnvironment(): Promise<boolean> {
+    await this.environment.ensureLoaded();
+    return this.environment.snapshot() !== null;
   }
 
   /** The dialog's alert for a refusal, in words the owner can act on. */

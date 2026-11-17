@@ -1,7 +1,8 @@
 import { afterNextRender, ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { provideRouter } from '@angular/router';
 import type { Meta, StoryObj } from '@storybook/angular';
-import { moduleMetadata } from '@storybook/angular';
+import { applicationConfig, moduleMetadata } from '@storybook/angular';
 import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
 import { Button } from '../button/button';
 import { Choice, ChoiceGroup } from '../choice/choice';
@@ -336,6 +337,9 @@ function openLongForm(sheet: Sheet, transloco: TranslocoService): void {
       <button tc-button type="button" (click)="openLongForm()">
         {{ 'stories.sheet.longEllipsis' | transloco }}
       </button>
+      <button tc-button type="button" (click)="runNotConfigured()">
+        {{ 'stories.sheet.runOpen' | transloco }}
+      </button>
       <button tc-button type="button" (click)="moveDate()">
         {{ 'stories.sheet.dateEllipsis' | transloco }}
       </button>
@@ -421,6 +425,24 @@ class SheetHost {
     this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
   }
 
+  /** #750: a refusal with its way out — the link closes every sheet and opens the screen that fixes it. */
+  protected async runNotConfigured(): Promise<void> {
+    const t = (key: string): string => this.transloco.translate(key);
+    const confirmed = await this.sheet.confirm({
+      title: t('stories.sheet.runTitle'),
+      message: t('stories.sheet.runMessage'),
+      busyLabel: t('stories.sheet.sending'),
+      action: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        throw new ConfirmFailure(t('stories.sheet.runNotConfigured'), undefined, {
+          label: t('stories.sheet.runSetLink'),
+          route: ['/'],
+        });
+      },
+    });
+    this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
+  }
+
   /**
    * #218's date confirmation: the native picker, a hint that follows the date, a refusal under the field that holds
    * Confirm, an ochre caution, and a conflict that refills the field with the live value.
@@ -469,7 +491,8 @@ class SheetHost {
 const meta: Meta<SheetHost> = {
   title: 'Kit/Sheet',
   component: SheetHost,
-  decorators: [moduleMetadata({ imports: [SheetHost] })],
+  // The confirmation's failure link (#750) is a router link.
+  decorators: [applicationConfig({ providers: [provideRouter([])] }), moduleMetadata({ imports: [SheetHost] })],
   // The sheet renders in the CDK overlay container, outside the story root; axe must see both.
   parameters: { a11y: { context: 'body' } },
   render: () => ({ template: '<tc-story-sheet-host />' }),

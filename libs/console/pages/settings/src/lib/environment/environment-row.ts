@@ -13,8 +13,8 @@ export const ROW_STATUS_ICONS: Readonly<Record<Exclude<RowStatus, 'unknown'>, Ic
 };
 
 /**
- * One item of Environment setup (#104): its name (never cut), purpose and status as a word plus an icon, the whole
- * line a link to its guide. A missing item adds its one-line fix with Copy. Its own component so the list's styles
+ * One item of an environment screen (#104, #750): its name (never cut), purpose and status as a word plus an icon,
+ * the whole line a link to its guide. A missing item adds its one-line fix with Copy. Its own component so the list's styles
  * stay inside the per-component budget.
  */
 @Component({
@@ -58,7 +58,7 @@ export const ROW_STATUS_ICONS: Readonly<Record<Exclude<RowStatus, 'unknown'>, Ic
       </span>
       <tc-icon name="chevron-right" size="sm" class="row__chevron" />
     </a>
-    @if (view().status === 'missing') {
+    @if (warns()) {
       <div class="row__fix" data-testid="env-fix">
         <span class="row__fix-label">{{ 'env.row.fix' | transloco }}</span>
         <tc-copy-code
@@ -76,24 +76,28 @@ export const ROW_STATUS_ICONS: Readonly<Record<Exclude<RowStatus, 'unknown'>, Ic
   host: {
     role: 'listitem',
     'data-testid': 'env-row',
-    '[class.row--missing]': 'view().status === "missing"',
+    '[class.row--missing]': 'warns()',
   },
 })
 export class EnvironmentRow {
   readonly view = input.required<RowView>();
   readonly environment = input.required<Environment>();
+  /** Router commands of the row's guide: the operator screen's or a project's (#750). */
+  readonly link = input.required<readonly string[]>();
   /** The row whose guide is open. */
   readonly current = input(false);
+  /** A project's screen (#750): a missing optional row never warns and has no fix line, its guide has the command. */
+  readonly quietOptional = input(false);
+
+  protected readonly warns = computed(
+    () =>
+      this.view().status === 'missing' && !(this.quietOptional() && this.view().row.item.optional === true),
+  );
 
   protected readonly icon = computed(() => {
     const status = this.view().status;
     return status === 'unknown' ? null : ROW_STATUS_ICONS[status];
   });
-  protected readonly link = computed(() => [
-    '/settings/environment',
-    this.environment(),
-    ...this.view().row.id.split('/'),
-  ]);
   protected readonly descriptionId = computed(() => `env-d-${this.view().row.id}`);
   protected readonly setCommand = computed(() => setupCommandOf(this.environment()));
   protected readonly purpose = computed(() => proseSegmentsOf(this.view().row.item.purpose));

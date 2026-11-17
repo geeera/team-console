@@ -5,6 +5,15 @@ import { isEnvironment, type Environment } from '@shared/contracts';
 
 export const ENVIRONMENT_STATUS_URL = '/api/v1/environment/status';
 
+/** The query parameter that scopes the status to one project (#750): `?project=<slug>`. */
+export const ENVIRONMENT_STATUS_PROJECT_PARAM = 'project';
+
+/**
+ * Where every per-project item lives (#750 UX spec §0; `manifest.spec.ts` fails when the manifest says otherwise).
+ * For the screens that must not load the manifest: the project row's subtitle and the commands pane's guide link.
+ */
+export const PROJECT_SECRETS_ENVIRONMENT: Environment = 'production';
+
 /** Presence only (#104): the endpoint never says anything else about a binding. */
 export type EnvironmentItemStatus = 'set' | 'missing';
 

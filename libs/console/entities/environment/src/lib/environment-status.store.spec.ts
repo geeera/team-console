@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ENVIRONMENT_STATUS_URL, type EnvironmentStatusDto } from '@shared/environment';
-import { EnvironmentStatusStore } from './environment-status.store';
+import { EnvironmentStatusStore, ProjectEnvironmentStatuses } from './environment-status.store';
 
 const ANSWER: EnvironmentStatusDto = {
   environment: 'dev',
@@ -89,5 +89,70 @@ describe('EnvironmentStatusStore', () => {
     expect(store.state()).toBe('error');
     expect(store.problem()).toEqual({ kind: 'failed' });
     expect(handleError).not.toHaveBeenCalled();
+  });
+
+  it('refuses a console answer that carries a project row (#750)', async () => {
+    await answer((request) =>
+      request.flush({
+        environment: 'production',
+        items: [{ id: 'project/storify/ROUTINE_TOKEN_STORIFY', status: 'set', optional: false }],
+      }),
+    );
+    expect(store.problem()).toEqual({ kind: 'failed' });
+    expect(store.snapshot()).toBeNull();
+  });
+});
+
+describe('ProjectEnvironmentStatuses (#750)', () => {
+  let statuses: ProjectEnvironmentStatuses;
+  let http: HttpTestingController;
+  const PROJECT_ANSWER: EnvironmentStatusDto = {
+    environment: 'production',
+    items: [{ id: 'project/storify/ROUTINE_TOKEN_STORIFY', status: 'missing', optional: false }],
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    statuses = TestBed.inject(ProjectEnvironmentStatuses);
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  async function answerFor(
+    slug: string,
+    respond: (request: ReturnType<HttpTestingController['expectOne']>) => void,
+  ): Promise<void> {
+    const pending = statuses.of(slug).load();
+    await Promise.resolve();
+    respond(http.expectOne(`${ENVIRONMENT_STATUS_URL}?project=${slug}`));
+    await pending;
+  }
+
+  it('asks for one project only and keeps one status per project for the session', async () => {
+    await answerFor('storify', (request) => request.flush(PROJECT_ANSWER));
+    expect(statuses.of('storify')).toBe(statuses.of('storify'));
+    expect(statuses.of('storify').statusOf('project/storify/ROUTINE_TOKEN_STORIFY')).toBe('missing');
+    expect(statuses.of('other').state()).toBe('idle');
+  });
+
+  it('refuses an answer with another project’s rows', async () => {
+    await answerFor('other', (request) => request.flush(PROJECT_ANSWER));
+    expect(statuses.of('other').problem()).toEqual({ kind: 'failed' });
+    expect(statuses.of('other').snapshot()).toBeNull();
+  });
+
+  it('drops the snapshot on 404: archived, unknown or out of scope read the same', async () => {
+    await answerFor('storify', (request) => request.flush(PROJECT_ANSWER));
+    await answerFor('storify', (request) =>
+      request.flush(
+        { type: 'https://team-console.dev/problems/project-not-found', title: 'Not found', status: 404 },
+        { status: 404, statusText: 'Not Found' },
+      ),
+    );
+    expect(statuses.of('storify').problem()).toEqual({ kind: 'not-found' });
+    expect(statuses.of('storify').snapshot()).toBeNull();
   });
 });

@@ -27,6 +27,7 @@ describe('shellAreaOf', () => {
     expect(shellAreaOf('/needs-you?x=1')).toBe('needs-you');
     expect(shellAreaOf('/overview')).toBe('overview');
     expect(shellAreaOf('/settings/projects/new')).toBe('settings');
+    expect(shellAreaOf('/admin/environment/production')).toBe('settings');
     expect(shellAreaOf('/nowhere')).toBe('other');
   });
 });

@@ -1,8 +1,8 @@
 import type { Environment } from '@shared/contracts';
 import {
   ENVIRONMENT_GROUPS,
-  ENVIRONMENT_MANIFEST,
-  environmentRowsOf,
+  consoleRowsOf,
+  projectRowsOf,
   type EnvironmentGroup,
   type EnvironmentRow,
   type EnvironmentStatusDto,
@@ -21,22 +21,13 @@ export interface RowView {
   readonly status: RowStatus;
 }
 
-export interface ProjectBlockView {
-  readonly slug: string;
-  readonly rows: readonly RowView[];
-  readonly set: number;
-  readonly total: number;
-  readonly hasMissing: boolean;
-}
-
 export interface GroupView {
   readonly group: EnvironmentGroup;
-  /** Every row but the per-project ones, sorted. */
+  /** The group's rows, missing first. */
   readonly rows: readonly RowView[];
-  /** The `projects` group only: one block per project. */
-  readonly projects: readonly ProjectBlockView[];
 }
 
+/** The operator screen's tab (#750: the #104 screen without the `projects` group). */
 export interface EnvironmentView {
   readonly environment: Environment;
   readonly isThisConsole: boolean;
@@ -53,7 +44,6 @@ export interface EnvironmentViewInput {
   readonly environment: Environment;
   /** This console's environment, or null while it is not known. */
   readonly thisEnvironment: Environment | null;
-  readonly projectSlugs: readonly string[];
   readonly snapshot: EnvironmentStatusDto | null;
 }
 
@@ -79,52 +69,21 @@ function sorted(rows: readonly RowView[]): RowView[] {
     .map(({ view }) => view);
 }
 
-function hasProjectItems(environment: Environment): boolean {
-  return ENVIRONMENT_MANIFEST.items.some(
-    (item) => item.pattern === true && item.environments.includes(environment),
-  );
-}
-
 /** A row counts toward the summary only when it is missing and the console needs it. */
 export function isCountedMissing(view: RowView): boolean {
   return view.status === 'missing' && view.row.item.optional !== true;
 }
 
 export function environmentViewOf(input: EnvironmentViewInput): EnvironmentView {
-  const all = environmentRowsOf(input.environment, input.projectSlugs).map((row): RowView => ({
-    row,
-    status: statusOf(row, input),
-  }));
+  const all = consoleRowsOf(input.environment).map((row): RowView => ({ row, status: statusOf(row, input) }));
   const groups: GroupView[] = [];
   for (const group of ENVIRONMENT_GROUPS) {
     const inGroup = all.filter((view) => view.row.group === group);
-    if (group === 'projects') {
-      if (!hasProjectItems(input.environment)) {
-        continue;
-      }
-      const slugs = [...new Set(inGroup.map((view) => view.row.project ?? ''))].filter((slug) => slug !== '');
-      groups.push({
-        group,
-        rows: [],
-        projects: slugs.map((slug) => {
-          const rows = sorted(inGroup.filter((view) => view.row.project === slug));
-          return {
-            slug,
-            rows,
-            set: rows.filter((view) => view.status === 'set').length,
-            total: rows.length,
-            hasMissing: rows.some((view) => view.status === 'missing'),
-          };
-        }),
-      });
-    } else if (inGroup.length > 0) {
-      groups.push({ group, rows: sorted(inGroup), projects: [] });
+    if (inGroup.length > 0) {
+      groups.push({ group, rows: sorted(inGroup) });
     }
   }
-  const ordered = groups.flatMap((group) => [
-    ...group.rows,
-    ...group.projects.flatMap((block) => block.rows),
-  ]);
+  const ordered = groups.flatMap((group) => group.rows);
   return {
     environment: input.environment,
     isThisConsole: input.thisEnvironment === input.environment,
@@ -136,16 +95,71 @@ export function environmentViewOf(input: EnvironmentViewInput): EnvironmentView 
   };
 }
 
-/** The project slugs a status answer covers (`project/<slug>/<NAME>` ids). */
-export function projectSlugsOf(snapshot: EnvironmentStatusDto | null): string[] {
-  const slugs = new Set<string>();
-  for (const item of snapshot?.items ?? []) {
-    const [place, slug] = item.id.split('/');
-    if (place === 'project' && slug !== undefined) {
-      slugs.add(slug);
+/** One environment's section of a project's screen (#750 UX spec §4). */
+export interface ProjectSectionView {
+  readonly environment: Environment;
+  readonly isThisConsole: boolean;
+  /** In manifest order; required rows are the only ones the summary counts. */
+  readonly required: readonly RowView[];
+  /** Each slot's token and routine together; never counted, never a warning. */
+  readonly optional: readonly RowView[];
+  readonly missing: number;
+  readonly optionalMissing: number;
+  readonly firstMissing: RowView | null;
+}
+
+export interface ProjectEnvironmentView {
+  /** Only the environments that have rows for the project: this console's first, then dev → stage → production. */
+  readonly sections: readonly ProjectSectionView[];
+  /** The environments with nothing to set, for the one quiet line, in the same order. */
+  readonly quiet: readonly Environment[];
+  readonly rows: readonly RowView[];
+}
+
+export interface ProjectEnvironmentViewInput {
+  readonly slug: string;
+  readonly thisEnvironment: Environment | null;
+  readonly snapshot: EnvironmentStatusDto | null;
+}
+
+/** The deployed environments in their order, then the owner's computer (the #104 tab order). */
+const SECTION_ORDER: readonly Environment[] = ['dev', 'stage', 'production', 'local'];
+
+export function projectEnvironmentViewOf(input: ProjectEnvironmentViewInput): ProjectEnvironmentView {
+  const thisEnvironment = input.thisEnvironment;
+  const order =
+    thisEnvironment === null
+      ? SECTION_ORDER
+      : [thisEnvironment, ...SECTION_ORDER.filter((environment) => environment !== thisEnvironment)];
+  const sections: ProjectSectionView[] = [];
+  const quiet: Environment[] = [];
+  for (const environment of order) {
+    const context: EnvironmentViewInput = { environment, thisEnvironment, snapshot: input.snapshot };
+    const rows = projectRowsOf(environment, input.slug).map((row): RowView => ({
+      row,
+      status: statusOf(row, context),
+    }));
+    if (rows.length === 0) {
+      quiet.push(environment);
+      continue;
     }
+    const required = rows.filter((view) => view.row.item.optional !== true);
+    const optional = rows.filter((view) => view.row.item.optional === true);
+    sections.push({
+      environment,
+      isThisConsole: environment === thisEnvironment,
+      required,
+      optional,
+      missing: required.filter(isCountedMissing).length,
+      optionalMissing: optional.filter((view) => view.status === 'missing').length,
+      firstMissing: required.find(isCountedMissing) ?? null,
+    });
   }
-  return [...slugs];
+  return {
+    sections,
+    quiet: SECTION_ORDER.filter((environment) => quiet.includes(environment)),
+    rows: sections.flatMap((section) => [...section.required, ...section.optional]),
+  };
 }
 
 /** Who provides the value, for the guide's meta line. */

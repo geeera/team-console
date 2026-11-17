@@ -61,7 +61,11 @@
           [copiedLabel]="'settings.common.copied' | transloco"
           [failedNote]="'settings.common.copyFailed' | transloco"
         />
-        }
+        @if (context().environmentRoute; as environmentRoute) {
+        <a class="step__link" data-testid="step-environment-link" [routerLink]="environmentRoute">
+          {{ 'settings.step.routine.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
+        </a>
+        } }
       </div>
       }
     </div>
