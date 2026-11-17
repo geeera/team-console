@@ -1,6 +1,5 @@
 import { actionsSetupBranchOf, renderRunnerWorkflow, type RunnerWorkflowRendering } from '@shared/actions-workflow';
 import {
-  ACTIONS_ENVIRONMENT,
   blockingItemsOf,
   isGitHubUiUrl,
   type ActionsSetupDto,
@@ -10,7 +9,7 @@ import {
   type ActionsSetupStatus,
 } from '@shared/contracts';
 import type { Logger } from '@worker/core';
-import { ProjectDispatchRepo, type ProjectRow } from '@worker/db';
+import { ProjectDispatchRepo, type ActionsReadinessTarget, type ProjectRow } from '@worker/db';
 import {
   ACTIONS_DISPATCH_PERMISSIONS,
   ENVIRONMENT_READ_PERMISSIONS,
@@ -67,7 +66,6 @@ export type ReadinessOutcome =
       /** GitHub's `default_branch`, when the repository was read; the switch records it. */
       readonly defaultBranch: string | null;
     }
-  | { readonly kind: 'not-found' }
   | { readonly kind: 'repository-unverified'; readonly detail: string }
   | { readonly kind: 'console-misconfigured'; readonly reason: string };
 
@@ -271,11 +269,20 @@ function answer(
   return { dispatch, accessSource, ready: blockingItemsOf(ordered).length === 0, checkedAt, items: ordered };
 }
 
-export async function checkActionsReadiness(deps: ReadinessDeps, row: ProjectRow): Promise<ReadinessOutcome> {
-  const target = await new ProjectDispatchRepo(deps.env.DB).readinessTargetOf(row.slug);
-  if (target === null) {
-    return { kind: 'not-found' };
-  }
+/** The project's readiness inputs, in one D1 read; `null` when the row is gone. */
+export async function readinessTargetOf(deps: Pick<ReadinessDeps, 'env'>, row: ProjectRow): Promise<ActionsReadinessTarget | null> {
+  return new ProjectDispatchRepo(deps.env.DB).readinessTargetOf(row.slug);
+}
+
+/**
+ * `target` is `readinessTargetOf(row)`, read by the caller in the same request: the switch judges the access source
+ * from it before any GitHub call or render, so a subscription project keeps its own refusal on every console.
+ */
+export async function checkActionsReadiness(
+  deps: ReadinessDeps,
+  row: ProjectRow,
+  target: ActionsReadinessTarget,
+): Promise<ReadinessOutcome> {
   const consoleOrigin = deps.env.CONSOLE_PUBLIC_ORIGIN ?? '';
   const rendered = await renderRunnerWorkflow({ consoleOrigin, environment: deps.env.ENVIRONMENT });
   if (!rendered.ok) {
@@ -376,6 +383,3 @@ export async function checkActionsReadiness(deps: ReadinessDeps, row: ProjectRow
   });
   return { kind: 'checked', setup, defaultBranch: repository.defaultBranch };
 }
-
-/** The Environment's fixed name, for the specs that build its GitHub paths. */
-export const READINESS_ENVIRONMENT = ACTIONS_ENVIRONMENT;

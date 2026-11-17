@@ -733,10 +733,6 @@ class MockGitHubServer {
   }
 
   /**
-   * `GET /app/installations`: one entry per installation id in the fixtures, its account the owner of the first
-   * repository on it that names one. An installation whose fixtures name no owner is not listed.
-   */
-  /**
    * `GET /app/installations/{id}`: the first fixture repository on the installation names what was accepted —
    * the read set always, `actions: write`, `environments: read` and the setup write set by its flags.
    */
@@ -766,6 +762,10 @@ class MockGitHubServer {
     });
   }
 
+  /**
+   * `GET /app/installations`: one entry per installation id in the fixtures, its account the owner of the first
+   * repository on it that names one. An installation whose fixtures name no owner is not listed.
+   */
   private installations(): { id: number; account: { id: number; login: string; type: 'User' } }[] {
     const accounts = new Map<number, { id: number; login: string }>();
     for (const fixture of Object.values(this.fixtures.repositories)) {

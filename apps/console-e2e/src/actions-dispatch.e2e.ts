@@ -4,15 +4,20 @@ import { expect, expectAccessible, requireLocalStack, test } from './support/fix
 import { ru } from './support/i18n';
 import { claimStatus, enrolRunner } from './support/runner';
 import { apiClient, seed } from './support/stack';
-import { switchToConsoleTracker } from './support/tracker-seed';
+import { localD1, switchToConsoleTracker } from './support/tracker-seed';
 
 /**
- * GitHub Actions dispatch (#670) end to end on the local stack: the owner switches a project to «На GitHub Actions»
- * in Settings › Runners, told plainly that the Actions minutes are their own spend; a subscription project is refused
- * with the reason; Run now on an Actions project is dispatched through the mock GitHub app (`actions: write` granted
- * on geeera/team-console, not on geeera/private-product), and a missing permission fails the job as
- * `dispatch-failed: permission missing`. A pinned placement is kept across the switch and picks the runner of the
- * project's local-only jobs (#728). The phone layout is checked for overflow.
+ * GitHub Actions dispatch (#670) end to end on the local stack: Settings › Runners tells the owner plainly that the
+ * Actions minutes are their own spend; a subscription project is refused with the reason; Run now on an Actions
+ * project is dispatched through the mock GitHub app (`actions: write` granted on geeera/team-console, not on
+ * geeera/private-product), and a missing permission fails the job as `dispatch-failed: permission missing`. A pinned
+ * placement is kept on an Actions project and picks the runner of its local-only jobs (#728). The phone layout is
+ * checked for overflow.
+ *
+ * #759 PR 3: the switch to `actions` now runs the readiness check, and the local stack is never ready (it is served on
+ * localhost, not on the `CONSOLE_PUBLIC_ORIGIN` its rendered workflow names), so the switch is refused here and an
+ * Actions project is seeded in D1 as a ready switch would leave it. The server-side switch is covered by
+ * `apps/api/src/actions/dispatch.spec.ts` and `apps/api/src/routes/actions-readiness.spec.ts`.
  */
 
 const ACTIONS_PROJECT = 'team-console';
@@ -25,6 +30,11 @@ async function useApiKey(api: APIRequestContext, slug: string): Promise<void> {
     headers: { 'If-Match': '"0"' },
   });
   expect(response.status(), await response.text()).toBe(200);
+}
+
+/** The project as a switch made while its repository was ready leaves it; the mock names `dev` its default branch. */
+async function seedOnActions(workerIndex: number, slug: string): Promise<void> {
+  await localD1(workerIndex, `UPDATE projects SET dispatch = 'actions', default_branch = 'dev' WHERE slug = '${slug}'`);
 }
 
 async function runNow(api: APIRequestContext, slug: string): Promise<JobDto> {
@@ -54,7 +64,10 @@ test.beforeEach(async ({ stack }, testInfo) => {
   await switchToConsoleTracker(testInfo.workerIndex, NO_PERMISSION_PROJECT, 'PP');
 });
 
-test('the owner switches a project to GitHub Actions, and Run now is dispatched to its workflow', async ({ page, stack }) => {
+test('the local stack refuses the switch as not ready; an Actions project shows its branch, and Run now is dispatched', async ({
+  page,
+  stack,
+}, testInfo) => {
   const api = await apiClient(stack);
   try {
     await useApiKey(api, ACTIONS_PROJECT);
@@ -70,11 +83,17 @@ test('the owner switches a project to GitHub Actions, and Run now is dispatched 
     );
     await expectAccessible(page, 'Settings › Runners, dispatch on pull');
 
+    // The readiness check runs inside the switch (#759): on this stack it never passes, so nothing changes.
     await actions.check();
     await editor.getByTestId('project-dispatch-save').click();
-    await expect(editor.getByTestId('project-dispatch-saved')).toHaveText(ru('runners.dispatch.saved'));
-    // The default branch comes from GitHub (the mock's fixture), never from the form.
-    await expect(editor.getByTestId('project-dispatch-branch')).toHaveText(ru('runners.dispatch.branch', { branch: 'dev' }));
+    await expect(editor.getByTestId('project-dispatch-error')).toBeVisible();
+    const refused = await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`);
+    expect(((await refused.json()) as ProjectDispatchDto).dispatch).toBe('pull');
+
+    await seedOnActions(testInfo.workerIndex, ACTIONS_PROJECT);
+    const onActions = await openDispatch(page, ACTIONS_PROJECT);
+    await expect(onActions.getByRole('radio', { name: ru('runners.dispatch.actions') })).toBeChecked();
+    await expect(onActions.getByTestId('project-dispatch-branch')).toHaveText(ru('runners.dispatch.branch', { branch: 'dev' }));
     await expectAccessible(page, 'Settings › Runners, dispatch on GitHub Actions');
 
     const stored = await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`);
@@ -94,7 +113,7 @@ test('the owner switches a project to GitHub Actions, and Run now is dispatched 
 test('a subscription project is refused with the reason, and a missing actions permission fails the job', async ({
   page,
   stack,
-}) => {
+}, testInfo) => {
   const api = await apiClient(stack);
   try {
     await page.setViewportSize({ width: 1280, height: 1000 });
@@ -112,10 +131,10 @@ test('a subscription project is refused with the reason, and a missing actions p
     const unchanged = await api.get(`/api/v1/projects/${NO_PERMISSION_PROJECT}/dispatch`);
     expect(((await unchanged.json()) as ProjectDispatchDto).dispatch).toBe('pull');
 
-    // On an API key the switch holds; the mock app has no `actions: write` on this repository.
+    // On an API key, as a ready switch left it; the mock app has no `actions: write` on this repository (the
+    // permission went away after the switch, which the dispatch still judges on its own).
     await useApiKey(api, NO_PERMISSION_PROJECT);
-    await editor.getByTestId('project-dispatch-save').click();
-    await expect(editor.getByTestId('project-dispatch-saved')).toHaveText(ru('runners.dispatch.saved'));
+    await seedOnActions(testInfo.workerIndex, NO_PERMISSION_PROJECT);
     const job = await runNow(api, NO_PERMISSION_PROJECT);
     expect(job.state).toBe('failed');
     expect(job.result).toEqual({
@@ -131,14 +150,14 @@ test('a subscription project is refused with the reason, and a missing actions p
 test('a pinned placement stays when the project goes to GitHub Actions, and picks the runner of its local-only jobs (#728)', async ({
   page,
   stack,
-}) => {
+}, testInfo) => {
   const api = await apiClient(stack);
   try {
     await useApiKey(api, ACTIONS_PROJECT);
     const mac = await enrolRunner(api, ACTIONS_PROJECT);
     const other = await enrolRunner(api, ACTIONS_PROJECT);
     await page.setViewportSize({ width: 1280, height: 1000 });
-    const editor = await openDispatch(page, ACTIONS_PROJECT);
+    await openDispatch(page, ACTIONS_PROJECT);
 
     // The project's own placement: pinned to one of the account's two runners.
     const placement = page.getByTestId('runners-policy-project');
@@ -148,15 +167,12 @@ test('a pinned placement stays when the project goes to GitHub Actions, and pick
     await placement.getByTestId('runner-policy-save').click();
     await expect(placement.getByTestId('runner-policy-saved')).toHaveText(ru('runners.policy.saved'));
 
-    // The switch to Actions is taken with the pin in place: no refusal, and the pin is kept.
-    const actions = editor.getByRole('radio', { name: ru('runners.dispatch.actions') });
-    await expect(actions).toHaveAccessibleDescription(
-      `${ru('runners.dispatch.actionsHint')} ${ru('runners.dispatch.minutes')}`,
-    );
-    await actions.check();
-    await editor.getByTestId('project-dispatch-save').click();
-    await expect(editor.getByTestId('project-dispatch-saved')).toHaveText(ru('runners.dispatch.saved'));
-    await expect(editor.getByRole('alert')).toHaveCount(0);
+    // On Actions with the pin in place (the server keeps it across the switch: dispatch.spec, #728).
+    await seedOnActions(testInfo.workerIndex, ACTIONS_PROJECT);
+    const onActions = await openDispatch(page, ACTIONS_PROJECT);
+    await expect(onActions.getByRole('radio', { name: ru('runners.dispatch.actions') })).toBeChecked();
+    await expect(onActions.getByRole('alert')).toHaveCount(0);
+    await expect(page.getByTestId('runners-policy-project').getByTestId('policy-mode-pinned')).toBeChecked();
     await expectAccessible(page, 'Settings › Runners, pinned placement on a GitHub Actions project');
 
     const dispatch = (await (await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`)).json()) as ProjectDispatchDto;
@@ -179,18 +195,18 @@ test('a pinned placement stays when the project goes to GitHub Actions, and pick
   }
 });
 
-test('the dispatch switch fits the phone', async ({ page, stack }) => {
+test('the dispatch switch fits the phone', async ({ page, stack }, testInfo) => {
   const api = await apiClient(stack);
   try {
     await useApiKey(api, ACTIONS_PROJECT);
   } finally {
     await api.dispose();
   }
+  await seedOnActions(testInfo.workerIndex, ACTIONS_PROJECT);
   await page.setViewportSize({ width: 375, height: 812 });
   const editor = await openDispatch(page, ACTIONS_PROJECT);
-  await editor.getByRole('radio', { name: ru('runners.dispatch.actions') }).check();
-  await editor.getByTestId('project-dispatch-save').click();
-  await expect(editor.getByTestId('project-dispatch-saved')).toHaveText(ru('runners.dispatch.saved'));
+  await expect(editor.getByRole('radio', { name: ru('runners.dispatch.actions') })).toBeChecked();
+  await expect(editor.getByTestId('project-dispatch-branch')).toHaveText(ru('runners.dispatch.branch', { branch: 'dev' }));
   await editor.scrollIntoViewIfNeeded();
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   const box = await editor.getByTestId('project-dispatch-save').boundingBox();

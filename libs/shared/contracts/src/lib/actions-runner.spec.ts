@@ -1,8 +1,14 @@
 import {
+  ACTIONS_SETUP_ITEMS,
   actionsRunIdOf,
   actionsRunnerNameOf,
+  blockingItemsOf,
   checkOidcExchangeInput,
+  isActionsSetupDto,
   isActionsWorkflowDto,
+  isGitHubUiUrl,
+  type ActionsSetupDto,
+  type ActionsSetupItemDto,
   isOidcExchangeResponse,
   isProjectDispatch,
 } from './actions-runner';
@@ -75,6 +81,68 @@ describe('isActionsWorkflowDto (#759)', () => {
     expect(isActionsWorkflowDto({ ...dto, version: 'latest' })).toBe(false);
     expect(isActionsWorkflowDto({ ...dto, consoleUrl: 'https://x.example' })).toBe(false);
     expect(isActionsWorkflowDto(null)).toBe(false);
+  });
+});
+
+describe('the Actions readiness answer (#759 PR 3)', () => {
+  const okItems = (): ActionsSetupItemDto[] => ACTIONS_SETUP_ITEMS.map((id) => ({ id, status: 'ok' as const }));
+  const ready: ActionsSetupDto = {
+    dispatch: 'pull',
+    accessSource: 'api_key',
+    ready: true,
+    checkedAt: '2026-11-18T00:00:00.000Z',
+    items: okItems(),
+  };
+  const withItem = (item: Record<string, unknown>): Record<string, unknown> => ({
+    ...ready,
+    ready: false,
+    items: ready.items.map((entry) => (entry.id === item['id'] ? item : entry)),
+  });
+
+  it('accepts the exact key set, every item once, in the page’s order', () => {
+    expect(isActionsSetupDto(ready)).toBe(true);
+    expect(isActionsSetupDto({ ...ready, items: [...ready.items].reverse() })).toBe(false);
+    expect(isActionsSetupDto({ ...ready, items: ready.items.slice(1) })).toBe(false);
+    expect(isActionsSetupDto({ ...ready, secretNames: ['OTHER'] })).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'ok', updatedAt: '2026-11-01' }))).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'protection-rules', status: 'wrong', reviewers: ['someone'] }))).toBe(false);
+    expect(isActionsSetupDto({ ...ready, checkedAt: 'yesterday' })).toBe(false);
+  });
+
+  it('refuses a ready flag that disagrees with the items', () => {
+    expect(isActionsSetupDto({ ...ready, ready: false })).toBe(false);
+    expect(isActionsSetupDto({ ...withItem({ id: 'secret', status: 'unknown' }), ready: true })).toBe(false);
+  });
+
+  it('takes links and PRs only on GitHub’s own UI, a PR only on the workflow item', () => {
+    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: 'https://github.com/acme/x/settings/environments' }))).toBe(true);
+    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: 'https://evil.example.com/' }))).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: '/settings/projects/x/actions' }))).toBe(false);
+    const pr = { number: 3, url: 'https://github.com/acme/x/pull/3', provenance: 'console' };
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr }))).toBe(true);
+    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', pr }))).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, url: 'https://evil.example.com/3' } }))).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, provenance: 'trusted' } }))).toBe(false);
+  });
+
+  it('counts unknown as blocking and protection rules as advisory', () => {
+    const items = okItems().map((entry): ActionsSetupItemDto =>
+      entry.id === 'secret' ? { ...entry, status: 'unknown' } : entry.id === 'protection-rules' ? { ...entry, status: 'wrong' } : entry,
+    );
+    expect(blockingItemsOf(items)).toEqual(['secret']);
+    expect(blockingItemsOf(okItems())).toEqual([]);
+  });
+
+  it.each([
+    ['https://github.com/acme/x', true],
+    ['https://github.com.evil.example/x', false],
+    ['http://github.com/acme/x', false],
+    ['https://github.com/acme/x"onmouseover=', false],
+    ['https://github.com/acme/<x>', false],
+    ['https://github.com/acme/x y', false],
+    [42, false],
+  ])('isGitHubUiUrl(%j) is %s', (value, expected) => {
+    expect(isGitHubUiUrl(value)).toBe(expected);
   });
 });
 

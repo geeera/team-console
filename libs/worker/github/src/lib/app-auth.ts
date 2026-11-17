@@ -508,11 +508,11 @@ export class GitHubAppAuth {
       throw mapGitHubResponse(response, this.now());
     }
     const body = await readGitHubJson(response);
-    const permissions = installationPermissionsOf(body, installationId);
-    if (permissions === null) {
+    const granted = installationPermissionsOf(body, installationId);
+    if (granted === null) {
       throw githubUnexpectedError('GitHub returned an installation of an unexpected shape', response.status);
     }
-    return permissions;
+    return granted;
   }
 
   /** Read-only token source for one repository, for `new GitHubClient(fetch, source)`. */
@@ -604,13 +604,16 @@ export class GitHubAppAuth {
   }
 
   /**
-   * A token for one repository with exactly the permissions of `kind` (#670, #759), never cached. The caller passes
-   * it to `revokeScoped` in `finally`.
-   * - `kind` must be an own key of `SCOPED_MINT_PERMISSIONS` (a TypeError otherwise, before anything is audited).
+   * A token for one repository with exactly the permissions of `kind` (#670, #759), never cached, stored or logged.
+   * The caller passes it to `revokeScoped` in `finally`.
+   * - `kind` is a string literal at the call site, from a module `scoped-mint-kinds.spec.ts` allows for that kind; at
+   *   run time it must be an own key of `SCOPED_MINT_PERMISSIONS` (a TypeError otherwise, before anything is audited).
    * - `target` is the project row's installation and repository ids, never request input.
-   * - GitHub's answer is judged like `mintForRepo`'s; a wider or other scope is revoked and refused.
-   * - Errors: 503 `github-write-disabled` for `workflow-pr` while the kill switch is off; 502 `github-unexpected`
-   *   (GitHub status 422) when the installation lacks the permission.
+   * - GitHub's answer is judged like `mintForRepo`'s; a wider or other scope is revoked and refused (502, GitHub's
+   *   2xx status).
+   * - Errors: 503 `github-write-disabled` for `workflow-pr` while the kill switch is off; a `GitHubError` with
+   *   `githubStatus` 422 when the installer has not accepted the permission (the readiness check reads that as
+   *   `unknown`, never ok); GitHub's other failures as `mapGitHubResponse` maps them.
    * - `audit` hears `attempted` before the request, then `minted` or `failed`.
    */
   async mintScoped<K extends ScopedMintKind>(

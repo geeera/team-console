@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import {
+  ACTIONS_NOT_READY,
   OWNER_ACCOUNT_ID,
   TEAM_CONFIG_SCHEMA,
   isProblemDetails,
@@ -35,10 +36,13 @@ import {
   type StubGitHub,
 } from '../testing/github-kit';
 import { seedTrackerProject } from '../testing/tracker-kit';
+import { SETUP_ORIGIN, answerSetupRead, readyWorld, renderingFor, type SetupWorld } from '../testing/actions-setup-kit';
+import type { RunnerWorkflowRendering } from '@shared/actions-workflow';
 import { sweepQueue } from './sweep';
 
 // #670 (#573 sub-issue 3): the owner's switch to GitHub Actions and the console's `workflow_dispatch` per job, with
-// #695 item 4 (the default branch comes from GitHub) and #706 (no Actions path for a subscription project).
+// #695 item 4 (the default branch comes from GitHub), #706 (no Actions path for a subscription project) and #759 PR 3
+// (the switch runs the readiness check and refuses `actions-not-ready`). The scripted GitHub starts ready.
 
 /** An installation whose mint the scripted GitHub answers itself (stubGitHub mints for INSTALLATION_ID only). */
 const SCRIPTED_INSTALLATION = 778;
@@ -63,6 +67,8 @@ interface World {
   readonly runs: string[];
   /** What `DELETE /installation/token` answers (#723 item 1). */
   revoke: () => Response;
+  /** #759: what the readiness check reads at the switch; ready unless a case breaks it. */
+  readonly setup: SetupWorld;
 }
 
 /** GitHub's answer to a dispatch that asked for the run: a run id no other dispatch got, kept in `runs`. */
@@ -91,7 +97,10 @@ async function linkInstallation(accountId: string, installationId: number): Prom
     .run();
 }
 
+let rendering: RunnerWorkflowRendering;
+
 beforeAll(async () => {
+  rendering = await renderingFor();
   await env.DB.prepare(
     `INSERT INTO accounts (id, slug, name, created_at) SELECT ?1, 'ds-b', 'B', '2026-11-01T00:00:00.000Z'
      WHERE NOT EXISTS (SELECT 1 FROM accounts WHERE id = ?1)`,
@@ -128,7 +137,9 @@ async function seedProject(
     runs: [],
     dispatch: () => runStarted(world.runs),
     revoke: () => new Response(null, { status: 204 }),
+    setup: { ...readyWorld(row.repo_id, rendering), defaultBranch: 'trunk', branchPolicies: [{ id: 1, name: 'trunk', type: 'branch' }] },
   };
+  world.setup.installationId = options.installationId ?? INSTALLATION_ID;
   const stub = stubGitHub((call) => {
     if (call.method === 'GET' && call.url.pathname === `/repos/${row.repo}`) {
       return world.repoId === null
@@ -144,7 +155,7 @@ async function seedProject(
     if (call.method === 'DELETE' && call.url.pathname === '/installation/token') {
       return world.revoke();
     }
-    return json(404, { message: 'Not Found' });
+    return answerSetupRead(world.setup, row.repo, rendering, call) ?? json(404, { message: 'Not Found' });
   });
   return { slug, repo: row.repo, repoId: row.repo_id, world, stub, github: new ApiGitHub({ fetch: stub.fetch }) };
 }
@@ -156,8 +167,10 @@ async function call(
   body?: unknown,
   logs?: string[],
 ): Promise<Response> {
-  return fetchApi(path, localEnv(), {
+  // Served on the configured origin, so the switch's readiness check renders the workflow (#759).
+  return fetchApi(path, localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }), {
     method,
+    origin: SETUP_ORIGIN,
     github: fixture.github,
     headers: method === 'GET' ? {} : { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -199,8 +212,25 @@ const revokes = (stub: StubGitHub): GitHubCall[] =>
 
 const dispatchCalls = (stub: StubGitHub): GitHubCall[] =>
   stub.calls.filter((entry) => entry.method === 'POST' && DISPATCHES.test(entry.url.pathname));
+/** The dispatch's mints; the switch's readiness check mints `environment-read` (#759), which is not one. */
 const actionsMints = (stub: StubGitHub): GitHubCall[] =>
-  stub.calls.filter((entry) => entry.url.pathname.endsWith('/access_tokens') && (entry.body ?? '').includes('repository_ids'));
+  stub.calls.filter(
+    (entry) =>
+      entry.url.pathname.endsWith('/access_tokens') &&
+      (entry.body ?? '').includes('repository_ids') &&
+      (entry.body ?? '').includes('"actions":"write"'),
+  );
+
+/**
+ * The project as a switch made while it was ready left it (#759): the readiness check would refuse the switch in
+ * these cases (the permission or the installation link went away later), and drift after the switch is what the
+ * dispatch must still judge on its own.
+ */
+async function alreadyOnActions(fixture: Fixture): Promise<void> {
+  await env.DB.prepare(`UPDATE projects SET dispatch = 'actions', default_branch = ?2 WHERE slug = ?1`)
+    .bind(fixture.slug, fixture.world.defaultBranch)
+    .run();
+}
 
 describe('PUT /api/v1/projects/:slug/dispatch', () => {
   it('switches to actions with the default branch GitHub names, audited as project.dispatch-changed', async () => {
@@ -310,6 +340,96 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
   });
 });
 
+describe('PUT …/dispatch {actions} runs the readiness check (#759 PR 3)', () => {
+  const dispatchRow = (slug: string) =>
+    env.DB.prepare(`SELECT dispatch, default_branch FROM projects WHERE slug = ?1`)
+      .bind(slug)
+      .first<{ dispatch: string; default_branch: string | null }>();
+  const switchAudits = async (slug: string): Promise<number> =>
+    (
+      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'project.dispatch-changed' AND target = ?1`)
+        .bind(slug)
+        .first<{ n: number }>()
+    )?.n ?? -1;
+
+  it('refuses 422 actions-not-ready with the blocking items in the page’s order; nothing written, nothing audited', async () => {
+    const fixture = await seedProject();
+    fixture.world.setup.environment = null;
+    fixture.world.setup.workflow = null;
+    const logs: string[] = [];
+    const response = await switchTo(fixture, 'actions', logs);
+    expect(response.status).toBe(422);
+    const body: unknown = await response.json();
+    expect(isProblemDetails(body) && problemSlugOf(body.type)).toBe(ACTIONS_NOT_READY);
+    expect((body as { field: string; items: string[] }).items).toEqual(['environment', 'branch-policy', 'secret', 'workflow']);
+    expect((body as { field: string }).field).toBe('dispatch');
+    expect(await dispatchRow(fixture.slug)).toEqual({ dispatch: 'pull', default_branch: null });
+    expect(await switchAudits(fixture.slug)).toBe(0);
+    expect(logs.join('\n')).toContain('"items":"environment,branch-policy,secret,workflow"');
+  });
+
+  it('holds the switch for permissions not accepted (unknown items), never treating them as ok', async () => {
+    const fixture = await seedProject();
+    fixture.world.setup.permissions = { metadata: 'read', contents: 'read', actions: 'write' };
+    const response = await switchTo(fixture, 'actions');
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { items: string[] }).items).toEqual([
+      'app-permissions',
+      'environment',
+      'branch-policy',
+      'secret',
+    ]);
+  });
+
+  it('lets an advisory item through: required reviewers do not hold the switch', async () => {
+    const fixture = await seedProject();
+    fixture.world.setup.environment = {
+      ...fixture.world.setup.environment,
+      protection_rules: [{ id: 9, type: 'required_reviewers', reviewers: [] }],
+    };
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+  });
+
+  it('refuses through an installation linked to another account with no token minted', async () => {
+    const fixture = await seedProject({ installationId: FOREIGN_INSTALLATION });
+    const response = await switchTo(fixture, 'actions');
+    expect(response.status).toBe(422);
+    expect(((await response.json()) as { items: string[] }).items).toContain('app-permissions');
+    expect(fixture.stub.calls.filter((entry) => entry.url.pathname.endsWith('/access_tokens'))).toEqual([]);
+  });
+
+  it('refuses a subscription project before any GitHub call (#706 keeps its own refusal)', async () => {
+    const fixture = await seedProject({ source: 'subscription' });
+    const response = await switchTo(fixture, 'actions');
+    expect(await problemSlug(response)).toBe('access-source-hosted');
+    expect(fixture.stub.calls).toEqual([]);
+  });
+
+  it('answers 503 console-origin-misconfigured on a console served elsewhere, and writes nothing', async () => {
+    const fixture = await seedProject();
+    const response = await fetchApi(`/api/v1/projects/${fixture.slug}/dispatch`, localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }), {
+      method: 'PUT',
+      origin: 'http://localhost:4200',
+      github: fixture.github,
+      headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dispatch: 'actions' }),
+    });
+    expect(response.status).toBe(503);
+    expect(await problemSlug(response)).toBe('console-origin-misconfigured');
+    expect(await dispatchRow(fixture.slug)).toEqual({ dispatch: 'pull', default_branch: null });
+    expect(fixture.stub.calls).toEqual([]);
+  });
+
+  it('never gates the switch back to pull, and calls no GitHub for it', async () => {
+    const fixture = await seedProject();
+    await alreadyOnActions(fixture);
+    fixture.world.setup.environment = null;
+    const response = await switchTo(fixture, 'pull');
+    expect(response.status).toBe(200);
+    expect(fixture.stub.calls).toEqual([]);
+  });
+});
+
 describe('placement on an Actions project applies to its pull jobs (#728)', () => {
   beforeEach(cancelJobsInFlight);
 
@@ -387,7 +507,7 @@ describe('enqueue of an Actions job', () => {
 
   it('fails the job as dispatch-failed: permission missing when the installation lacks actions: write', async () => {
     const fixture = await seedProject({ installationId: SCRIPTED_INSTALLATION });
-    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    await alreadyOnActions(fixture);
     const job = await runNow(fixture);
     expect(job.state).toBe('failed');
     expect(job.result).toEqual({ summary: 'dispatch-failed: permission missing', metrics: { reason: 'dispatch-failed' }, acted: false });
@@ -413,7 +533,7 @@ describe('enqueue of an Actions job', () => {
 
   it('refuses a token GitHub minted for another repository, revokes it and never dispatches with it', async () => {
     const fixture = await seedProject({ installationId: SCRIPTED_INSTALLATION });
-    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    await alreadyOnActions(fixture);
     fixture.world.scriptedMint = () =>
       json(201, {
         token: `${TOKEN_SENTINEL}wide`,
@@ -430,7 +550,7 @@ describe('enqueue of an Actions job', () => {
 
   it('refuses a token GitHub minted with more than actions: write', async () => {
     const fixture = await seedProject({ installationId: SCRIPTED_INSTALLATION });
-    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    await alreadyOnActions(fixture);
     fixture.world.scriptedMint = (mint) =>
       json(201, {
         token: `${TOKEN_SENTINEL}broad`,
@@ -469,7 +589,7 @@ describe('enqueue of an Actions job', () => {
 describe('two accounts', () => {
   it('never dispatches through an installation linked to another account, and asks GitHub for no token', async () => {
     const fixture = await seedProject({ installationId: FOREIGN_INSTALLATION });
-    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    await alreadyOnActions(fixture);
     fixture.stub.calls.length = 0;
     const job = await runNow(fixture);
     expect(job.state).toBe('failed');
@@ -840,6 +960,8 @@ describe('the dispatch token is revoked after its call (#723 item 1)', () => {
     const logs: string[] = [];
     const fixture = await seedProject();
     expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    // The switch's readiness token was revoked already; only the dispatch's revoke is judged here.
+    fixture.stub.calls.length = 0;
     fixture.world.revoke = () => json(500, { message: `oops ${TOKEN_SENTINEL}` });
     // GitHubAppAuth writes through its own logger (stdout), as for a refused mint's revoke (#317).
     const stdout = vi.spyOn(console, 'log').mockImplementation((line: unknown) => {

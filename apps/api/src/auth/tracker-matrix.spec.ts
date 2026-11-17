@@ -189,6 +189,13 @@ const ROWS: readonly Row[] = [
     expect: (who) => (who === 'owner' ? refused('console-origin-misconfigured', 503) : refused('owner-only')),
     admittedRead: refused('console-origin-misconfigured', 503),
   },
+  // #759 PR 3: the readiness check is the owner's (every call mints); a member is refused like a job. Admitted, the
+  // owner gets the same 503 as above on this stack, before any GitHub call.
+  {
+    route: `GET ${P}/:slug/actions-setup`,
+    setup: async (project) => ({ method: 'GET', path: `${P}/${project.slug}/actions-setup` }),
+    expect: (who) => (who === 'owner' ? refused('console-origin-misconfigured', 503) : refused('owner-only')),
+  },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
   reads(`GET ${P}/:slug/items/:key`, async (project) => (await item(project)).path),
   reads(`GET ${P}/:slug/items/:key/events`, async (project) => `${(await item(project)).path}/events`),
@@ -484,8 +491,9 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   // #670: the dispatch is the account's to read and the owner's to switch.
   `GET ${P}/:slug/dispatch`,
   `PUT ${P}/:slug/dispatch`,
-  // #759: the rendered runner workflow is the account's to read; no job needs it.
+  // #759: the rendered runner workflow is the account's to read; no job needs it. The readiness check is the owner's.
   `GET ${P}/:slug/actions-setup/workflow`,
+  `GET ${P}/:slug/actions-setup`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,
@@ -522,10 +530,13 @@ describe('the member actor is decided on every row', () => {
   const routes = Object.keys(TRACKER_MATRIX) as TrackerRoute[];
   const member = { kind: 'member', userId: '01M6YSNJ00000000000000VS01' } as const;
 
+  // #759 PR 3: the one read a member may not make, because each call mints a token at GitHub.
+  const ownerOnlyReads: ReadonlySet<string> = new Set([`GET ${P}/:slug/actions-setup`]);
+
   it.each(routes)('%s', (route) => {
     const rule = TRACKER_MATRIX[route];
-    const isRead = route.startsWith('GET ');
-    expect(rule.member, 'a member reads everything and writes nothing yet').toBe(isRead);
+    const isRead = route.startsWith('GET ') && !ownerOnlyReads.has(route);
+    expect(rule.member, 'a member reads everything but the owner-only reads, and writes nothing yet').toBe(isRead);
     expect(matrixRefusal(rule, member)).toBe(isRead ? null : rule.refusal);
   });
 
@@ -565,7 +576,7 @@ describe('the member actor is decided on every row', () => {
       const rule = TRACKER_MATRIX[row.route];
       await expectOutcome(
         memberResponse,
-        scenario.method === 'GET' ? (row.admittedRead ?? ok(200)) : refused(rule.refusal),
+        scenario.method === 'GET' && rule.member ? (row.admittedRead ?? ok(200)) : refused(rule.refusal),
         'member',
       );
       if (scenario.method !== 'GET') {
