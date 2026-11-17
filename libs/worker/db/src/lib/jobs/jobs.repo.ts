@@ -95,6 +95,11 @@ export interface ActionsTargetRecord {
   readonly repoId: number | null;
   readonly repo: string;
   readonly defaultBranch: string | null;
+  /**
+   * The workflow run the console's dispatch started for the job (#723 item 2): GitHub names it in its answer and the
+   * dispatch records it before any run can exchange. `null` before that; the exchange takes the job for no other run.
+   */
+  readonly dispatchedRunId: string | null;
 }
 
 /** The OIDC exchange's write (#668): an ephemeral runner for one job, and that job claimed for it. */
@@ -554,20 +559,36 @@ export class JobsRepo {
     const row = await this.db
       .prepare(
         `SELECT ${PREFIXED_COLUMNS}, p.repo_id AS project_repo_id, p.repo AS project_repo,
-           p.default_branch AS project_default_branch
+           p.default_branch AS project_default_branch, j.actions_run_id AS dispatched_run_id
          FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`,
       )
       .bind(jobId)
-      .first<JobRow & { project_repo_id: number | null; project_repo: string; project_default_branch: string | null }>();
+      .first<
+        JobRow & {
+          project_repo_id: number | null;
+          project_repo: string;
+          project_default_branch: string | null;
+          dispatched_run_id: string | null;
+        }
+      >();
     return row === null
       ? null
-      : { job: toRecord(row), repoId: row.project_repo_id, repo: row.project_repo, defaultBranch: row.project_default_branch };
+      : {
+          job: toRecord(row),
+          repoId: row.project_repo_id,
+          repo: row.project_repo,
+          defaultBranch: row.project_default_branch,
+          dispatchedRunId: row.dispatched_run_id,
+        };
   }
 
-  /** Whether a job was already exchanged to this workflow run (0031: one run, one job, once). */
+  /**
+   * Whether a job was already exchanged to this workflow run (0031: one run, one job, once). The run the dispatch
+   * recorded on a job not yet claimed is not seen: it is the one run that job waits for (#723).
+   */
   async isActionsRunSeen(runId: string): Promise<boolean> {
     const row = await this.db
-      .prepare(`SELECT 1 AS seen FROM jobs WHERE actions_run_id = ?1`)
+      .prepare(`SELECT 1 AS seen FROM jobs WHERE actions_run_id = ?1 AND claimed_at IS NOT NULL`)
       .bind(runId)
       .first<{ seen: number }>();
     return row !== null;
@@ -649,10 +670,37 @@ export class JobsRepo {
   }
 
   /**
-   * Fails a queued Actions job no runner holds (#670): its dispatch call failed (`dispatch-failed`) or no run came
-   * for it (`actions-no-show`). `summary` is one of the console's own phrases, never GitHub's text.
+   * The run GitHub started for a dispatched job (#723 item 2), from the dispatch call's answer: the exchange takes
+   * the job for this run alone, so a run started by hand with the same `job_id` input never claims it. Written once,
+   * only while the job is dispatched and still waits for its run; the job as written, or `null` when it no longer
+   * waits (cancelled or failed meanwhile) or the run is already another job's (0031's index).
    */
-  async failUndispatched(jobId: string, at: string, reason: string, summary: string): Promise<boolean> {
+  async recordDispatchedRun(jobId: string, runId: string): Promise<JobRecord | null> {
+    try {
+      const row = await this.db
+        .prepare(
+          `UPDATE jobs SET actions_run_id = ?2
+           WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND dispatched_at IS NOT NULL
+             AND runner_id IS NULL AND actions_run_id IS NULL
+           RETURNING ${COLUMNS}`,
+        )
+        .bind(jobId, runId)
+        .first<JobRow>();
+      return row === null ? null : toRecord(row);
+    } catch (error: unknown) {
+      if (isConstraintError(error, 'UNIQUE constraint failed: jobs.actions_run_id')) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Fails a queued Actions job no runner holds (#670): its dispatch call failed (`dispatch-failed`) or no run came
+   * for it (`actions-no-show`). `summary` is one of the console's own phrases, never GitHub's text. The job as
+   * failed, or `null` when it was no longer waiting.
+   */
+  async failUndispatched(jobId: string, at: string, reason: string, summary: string): Promise<JobRecord | null> {
     const result = JSON.stringify({ summary, metrics: { reason }, acted: false });
     const failed: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE id = ? AND state = 'failed' AND finished_at = ?`,
@@ -662,12 +710,14 @@ export class JobsRepo {
       this.db
         .prepare(
           `UPDATE jobs SET state = 'failed', finished_at = ?2, result = ?3
-           WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL`,
+           WHERE id = ?1 AND state = 'queued' AND dispatch = 'actions' AND runner_id IS NULL
+           RETURNING ${COLUMNS}`,
         )
         .bind(jobId, at, result),
       this.eventStatement(jobId, at, { level: 'error', kind: 'failed', payload: { reason, summary } }, failed),
     ]);
-    return update?.meta.changes === 1;
+    const row = (update?.results as JobRow[] | undefined)?.[0];
+    return row === undefined ? null : toRecord(row);
   }
 
   /**
@@ -688,7 +738,7 @@ export class JobsRepo {
       .all<{ id: string }>();
     const failed: string[] = [];
     for (const { id } of results) {
-      if (await this.failUndispatched(id, now, reason, reason)) {
+      if ((await this.failUndispatched(id, now, reason, reason)) !== null) {
         failed.push(id);
       }
     }
@@ -706,11 +756,13 @@ export class JobsRepo {
   async exchangeForActions(exchange: ActionsExchange): Promise<ActionsExchangeOutcome> {
     const from = ADMISSION_FROM;
     // #695: never a `needs_local` job (the owner's own machine only), and only one the console dispatched itself, so
-    // a hand-started run cannot take a queued job first. #706: the role admission of the pull claim, in this same
+    // a hand-started run cannot take a queued job first; #723: and only for the run that dispatch started, so a run
+    // started by hand for a job already dispatched cannot either. Actions jobs are never requeued, so `claimed_at`
+    // still NULL means no run has exchanged for it. #706: the role admission of the pull claim, in this same
     // statement, so two exchanges racing for two jobs of one role never both pass `max_parallel`. #684: the budget.
-    const claimable = (presets: string, top: string, now: string): string => `j.id = ?1 AND j.state = 'queued'
-      AND j.dispatch = 'actions' AND j.runner_id IS NULL AND j.actions_run_id IS NULL
-      AND j.needs_local = 0 AND j.dispatched_at IS NOT NULL
+    const claimable = (presets: string, top: string, now: string, runId: string): string => `j.id = ?1
+      AND j.state = 'queued' AND j.dispatch = 'actions' AND j.runner_id IS NULL AND j.claimed_at IS NULL
+      AND j.actions_run_id = ${runId} AND j.needs_local = 0 AND j.dispatched_at IS NOT NULL
       AND a.suspended_at IS NULL AND p.archived_at IS NULL AND t.paused_at IS NULL
       AND p.access_source = 'api_key'
       AND ${roleAdmittedSql(presets, top)}
@@ -731,7 +783,7 @@ export class JobsRepo {
                  version, enrolled_at, last_seen_at, last_seen_country, last_seen_ip_hash, seen_countries)
                SELECT ?2, j.account_id, ?3, ?4, ?5, '{"local":false,"maxConcurrency":1}', 'actions-ephemeral',
                  json_array(j.project_slug), ?6, ?7, ?7, ?8, ?9, CASE WHEN ?8 IS NULL THEN '[]' ELSE json_array(?8) END
-               ${from} WHERE ${claimable('?10', '?11', '?7')}`,
+               ${from} WHERE ${claimable('?10', '?11', '?7', '?12')}`,
             )
             .bind(
               exchange.jobId,
@@ -745,6 +797,7 @@ export class JobsRepo {
               exchange.ipHash,
               presets,
               top,
+              exchange.runId,
             ),
           exchange.enrolledAudit,
         ),
@@ -755,7 +808,7 @@ export class JobsRepo {
               `UPDATE jobs SET state = 'claimed', runner_id = ?2, claimed_at = ?3, lease_until = ?4, token_hash = ?5,
                  actions_run_id = ?6, attempt = attempt + 1,
                  team_config_revision = (SELECT revision FROM team_configs WHERE project_slug = jobs.project_slug)
-               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8', '?3')})
+               WHERE id = (SELECT j.id ${from} WHERE ${claimable('?7', '?8', '?3', '?6')})
                  AND EXISTS (
                    SELECT 1 FROM runners r WHERE r.id = ?2 AND r.account_id = jobs.account_id AND r.revoked_at IS NULL)`,
             )

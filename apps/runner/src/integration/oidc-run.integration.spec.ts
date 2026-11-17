@@ -89,14 +89,15 @@ describe('integration: run-once --oidc against the local stack', () => {
   }
 
   let jobCounter = 0;
-  async function queueActionsJob(scenario: number): Promise<string> {
+  async function queueActionsJob(scenario: number, runId: string): Promise<string> {
     jobCounter += 1;
     const id = `01KA0000000000000000000J${String(jobCounter).padStart(2, '0')}`;
     // Straight into D1 as #668's harness does, standing in for the console's enqueue and dispatch (#670): the
-    // exchange takes only a job the console dispatched (`dispatched_at`, #695 item 3).
+    // exchange takes only a job the console dispatched (`dispatched_at`, #695 item 3), and only for the run that
+    // dispatch started (`actions_run_id`, the `workflow_run_id` GitHub answered, #723 item 2).
     const now = new Date().toISOString();
     await stack.d1(
-      `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, payload, max_minutes) VALUES ('${id}', '${OWNER_ACCOUNT_ID}', '${SLUG}', 'slot-dev', '${roleOfJobKind('slot-dev', null)}', 'owner', '${now}', 'actions', '${now}', '{"items":[${String(scenario)}]}', 5)`,
+      `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch, dispatched_at, actions_run_id, payload, max_minutes) VALUES ('${id}', '${OWNER_ACCOUNT_ID}', '${SLUG}', 'slot-dev', '${roleOfJobKind('slot-dev', null)}', 'owner', '${now}', 'actions', '${now}', '${runId}', '{"items":[${String(scenario)}]}', 5)`,
     );
     return id;
   }
@@ -156,7 +157,7 @@ describe('integration: run-once --oidc against the local stack', () => {
     // 1. A good run: the token for the console's audience, the exchange, the job, the finish.
     const runId = freshRunId();
     nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId, audience });
-    const okId = await queueActionsJob(SCENARIO.ok);
+    const okId = await queueActionsJob(SCENARIO.ok, runId);
     const ok = await cli(okId);
     expect(ok.err.filter((line) => line.includes('refused'))).toEqual([]);
     expect(ok.exit).toBe(EXIT_OK);
@@ -184,7 +185,7 @@ describe('integration: run-once --oidc against the local stack', () => {
     expect(runners.filter((name) => name.startsWith('actions:'))).toEqual([]);
 
     // 3. The same run's token again (a replay), for a second queued job: refused, plain message, non-zero.
-    const replayId = await queueActionsJob(SCENARIO.ok);
+    const replayId = await queueActionsJob(SCENARIO.ok, freshRunId());
     const replay = await cli(replayId);
     console.info(`[replay] exit ${String(replay.exit)}: ${replay.err.join(' | ')}`);
     expect(replay.exit).toBe(EXIT_FAILED);
@@ -214,7 +215,9 @@ describe('integration: run-once --oidc against the local stack', () => {
     expect(again.err.join('\n')).toMatch(/409 \(oidc-exchange-refused, claim job_id\)/);
 
     // 7. Sentinel: the CLI prints the inference key and other secret shapes; none reaches the console or an output.
-    const sentinelId = await queueActionsJob(SCENARIO.sentinel);
+    const sentinelRun = freshRunId();
+    nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId: sentinelRun, audience });
+    const sentinelId = await queueActionsJob(SCENARIO.sentinel, sentinelRun);
     const sentinel = await cli(sentinelId);
     expect(sentinel.exit).toBe(EXIT_OK);
     expect(sentinel.out).toEqual([sentinelId]);
@@ -268,7 +271,7 @@ describe('integration: run-once --oidc against the local stack', () => {
 
     const runId = freshRunId();
     nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId, audience });
-    const jobId = await queueActionsJob(SCENARIO.ok);
+    const jobId = await queueActionsJob(SCENARIO.ok, runId);
     const env: Record<string, string> = {
       ...actionsEnvOf({ consoleUrl: stack.origin, jobId, runnerTemp, idTokenUrl: tokens.url, serverUrl: git.origin, audience: AUDIENCE }),
       PATH: '/usr/bin:/bin',

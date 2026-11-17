@@ -1,3 +1,4 @@
+import type { Logger } from '@worker/core';
 import { dispatchRunnerWorkflow } from './actions-dispatch';
 import { GitHubAppAuth } from './app-auth';
 import { GitHubError } from './errors';
@@ -26,11 +27,12 @@ async function rejection(promise: Promise<unknown>): Promise<GitHubError> {
 describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
   let mock: MockGitHub;
   let auth: GitHubAppAuth;
+  let recordingFetch: FetchLike;
   const calls: { method: string; path: string; body: string | undefined }[] = [];
 
   beforeAll(async () => {
     mock = await createMockGitHub();
-    const recording: FetchLike = async (input, init) => {
+    recordingFetch = async (input, init) => {
       calls.push({
         method: init.method ?? 'GET',
         path: new URL(input).pathname,
@@ -38,7 +40,7 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
       });
       return mock.fetch(input, init);
     };
-    auth = new GitHubAppAuth(mock.credentials, { fetch: recording });
+    auth = new GitHubAppAuth(mock.credentials, { fetch: recordingFetch });
   });
 
   beforeEach(() => {
@@ -49,9 +51,32 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
     const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
     const mint = calls.find((call) => call.path.endsWith('/access_tokens'));
     expect(JSON.parse(mint?.body ?? '{}')).toEqual({ repository_ids: [TEAM_CONSOLE.id], permissions: { actions: 'write' } });
-    await expect(
-      dispatchRunnerWorkflow(mock.fetch, token, parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
-    ).resolves.toBeUndefined();
+    const runId = await dispatchRunnerWorkflow(
+      recordingFetch,
+      token,
+      parseRepoName(TEAM_CONSOLE.repo),
+      'dev',
+      '01M7K0DGZ2FKYQNH7RVHYQN6BS',
+    );
+    // #723 item 2: GitHub is asked to name the run it starts, and that run id is what the dispatch answers.
+    expect(runId).toMatch(/^[1-9][0-9]*$/);
+    const dispatch = calls.find((call) => call.path.endsWith('/dispatches'));
+    expect(JSON.parse(dispatch?.body ?? '{}')).toEqual({
+      ref: 'dev',
+      inputs: { job_id: '01M7K0DGZ2FKYQNH7RVHYQN6BS' },
+      return_run_details: true,
+    });
+  });
+
+  it.each([
+    ['204 without run details', () => new Response(null, { status: 204 })],
+    ['200 without a workflow_run_id', () => Response.json({ run_url: 'https://api.github.com/x' })],
+    ['200 with a run id that is no positive integer', () => Response.json({ workflow_run_id: '12' })],
+  ] as const)('refuses a dispatch answered %s with 502 github-unexpected', async (_label, answer) => {
+    const error = await rejection(
+      dispatchRunnerWorkflow(async () => answer(), 'ghs_x', parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+    );
+    expect(error.problem.type).toBe('github-unexpected');
   });
 
   it('never caches the dispatch token: every call mints anew', async () => {
@@ -78,5 +103,75 @@ describe('mintForActionsDispatch and dispatchRunnerWorkflow', () => {
       dispatchRunnerWorkflow(mock.fetch, read, parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
     );
     expect(readOnly.githubStatus).toBe(403);
+  });
+});
+
+describe('revokeActionsDispatchToken (#723 item 1)', () => {
+  interface LogEntry {
+    readonly level: string;
+    readonly message: string;
+    readonly fields: unknown;
+  }
+
+  function recordingLogger(): Logger & { readonly entries: LogEntry[] } {
+    const entries: LogEntry[] = [];
+    const log =
+      (level: string) =>
+      (message: string, fields?: unknown): void => {
+        entries.push({ level, message, fields });
+      };
+    return { entries, info: log('info'), warn: log('warn'), error: log('error') };
+  }
+
+  it('sends DELETE /installation/token with the token after its dispatch, so it no longer dispatches', async () => {
+    const mock = await createMockGitHub();
+    const calls: { method: string; path: string; authorization: string | null }[] = [];
+    const fetch: FetchLike = async (input, init) => {
+      calls.push({
+        method: init.method ?? 'GET',
+        path: new URL(input).pathname,
+        authorization: new Headers(init.headers).get('authorization'),
+      });
+      return mock.fetch(input, init);
+    };
+    const logger = recordingLogger();
+    const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
+    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
+    const repo = parseRepoName(TEAM_CONSOLE.repo);
+    await dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS');
+    await auth.revokeActionsDispatchToken(token, TEAM_CONSOLE.installation);
+
+    const [post, del] = calls.filter((call) => call.path.endsWith('/dispatches') || call.method === 'DELETE');
+    expect(post?.method).toBe('POST');
+    expect(del).toEqual({ method: 'DELETE', path: '/installation/token', authorization: `Bearer ${token}` });
+    expect(logger.entries).toEqual([]);
+    const reused = await rejection(dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'));
+    expect(reused.githubStatus).toBe(401);
+  });
+
+  it.each([
+    ['GitHub refuses it', async () => new Response(null, { status: 500 }), { githubStatus: 500 }],
+    [
+      'the request never reaches GitHub',
+      async () => {
+        throw new TypeError('network down');
+      },
+      { reason: 'github-unavailable' },
+    ],
+  ] as const)('only logs a failed revoke when %s, never the token, and never throws', async (_label, answer, logged) => {
+    const mock = await createMockGitHub();
+    const fetch: FetchLike = async (input, init) => (init.method === 'DELETE' ? answer() : mock.fetch(input, init));
+    const logger = recordingLogger();
+    const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
+    const token = await auth.mintForActionsDispatch(TEAM_CONSOLE.installation, TEAM_CONSOLE.id);
+    await expect(auth.revokeActionsDispatchToken(token, TEAM_CONSOLE.installation)).resolves.toBeUndefined();
+    expect(logger.entries).toEqual([
+      {
+        level: 'warn',
+        message: 'dispatch installation token not revoked',
+        fields: { installationId: TEAM_CONSOLE.installation, ...logged },
+      },
+    ]);
+    expect(JSON.stringify(logger.entries)).not.toContain(token);
   });
 });

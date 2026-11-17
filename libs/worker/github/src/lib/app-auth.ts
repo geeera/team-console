@@ -535,6 +535,15 @@ export class GitHubAppAuth {
     return minted.token;
   }
 
+  /**
+   * #723 item 1: best-effort `DELETE /installation/token` for a `mintForActionsDispatch` token once its one call is
+   * made, whatever the call answered, so it does not stay live at GitHub for the rest of its hour. Never throws: a
+   * failure is only logged, with GitHub's status or the error type, never the token.
+   */
+  async revokeActionsDispatchToken(token: string, installationId: number): Promise<void> {
+    await this.revoke(token, installationId, 'dispatch installation token not revoked');
+  }
+
   /** No `repositories` member — that is what makes it installation-wide — hence `metadata` and nothing else. */
   private async mintForInstallation(installationId: number): Promise<CachedToken> {
     return this.mint(installationId, { permissions: INSTALLATION_LIST_PERMISSIONS }, LIST_MINT);
@@ -562,17 +571,17 @@ export class GitHubAppAuth {
     }
     const refusedToken = mintedTokenOf(minted);
     if (refusedToken !== undefined) {
-      await this.revoke(refusedToken, installationId);
+      await this.revoke(refusedToken, installationId, 'refused installation token not revoked');
     }
     throw githubUnexpectedError(verdict.detail, response.status);
   }
 
   /**
-   * #317: best-effort `DELETE /installation/token` for a token the console refused, which would otherwise stay live
-   * at GitHub for up to an hour. A failure is only logged — with GitHub's status or the error type, never the
-   * token — and never replaces the refusal the caller is about to throw.
+   * #317: best-effort `DELETE /installation/token` for a token the console refused (or is done with, #723), which
+   * would otherwise stay live at GitHub for up to an hour. A failure is only logged — with GitHub's status or the
+   * error type, never the token — and never replaces the refusal the caller is about to throw.
    */
-  private async revoke(token: string, installationId: number): Promise<void> {
+  private async revoke(token: string, installationId: number, failure: string): Promise<void> {
     try {
       const response = await this.request({
         method: 'DELETE',
@@ -581,13 +590,13 @@ export class GitHubAppAuth {
       });
       await discardBody(response);
       if (!response.ok) {
-        this.logger.warn('refused installation token not revoked', {
+        this.logger.warn(failure, {
           installationId,
           githubStatus: response.status,
         });
       }
     } catch (error: unknown) {
-      this.logger.warn('refused installation token not revoked', {
+      this.logger.warn(failure, {
         installationId,
         reason: error instanceof GitHubError ? error.problem.type : 'unexpected-error',
       });

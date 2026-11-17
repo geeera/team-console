@@ -15,6 +15,7 @@ import {
   actionsToken,
   createTestIssuer,
   exchangeBodyOf,
+  dispatchedRunOf,
   nextRunId,
   postExchange,
   runClaimsOf,
@@ -82,7 +83,7 @@ async function exchange(
   change: (claims: Record<string, unknown>) => Record<string, unknown> = (claims) => claims,
   options: { logSink?: (line: string) => void; headers?: Record<string, string> } = {},
 ) {
-  const token = await actionsToken(issuer, change(runClaimsOf(project)));
+  const token = await actionsToken(issuer, change(runClaimsOf(project, dispatchedRunOf(jobId))));
   const request = await exchangeBodyOf(token, jobId);
   const response = await postExchange(request.body, issuer.bindings, options);
   return { response, token, ...request };
@@ -204,7 +205,12 @@ describe('the team configuration (ADR 0009 d.3, d.9; #687, #682)', () => {
 
     const { response } = await exchange(project, jobId);
     expect(await refusalOf(response)).toEqual(refusedFor(403, 'access_source'));
-    expect(await jobRow(jobId)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: null, token_hash: null });
+    expect(await jobRow(jobId)).toMatchObject({
+      state: 'queued',
+      runner_id: null,
+      actions_run_id: dispatchedRunOf(jobId),
+      token_hash: null,
+    });
     const runners = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = json_array(?1)`,
     )
@@ -218,7 +224,7 @@ describe('the token (jose against the issuer JWKS)', () => {
   it('accepts RS256 and refuses another algorithm under the issuer’s kid', async () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const claims = runClaimsOf(project);
+    const claims = runClaimsOf(project, dispatchedRunOf(jobId));
     for (const algorithm of ['ES256', 'EdDSA'] as const) {
       const { privateKey } = await generateKeyPair(algorithm, { extractable: true });
       const other = await actionsToken({ privateKey, kid: issuer.kid }, claims, { algorithm });
@@ -234,7 +240,7 @@ describe('the token (jose against the issuer JWKS)', () => {
     const jobId = await seedActionsJob(project);
     const { privateKey } = await generateKeyPair('RS256', { extractable: true });
     for (const kid of ['unknown-kid', issuer.kid]) {
-      const forged = await actionsToken({ privateKey, kid }, runClaimsOf(project));
+      const forged = await actionsToken({ privateKey, kid }, runClaimsOf(project, dispatchedRunOf(jobId)));
       const response = await postExchange((await exchangeBodyOf(forged, jobId)).body, issuer.bindings);
       expect(await refusalOf(response), kid).toEqual(refusedFor(401, 'token'));
     }
@@ -244,7 +250,7 @@ describe('the token (jose against the issuer JWKS)', () => {
   it('refuses an unsigned token and one that is not a JWT', async () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const unsigned = `${btoa(JSON.stringify({ alg: 'none' })).replace(/=+$/, '')}.${btoa(JSON.stringify(runClaimsOf(project))).replace(/=+$/, '')}.`;
+    const unsigned = `${btoa(JSON.stringify({ alg: 'none' })).replace(/=+$/, '')}.${btoa(JSON.stringify(runClaimsOf(project, dispatchedRunOf(jobId)))).replace(/=+$/, '')}.`;
     for (const token of [unsigned, 'not-a-jwt']) {
       const response = await postExchange((await exchangeBodyOf(token, jobId)).body, issuer.bindings);
       expect(await refusalOf(response)).toEqual(refusedFor(401, 'token'));
@@ -257,7 +263,7 @@ describe('the token (jose against the issuer JWKS)', () => {
   ] as const)('accepts the fixed %s and refuses another', async (claim, wrong) => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const claims = runClaimsOf(project);
+    const claims = runClaimsOf(project, dispatchedRunOf(jobId));
     const bad = await postExchange((await exchangeBodyOf(await actionsToken(issuer, claims, wrong), jobId)).body, issuer.bindings);
     expect(await refusalOf(bad)).toEqual(refusedFor(401, claim));
     const good = await postExchange((await exchangeBodyOf(await actionsToken(issuer, claims), jobId)).body, issuer.bindings);
@@ -267,7 +273,7 @@ describe('the token (jose against the issuer JWKS)', () => {
   it('refuses a token without an audience', async () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const token = await actionsToken(issuer, runClaimsOf(project), { omit: ['aud'] });
+    const token = await actionsToken(issuer, runClaimsOf(project, dispatchedRunOf(jobId)), { omit: ['aud'] });
     expect(await refusalOf(await postExchange((await exchangeBodyOf(token, jobId)).body, issuer.bindings))).toEqual(
       refusedFor(401, 'aud'),
     );
@@ -277,7 +283,7 @@ describe('the token (jose against the issuer JWKS)', () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
     const now = Math.floor(Date.now() / 1000);
-    const claims = runClaimsOf(project);
+    const claims = runClaimsOf(project, dispatchedRunOf(jobId));
     const stale = await actionsToken(issuer, claims, { issuedAt: now - 400, lifetimeSeconds: 340 });
     expect(await refusalOf(await postExchange((await exchangeBodyOf(stale, jobId)).body, issuer.bindings))).toEqual(
       refusedFor(401, 'exp'),
@@ -332,7 +338,7 @@ describe('each claim against the job’s project: one accepted value, one wrong 
     const jobId = await seedActionsJob(project);
     const refused = await exchange(project, jobId, (claims) => wrong(project, claims));
     expect(await refusalOf(refused.response)).toEqual(refusedFor(401, claim));
-    expect(await jobRow(jobId)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: null });
+    expect(await jobRow(jobId)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: dispatchedRunOf(jobId) });
 
     const accepted = await exchange(project, jobId);
     expect(accepted.response.status).toBe(200);
@@ -371,7 +377,7 @@ describe('one run, one job, once', () => {
     const project = await seedActionsProject();
     const first = await seedActionsJob(project);
     const second = await seedActionsJob(project);
-    const runId = nextRunId();
+    const runId = dispatchedRunOf(first);
     const token = await actionsToken(issuer, runClaimsOf(project, runId));
     expect((await postExchange((await exchangeBodyOf(token, first)).body, issuer.bindings)).status).toBe(200);
 
@@ -382,7 +388,7 @@ describe('one run, one job, once', () => {
       refusedFor(401, 'run_id'),
     );
     expect(await jobRow(second)).toMatchObject({ state: 'queued', runner_id: null });
-    // Accepted: a run never seen before takes the second job.
+    // Accepted: the run dispatched for the second job takes it.
     expect((await exchange(project, second)).response.status).toBe(200);
   });
 
@@ -390,8 +396,10 @@ describe('one run, one job, once', () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
     expect((await exchange(project, jobId)).response.status).toBe(200);
-    const second = await exchange(project, jobId);
-    expect(await refusalOf(second.response)).toEqual(refusedFor(409, 'job_id'));
+    // Another run, never seen, for the job its own run already claimed.
+    const token = await actionsToken(issuer, runClaimsOf(project, nextRunId()));
+    const second = await postExchange((await exchangeBodyOf(token, jobId)).body, issuer.bindings);
+    expect(await refusalOf(second)).toEqual(refusedFor(409, 'job_id'));
     const { results } = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = json_array(?1)`,
     )
@@ -400,11 +408,11 @@ describe('one run, one job, once', () => {
     expect(results[0]?.n).toBe(1);
   });
 
-  it('keeps the batch atomic when the run id is taken between the check and the write (0031 unique index)', async () => {
+  it('keeps the batch atomic when a run already exchanged for one job reaches the write for another', async () => {
     const project = await seedActionsProject();
     const first = await seedActionsJob(project);
     const second = await seedActionsJob(project);
-    const runId = nextRunId();
+    const runId = dispatchedRunOf(first);
     expect((await postExchange((await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, runId)), first)).body, issuer.bindings)).status).toBe(200);
     const key = await generateRunnerKey();
     const repo = new JobsRepo(env.DB);
@@ -426,9 +434,10 @@ describe('one run, one job, once', () => {
       enrolledAudit: { ...audit, kind: 'runner.enrolled' },
       claimedAudit: audit,
     });
-    expect(outcome).toEqual({ kind: 'run-seen' });
+    // #723: the second job waits for its own dispatched run, so neither write of the batch lands.
+    expect(outcome).toEqual({ kind: 'not-claimable' });
     expect(await runnerRow('01M6YSNJ0000000000000RACE1')).toBeNull();
-    expect(await jobRow(second)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: null });
+    expect(await jobRow(second)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: dispatchedRunOf(second) });
   });
 
   it.each([
