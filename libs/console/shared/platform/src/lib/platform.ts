@@ -122,5 +122,6 @@ export function platformSignalsOf(view: (Window & typeof globalThis) | null): Pl
 /** This device as the app sees it, read once: none of it changes while the app runs. */
 @Injectable({ providedIn: 'root' })
 export class Platform {
-  readonly info: PlatformInfo = platformOf(platformSignalsOf(inject(DOCUMENT).defaultView));
+  readonly signals: PlatformSignals = platformSignalsOf(inject(DOCUMENT).defaultView);
+  readonly info: PlatformInfo = platformOf(this.signals);
 }

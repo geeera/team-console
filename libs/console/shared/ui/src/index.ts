@@ -4,6 +4,7 @@
 // `*.public.ts` sibling naming the public ones. `tools/workspace-checks` keeps this file that way.
 export * from './tokens/breakpoints';
 
+export * from './lib/app-tile/app-tile';
 export * from './lib/arrival/arrival';
 export * from './lib/banner/banner';
 export * from './lib/button/button';
@@ -18,6 +19,7 @@ export * from './lib/field/field';
 export * from './lib/focus/focus-after-render';
 export * from './lib/frame/frame';
 export * from './lib/frame/frame-src.public';
+export * from './lib/home-screen-guide/home-screen-guide';
 export * from './lib/icon/icon';
 export * from './lib/is-phone/is-phone';
 export * from './lib/lane/lane';

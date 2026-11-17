@@ -1,5 +1,16 @@
+/* The steps sit on a sheet of their own, so they read as one set beside the text that offers them. */
 :host {
   display: block;
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+@media (max-width: 519.98px) {
+  :host {
+    padding: var(--space-3);
+  }
 }
 
 .guide {

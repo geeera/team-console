@@ -8,6 +8,7 @@ import {
   ElementRef,
   inject,
   Injector,
+  output,
   viewChild,
 } from '@angular/core';
 import { NeedsYouCounts } from '@console/entities/project';
@@ -24,7 +25,6 @@ import {
 } from '@console/shared/i18n';
 import { Platform } from '@console/shared/platform';
 import { Button, Callout, Icon, StatusCard, Toaster } from '@console/shared/ui';
-import { InstallGuide } from './install-guide';
 
 let nextId = 0;
 
@@ -35,7 +35,7 @@ let nextId = 0;
  */
 @Component({
   selector: 'tc-push-settings-card',
-  imports: [Button, Callout, Icon, InstallGuide, LocalDayPipe, StatusCard, TranslocoPipe, TranslocoPluralPipe],
+  imports: [Button, Callout, Icon, LocalDayPipe, StatusCard, TranslocoPipe, TranslocoPluralPipe],
   templateUrl: './push-settings-card.html',
   styleUrl: './push-settings-card.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,6 +53,9 @@ export class PushSettingsCard {
   protected readonly platform = inject(Platform).info;
   /** Safari's settings list the site by its host; it is this page's own, never data from a link. */
   protected readonly siteHost = inject(DOCUMENT).location.host;
+
+  /** iPhone Safari's "How to add it": the page opens the Home Screen steps in its App section (#761). */
+  readonly installGuideRequested = output<void>();
 
   protected readonly ids = { offline: `tc-push-offline-${nextId++}` };
 

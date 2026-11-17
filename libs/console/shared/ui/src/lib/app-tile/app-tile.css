@@ -1,0 +1,18 @@
+:host {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: var(--app-tile);
+  height: var(--app-tile);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--accent);
+}
+
+:host(.tc-app-tile--sm) {
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--r-sm);
+}

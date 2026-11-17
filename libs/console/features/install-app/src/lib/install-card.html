@@ -1,0 +1,90 @@
+@switch (variant()) { @case ('done') {
+<div #doneLine class="install-done" role="status" tabindex="-1" data-testid="install-card-done">
+  <tc-app-tile small class="install-done__tile" />
+  <p class="install-done__text">
+    {{ (isPhone() ? 'install.card.donePhone' : 'install.card.doneDesktop') | transloco: { app: appName() } }}
+  </p>
+  <button
+    tc-icon-button
+    type="button"
+    data-testid="install-card-done-close"
+    [attr.aria-label]="'install.card.doneHideAria' | transloco"
+    (click)="closeDone()"
+  >
+    <tc-icon name="x" size="sm" />
+  </button>
+</div>
+} @case ('mac') {
+<aside class="install install--line" [attr.aria-labelledby]="ids.title" data-testid="install-card">
+  <tc-app-tile small />
+  <p class="install__body install__body--line" [id]="ids.title">
+    {{ 'install.card.mac' | transloco: { app: appName() } }}
+  </p>
+  <div class="install__actions install__actions--line">
+    <button tc-button variant="quiet" type="button" data-testid="install-card-later" (click)="answer('later')">
+      {{ 'install.card.later' | transloco }}
+    </button>
+    <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+      {{ 'install.card.never' | transloco }}
+    </button>
+  </div>
+</aside>
+} @case ('hidden') {} @default {
+<aside class="install" [attr.aria-labelledby]="ids.title" data-testid="install-card">
+  <tc-app-tile class="install__tile" />
+  <h2 class="install__title" [id]="ids.title">{{ 'install.card.title' | transloco: { app: appName() } }}</h2>
+  <p class="install__body">{{ bodyKey() | transloco }}</p>
+  <div class="install__actions">
+    @if (variant() === 'ios') {
+    <button
+      tc-button
+      variant="primary"
+      type="button"
+      data-testid="install-card-how"
+      [attr.aria-expanded]="isGuideOpen()"
+      [attr.aria-controls]="isGuideOpen() ? ids.steps : null"
+      (click)="toggleGuide()"
+    >
+      {{ (isGuideOpen() ? 'install.card.hideSteps' : 'install.card.how') | transloco }}
+      <tc-icon name="chevron-down" size="sm" class="tc-disclosure-chevron" />
+    </button>
+    } @else {
+    <button
+      tc-button
+      variant="primary"
+      type="button"
+      data-testid="install-card-install"
+      [attr.aria-label]="'install.card.installAria' | transloco: { app: appName() }"
+      [attr.aria-disabled]="prompt.isPrompting() ? 'true' : null"
+      (click)="install()"
+    >
+      {{ 'install.card.install' | transloco }}
+    </button>
+    }
+    <button tc-button variant="quiet" type="button" class="install__later" data-testid="install-card-later" (click)="answer('later')">
+      {{ 'install.card.later' | transloco }}
+    </button>
+    @if (!isPhone()) {
+    <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+      {{ 'install.card.never' | transloco }}
+    </button>
+    }
+  </div>
+  @if (hasFailed()) {
+  <p class="install__error" role="alert" data-testid="install-card-error">
+    <tc-icon name="alert" size="sm" />{{ 'install.card.error' | transloco }}
+  </p>
+  } @if (variant() === 'ios' && isGuideOpen()) {
+  <tc-home-screen-guide
+    class="install__steps"
+    [listId]="ids.steps"
+    [otherBrowser]="isOtherIosBrowser()"
+    [finalStep]="'install.guide.s3' | transloco: { app: appName() }"
+  />
+  } @if (isPhone()) {
+  <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+    {{ 'install.card.never' | transloco }}
+  </button>
+  }
+</aside>
+} }

@@ -12,6 +12,7 @@ import { RouterLink } from '@angular/router';
 import { ADD_PROJECT_FRAGMENT, ADD_PROJECT_PATH, ProjectsStore } from '@console/entities/project';
 import { BatchApprove, type BatchApproved } from '@console/features/batch-approve';
 import { NewTaskButton } from '@console/features/create-task';
+import { InstallCard, InstallOffer } from '@console/features/install-app';
 import { PushNudge } from '@console/features/push-subscribe';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, isPhoneSignal, Receipt, SrOnlyOnPhone, StateBlock, TopBarAction } from '@console/shared/ui';
@@ -20,7 +21,8 @@ import { QuestionList } from '@console/widgets/question-list';
 /**
  * `/needs-you` (ADR 0001 decision 24, #16): every active project's waiting items, each tagged with its project and
  * answerable in place. With no registered project it is the shell's empty state and points to New project (#24).
- * While push is off on this device, the #36 nudge says so above the list. "Approve team recommendations" (#220)
+ * While push is off on this device, the #36 nudge says so above the list, unless the install card (#761) has this
+ * launch: one prompt per launch. "Approve team recommendations" (#220)
  * sits by the title on wider screens and above the list on the phone, where the title is for assistive tech only.
  */
 @Component({
@@ -28,6 +30,7 @@ import { QuestionList } from '@console/widgets/question-list';
   imports: [
     BatchApprove,
     Button,
+    InstallCard,
     NewTaskButton,
     PushNudge,
     QuestionList,
@@ -58,7 +61,8 @@ import { QuestionList } from '@console/widgets/question-list';
           <span tc-receipt-verb>{{ 'commands.batch.done' | transloco: { n: done } }}</span>
         </tc-receipt>
       }
-      @if (projects.status() === 'ready' && projects.hasProjects()) {
+      <tc-install-card [ready]="projects.status() === 'ready'" (dismissed)="focusHeading()" />
+      @if (projects.status() === 'ready' && projects.hasProjects() && !installOffer.holdsPushNudgeOn(installOffer.screen())) {
         <tc-push-nudge (dismissed)="focusHeading()" />
       }
       @if (projects.status() !== 'ready') {
@@ -97,6 +101,7 @@ import { QuestionList } from '@console/widgets/question-list';
 })
 export class NeedsYouPage {
   protected readonly projects = inject(ProjectsStore);
+  protected readonly installOffer = inject(InstallOffer);
   private readonly injector = inject(Injector);
   /** New task (#107) is a button by the title on wider screens and `+` in the shell's top bar on the phone. */
   protected readonly isPhone = isPhoneSignal();
@@ -109,7 +114,7 @@ export class NeedsYouPage {
   /** How many the last batch approved; its receipt stays until the page is left. */
   protected readonly batchDone = signal<number | null>(null);
 
-  /** The nudge was hidden from its own button: keyboard users continue from the screen's heading. */
+  /** The nudge or the install card went away by the owner's choice: keyboard users continue from the heading. */
   protected focusHeading(): void {
     this.heading().nativeElement.focus();
   }

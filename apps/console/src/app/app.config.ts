@@ -7,6 +7,7 @@ import {
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideServiceWorker } from '@angular/service-worker';
 import { providePushTaps } from '@console/entities/push';
+import { provideInstallOffer } from '@console/features/install-app';
 import { provideConsoleApi } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleAppI18n } from '@console/shared/i18n';
@@ -28,5 +29,7 @@ export const appConfig: ApplicationConfig = {
     provideAppUpdates(),
     // A tapped notification opens its item inside the running app too (#36); only Worker-built targets.
     providePushTaps(),
+    // The install card's one offer per launch counts screens from the first navigation (#761).
+    provideInstallOffer(),
   ],
 };
