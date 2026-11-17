@@ -69,6 +69,12 @@ type OriginsState =
       font-size: var(--fs-sm);
     }
 
+    @media (min-width: 900px) {
+      .demo__lead {
+        max-width: var(--measure);
+      }
+    }
+
     .demo__note {
       padding: var(--space-2) var(--space-3);
       border-radius: var(--r-md);

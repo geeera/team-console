@@ -94,7 +94,8 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
   viewport,
 }) => {
   await openArtifacts(page);
-  const thumb = row(page).getByTestId('design-thumb');
+  // #766: a design holds two previews, the row's and the card's; the body's width shows one of them.
+  const thumb = row(page).getByTestId('design-thumb').locator('visible=true');
   await expect(thumb).toBeVisible();
   await expect.poll(() => thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
   await expect(thumb).toHaveAttribute('alt', '');

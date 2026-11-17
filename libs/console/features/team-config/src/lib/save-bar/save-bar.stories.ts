@@ -13,7 +13,7 @@ const meta: Meta<Args> = {
   render: (args) => ({
     props: args,
     template: `
-      <div style="max-width: var(--board-max)">
+      <div style="max-width: var(--page-max)">
         <tc-save-bar [count]="count" [label]="label" [offReason]="offReason" />
       </div>
     `,

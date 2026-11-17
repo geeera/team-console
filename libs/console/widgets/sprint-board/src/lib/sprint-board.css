@@ -108,6 +108,18 @@
   }
 }
 
+/*
+ * #766: from a 1360 px board (`--cq-wide-min`; with no task open that is a 1920 px window) the PRs and the runs get
+ * a column each beside the issues instead of sharing one.
+ */
+@container (min-width: 1360px) {
+  .board__sections:not(.tc-tabs--active) {
+    grid-template-areas: 'tasks pulls runs';
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto;
+  }
+}
+
 .board__section-title {
   display: flex;
   align-items: baseline;

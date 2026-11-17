@@ -33,6 +33,13 @@
   overflow-wrap: anywhere;
 }
 
+/* #766: a banner may span a wide page; its words keep a readable measure. */
+@media (min-width: 900px) {
+  :host ::ng-deep [tc-banner-text] {
+    max-width: var(--measure);
+  }
+}
+
 :host ::ng-deep [tc-banner-actions] {
   flex: none;
   display: inline-flex;

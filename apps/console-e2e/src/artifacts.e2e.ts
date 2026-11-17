@@ -104,7 +104,9 @@ test.describe('the Artifacts section', () => {
     const loading = page.getByTestId('artifacts-designs-loading');
     await expect(loading).toBeVisible();
     await expect(loading.getByRole('status')).toHaveText(ru('artifacts.designs.loading'));
-    await expect(loading.locator('.artifacts__skeleton')).toHaveCount(3);
+    // #766: three skeleton rows, or six skeleton cards once the body is 880 px wide (the desktop project's 1440).
+    const wide = (page.viewportSize()?.width ?? 0) >= 1200;
+    await expect(loading.locator('.artifacts__skeleton:visible')).toHaveCount(wide ? 6 : 3);
     await expect(page.getByTestId('artifacts-loading')).toHaveCount(0);
     await expectAccessible(page, 'Artifacts → Design, loading');
 

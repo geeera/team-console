@@ -96,12 +96,14 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
     TestBed.inject(HttpTestingController).match(() => true);
   });
 
-  it('loads the Design filter as three skeleton rows and a «Загружаем дизайны…» status, not the generic block', async () => {
+  it('loads the Design filter as skeletons (three rows, six cards on a wide body) and a «Загружаем дизайны…» status', async () => {
     const { query, root } = await setup('/p/tc/artifacts?type=design');
     const loading = query('[data-testid="artifacts-designs-loading"]');
     expect(loading).not.toBeNull();
     expect(loading?.getAttribute('aria-busy')).toBe('true');
-    expect(root.querySelectorAll('.artifacts__skeleton[aria-hidden="true"]')).toHaveLength(3);
+    expect(root.querySelectorAll('.artifacts__skeleton[aria-hidden="true"]')).toHaveLength(6);
+    // #766: the last three show only as cards, from a --cq-grid-min body; the rows stay three.
+    expect(root.querySelectorAll('.artifacts__skeleton--extra')).toHaveLength(3);
     const status = loading?.querySelector('[role="status"]');
     expect(textOf(status)).toBe('Загружаем дизайны…');
     expect(query('[data-testid="artifacts-loading"]')).toBeNull();
