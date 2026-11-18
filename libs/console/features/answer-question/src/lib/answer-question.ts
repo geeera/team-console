@@ -238,11 +238,22 @@ export class AnswerQuestion {
   private async prepare(command: AnswerCommand): Promise<AnswerRequest | null> {
     const t = (key: string): string => this.transloco.translate(key);
     if (!this.item().authorTrusted) {
+      const item = this.item();
       const isSure = await this.sheet.confirm({
         title: t('answer.confirm.untrustedTitle'),
         message: t('answer.confirm.untrustedMessage'),
         confirmLabel: t('answer.confirm.untrustedOk'),
         tone: 'danger',
+        // #370: the warning says to read the item on GitHub first; without a GitHub url (never seen today, since
+        // an untrusted item is always a GitHub issue) the dialog still works, just without the link.
+        ...(item.url === null
+          ? {}
+          : {
+              link: {
+                label: this.transloco.translate('answer.confirm.untrustedLink', { n: item.number }),
+                href: item.url,
+              },
+            }),
       });
       if (!isSure) {
         return null;

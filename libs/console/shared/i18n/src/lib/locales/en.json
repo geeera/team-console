@@ -270,6 +270,7 @@
       "goMessage": "The team starts the release on your answer. It is posted on GitHub under your name.",
       "untrustedTitle": "Answer an item from outside the team?",
       "untrustedMessage": "Someone outside the team opened it, and the team will act on your answer as the owner's decision. Read the item on GitHub first.",
+      "untrustedLink": "Open #{{n}} on GitHub",
       "untrustedOk": "Answer anyway"
     },
     "reason": {

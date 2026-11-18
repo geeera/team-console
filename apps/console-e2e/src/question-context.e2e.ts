@@ -160,6 +160,38 @@ test('the GitHub link reads as external: an icon, and the new tab said in words'
   await expect(link).toHaveAttribute('target', '_blank');
 });
 
+test('the untrusted-item warning links to the item on GitHub, between the message and the buttons (#370)', async ({
+  page,
+}) => {
+  await page.goto('/needs-you');
+  await card(page, 90001).locator('[data-command="approve"]').click();
+  const dialog = page.getByRole('alertdialog');
+  await expect(dialog).toContainText(ru('answer.confirm.untrustedMessage'));
+
+  const link = dialog.getByTestId('confirm-link');
+  await expect(link).toHaveAttribute('href', 'https://github.com/geeera/team-console/issues/90001');
+  await expect(link).toHaveAttribute('target', '_blank');
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(link).toHaveAccessibleName(
+    `${ru('answer.confirm.untrustedLink', { n: 90001 })} ${ru('ui.frame.newTab')}`,
+  );
+
+  // Reading order (#282): the message, then the link, then the dialog's own buttons — in that order, not after.
+  const order = await dialog.evaluate((el) =>
+    Array.from(
+      el.querySelectorAll('.tc-confirm__message, [data-testid="confirm-link"], .tc-sheet__foot button'),
+    ).map((node) =>
+      node.matches('.tc-confirm__message') ? 'message' : node.matches('button') ? 'button' : 'link',
+    ),
+  );
+  expect(order).toEqual(['message', 'link', 'button', 'button']);
+
+  // A plain external link (no handler): `target="_blank"` and `rel="noopener noreferrer"` already say it never
+  // answers or closes the dialog on its own — the warning stays open until "Всё равно ответить" or "Отмена".
+  await dialog.getByRole('button', { name: ru('ui.confirm.cancel') }).click();
+  await expect(dialog).not.toBeVisible();
+});
+
 test('on the phone, the design card’s answer buttons are in the first screen once the card is at the top', async ({
   page,
 }) => {

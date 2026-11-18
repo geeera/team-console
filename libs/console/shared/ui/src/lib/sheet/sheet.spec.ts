@@ -173,6 +173,44 @@ describe('Sheet', () => {
     await expect(pending).resolves.toBe(false);
   });
 
+  it('confirm() with a link opens it in a new tab, between the message and the buttons, without closing (#370)', async () => {
+    const pending = sheet.confirm({
+      title: 'Answer an item from outside the team?',
+      message: 'Read the item on GitHub first.',
+      confirmLabel: 'Answer anyway',
+      link: { label: 'Open #72 on GitHub', href: 'https://github.com/geeera/team-console/issues/72' },
+      tone: 'danger',
+    });
+    await settle();
+
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    const link = dialog.querySelector('[data-testid="confirm-link"]') as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toBe('https://github.com/geeera/team-console/issues/72');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(link.textContent).toContain('Open #72 on GitHub');
+    expect(link.textContent).toContain('(новая вкладка)');
+
+    // Reading order (#282): the message, then the link, then the dialog's own buttons.
+    const focusables = Array.from(
+      dialog.querySelectorAll('.tc-confirm__message, [data-testid="confirm-link"], .tc-sheet__foot button'),
+    );
+    expect(focusables.indexOf(link)).toBeGreaterThan(
+      focusables.findIndex((el) => el.classList.contains('tc-confirm__message')),
+    );
+    expect(focusables.indexOf(link)).toBeLessThan(
+      focusables.findIndex((el) => el.tagName === 'BUTTON'),
+    );
+
+    // Following the link is not an answer: the dialog stays open and open-sheets.
+    link.click();
+    await settle();
+    expect(sheet.hasOpen()).toBe(true);
+
+    (dialog.querySelector('.tc-confirm__cancel') as HTMLButtonElement).click();
+    await expect(pending).resolves.toBe(false);
+  });
+
   describe('confirm() with an action', () => {
     function deferred(): { promise: Promise<void>; resolve: () => void; reject: (error: Error) => void } {
       let resolve: () => void = () => undefined;

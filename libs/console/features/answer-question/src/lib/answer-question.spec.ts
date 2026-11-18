@@ -173,6 +173,30 @@ describe('AnswerQuestion', () => {
     expect(sheet.confirm).toHaveBeenCalledTimes(2);
   });
 
+  it('the untrusted warning carries a link to read the item on GitHub first (#370)', async () => {
+    const { button } = await render(
+      item({ authorTrusted: false, url: 'https://github.com/geeera/team-console/issues/72' }),
+    );
+    sheet.confirm.mockResolvedValueOnce(false);
+
+    button('approve').click();
+    await tick();
+    expect(sheet.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({
+        link: { label: 'Открыть #72 на GitHub', href: 'https://github.com/geeera/team-console/issues/72' },
+      }),
+    );
+  });
+
+  it('an untrusted item without a GitHub url still warns, with no link', async () => {
+    const { button } = await render(item({ authorTrusted: false, url: null }));
+    sheet.confirm.mockResolvedValueOnce(false);
+
+    button('approve').click();
+    await tick();
+    expect(sheet.confirm).toHaveBeenCalledWith(expect.not.objectContaining({ link: expect.anything() }));
+  });
+
   it('reject asks for the reason and sends it in text; backing out sends nothing', async () => {
     const { button } = await render();
 

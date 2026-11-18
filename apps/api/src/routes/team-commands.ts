@@ -18,6 +18,7 @@ import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } fro
 import {
   OwnWritesRepo,
   OwnerRequestsRepo,
+  ProjectsRepo,
   SlotRequestsRepo,
   TeamStateRepo,
   snoozeOf,
@@ -110,6 +111,7 @@ async function consoleTeamCommand(
       ? problem(c, { type: 'team-already-paused', title: 'The team is already paused', status: 409 })
       : problem(c, { type: 'team-not-paused', title: 'The team is not paused', status: 409 });
   }
+  await refreshTeamReads(c, project);
   const after = await repo.get(project.slug);
   const body: TeamStateDto = {
     paused: after.pausedAt !== null,
@@ -158,6 +160,19 @@ function invalid(c: Context, detail: string): Response {
 
 function iso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+/**
+ * The console wrote this pause or resume itself (#169): the overview and the board read the team's run state
+ * through the 30 s cache (`ProjectReads.teamRun`), which an own write would otherwise outlive. Bumping the epoch
+ * is the same own-write refresh `sprint-commands` uses after moving a sprint date.
+ */
+async function refreshTeamReads(c: Context, project: ProjectRow): Promise<void> {
+  try {
+    await new ProjectsRepo(c.env.DB).bumpCacheEpoch(project.slug);
+  } catch (error: unknown) {
+    c.get('logger').error('team paused or resumed, read cache not refreshed', { slug: project.slug, error });
+  }
 }
 
 /**
@@ -486,6 +501,7 @@ export function createTeamCommandsRoutes(
     } catch (error: unknown) {
       logger.error('team command written but not recorded', { ...fields, error });
     }
+    await refreshTeamReads(c, project);
     logger.info('team command written', fields);
     return answer(write, kind === 'pause' ? 'paused-by-owner' : 'running', false);
   }

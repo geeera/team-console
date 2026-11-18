@@ -20,6 +20,17 @@
   color: var(--text-2);
 }
 
+.rq__prev-link {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
 .rq__diff {
   font-weight: var(--fw-semibold);
 }

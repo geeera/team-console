@@ -75,6 +75,18 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
           <p class="rq__prev" data-testid="request-previous" [attr.data-state]="previous.state">
             {{ previous.text }}
           </p>
+          @if (issue.htmlUrl; as htmlUrl) {
+            <a
+              class="rq__prev-link"
+              data-testid="request-open-issue"
+              [href]="htmlUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              >{{ 'commands.request.open' | transloco }}<span class="tc-sr-only">
+                {{ 'ui.frame.newTab' | transloco }}</span
+              ><tc-icon name="external" size="sm"
+            /></a>
+          }
         }
         <p class="rq__hint" [id]="id + '-sprint-hint'">{{ 'commands.request.sprintHint' | transloco }}</p>
         <fieldset
