@@ -916,10 +916,12 @@ describe('the registry and the service identity (#372)', () => {
     vi.restoreAllMocks();
   });
 
+  // `.results` only: the full D1Result also carries `meta.duration`, wall-clock timing that flakes under CI load (#832).
   async function registryRow(): Promise<unknown> {
-    return env.DB.prepare(
+    const { results } = await env.DB.prepare(
       'SELECT slug, display_name, routine_id, archived_at FROM projects ORDER BY slug',
     ).all();
+    return results;
   }
 
   it('add, rename and archive answer 403 owner-only and write nothing to D1', async () => {
