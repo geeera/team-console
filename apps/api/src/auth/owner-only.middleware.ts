@@ -1,4 +1,4 @@
-import type { MiddlewareHandler } from 'hono';
+import type { Context, MiddlewareHandler } from 'hono';
 import { problem, type WorkerHonoEnv } from '@worker/core';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
@@ -31,20 +31,38 @@ export function isOwnerIdentity(identity: Identity, env: Pick<ApiEnv, 'ENVIRONME
  * issue (`service-write-gate.ts`). Only `isOwnerIdentity` passes; every other kind is a 403.
  */
 export const ownerOnlyMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
-  const identity = c.get('identity');
-  if (!isOwnerIdentity(identity, c.env)) {
-    c.get('logger').warn('owner route refused', {
-      reason: identity.kind,
-      method: c.req.method,
-      path: c.req.path,
-    });
-    return problem(c, {
-      type: 'owner-only',
-      title: 'Forbidden',
-      status: 403,
-      detail: 'Only the owner can use this route',
-    });
+  if (!isOwnerIdentity(c.get('identity'), c.env)) {
+    return ownerOnlyRefusal(c);
   }
   await next();
   return;
 };
+
+/**
+ * For the owner-grade writes an account owner's session also reaches (the registry's rename and archive, #482),
+ * where `ownerOnlyMiddleware` would be too strict. An allowlist like `isOwnerIdentity`: a user (any door) and the
+ * owner pass, and the route's `projectOwnerRefusal` then judges the account role; the dev/stage service identity
+ * (#372), a job and any later kind get 403 `owner-only` before the project is looked up.
+ */
+export const userOrOwnerMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
+  const identity = c.get('identity');
+  if (identity.kind !== 'user' && !isOwnerIdentity(identity, c.env)) {
+    return ownerOnlyRefusal(c);
+  }
+  await next();
+  return;
+};
+
+function ownerOnlyRefusal(c: Context<WorkerHonoEnv<ApiEnv>>): Response {
+  c.get('logger').warn('owner route refused', {
+    reason: c.get('identity').kind,
+    method: c.req.method,
+    path: c.req.path,
+  });
+  return problem(c, {
+    type: 'owner-only',
+    title: 'Forbidden',
+    status: 403,
+    detail: 'Only the owner can use this route',
+  });
+}

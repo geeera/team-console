@@ -1251,7 +1251,7 @@ describe('SprintBoard', () => {
 
     it('shows the job a runner holds with the runner by name and its events; the tile says it runs', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [jobFixture(), queuedJobFixture({ id: JOB_FIXTURE_IDS.second })], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [jobFixture(), queuedJobFixture({ id: JOB_FIXTURE_IDS.second })], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('owner');
       await settle();
       http
@@ -1279,7 +1279,7 @@ describe('SprintBoard', () => {
     it('says the runner is paused, why and until when, while nothing runs; a running job still reads as running', async () => {
       const until = '2026-11-11T14:30:00.000Z';
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture()], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture()], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('owner', { pause: { reason: 'usage-limit', until } });
       await settle();
       const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
@@ -1290,7 +1290,7 @@ describe('SprintBoard', () => {
 
     it('keeps a running job on the tile over a paused runner', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('owner', { pause: { reason: 'rate-limit', until: '2026-11-11T14:30:00.000Z' } });
       await settle();
       http.expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first)).flush({ events: [], nextCursor: null });
@@ -1300,7 +1300,7 @@ describe('SprintBoard', () => {
 
     it('with no jobs yet says nothing runs and offers Run now; the tile says no runs', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('member');
       await settle();
       expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('Запусков нет');
@@ -1311,7 +1311,7 @@ describe('SprintBoard', () => {
     it('names an unknown runner by a short id for a member, and shows the last failure on the tile', async () => {
       const { root, settle } = await renderConsole();
       const failed = jobFixture({ id: JOB_FIXTURE_IDS.second, state: 'failed', finishedAt: '2026-11-11T09:30:00.000Z', result: { summary: 'Tests failed' } });
-      http.expectOne(JOBS).flush({ jobs: [failed], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [failed], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('member');
       await settle();
       const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
@@ -1346,14 +1346,14 @@ describe('SprintBoard', () => {
       const block = root.querySelector('[data-testid="jobs-error"]') as HTMLElement;
       expect(block.textContent).toContain('Не удалось загрузить задачи');
       (block.querySelector('button') as HTMLButtonElement).click();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready' });
       await settle();
       expect(root.querySelector('[data-testid="jobs-empty"]')).not.toBeNull();
     });
 
     it('shows a job Run now queued at once and reads the queue again', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready' });
       await answerRunners('member');
       await settle();
       (root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement).click();
@@ -1363,7 +1363,7 @@ describe('SprintBoard', () => {
       await settle();
       expect(root.querySelector('[data-testid="jobs-current"] [data-testid="job-card"]')?.getAttribute('data-kind')).toBe('slot-pm');
       expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('В очереди: 1');
-      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture({ kind: 'slot-pm' })], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture({ kind: 'slot-pm' })], nextCursor: null, runnerAvailability: 'ready' });
       await settle();
     });
 
@@ -1392,7 +1392,7 @@ describe('SprintBoard', () => {
     async function renderTracker() {
       const rendered = await render(false, (host) => host.project.set(CONSOLE));
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null });
+      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready' });
       http.expectOne('/api/v1/accounts').flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'o', name: 'O', role: 'member' }] });
       return rendered;
     }

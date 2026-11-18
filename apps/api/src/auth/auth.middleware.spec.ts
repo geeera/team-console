@@ -284,6 +284,45 @@ describe('the JWKS endpoint', () => {
     expect(vi.mocked(globalThis.fetch)).toHaveBeenCalledTimes(1);
   });
 
+  it.each([
+    ['an HTML page', '<html>captive portal</html>'],
+    ['JSON without keys', '{}'],
+    ['keys that are not objects', '{"keys":["nope"]}'],
+  ])(
+    'negative-caches a 200 with %s: 10 requests cause one fetch, still 401 (#283)',
+    async (_label, rawBody) => {
+      jwks.set(teamDomain, { rawBody });
+      const token = await signAccessToken(key, teamDomain);
+
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        await expectProblem(
+          await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(token)),
+          'access-unverified',
+        );
+      }
+
+      expect(jwks.fetchCount(teamDomain)).toBe(1);
+    },
+  );
+
+  it('recovers once the endpoint answers a real key set after the window (#283)', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    jwks.set(teamDomain, { rawBody: '<html>captive portal</html>' });
+    await expectProblem(
+      await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(await signAccessToken(key, teamDomain))),
+      'access-unverified',
+    );
+
+    vi.setSystemTime(Date.now() + 5_001);
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+
+    expect(
+      (await fetchApi(PROTECTED, accessEnv(teamDomain), withToken(await signAccessToken(key, teamDomain))))
+        .status,
+    ).toBe(200);
+    expect(jwks.fetchCount(teamDomain)).toBe(2);
+  });
+
   it('tries a new load after the negative-cache window passes (#56)', async () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     jwks.set(teamDomain, { status: 500 });
