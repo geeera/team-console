@@ -102,6 +102,54 @@ release) adds `projects.repo_id` empty, and webhooks route by that id only (#484
 hooks Worker drops deliveries for the projects not yet backfilled (fail-closed, expected and short). Rolling back
 to a commit before #484 does not undo it: migrations are expand-only, the column and the recorded ids stay.
 
+## Actions setup write: stop and incident (#759)
+
+The console's one write to a customer repository is the workflow pull request (`POST
+/api/v1/projects/:slug/actions-setup/workflow-pr`). It runs only while the api Worker's var
+`ALLOW_ACTIONS_SETUP_WRITE` is `true` **and** no operator stop is in D1 (ADR 0008, "Amendment (#759)").
+
+**Stop it now, without a deploy** (any operator with the environment's Cloudflare access; takes effect on the next
+request, and stays through every later deploy until the row is deleted):
+
+```sh
+npx wrangler d1 execute team-console-<env> --env <env> --remote --config apps/api/wrangler.jsonc --command \
+  "INSERT INTO operator_stops (name, stopped_at, reason) VALUES ('actions-setup-write', strftime('%Y-%m-%dT%H:%M:%SZ','now'), '<issue or incident reference>')"
+```
+
+Check: the route answers 503 `github-write-disabled`; the readiness check and the Copy path keep working, so customers
+can still add the file themselves. Lift the stop, once the cause is fixed and recorded on the issue:
+
+```sh
+npx wrangler d1 execute team-console-<env> --env <env> --remote --config apps/api/wrangler.jsonc --command \
+  "DELETE FROM operator_stops WHERE name = 'actions-setup-write'"
+```
+
+The stop can only switch the path off. **Switching it on for an environment is never an incident step**: it is a
+reviewed PR (security label) that sets `ALLOW_ACTIONS_SETUP_WRITE` to `true` for that environment in
+`apps/api/wrangler.jsonc`, made after the owner has added Contents, Workflows and Pull requests: Read and write to that
+environment's GitHub App. Never pass the var with `--var`, never store it as a secret or a GitHub variable
+(`tools/workspace-checks` fails on any of those), and do not edit it in the Cloudflare dashboard: the next deploy
+overwrites a dashboard edit.
+
+**The alert.** Above 30 attempts across all accounts in an hour the Worker logs `actions setup write volume` at error
+level, once per further attempt (Workers Logs, filter `message = "actions setup write volume"`). Treat it as a reason
+to look at the audit rows below; if they do not explain it, stop the path first and investigate after.
+
+**If the app's private key or the api Worker may be compromised.** The app's write permissions make this a High
+incident (threat model C11): whoever holds the key mints their own tokens, so the stop above does not contain it.
+
+1. Stop the path (above), so the console itself opens nothing more.
+2. Rotate `GITHUB_APP_PRIVATE_KEY`: generate a new key in the App's settings, `wrangler secret put`, delete the old key.
+3. **Suspend the App's installations** (the App's settings → Advanced, or each installation's page). A token minted
+   before the rotation stays valid for up to an hour; suspending is what ends it early.
+4. List what the console did, per account:
+   `SELECT at, account_id, actor, kind, target, details FROM audit_events WHERE kind LIKE 'project.actions-workflow-pr-%' ORDER BY id DESC`.
+   A repository changed without a matching `…-opened` row was not changed by the console's route.
+5. Tell the owners of the affected accounts which repositories to check: branches named `team-console/runner-*`,
+   `.github/workflows/` on the default branch, and the `team-console` Environment's deployment-branch rule and key.
+   Ask them to rotate `TC_INFERENCE_API_KEY` if the default branch has no ruleset.
+6. Unsuspend, lift the stop and record the timeline on the incident issue.
+
 ## What this does not cover
 
 - **Production** is out of scope for #25 (`stage` → `main` only after the owner's recorded **go** on the

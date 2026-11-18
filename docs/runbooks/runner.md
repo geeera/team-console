@@ -208,6 +208,17 @@ job and is revoked at its `finish`.
    Environment, a `workflow_dispatch` event and a GitHub-hosted runner. A copy under another name, on another branch,
    or running on a self-hosted runner is refused.
 
+   **What the console's pull request is.** On the account owner's click the console creates a branch
+   `team-console/runner-<12 characters>` at the default branch's head, commits the one file there and opens a pull
+   request: "Add the Team Console runner workflow" the first time, "Update the Team Console runner to <version>" when
+   your file pins older versions, "Restore the Team Console runner workflow" when your file differs in another way.
+   Its body lists the three pinned versions with where to check each and the file's sha256. The console never merges
+   it, never writes to the default branch, and never touches a branch it did not just create: if a branch of that
+   name is already there (a leftover of an earlier attempt), delete it on GitHub and click again. It refuses to open
+   a pull request that would lower a pinned version, and it opens none while one from its branch is still open. When
+   the console answers that pull requests are switched off, or the app has not been granted the write permissions,
+   copy the file instead: the result is the same.
+
    **Protect what the file can reach.** The console's app writes only to a branch of its own and opens a pull
    request, but its permissions (Contents, Workflows and Pull requests: Read and write) would let anyone who stole the
    app's key or took over the console push a workflow straight to an unprotected default branch, and a workflow on

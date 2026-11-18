@@ -43,7 +43,27 @@ export interface SetupWorld {
   pullWorkflow: string | null;
   /** A path suffix answered 503, to model GitHub being down for one read. */
   unavailable: string | null;
+  /** #759 PR 4: what the setup's write calls answer (`answerSetupWrite`). */
+  write: SetupWrites;
 }
+
+export interface SetupWrites {
+  /** The default branch's head commit, `GET …/branches/{default}`. */
+  headSha: string;
+  /** `POST …/git/refs` answers 422: the console's branch is already there. */
+  branchExists: boolean;
+  /** The commit `PUT …/contents` answers. */
+  commitSha: string;
+  /** The head `POST …/pulls` answers; `null` is the console's own commit. */
+  pullHeadSha: string | null;
+  /** The write answered 503, to model GitHub failing mid-way. */
+  failing: 'refs' | 'contents' | 'pulls' | null;
+}
+
+export const HEAD_SHA = 'b'.repeat(40);
+export const COMMIT_SHA = 'c'.repeat(40);
+/** The blob sha the kit names for a file already on the new branch. */
+export const BLOB_SHA = 'd'.repeat(40);
 
 export async function renderingFor(origin = SETUP_ORIGIN): Promise<RunnerWorkflowRendering> {
   const rendered = await renderRunnerWorkflow({ consoleOrigin: origin, environment: env.ENVIRONMENT });
@@ -75,6 +95,7 @@ export function readyWorld(repoId: number, rendering: RunnerWorkflowRendering): 
     pullFiles: [],
     pullWorkflow: null,
     unavailable: null,
+    write: { headSha: HEAD_SHA, branchExists: false, commitSha: COMMIT_SHA, pullHeadSha: null, failing: null },
   };
 }
 
@@ -177,6 +198,57 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
   }
   if (world.pull !== null && path === `/repos/${repo}/pulls/${String(world.pull['number'])}/files`) {
     return json(200, world.pullFiles.map((filename) => ({ filename })));
+  }
+  return null;
+}
+
+/**
+ * #759 PR 4: the setup's write calls on `repo`, or `null` for any other call. The new branch starts as the default
+ * branch, so the blob read on it answers `BLOB_SHA` while the default branch has a workflow file. A write the console
+ * must never make (a `PATCH` or `DELETE` of a ref, a `PUT` elsewhere) is not answered here and so ends as a 404.
+ */
+export function answerSetupWrite(world: SetupWorld, repo: string, rendering: RunnerWorkflowRendering, call: GitHubCall): Response | null {
+  const path = call.url.pathname;
+  const branch = actionsSetupBranchOf(rendering.sha256);
+  const workflowPath = `/repos/${repo}/contents/.github/workflows/team-console-runner.yml`;
+  const unavailable = (): Response => json(503, { message: 'Service Unavailable' });
+  if (call.method === 'GET' && path === `/repos/${repo}/branches/${world.defaultBranch}`) {
+    return json(200, { name: world.defaultBranch, commit: { sha: world.write.headSha } });
+  }
+  if (call.method === 'POST' && path === `/repos/${repo}/git/refs`) {
+    if (world.write.failing === 'refs') {
+      return unavailable();
+    }
+    const body = JSON.parse(call.body ?? '{}') as Record<string, unknown>;
+    return world.write.branchExists
+      ? json(422, { message: 'Reference already exists' })
+      : json(201, { ref: body['ref'], object: { sha: body['sha'], type: 'commit' } });
+  }
+  if (call.method === 'GET' && path === workflowPath && call.url.searchParams.get('ref') === branch) {
+    return world.workflow === null
+      ? notFound()
+      : json(200, { type: 'file', path: '.github/workflows/team-console-runner.yml', sha: BLOB_SHA });
+  }
+  if (call.method === 'PUT' && path === workflowPath) {
+    return world.write.failing === 'contents'
+      ? unavailable()
+      : json(world.workflow === null ? 201 : 200, {
+          content: { path: '.github/workflows/team-console-runner.yml', sha: 'e'.repeat(40) },
+          commit: { sha: world.write.commitSha },
+        });
+  }
+  if (call.method === 'POST' && path === `/repos/${repo}/pulls`) {
+    if (world.write.failing === 'pulls') {
+      return unavailable();
+    }
+    return json(201, {
+      number: SETUP_PR_NUMBER,
+      html_url: `https://github.com/${repo}/pull/${String(SETUP_PR_NUMBER)}`,
+      head: { ref: branch, sha: world.write.pullHeadSha ?? world.write.commitSha },
+    });
+  }
+  if (call.method === 'PATCH' && path === `/repos/${repo}/pulls/${String(SETUP_PR_NUMBER)}`) {
+    return json(200, { number: SETUP_PR_NUMBER, state: 'closed' });
   }
   return null;
 }

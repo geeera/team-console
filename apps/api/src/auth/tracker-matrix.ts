@@ -139,6 +139,8 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/actions-setup/workflow`]: ACCOUNT_READ('The runner workflow is read by the account'),
   // #759 PR 3 (security note row "Cross-tenant or member trigger"): every readiness check mints a token at GitHub.
   [`GET ${P}/actions-setup`]: OWNER_ONLY('The Actions readiness check is the owner’s'),
+  // #759 PR 4: the one write to a customer repository; a member, a job and the service identity never trigger it.
+  [`POST ${P}/actions-setup/workflow-pr`]: OWNER_ONLY('Opening the workflow pull request is the owner’s'),
   // #687 (ADR 0009 d.9, threat model C12): the account reads the document and its history; a job reads only its own
   // resolved view; every write is the owner's.
   [`GET ${P}/team-config`]: ACCOUNT_READ('The team configuration is read by the account; a job reads its resolved view'),

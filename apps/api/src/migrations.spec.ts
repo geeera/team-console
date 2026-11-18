@@ -32,6 +32,7 @@ describe('migrations on a fresh D1', () => {
       'job_events',
       'jobs',
       'labels',
+      'operator_stops',
       'own_write_claims',
       'own_writes',
       'owner_connections',
@@ -99,6 +100,7 @@ describe('migrations on a fresh D1', () => {
       '0035_jobs_account_live_index.sql',
       '0036_runner_project_scope.sql',
       '0037_runner_enrolment_requests.sql',
+      '0040_operator_stops.sql',
     ]);
   });
 

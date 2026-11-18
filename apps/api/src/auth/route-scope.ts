@@ -148,6 +148,8 @@ export const ROUTE_SCOPES = {
   // #759: the readiness check (owner-only in the matrix: every call mints) and the rendered workflow.
   [`GET ${P}/actions-setup`]: PROJECT,
   [`GET ${P}/actions-setup/workflow`]: PROJECT,
+  // #759 PR 4: the pull request with that workflow in the project's repository (owner-only in the matrix).
+  [`POST ${P}/actions-setup/workflow-pr`]: PROJECT,
   // #687 (ADR 0009 d.9): team configuration; the matrix decides the actor (owner-only writes, `…/resolved` for a job).
   [`GET ${P}/team-config`]: PROJECT,
   [`PUT ${P}/team-config`]: PROJECT,
