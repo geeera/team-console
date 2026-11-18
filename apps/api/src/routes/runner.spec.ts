@@ -53,6 +53,7 @@ describe('POST /api/v1/runner/enrol', () => {
       accountId: OWNER_ACCOUNT_ID,
       name: 'Mac mini',
       audience: runnerAudienceOf('local'),
+      projectScope: 'selected',
       allowedProjects: [],
       pollSeconds: 60,
     });
@@ -94,6 +95,7 @@ describe('POST /api/v1/runner/enrol', () => {
         codeHash: await sha256Hex(code),
         accountId: OWNER_ACCOUNT_ID,
         name: 'old',
+        projectScope: 'selected',
         allowedProjects: [],
         createdBy: 'owner',
         at: '2026-01-01T00:00:00.000Z',

@@ -2075,7 +2075,7 @@
   },
   "runners": {
     "title": "Runners",
-    "lead": "Runners are the machines the team runs its jobs on: your Mac, a server or a container. A runner only takes jobs of the projects you allow it.",
+    "lead": "Runners are the machines the team runs its jobs on: your Mac, a server or a container. Each runner takes jobs of every project of the account, or only of the projects you chose for it.",
     "loading": "Loading runners…",
     "loadFailed": "Couldn't load the runners",
     "machines": "Machines",
@@ -2133,7 +2133,14 @@
         "rate-limit": "Claude is limiting its requests; it takes no jobs meanwhile.",
         "manual": "Paused on its machine; it takes no jobs meanwhile."
       },
-      "pauseUntil": "Resumes {{day}} at {{time}}."
+      "pauseUntil": "Resumes {{day}} at {{time}}.",
+      "scopeAll": "all projects of the account",
+      "scopeAllNow": "now: {{projects}}",
+      "scopeAllNone": "none yet",
+      "unfit": {
+        "api_key": "{{project}} does not fit: the project runs on an API key, the runner has a subscription",
+        "subscription": "{{project}} does not fit: the project runs on a subscription, the runner has an API key"
+      }
     },
     "projects": {
       "legend": "Projects whose jobs the runner may take",
@@ -2143,15 +2150,15 @@
       "title": "Runner projects",
       "edit": "Projects",
       "editAria": "Change the projects of runner {{name}}",
-      "narrowing": "The runner's current jobs in {{projects}} will be cancelled.",
+      "narrowing": "The runner’s current jobs in {{projects}} will be cancelled.",
       "save": "Save",
       "busy": "Saving…",
-      "saved": "Projects of runner {{name}} saved"
+      "saved": "Projects of runner {{name}} saved. It applies from the next job; no restart needed."
     },
     "enrol": {
       "open": "Enrol a runner",
       "title": "New runner",
-      "lead": "Name the machine and choose its projects. The console gives you a one-time code for the enrol command.",
+      "lead": "Name the machine and choose which projects it serves. The console issues a one-time code for the enrol command.",
       "name": "Name",
       "nameHint": "For example “Mac” or “Hetzner VPS” — the list shows the runner under this name.",
       "nameEmpty": "Enter a name for the runner",
@@ -2171,7 +2178,8 @@
       "expires": "The code works until {{time}} ({{minutes}} minutes) and for one machine.",
       "projects": "Projects: {{projects}}",
       "noProjects": "No projects chosen: the runner takes no jobs until you add some.",
-      "done": "Done"
+      "done": "Done",
+      "scopeAll": "Projects: all projects of the account, including ones added later."
     },
     "revoke": {
       "open": "Revoke",
@@ -2251,6 +2259,7 @@
       "enrolmentGone": "This code is already used, expired or withdrawn. Refresh the list.",
       "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
       "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
+      "scopeFixed": "A runner hosted by us or a GitHub Actions runner serves what the console gave it. Its projects cannot be changed.",
       "openTeam": "Open team settings"
     },
     "dispatch": {
@@ -2292,7 +2301,19 @@
       "withdrawMessage": "The code will no longer enrol a machine. If you still need the machine, get a new code.",
       "withdrawConfirm": "Withdraw code",
       "withdrawBusy": "Withdrawing…",
-      "withdrawn": "The code for “{{name}}” is withdrawn"
+      "withdrawn": "The code for “{{name}}” is withdrawn",
+      "scopeAll": "all projects of the account"
+    },
+    "scope": {
+      "legend": "Which projects the runner serves",
+      "editLegend": "Projects of “{{name}}”",
+      "all": "All projects of the account",
+      "allHint": "Every current and future project of the account. In an account with several owners, a runner signed in with a Claude subscription takes only your own projects under this rule; add the other owners’ projects by choosing them.",
+      "selected": "Only the chosen ones",
+      "selectedHint": "The runner takes jobs of the ticked projects only. A new project has to be added by hand.",
+      "title": "Runner projects",
+      "edit": "Projects",
+      "editAria": "Change the projects of runner {{name}}"
     }
   },
   "jobs": {

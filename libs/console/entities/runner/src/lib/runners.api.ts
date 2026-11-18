@@ -16,6 +16,7 @@ import {
   type RunnerListDto,
   type RunnerPolicy,
   type RunnerPolicyDto,
+  type UpdateRunnerInput,
 } from '@shared/contracts';
 import { firstValueFrom, timeout, type Observable } from 'rxjs';
 import { RUNNER_CALL_TIMEOUT_MS, runnerFailureOf, type RunnerResult } from './runner-failure';
@@ -81,12 +82,13 @@ export class RunnersApi {
     return this.call(this.http.post<unknown>(`${runnersUrl(accountId)}/enrolment-code`, input), isEnrolmentCodeDto);
   }
 
-  setAllowedProjects(
-    accountId: string,
-    runnerId: string,
-    allowedProjects: readonly string[],
-  ): Promise<RunnerResult<RunnerDto>> {
-    return this.call(this.http.patch<unknown>(runnerUrl(accountId, runnerId), { allowedProjects }), isRunnerDto);
+  /** The runner's scope (#775): `all`, or `selected` with its list; `allowedProjects` is `[]` under `all`. */
+  setScope(accountId: string, runnerId: string, scope: UpdateRunnerInput): Promise<RunnerResult<RunnerDto>> {
+    const body: UpdateRunnerInput = {
+      projectScope: scope.projectScope,
+      allowedProjects: scope.projectScope === 'all' ? [] : scope.allowedProjects,
+    };
+    return this.call(this.http.patch<unknown>(runnerUrl(accountId, runnerId), body), isRunnerDto);
   }
 
   revoke(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {

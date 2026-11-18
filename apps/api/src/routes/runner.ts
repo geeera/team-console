@@ -144,7 +144,10 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           host: value.host,
           capabilities: value.capabilities,
           isolation: value.isolation,
+          projectScope: enrolment.projectScope,
           allowedProjects: enrolment.allowedProjects,
+          // D3 (#775): the code's creator is the enrolling owner; the scope term compares it with `projects.created_by`.
+          enrolledBy: enrolment.createdBy,
           version: value.version,
           at,
         },
@@ -159,7 +162,9 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             name: enrolment.name,
             isolation: value.isolation,
             version: value.version,
+            projectScope: enrolment.projectScope,
             allowedProjects: enrolment.allowedProjects,
+            accessSources: value.capabilities.accessSources ?? null,
             createdBy: enrolment.createdBy,
           },
           ipCountry: c.req.header('CF-IPCountry') ?? null,
@@ -174,6 +179,7 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         accountId: enrolment.accountId,
         name: enrolment.name,
         audience: runnerAudienceOf(c.env.ENVIRONMENT),
+        projectScope: enrolment.projectScope,
         allowedProjects: enrolment.allowedProjects,
         pollSeconds: RUNNER_POLL_SECONDS,
       };

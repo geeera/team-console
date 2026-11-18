@@ -214,6 +214,8 @@ export function createRunnerOidcRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       job: jobDtoOf(outcome.job),
       jobToken: token,
       leaseSeconds: JOB_LEASE_SECONDS,
+      // #775: the identity exists for this one project; the run holds itself to exactly that.
+      scope: { projectScope: 'selected', allowedProjects: [job.projectSlug], projects: [job.projectSlug] },
       // #687: the revision the exchange stamped, as for the pull claim; #669's run reads its settings from here.
       ...(await claimTeamConfigOf(c.env.DB, outcome.job)),
       runner: { id: runnerId, audience: runnerAudienceOf(c.env.ENVIRONMENT) },

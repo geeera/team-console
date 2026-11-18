@@ -291,6 +291,8 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
     shutdown: deps.shutdown,
     // One job per identity: a limit has no next claim to pause, so the streak starts and ends here.
     limitStreak: 0,
+    // The exchange created this identity for exactly this project (#775: `selected`, server-set); the scope is that.
+    scope: { source: 'exchange', projectScope: 'selected', projects: [job.projectSlug] },
     ...deps.timing,
   }, exchanged.teamConfig);
   return { kind: 'ran', report };

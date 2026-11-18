@@ -4,8 +4,11 @@ import {
   isJobDto,
   isProblemDetails,
   isRunnerReleaseDto,
+  isRunnerScopeDto,
+  isRunnerSelfDto,
   isUlid,
   problemSlugOf,
+  type ClaimRunnerInput,
   type FinishJobInput,
   type HeartbeatResponse,
   type JobDto,
@@ -13,6 +16,8 @@ import {
   type JobEventsResponse,
   type PauseRunnerInput,
   type RunnerReleaseDto,
+  type RunnerScopeDto,
+  type RunnerSelfDto,
 } from '@shared/contracts';
 import { redactedJsonBody } from './redact';
 import { mintRunnerJwt } from './runner-jwt';
@@ -62,6 +67,12 @@ export type ClaimOutcome =
        * `undefined` when the console sent none.
        */
       readonly teamConfig?: unknown;
+      /**
+       * The runner's scope as this claim applied it (#775): what the runner holds itself to from here on. `undefined`
+       * when the console sent none (an older console) or something that is not a scope; the loop then keeps the last
+       * scope it had.
+       */
+      readonly scope?: RunnerScopeDto;
     }
   | { readonly kind: 'idle'; readonly retryAfterSeconds: number };
 
@@ -191,8 +202,22 @@ export class RunnerClient {
     return body;
   }
 
-  async claim(): Promise<ClaimOutcome> {
-    const response = await this.send('POST', '/api/v1/runner/jobs/claim', {});
+  /** The runner's own row and the projects its scope serves now (#775), to hold itself to without a restart. */
+  async self(): Promise<RunnerSelfDto> {
+    const response = await this.send('GET', '/api/v1/runner/self', undefined);
+    if (response.status !== 200) {
+      throw await apiErrorOf(response, 'self');
+    }
+    const body = await jsonOf(response);
+    if (!isRunnerSelfDto(body)) {
+      throw new RunnerApiError(response.status, null, 'self: unexpected answer');
+    }
+    return body;
+  }
+
+  /** `input` is the declaration of what the credential serves (#775); `{}` declares nothing, as before. */
+  async claim(input: ClaimRunnerInput = {}): Promise<ClaimOutcome> {
+    const response = await this.send('POST', '/api/v1/runner/jobs/claim', input);
     if (response.status === 204) {
       return { kind: 'idle', retryAfterSeconds: retryAfterOf(response) };
     }
@@ -203,12 +228,14 @@ export class RunnerClient {
     if (!isClaimBody(body)) {
       throw new RunnerApiError(response.status, null, 'claim: unexpected answer');
     }
+    const scope = (body as Record<string, unknown>)['scope'];
     return {
       kind: 'job',
       job: body.job,
       jobToken: body.jobToken,
       leaseSeconds: body.leaseSeconds,
       ...(Object.hasOwn(body, 'teamConfig') ? { teamConfig: (body as Record<string, unknown>)['teamConfig'] } : {}),
+      ...(isRunnerScopeDto(scope) ? { scope } : {}),
     };
   }
 

@@ -112,7 +112,7 @@ describe('integration: Run now → runner → fake CLI → events and finish', (
     const code = await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-code`, {
       method: 'POST',
       headers: OWNER_HEADERS,
-      body: JSON.stringify({ name: 'Integration runner', allowedProjects: [SLUG] }),
+      body: JSON.stringify({ name: 'Integration runner', projectScope: 'selected', allowedProjects: [SLUG] }),
     });
     const enrolment: unknown = await code.json();
     if (!isEnrolmentCodeDto(enrolment)) {

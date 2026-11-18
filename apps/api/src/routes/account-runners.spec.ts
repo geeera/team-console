@@ -10,6 +10,7 @@ import {
   generateRunnerKey,
   postEnrol,
   sendAsRunner,
+  setProjectAccessSource,
   type TestRunner,
 } from '../testing/runner-kit';
 import {
@@ -35,11 +36,12 @@ describe('enrolment codes', () => {
     const project = await seedTrackerProject();
     const response = await send('POST', `${runnersPath(OWNER_ACCOUNT_ID)}/enrolment-code`, {
       name: 'Mac',
+      projectScope: 'selected',
       allowedProjects: [project.slug],
     });
     expect(response.status).toBe(201);
     const body = (await response.json()) as EnrolmentCodeDto;
-    expect(body).toMatchObject({ name: 'Mac', allowedProjects: [project.slug], apiUrl: 'http://api.test' });
+    expect(body).toMatchObject({ name: 'Mac', projectScope: 'selected', allowedProjects: [project.slug], apiUrl: 'http://api.test' });
     expect(body.code.startsWith(ENROLMENT_CODE_PREFIX)).toBe(true);
     const audit = await env.DB.prepare(
       `SELECT details FROM audit_events WHERE kind = 'enrolment-code.created' AND account_id = ?1 ORDER BY id DESC`,
@@ -65,6 +67,7 @@ describe('enrolment codes', () => {
     for (const slug of [theirs.slug, archived.slug, 'zz-no-such-project']) {
       const response = await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/enrolment-code`, {
         name: 'x',
+        projectScope: 'selected',
         allowedProjects: [mine.slug, slug],
       });
       expect(response.status).toBe(422);
@@ -73,6 +76,7 @@ describe('enrolment codes', () => {
     }
     const ok = await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/enrolment-code`, {
       name: 'x',
+      projectScope: 'selected',
       allowedProjects: [mine.slug],
     });
     expect(ok.status).toBe(201);
@@ -81,11 +85,32 @@ describe('enrolment codes', () => {
   it.each([
     ['a missing name', { allowedProjects: [] }, 'name'],
     ['a blank name', { name: '   ', allowedProjects: [] }, 'name'],
-    ['a malformed slug', { name: 'x', allowedProjects: ['Not A Slug'] }, 'allowedProjects'],
+    ['a malformed slug', { name: 'x', projectScope: 'selected', allowedProjects: ['Not A Slug'] }, 'allowedProjects'],
+    ['a list beside all', { name: 'x', projectScope: 'all', allowedProjects: ['team-console'] }, 'allowedProjects'],
+    ['a list with no scope', { name: 'x', allowedProjects: ['team-console'] }, 'allowedProjects'],
+    ['an unknown scope', { name: 'x', projectScope: 'everything', allowedProjects: [] }, 'projectScope'],
   ])('refuses %s with 422', async (_, body, field) => {
     const response = await send('POST', `${runnersPath(OWNER_ACCOUNT_ID)}/enrolment-code`, body);
     expect(response.status).toBe(422);
     expect(((await response.json()) as { field: string }).field).toBe(field);
+  });
+
+  // #775: the owner's default (SECURITY question 6) — a code with no scope is `all`, and the enrolled runner is too.
+  it('defaults a code to all projects of the account, and the runner enrolled with it serves them', async () => {
+    const response = await send('POST', `${runnersPath(OWNER_ACCOUNT_ID)}/enrolment-code`, { name: 'Mac' });
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as EnrolmentCodeDto;
+    expect(body).toMatchObject({ projectScope: 'all', allowedProjects: [] });
+    const key = await generateRunnerKey();
+    const enrolled = await postEnrol(enrolBodyOf(body.code, key.publicKeyJwk));
+    expect(enrolled.status).toBe(201);
+    expect(await enrolled.json()).toMatchObject({ projectScope: 'all', allowedProjects: [] });
+    const audit = await env.DB.prepare(
+      `SELECT details FROM audit_events WHERE kind = 'enrolment-code.created' AND account_id = ?1 ORDER BY id DESC`,
+    )
+      .bind(OWNER_ACCOUNT_ID)
+      .first<{ details: string }>();
+    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({ name: 'Mac', projectScope: 'all', allowedProjects: [] });
   });
 
   it('is the owner’s: a member gets 403, a non-member and the service identity 404', async () => {
@@ -160,7 +185,7 @@ describe('runner list, allowed projects and revoke', () => {
       owner,
       'PATCH',
       `${runnersPath(owner.account.id)}/${behind.id}`,
-      { allowedProjects: [] },
+      { projectScope: 'all', allowedProjects: [] },
       {},
       bindings,
     );
@@ -172,25 +197,30 @@ describe('runner list, allowed projects and revoke', () => {
     expect(unset.runners.every((runner) => !runner.belowMinimum)).toBe(true);
   });
 
-  it('changes allowed projects inside the account and refuses foreign slugs and foreign runners', async () => {
+  it('changes the scope inside the account and refuses foreign slugs and foreign runners', async () => {
     const mine = await enrolRunner(owner.account.id, { as: owner });
     const project = await seedAccountProject(owner.account);
     const theirs = await seedTrackerProject();
     const theirRunner = await enrolRunner(OWNER_ACCOUNT_ID);
 
     const ok = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${mine.id}`, {
+      projectScope: 'selected',
       allowedProjects: [project.slug],
     });
     expect(ok.status).toBe(200);
-    expect(((await ok.json()) as RunnerDto).allowedProjects).toEqual([project.slug]);
+    const dto = (await ok.json()) as RunnerDto;
+    expect(dto).toMatchObject({ projectScope: 'selected', allowedProjects: [project.slug] });
+    expect(dto.servedProjects).toEqual([{ slug: project.slug, accessSource: 'subscription', fit: true }]);
 
     const foreignSlug = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${mine.id}`, {
+      projectScope: 'selected',
       allowedProjects: [theirs.slug],
     });
     expect(foreignSlug.status).toBe(422);
     expect(await slugOf(foreignSlug)).toBe('allowed-projects-invalid');
 
     const foreignRunner = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${theirRunner.id}`, {
+      projectScope: 'selected',
       allowedProjects: [project.slug],
     });
     expect(foreignRunner.status).toBe(404);
@@ -201,15 +231,89 @@ describe('runner list, allowed projects and revoke', () => {
     expect(unchanged?.allowed_projects).toBe('[]');
 
     const malformed = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/not-an-id`, {
+      projectScope: 'selected',
       allowedProjects: [],
     });
     expect(malformed.status).toBe(404);
     const audit = await env.DB.prepare(
-      `SELECT details FROM audit_events WHERE kind = 'runner.updated' AND target = ?1`,
+      `SELECT details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1`,
     )
       .bind(mine.id)
       .first<{ details: string }>();
-    expect(JSON.parse(audit?.details ?? '{}')).toEqual({ allowedProjects: [project.slug], before: [] });
+    expect(JSON.parse(audit?.details ?? '{}')).toEqual({
+      from: { projectScope: 'selected', allowedProjects: [] },
+      to: { projectScope: 'selected', allowedProjects: [project.slug] },
+    });
+  });
+
+  // #775: PATCH names both keys exactly; `all` needs an empty list; a no-op writes no audit row; the scope changes
+  // without re-enrolment and the runner's served projects follow.
+  it('switches a runner to all projects and back, audits each change once and refuses a half body', async () => {
+    const mine = await enrolRunner(owner.account.id, { as: owner });
+    const project = await seedAccountProject(owner.account);
+    const path = `${runnersPath(owner.account.id)}/${mine.id}`;
+    const scopeAudits = (): Promise<number | null> =>
+      env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1`).bind(mine.id).first<number>('n');
+
+    for (const body of [{ allowedProjects: [] }, { projectScope: 'all' }, { projectScope: 'all', allowedProjects: [project.slug] }, { projectScope: 'selected', allowedProjects: [], extra: 1 }]) {
+      const refused = await sendAsSession(owner, 'PATCH', path, body);
+      expect(refused.status).toBe(422);
+      expect(await slugOf(refused)).toBe('runner-invalid');
+    }
+    expect(await scopeAudits()).toBe(0);
+
+    const widened = await sendAsSession(owner, 'PATCH', path, { projectScope: 'all', allowedProjects: [] });
+    expect(widened.status).toBe(200);
+    const all = (await widened.json()) as RunnerDto;
+    expect(all).toMatchObject({ projectScope: 'all', allowedProjects: [] });
+    expect(all.servedProjects.map((row) => row.slug)).toContain(project.slug);
+    expect(await scopeAudits()).toBe(1);
+
+    const again = await sendAsSession(owner, 'PATCH', path, { projectScope: 'all', allowedProjects: [] });
+    expect(again.status).toBe(200);
+    expect(await scopeAudits()).toBe(1);
+
+    const narrowed = await sendAsSession(owner, 'PATCH', path, { projectScope: 'selected', allowedProjects: [] });
+    expect(narrowed.status).toBe(200);
+    expect(((await narrowed.json()) as RunnerDto).servedProjects).toEqual([]);
+    expect(await scopeAudits()).toBe(2);
+    const detail = await env.DB.prepare(`SELECT details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id DESC`).bind(mine.id).first<{ details: string }>();
+    expect(JSON.parse(detail?.details ?? '{}')).toEqual({ from: { projectScope: 'all', allowedProjects: [] }, to: { projectScope: 'selected', allowedProjects: [] } });
+  });
+
+  // R-SCOPE-4: a hosted or GitHub Actions identity keeps the scope the console gave it.
+  it('refuses to change the scope of a hosted or actions-ephemeral runner (422 runner-scope-fixed)', async () => {
+    // `hosted` is kept by the 0021 identity trigger, so a hosted row is inserted as H-2 will insert it (the account's
+    // subscription projects would refuse `enrolHosted` here, #707); `isolation` is not kept, so the Actions identity is
+    // a plain update of a self-hosted row.
+    const key = await generateRunnerKey();
+    const hostedId = '01M6YSNJ00000000000000H775';
+    await env.DB.prepare(
+      `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, hosted, isolation, allowed_projects, version, enrolled_at)
+       VALUES (?1, ?2, 'hosted', ?3, '{"local":false,"maxConcurrency":1,"accessSources":["api_key"]}', 1, 'container', '[]', '0.3.0', ?4)`,
+    )
+      .bind(hostedId, owner.account.id, JSON.stringify(key.publicKeyJwk), new Date().toISOString())
+      .run();
+    const ephemeral = await enrolRunner(owner.account.id, { as: owner });
+    await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral' WHERE id = ?1`).bind(ephemeral.id).run();
+    for (const id of [hostedId, ephemeral.id]) {
+      const refused = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${id}`, { projectScope: 'all', allowedProjects: [] });
+      expect(refused.status).toBe(422);
+      expect(await slugOf(refused)).toBe('runner-scope-fixed');
+      const row = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`).bind(id).first<{ project_scope: string }>();
+      expect(row?.project_scope).toBe('selected');
+    }
+  });
+
+  // #775: the fit badge — a runner declaring a subscription cannot run an API-key project; the list says so.
+  it('marks a served project the runner’s declared access sources do not fit', async () => {
+    const project = await seedAccountProject(owner.account);
+    await setProjectAccessSource(project.slug, 'api_key', owner);
+    const mine = await enrolRunner(owner.account.id, { as: owner, projectScope: 'all', enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] } } });
+    const listed = (await (await sendAsSession(owner, 'GET', runnersPath(owner.account.id))).json()) as RunnerListDto;
+    const dto = listed.runners.find((runner) => runner.id === mine.id);
+    expect(dto?.capabilities.accessSources).toEqual(['subscription']);
+    expect(dto?.servedProjects).toContainEqual({ slug: project.slug, accessSource: 'api_key', fit: false });
   });
 
   it('revokes a runner once, inside the account, and its JWT is refused from then on', async () => {
@@ -359,6 +463,7 @@ describe('withdraw a pending enrolment code', () => {
     expect((JSON.parse(text) as RunnerListDto).pendingEnrolments).toContainEqual({
       id,
       name: 'Laptop',
+      projectScope: 'selected',
       allowedProjects: [],
       createdAt: expect.any(String) as string,
       expiresAt: issued.expiresAt,

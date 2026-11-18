@@ -1,4 +1,4 @@
-import type { AccountMembershipDto, RunnerDto, RunnerPauseDto } from '@shared/contracts';
+import { runnerScopeCovers, type AccountMembershipDto, type RunnerDto, type RunnerPauseDto } from '@shared/contracts';
 
 /**
  * What the runner's row says first (#464): `revoked` is final; a `suspect` runner (threat model C4: a new country or
@@ -29,11 +29,12 @@ export function liveRunnersOf(runners: readonly RunnerDto[]): readonly RunnerDto
 }
 
 /**
- * What holds a project's runs back (#571): every live runner allowed to serve it is paused. The pause that ends first
- * is the one that matters — that runner claims again then. `null` while any allowed runner is free, or none exists.
+ * What holds a project's runs back (#571): every live runner whose scope covers it (#775: `all`, or the slug in its
+ * list) is paused. The pause that ends first is the one that matters — that runner claims again then. `null` while
+ * any such runner is free, or none exists.
  */
 export function projectPauseOf(runners: readonly RunnerDto[], slug: string): RunnerPauseDto | null {
-  const serving = liveRunnersOf(runners).filter((runner) => runner.allowedProjects.includes(slug));
+  const serving = liveRunnersOf(runners).filter((runner) => runnerScopeCovers(runner, slug));
   let first: RunnerPauseDto | null = null;
   for (const runner of serving) {
     if (runner.pause === null) {

@@ -1,4 +1,4 @@
-import type { RunnerCapabilitiesDto, RunnerIsolation } from '@shared/contracts';
+import type { RunnerCapabilitiesDto, RunnerIsolation, RunnerProjectScope } from '@shared/contracts';
 import type { Membership } from '@worker/db';
 import type { JobRole } from './job-roles';
 
@@ -47,12 +47,14 @@ export type Identity =
     }
   /**
    * An enrolled runner on `/api/v1/runner/*` (#467, ADR 0008 decision 2): its EdDSA JWT alone mints it
-   * (`runner-auth.ts`). Its scope is `allowedProjects` inside `accountId`, never the account itself.
+   * (`runner-auth.ts`). Its scope is its projects inside `accountId` — every active one under `projectScope: 'all'`
+   * (#775), else `allowedProjects` — and never the account itself.
    */
   | {
       readonly kind: 'runner';
       readonly runnerId: string;
       readonly accountId: string;
+      readonly projectScope: RunnerProjectScope;
       readonly allowedProjects: readonly string[];
       readonly isolation: RunnerIsolation;
       readonly capabilities: RunnerCapabilitiesDto;

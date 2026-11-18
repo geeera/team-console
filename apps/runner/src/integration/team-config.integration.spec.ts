@@ -112,7 +112,7 @@ describe('integration: team configuration → claim → runner launch (#685)', (
     const code = await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-code`, {
       method: 'POST',
       headers: OWNER_HEADERS,
-      body: JSON.stringify({ name: 'Team-config runner', allowedProjects: [SLUG] }),
+      body: JSON.stringify({ name: 'Team-config runner', projectScope: 'selected', allowedProjects: [SLUG] }),
     });
     const enrolment: unknown = await code.json();
     if (!isEnrolmentCodeDto(enrolment)) {
@@ -171,12 +171,18 @@ describe('integration: team configuration → claim → runner launch (#685)', (
       cost: { reviewer_context: 'diff' },
     });
 
-    // 2a. The same runner without an API key is refused: the host's Claude login never runs an api_key project.
-    const refused = await runOnce({ kind: 'slot-dev' });
-    expect(refused.job).toMatchObject({ state: 'failed', result: { metrics: { reason: 'credential-source-mismatch' } } });
+    // 2a. The same runner without an API key declares `subscription` (#775): the console's claim filter never hands it
+    // the api_key job, which waits; the host's own refusal (`credential-source-mismatch`) stays run-job.spec's.
+    const waiting = await runOnce({ kind: 'slot-dev' });
+    expect(waiting.job).toMatchObject({ state: 'queued', runnerId: null });
+    expect(out.at(-1)).toBe('No job is queued for this runner.');
 
-    // 2b. With the key: the orchestrator runs on the view's model, turns and effort.
+    // 2b. With the key the runner declares `api_key`: the waiting job is claimed first and runs on the view's model,
+    // turns and effort, as does the next one.
     await configure(true);
+    expect(await cli(['run-once'])).toBe(EXIT_OK);
+    const drained: unknown = JSON.parse(await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${waiting.job.id}`)).text());
+    expect(drained).toMatchObject({ state: 'finished' });
     const economy = await runOnce({ kind: 'slot-dev' });
     expect(economy.job.state).toBe('finished');
     expect(reportOf(economy.job)).toMatchObject({ model: 'claude-sonnet-5', maxTurns: '25', shallow: false });
@@ -197,13 +203,12 @@ describe('integration: team configuration → claim → runner launch (#685)', (
       expect(reportOf(full.job)).toMatchObject({ shallow: false, promisor: null });
     }
 
-    // 4. T7 back to subscription: the API-key credential is refused by its kind, and the key appears nowhere.
+    // 4. T7 back to subscription: a runner declaring `api_key` is not handed a subscription job (#775), and the key
+    // appears nowhere in what the console holds or the runner printed.
     await saveTeamConfig({ schema: 'team-config/v1', access: { source: 'subscription' } });
     const mismatch = await runOnce({ kind: 'slot-dev' });
-    expect(mismatch.job).toMatchObject({ state: 'failed', result: { metrics: { reason: 'credential-source-mismatch' } } });
-    expect(mismatch.events.find((event) => event.payload['refused'] === 'credential-source-mismatch')?.payload['detail']).toBe(
-      "the api-key credential does not match the project's subscription access source",
-    );
+    expect(mismatch.job).toMatchObject({ state: 'queued', runnerId: null });
+    expect(out.at(-1)).toBe('No job is queued for this runner.');
     for (const text of [mismatch.raw, economy.raw, [...out, ...err].join('\n')]) {
       expect(text).not.toContain(sentinels.anthropicKey);
     }

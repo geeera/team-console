@@ -6,7 +6,8 @@ import { TimeoutError } from 'rxjs';
  * Why a Settings › Runners call did not succeed, as the screens word it (#464):
  * - `forbidden` — 403: the caller is no owner of the account (`account-owner-only`) or this identity may not act;
  * - `not-found` — 404: the account, runner or project is not the caller's (the same answer as one that is missing);
- * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-policy-invalid`, …) and the field;
+ * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-scope-fixed`, `runner-policy-invalid`, …)
+ *   and the field;
  * - `revoked` — 409 `runner-revoked`: someone revoked it meanwhile;
  * - `not-suspect` — 409 `runner-not-suspect`: its suspect mark was cleared meanwhile (#492);
  * - `rate-limited` — 429; `offline` — no answer; `timeout` — none in `RUNNER_CALL_TIMEOUT_MS`;
@@ -89,6 +90,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
     switch (failure.slug) {
       case 'allowed-projects-invalid':
         return 'runners.err.allowedProjects';
+      // #775: a hosted or GitHub Actions identity keeps the scope the console gave it.
+      case 'runner-scope-fixed':
+        return 'runners.err.scopeFixed';
       case 'runner-policy-invalid':
         return failure.field === 'runner' ? 'runners.err.policyRunner' : 'runners.err.policy';
       // #670: the dispatch switch's refusals.

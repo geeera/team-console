@@ -45,7 +45,7 @@ function runnerJwt(runner: Runner): string {
 
 async function enrolRunner(api: APIRequestContext): Promise<Runner> {
   const code = await api.post(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-code`, {
-    data: { name: 'E2E Mac', allowedProjects: [SLUG] },
+    data: { name: 'E2E Mac', projectScope: 'selected', allowedProjects: [SLUG] },
   });
   expect(code.status(), await code.text()).toBe(201);
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');

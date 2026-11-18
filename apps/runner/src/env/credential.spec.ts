@@ -12,11 +12,23 @@ import {
   assertCredentialAllowed,
   isCredentialAllowed,
   jobCredentialOf,
+  accessSourcesOf,
   parseCredentialConfig,
   type CredentialConfig,
 } from './credential';
 
 /** ADR 0008 decision 5 (RR11): one credential kind per runner, each on its backends only. */
+
+// #775 (SECURITY question 7): a derived enum from `SOURCE_CREDENTIAL_KINDS`, never the kind or a value.
+describe('accessSourcesOf', () => {
+  it('derives api_key for an API key, subscription for a Claude login or no credential at all', () => {
+    expect(accessSourcesOf({ kind: 'api-key', file: 'credentials/anthropic.key' })).toEqual(['api_key']);
+    expect(accessSourcesOf({ kind: 'api-key', env: 'TC_INFERENCE_API_KEY' })).toEqual(['api_key']);
+    expect(accessSourcesOf({ kind: 'setup-token', file: 'credentials/claude-setup-token' })).toEqual(['subscription']);
+    expect(accessSourcesOf({ kind: 'claude-config-dir', path: '/Users/me/.claude' })).toEqual(['subscription']);
+    expect(accessSourcesOf(undefined)).toEqual(['subscription']);
+  });
+});
 
 describe('credential kinds', () => {
   let home: string;
@@ -185,6 +197,7 @@ describe('RR11: credential/backend pairings', () => {
           accountId: ACCOUNT_ID,
           name: 'Owner Mac',
           audience: 'team-console:local',
+          projectScope: 'selected',
           allowedProjects: [],
           pollSeconds: 60,
         }),

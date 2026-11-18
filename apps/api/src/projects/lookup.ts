@@ -1,5 +1,5 @@
 import { problem, type WorkerContext } from '@worker/core';
-import { ProjectsRepo, type ProjectRow, type TrackerProject } from '@worker/db';
+import { ProjectsRepo, RunnersRepo, type ProjectRow, type TrackerProject } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
 import { isOwnerIdentity } from '../auth/owner-only.middleware';
 import { admits, roleIn, scopeOf } from '../auth/scope';
@@ -46,10 +46,15 @@ export async function scopedProjectsOf(
       return row === null ? [] : [row];
     }
     case 'runner': {
-      // A runner lists its allowed projects of its own account (ADR 0008 decision 2); a slug of another account is
-      // not its, whatever `allowed_projects` says.
+      // A runner lists the projects of its own account its scope serves (ADR 0008 decision 2, #775): under `all` the
+      // claim's own term answers (`servedProjectsOf`, D3 applied); a slug of another account is not its, whatever
+      // `allowed_projects` says.
       const rows = await repo.listActive([scope.accountId]);
-      return rows.filter((row) => scope.slugs.includes(row.slug));
+      const served =
+        scope.projects === 'all'
+          ? new Set((await new RunnersRepo(c.env.DB).servedProjectsOf(scope.accountId, scope.runnerId)).map((row) => row.slug))
+          : new Set(scope.projects);
+      return rows.filter((row) => served.has(row.slug));
     }
     case 'none':
       return [];

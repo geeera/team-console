@@ -11,7 +11,7 @@ import {
   viewChild,
 } from '@angular/core';
 import {
-  RunnerProjectsPicker,
+  RunnerScopePicker,
   RunnersApi,
   runnerFailureKeyOf,
   type RunnerProjectOption,
@@ -29,7 +29,13 @@ import {
   Icon,
   SheetFooter,
 } from '@console/shared/ui';
-import { ENROLMENT_CODE_TTL_SECONDS, RUNNER_NAME_MAX_LENGTH, enrolCommandOf } from '@shared/contracts';
+import {
+  DEFAULT_RUNNER_PROJECT_SCOPE,
+  ENROLMENT_CODE_TTL_SECONDS,
+  RUNNER_NAME_MAX_LENGTH,
+  enrolCommandOf,
+  type RunnerProjectScope,
+} from '@shared/contracts';
 
 export interface EnrolRunnerData {
   readonly accountId: string;
@@ -44,6 +50,7 @@ interface IssuedCode {
   readonly code: string;
   readonly expiresAt: string;
   readonly name: string;
+  readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
 }
 
@@ -55,7 +62,8 @@ export function runnerNameOf(value: string): string {
 }
 
 /**
- * "New runner" (#464, ADR 0006 "Enrolment"): the owner names the runner and picks the projects it may serve; the
+ * "New runner" (#464, ADR 0006 "Enrolment"): the owner names the runner and chooses its scope (#775: every project of
+ * the account, the default, or a list); the
  * Worker answers a one-time code (10 minutes, single use) and the dialog shows the exact `enrol` command to paste on
  * the runner's host, once — with a Copy button, the expiry and a warning that it is not shown again. The code lives
  * in this dialog's memory only; closing it drops the code for good. Closes with `true` when a code was issued.
@@ -71,7 +79,7 @@ export function runnerNameOf(value: string): string {
     FieldControl,
     Icon,
     LocalTimePipe,
-    RunnerProjectsPicker,
+    RunnerScopePicker,
     SheetFooter,
     TranslocoPipe,
   ],
@@ -105,8 +113,10 @@ export function runnerNameOf(value: string): string {
         <p class="enrol__meta" data-testid="enrol-expiry">
           {{ 'runners.enrol.expires' | transloco: { time: code.expiresAt | localTime, minutes: ttlMinutes } }}
         </p>
-        <p class="enrol__meta">
-          @if (code.allowedProjects.length > 0) {
+        <p class="enrol__meta" data-testid="enrol-scope">
+          @if (code.projectScope === 'all') {
+            {{ 'runners.enrol.scopeAll' | transloco }}
+          } @else if (code.allowedProjects.length > 0) {
             {{ 'runners.enrol.projects' | transloco: { projects: code.allowedProjects.join(', ') } }}
           } @else {
             {{ 'runners.enrol.noProjects' | transloco }}
@@ -138,10 +148,12 @@ export function runnerNameOf(value: string): string {
             (input)="name.set($any($event.target).value)"
           />
         </tc-field>
-        <tc-runner-projects-picker
-          [legend]="'runners.projects.legend' | transloco"
+        <tc-runner-scope-picker
+          [legend]="'runners.scope.legend' | transloco"
+          [projectsLegend]="'runners.projects.legend' | transloco"
           [projects]="data.projects"
           [disabled]="running()"
+          [(scope)]="scope"
           [(selected)]="projects"
         />
         @if (failure(); as message) {
@@ -209,6 +221,7 @@ export class EnrolRunnerDialog {
   protected readonly nameMaxLength = RUNNER_NAME_MAX_LENGTH;
   protected readonly ttlMinutes = Math.round(ENROLMENT_CODE_TTL_SECONDS / 60);
   protected readonly name = signal('');
+  protected readonly scope = signal<RunnerProjectScope>(DEFAULT_RUNNER_PROJECT_SCOPE);
   protected readonly projects = signal<readonly string[]>([]);
   protected readonly running = signal(false);
   protected readonly failure = signal<string | null>(null);
@@ -240,9 +253,11 @@ export class EnrolRunnerDialog {
     this.failure.set(null);
     // aria-disabled, not disabled: the focused button keeps focus while the write runs.
     this.ref.disableClose = true;
+    const scope = this.scope();
     const result = await this.api.createEnrolmentCode(this.data.accountId, {
       name,
-      allowedProjects: this.projects(),
+      projectScope: scope,
+      allowedProjects: scope === 'all' ? [] : this.projects(),
     });
     this.running.set(false);
     this.ref.disableClose = false;
@@ -261,6 +276,7 @@ export class EnrolRunnerDialog {
       code: result.value.code,
       expiresAt: result.value.expiresAt,
       name: result.value.name,
+      projectScope: result.value.projectScope,
       allowedProjects: result.value.allowedProjects,
     });
     void this.announcer.announce(this.t('runners.enrol.issued'), 'polite');

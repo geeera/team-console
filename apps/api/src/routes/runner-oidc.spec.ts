@@ -140,7 +140,10 @@ describe('POST /api/v1/runner/oidc-exchange: a valid run', () => {
     expect(runner).toMatchObject({ account_id: OWNER_ACCOUNT_ID, isolation: 'actions-ephemeral', hosted: 0, revoked_at: null });
     expect(runner?.name).toMatch(/^actions:[0-9]+$/);
     expect(JSON.parse(runner?.allowed_projects ?? 'null')).toEqual([project.slug]);
-    expect(JSON.parse(runner?.capabilities ?? 'null')).toEqual({ local: false, maxConcurrency: 1 });
+    // #775, R-SCOPE-4: the exchange declares `api_key` for the identity itself and creates it `selected`.
+    expect(JSON.parse(runner?.capabilities ?? 'null')).toEqual({ local: false, maxConcurrency: 1, accessSources: ['api_key'] });
+    const scope = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`).bind(answer.runner.id).first<{ project_scope: string }>();
+    expect(scope?.project_scope).toBe('selected');
     const stored = await env.DB.prepare(`SELECT public_key_jwk FROM runners WHERE id = ?1`).bind(answer.runner.id).first<{ public_key_jwk: string }>();
     expect(JSON.parse(stored?.public_key_jwk ?? '{}')).toEqual(publicKeyJwk);
 

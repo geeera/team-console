@@ -63,6 +63,8 @@ export const AUDIT_EVENT_KINDS = [
   // 2-A (#467): the one-time code, allowed-projects changes and the detection rows of threat model C4.
   'enrolment-code.created',
   'runner.updated',
+  // #775: the owner changed which projects a runner serves (`all` or a list); details hold the two scopes.
+  'runner.scope-changed',
   'runner.suspect',
   // The owner's runner management (#492): a suspect mark cleared, a pending code withdrawn.
   'runner.suspect-cleared',

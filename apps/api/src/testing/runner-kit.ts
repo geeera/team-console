@@ -7,6 +7,7 @@ import {
   type EnrolRunnerInput,
   type EnrolRunnerResponse,
   type EnrolmentCodeDto,
+  type RunnerProjectScope,
 } from '@shared/contracts';
 import { env } from 'cloudflare:test';
 import { vi } from 'vitest';
@@ -43,13 +44,21 @@ export async function generateRunnerKey(): Promise<{
   return { privateKey, publicKeyJwk: { kty: 'OKP', crv: 'Ed25519', x: jwk.x } };
 }
 
-/** The owner's request for a code: the local bypass (the owner account) or a signed-in session user. */
+/**
+ * The owner's request for a code: the local bypass (the owner account) or a signed-in session user. The kit's default
+ * scope is `selected` (the API's is `all`, #775), so a runner made with no list keeps serving nothing, as the specs
+ * written before scopes expect.
+ */
 export async function createEnrolmentCode(
   accountId: string,
-  input: { name?: string; allowedProjects?: readonly string[] } = {},
+  input: { name?: string; projectScope?: RunnerProjectScope; allowedProjects?: readonly string[] } = {},
   as: SessionUser | 'local' = 'local',
 ): Promise<EnrolmentCodeDto> {
-  const body = { name: input.name ?? 'mac', allowedProjects: input.allowedProjects ?? [] };
+  const body = {
+    name: input.name ?? 'mac',
+    projectScope: input.projectScope ?? 'selected',
+    allowedProjects: input.allowedProjects ?? [],
+  };
   const path = `/api/v1/accounts/${accountId}/runners/enrolment-code`;
   const response =
     as === 'local'
@@ -161,6 +170,7 @@ export async function enrolRunner(
   accountId: string,
   options: {
     name?: string;
+    projectScope?: RunnerProjectScope;
     allowedProjects?: readonly string[];
     as?: SessionUser | 'local';
     enrol?: Partial<EnrolRunnerInput>;
@@ -168,7 +178,11 @@ export async function enrolRunner(
 ): Promise<TestRunner> {
   const { code } = await createEnrolmentCode(
     accountId,
-    { ...(options.name === undefined ? {} : { name: options.name }), allowedProjects: options.allowedProjects ?? [] },
+    {
+      ...(options.name === undefined ? {} : { name: options.name }),
+      ...(options.projectScope === undefined ? {} : { projectScope: options.projectScope }),
+      allowedProjects: options.allowedProjects ?? [],
+    },
     options.as ?? 'local',
   );
   const key = await generateRunnerKey();
@@ -299,6 +313,30 @@ export async function seedClaimedJob(
     throw new Error('the claim took another job than the seeded one');
   }
   return { jobId, runner, jobToken: claim.jobToken };
+}
+
+/**
+ * The project's access source as the owner sets it on Settings › Team (`PUT …/team-config` on a fresh project; 0032:
+ * `projects.access_source` follows the stored document, so the column alone cannot be set).
+ */
+export async function setProjectAccessSource(
+  slug: string,
+  accessSource: 'subscription' | 'api_key',
+  as: SessionUser | 'local' = 'local',
+): Promise<void> {
+  const path = `/api/v1/projects/${slug}/team-config`;
+  const body = { config: { schema: 'team-config/v1', access: { source: accessSource } } };
+  const response =
+    as === 'local'
+      ? await fetchApi(path, localEnv(), {
+          method: 'PUT',
+          headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'If-Match': '"0"' },
+          body: JSON.stringify(body),
+        })
+      : await sendAsSession(as, 'PUT', path, body, { headers: { 'If-Match': '"0"' } });
+  if (response.status !== 200) {
+    throw new Error(`setting the access source answered ${String(response.status)}: ${await response.text()}`);
+  }
 }
 
 /** The runner's stored allow-list becomes `slugs` (the row only; no cancel batch rides along). */

@@ -36,6 +36,15 @@
       },
       "jobToken": "tcj_job-token",
       "leaseSeconds": 300,
+      "scope": {
+        "projectScope": "selected",
+        "allowedProjects": [
+          "tc"
+        ],
+        "projects": [
+          "tc"
+        ]
+      },
       "teamConfig": {
         "schema": "team-config/v1",
         "revision": 1,

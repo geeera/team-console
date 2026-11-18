@@ -40,7 +40,9 @@
                     <strong dir="auto">{{ enrolment.name }}</strong>
                     · {{ 'runners.pending.expires' | transloco: { time: enrolment.expiresAt | localTime } }}
                     ·
-                    @if (enrolment.allowedProjects.length > 0) {
+                    @if (enrolment.projectScope === 'all') {
+                      {{ 'runners.pending.scopeAll' | transloco }}
+                    } @else if (enrolment.allowedProjects.length > 0) {
                       {{ 'runners.pending.projects' | transloco: { projects: enrolment.allowedProjects.join(', ') } }}
                     } @else {
                       {{ 'runners.pending.noProjects' | transloco }}
@@ -86,10 +88,10 @@
                         size="sm"
                         type="button"
                         data-testid="runner-edit-projects"
-                        [attr.aria-label]="'runners.projects.editAria' | transloco: { name: runner.name }"
+                        [attr.aria-label]="'runners.scope.editAria' | transloco: { name: runner.name }"
                         (click)="editProjects(runner)"
                       >
-                        {{ 'runners.projects.edit' | transloco }}
+                        {{ 'runners.scope.edit' | transloco }}
                       </button>
                       @if (runner.suspect !== null) {
                         <button

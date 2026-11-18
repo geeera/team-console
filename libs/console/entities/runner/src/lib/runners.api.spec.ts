@@ -50,31 +50,32 @@ describe('RunnersApi', () => {
     expect(await malformed).toEqual({ ok: false, failure: { kind: 'error', slug: null, field: null } });
   });
 
-  it('posts the enrolment code request with the name and the projects only', async () => {
+  it('posts the enrolment code request with the name and the scope only', async () => {
     const { api, http } = setup();
-    const created = api.createEnrolmentCode(OWNER_ACCOUNT_ID, { name: 'Mac', allowedProjects: ['team-console'] });
+    const created = api.createEnrolmentCode(OWNER_ACCOUNT_ID, { name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] });
     const request = http.expectOne(`${RUNNERS}/enrolment-code`);
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ name: 'Mac', allowedProjects: ['team-console'] });
+    expect(request.request.body).toEqual({ name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] });
     const dto = {
       code: `tce_${'a'.repeat(43)}`,
       expiresAt: '2026-11-11T10:10:00.000Z',
       apiUrl: 'http://localhost:8787',
       audience: 'team-console:local',
       name: 'Mac',
+      projectScope: 'selected',
       allowedProjects: ['team-console'],
     };
     request.flush(dto, { status: 201, statusText: 'Created' });
     expect(await created).toEqual({ ok: true, value: dto });
   });
 
-  it('patches the allowed projects and posts a revoke, each answered with the runner', async () => {
+  it('patches the scope (an empty list under all) and posts a revoke, each answered with the runner', async () => {
     const { api, http } = setup();
-    const patched = api.setAllowedProjects(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, []);
+    const patched = api.setScope(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, { projectScope: 'all', allowedProjects: ['team-console'] });
     const patch = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}`);
-    expect([patch.request.method, patch.request.body]).toEqual(['PATCH', { allowedProjects: [] }]);
-    patch.flush(runnerFixture({ allowedProjects: [] }));
-    expect(await patched).toMatchObject({ ok: true, value: { allowedProjects: [] } });
+    expect([patch.request.method, patch.request.body]).toEqual(['PATCH', { projectScope: 'all', allowedProjects: [] }]);
+    patch.flush(runnerFixture({ projectScope: 'all', allowedProjects: [] }));
+    expect(await patched).toMatchObject({ ok: true, value: { projectScope: 'all', allowedProjects: [] } });
 
     const revoked = api.revoke(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
     const post = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}/revoke`);

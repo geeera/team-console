@@ -46,32 +46,90 @@ async function project(accountId: string, policy: string | null = null): Promise
   return slug;
 }
 
+interface RunnerRowOptions {
+  readonly lastSeenAt?: string | null;
+  readonly maxConcurrency?: number;
+  /** `capabilities.accessSources` (#775); absent declares nothing. */
+  readonly accessSources?: readonly string[];
+  /** D3: who enrolled the runner. */
+  readonly enrolledBy?: string | null;
+}
+
 /**
- * A runner row. `maxConcurrency` defaults high so the placement specs, which claim several jobs with one runner, judge
- * placement alone; the concurrency specs (#571) set it.
+ * A runner row with `selected` and the list, or `'all'` (#775). `maxConcurrency` defaults high so the placement specs,
+ * which claim several jobs with one runner, judge placement alone; the concurrency specs (#571) set it.
  */
 async function runner(
   accountId: string,
-  allowed: readonly string[],
+  allowed: readonly string[] | 'all',
   lastSeenAt: string | null = null,
   maxConcurrency = 8,
+  options: RunnerRowOptions = {},
 ): Promise<string> {
   const id = ulid('RN');
+  const capabilities: Record<string, unknown> = { local: true, maxConcurrency: options.maxConcurrency ?? maxConcurrency };
+  if (options.accessSources !== undefined) {
+    capabilities['accessSources'] = options.accessSources;
+  }
   await env.DB.prepare(
-    `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at)
-     VALUES (?1, ?2, 'r', ?3, ?7, 'user', ?4, '0.1.0', ?5, ?6)`,
+    `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at, project_scope, enrolled_by)
+     VALUES (?1, ?2, 'r', ?3, ?7, 'user', ?4, '0.1.0', ?5, ?6, ?8, ?9)`,
   )
     .bind(
       id,
       accountId,
       JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }),
-      JSON.stringify(allowed),
+      JSON.stringify(allowed === 'all' ? [] : allowed),
       T0,
-      lastSeenAt,
-      JSON.stringify({ local: true, maxConcurrency }),
+      options.lastSeenAt ?? lastSeenAt,
+      JSON.stringify(capabilities),
+      allowed === 'all' ? 'all' : 'selected',
+      options.enrolledBy ?? null,
     )
     .run();
   return id;
+}
+
+/** A distinct token hash per claim of the scope cases. */
+const tok = (n: number): string => `5c0de${n.toString(16)}`.padEnd(64, '0');
+
+/**
+ * The project's access source, written as `TeamConfigRepo` writes it (0032: the column follows the document, and the
+ * document moves one revision at a time).
+ */
+async function setAccessSource(slug: string, accessSource: 'subscription' | 'api_key'): Promise<void> {
+  const config = JSON.stringify({ schema: 'team-config/v1', access: { source: accessSource } });
+  const moved = await env.DB.prepare(`UPDATE team_configs SET config = ?2, revision = revision + 1 WHERE project_slug = ?1`).bind(slug, config).run();
+  if (moved.meta.changes === 0) {
+    await env.DB.prepare(`INSERT INTO team_configs (project_slug, revision, config, updated_at, updated_by) VALUES (?1, 1, ?2, ?3, 'spec')`).bind(slug, config, T0).run();
+  }
+  await env.DB.prepare(`UPDATE projects SET access_source = ?2 WHERE slug = ?1`).bind(slug, accessSource).run();
+}
+
+/** A job well ahead of any queued leftover of the account: an `all` runner sees them all (#775). */
+const URGENT = 1000;
+
+/** A project row with its creator (D3) and access source. */
+async function projectBy(accountId: string, createdBy: string | null, accessSource: 'subscription' | 'api_key' = 'subscription'): Promise<string> {
+  const slug = await project(accountId);
+  await env.DB.prepare(`UPDATE projects SET created_by = ?2 WHERE slug = ?1`).bind(slug, createdBy).run();
+  if (accessSource !== 'subscription') {
+    await setAccessSource(slug, accessSource);
+  }
+  return slug;
+}
+
+/** `n` owners of `accountId` (D3 judges the count, never who they are). */
+async function owners(accountId: string, n: number): Promise<void> {
+  for (let index = 0; index < n; index += 1) {
+    const userId = ulid('MB');
+    await env.DB.batch([
+      env.DB
+        .prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
+        .bind(userId, String(900000 + counter), `o-${String(counter)}`, T0),
+      env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`).bind(accountId, userId, T0),
+    ]);
+  }
 }
 
 /** Stores the runner's allow-list: the claim reads it from the row, not from the caller (#543). */
@@ -165,13 +223,88 @@ describe('JobsRepo.claim', () => {
   });
 
   // #543: the poll authenticates the runner, then claims; a narrowing or revoke can commit in between.
+  // #775: `all` serves every project of the account, including one created after the runner was enrolled, and only
+  // of the account; `selected` stays the list.
+  it('all: claims a job of any project of the account, a new one included, and never another account’s', async () => {
+    const mine = await project(ACCOUNT_A);
+    const theirs = await project(ACCOUNT_B);
+    const all = await runner(ACCOUNT_A, 'all');
+    const listed = await runner(ACCOUNT_A, [mine]);
+    const first = await enqueue(mine, ACCOUNT_A, { priority: URGENT });
+    await enqueue(theirs, ACCOUNT_B);
+    expect(((await claimAs(all, { tokenHash: tok(30) })) as { id: string }).id).toBe(first);
+    // A project that did not exist when the runner was enrolled.
+    const later = await project(ACCOUNT_A);
+    const second = await enqueue(later, ACCOUNT_A, { priority: URGENT });
+    expect(await claimAs(listed, { tokenHash: tok(31) })).toBeNull();
+    expect(((await claimAs(all, { tokenHash: tok(32) })) as { id: string }).id).toBe(second);
+    // Account B's job stays where it is, whatever the scope says (the account match is a separate term).
+    expect(await claimAs(all, { accountId: ACCOUNT_B, tokenHash: tok(34) })).toBeNull();
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE project_slug = ?1`).bind(theirs).first<{ state: string; runner_id: null }>();
+    expect(row).toEqual({ state: 'queued', runner_id: null });
+  });
+
+  // Owner decision D3 (2026-11-17): with more than one owner, a subscription runner under `all` serves the enrolling
+  // owner's projects only; an API-key runner, or a one-owner account, is not held back; selection always works.
+  it('D3: in a two-owner account an all-scope subscription runner serves its enroller’s projects only', async () => {
+    const account = '01M6YSNJ00000000000000JBD3';
+    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-d3', 'D3', '{"max_concurrency":32}', ?2)`).bind(account, T0).run();
+    const mine = await projectBy(account, 'owner-1');
+    const theirs = await projectBy(account, 'owner-2');
+    const legacy = await projectBy(account, null);
+    const subscription = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] });
+    const undeclared = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1' });
+    const apiKey = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['api_key'] });
+    const claimIn = (runnerId: string, n: number) => claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
+
+    // One owner: D3 does not apply; everything of the account is served.
+    await owners(account, 1);
+    const theirsJob = await enqueue(theirs, account);
+    expect(((await claimIn(subscription, 40)) as { id: string }).id).toBe(theirsJob);
+
+    // A second owner: the other owner's project and a project with no recorded creator are not the subscription's.
+    await owners(account, 1);
+    const theirsAgain = await enqueue(theirs, account);
+    const legacyJob = await enqueue(legacy, account);
+    const mineJob = await enqueue(mine, account);
+    expect(((await claimIn(subscription, 41)) as { id: string }).id).toBe(mineJob);
+    expect(await claimIn(subscription, 42)).toBeNull();
+    expect(await claimIn(undeclared, 43)).toBeNull();
+    // An API-key runner is not a subscription doing another owner's work: `all` stays the whole account.
+    await setAccessSource(theirs, 'api_key');
+    await setAccessSource(legacy, 'api_key');
+    expect(((await claimIn(apiKey, 44)) as { id: string }).id).toBe(theirsAgain);
+    expect(((await claimIn(apiKey, 45)) as { id: string }).id).toBe(legacyJob);
+    // Explicit selection serves the other owner's project whatever the credential.
+    await setAccessSource(theirs, 'subscription');
+    const picked = await enqueue(theirs, account);
+    await new RunnersRepo(env.DB).setScope(account, subscription, { projectScope: 'selected', allowedProjects: [theirs] }, audit('runner.scope-changed', account));
+    expect(((await claimIn(subscription, 46)) as { id: string }).id).toBe(picked);
+  });
+
+  // #775 (SECURITY question 7): the declaration only narrows; a runner that declares nothing is not narrowed.
+  it('accessSources: a runner declaring subscription never claims an api_key job; an undeclared one is judged by the row alone', async () => {
+    const account = '01M6YSNJ00000000000000JBS7';
+    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-s7', 'S7', '{"max_concurrency":32}', ?2)`).bind(account, T0).run();
+    const byKey = await projectBy(account, null, 'api_key');
+    const bySubscription = await projectBy(account, null, 'subscription');
+    const declared = await runner(account, 'all', null, 8, { accessSources: ['subscription'] });
+    const undeclared = await runner(account, 'all');
+    const keyJob = await enqueue(byKey, account);
+    const subscriptionJob = await enqueue(bySubscription, account);
+    const claimIn = (runnerId: string, n: number) => claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
+    expect(((await claimIn(declared, 50)) as { id: string }).id).toBe(subscriptionJob);
+    expect(await claimIn(declared, 51)).toBeNull();
+    expect(((await claimIn(undeclared, 52)) as { id: string }).id).toBe(keyJob);
+  });
+
   it('claims nothing in a project dropped from the allow-list after the poll read the runner', async () => {
     const dropped = await project(ACCOUNT_A);
     const kept = await project(ACCOUNT_A);
     const r = await runner(ACCOUNT_A, [dropped, kept]);
     const id = await enqueue(dropped);
     expect((await new RunnersRepo(env.DB).findById(r))?.allowedProjects).toContain(dropped);
-    await new RunnersRepo(env.DB).setAllowedProjects(ACCOUNT_A, r, [kept], { ...audit('runner.updated'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1));
+    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, { ...audit('runner.scope-changed'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1));
     expect(await claimAs(r, { tokenHash: '5a'.repeat(32) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
   });
@@ -810,7 +943,20 @@ describe('TeamStateRepo.recordOutcome', () => {
     const r = await runner(ACCOUNT_A, [kept, lost]);
     const id = await enqueue(lost);
     await claimAs(r, { tokenHash: '7'.repeat(64) });
-    await new RunnersRepo(env.DB).setAllowedProjects(ACCOUNT_A, r, [kept], audit('runner.updated'), jobs.cancelOutsideStatements(r, [kept], T1));
+    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, audit('runner.scope-changed'), jobs.cancelOutsideStatements(r, [kept], T1));
+    expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
+  });
+
+  // R-SCOPE-5: `all → selected` is a narrowing like any other; the cancel rides in the same batch.
+  it('cancels a runner’s live jobs outside the list when its scope goes from all to selected', async () => {
+    const kept = await project(ACCOUNT_A);
+    const lost = await project(ACCOUNT_A);
+    const r = await runner(ACCOUNT_A, 'all');
+    const id = await enqueue(lost, ACCOUNT_A, { priority: URGENT });
+    expect(((await claimAs(r, { tokenHash: tok(60) })) as { id: string }).id).toBe(id);
+    const runners = new RunnersRepo(env.DB);
+    const narrowed = { projectScope: 'selected' as const, allowedProjects: [kept] };
+    expect(await runners.setScope(ACCOUNT_A, r, narrowed, { ...audit('runner.scope-changed'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(true);
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
   });
 
@@ -823,8 +969,8 @@ describe('TeamStateRepo.recordOutcome', () => {
     // A narrowing outside this write already stored [kept]; the no-op save after it must not cancel.
     await allow(r, [kept]);
     const runners = new RunnersRepo(env.DB);
-    const same = { ...audit('runner.updated'), target: r };
-    expect(await runners.setAllowedProjects(ACCOUNT_A, r, [kept], same, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(false);
+    const same = { ...audit('runner.scope-changed'), target: r };
+    expect(await runners.setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, same, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(false);
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
   });
 

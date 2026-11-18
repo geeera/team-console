@@ -1,6 +1,7 @@
 import { isUlid } from './account';
 import { isNullable, isString, isStringList, isTimestamp } from './guards';
 import { isValidSlug } from './project-slug';
+import { ACCESS_SOURCES, isAccessSource, type AccessSource } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -22,6 +23,33 @@ export const ENROLMENT_ISOLATIONS = ['container', 'user', 'none'] as const satis
 export type EnrolmentIsolation = (typeof ENROLMENT_ISOLATIONS)[number];
 export const isEnrolmentIsolation = (value: unknown): value is EnrolmentIsolation =>
   (ENROLMENT_ISOLATIONS as readonly unknown[]).includes(value);
+
+/**
+ * Which projects a runner may claim (#775, migration 0036): every active project of its account, present and future
+ * (`all`), or the list in `allowedProjects` (`selected`). The claim and every job-token write judge it inside their
+ * own statement (`runnerServesSql`), always together with the account match; a job keeps its project-only scope.
+ */
+export const RUNNER_PROJECT_SCOPES = ['all', 'selected'] as const;
+export type RunnerProjectScope = (typeof RUNNER_PROJECT_SCOPES)[number];
+export const isRunnerProjectScope = (value: unknown): value is RunnerProjectScope =>
+  (RUNNER_PROJECT_SCOPES as readonly unknown[]).includes(value);
+/** What a new runner gets when the owner does not choose (owner, 2026-11-17; SECURITY question 6). */
+export const DEFAULT_RUNNER_PROJECT_SCOPE: RunnerProjectScope = 'all';
+
+/** The scope as the owner set it: under `all` the list is always empty (the 0036 CHECK). */
+export interface RunnerProjectScopeDto {
+  readonly projectScope: RunnerProjectScope;
+  readonly allowedProjects: readonly string[];
+}
+
+/**
+ * Whether a runner with this scope may serve `slug` of its own account, as the console shows it. The claim's own term
+ * also applies owner decision D3 (a subscription runner under `all` in a multi-owner account), which needs D1; this
+ * is the display-side approximation and never an authorisation.
+ */
+export function runnerScopeCovers(scope: RunnerProjectScopeDto, slug: string): boolean {
+  return scope.projectScope === 'all' || scope.allowedProjects.includes(slug);
+}
 
 export const RUNNER_SUSPECT_REASONS = ['new-country', 'two-pollers'] as const;
 export type RunnerSuspectReason = (typeof RUNNER_SUSPECT_REASONS)[number];
@@ -98,6 +126,21 @@ export interface RunnerCapabilitiesDto {
   /** Whether a `needs:local` job may reach this runner (ADR 0006 "Host-agnostic"). */
   readonly local: boolean;
   readonly maxConcurrency: number;
+  /**
+   * The access sources the runner's credential can serve (#775, SECURITY question 7): `['api_key']` for an API key,
+   * `['subscription']` for a Claude login or the host's own sign-in. A derived enum, never the credential's kind or
+   * value. It only ever narrows the claim (an `AND` term); hosted and `actions-ephemeral` identities get it from the
+   * server. Absent on runners enrolled before it existed, which the claim then does not narrow.
+   */
+  readonly accessSources?: readonly AccessSource[];
+}
+
+/** The runner's declaration, as the claim body carries it: a subset of `ACCESS_SOURCES`, never empty. */
+export function accessSourcesOf(field: string, value: unknown): readonly AccessSource[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > ACCESS_SOURCES.length || !value.every(isAccessSource)) {
+    throw new InputError(field, `${field} must name one or more of ${ACCESS_SOURCES.join(', ')}`);
+  }
+  return [...new Set<AccessSource>(value as AccessSource[])];
 }
 
 /** `POST /api/v1/runner/enrol`: the runner's half of the enrolment; name and projects were the owner's at code time. */
@@ -110,35 +153,73 @@ export interface EnrolRunnerInput {
   readonly version: string;
 }
 
-export interface EnrolRunnerResponse {
+export interface EnrolRunnerResponse extends RunnerProjectScopeDto {
   readonly runnerId: string;
   readonly accountId: string;
   readonly name: string;
   /** The `aud` every runner JWT of this environment must carry. */
   readonly audience: string;
-  readonly allowedProjects: readonly string[];
   readonly pollSeconds: number;
 }
 
-/** `POST /api/v1/accounts/:id/runners/enrolment-code`. */
-export interface CreateEnrolmentCodeInput {
+/**
+ * `POST /api/v1/accounts/:id/runners/enrolment-code`. `projectScope` defaults to `all` and `allowedProjects` to `[]`;
+ * a list under `all` is refused, so the pair is never ambiguous.
+ */
+export interface CreateEnrolmentCodeInput extends RunnerProjectScopeDto {
   readonly name: string;
-  readonly allowedProjects: readonly string[];
 }
 
-export interface EnrolmentCodeDto {
+export interface EnrolmentCodeDto extends RunnerProjectScopeDto {
   /** Shown once; the console keeps its hash only. */
   readonly code: string;
   readonly expiresAt: string;
   readonly apiUrl: string;
   readonly audience: string;
   readonly name: string;
-  readonly allowedProjects: readonly string[];
 }
 
-/** `PATCH /api/v1/accounts/:id/runners/:runnerId`. */
-export interface UpdateRunnerInput {
-  readonly allowedProjects: readonly string[];
+/** `PATCH /api/v1/accounts/:id/runners/:runnerId`: both keys, exactly (`allowedProjects` is `[]` under `all`). */
+export type UpdateRunnerInput = RunnerProjectScopeDto;
+
+/** `POST /api/v1/runner/jobs/claim`: the runner's declaration of what its credential serves; `{}` declares nothing. */
+export interface ClaimRunnerInput {
+  readonly accessSources?: readonly AccessSource[];
+}
+
+/** A project a runner serves now, with whether its declared `accessSources` fit the project's access source. */
+export interface RunnerServedProjectDto {
+  readonly slug: string;
+  readonly accessSource: AccessSource;
+  /** `true` while the runner declares nothing (nothing to compare), or declares the project's source. */
+  readonly fit: boolean;
+}
+
+/**
+ * `GET /api/v1/runner/self` (R-SELF): what the runner needs to hold itself to its scope and to check its credential
+ * fit — this exact key set and nothing else (no suspect mark, no country, no other runner, no policy).
+ */
+export interface RunnerSelfDto {
+  readonly runner: RunnerProjectScopeDto & {
+    readonly id: string;
+    readonly name: string;
+    readonly accountId: string;
+    readonly isolation: RunnerIsolation;
+    readonly version: string;
+    readonly belowMinimum: boolean;
+    readonly pausedUntil: string | null;
+    readonly lastSeenAt: string | null;
+  };
+  /** The active projects the runner may claim now, in slug order; the scope's effective answer, D3 applied. */
+  readonly projects: readonly { readonly slug: string; readonly accessSource: AccessSource }[];
+}
+
+/**
+ * The scope the console hands a runner with every claim (#775): the runner judges a job against the console's answer
+ * of the moment, never against the copy `enrol` wrote. `projects` is the effective list, the same the claim applied.
+ */
+export interface RunnerScopeDto extends RunnerProjectScopeDto {
+  readonly projects: readonly string[];
 }
 
 export interface RunnerSuspectDto {
@@ -158,7 +239,7 @@ export interface PauseRunnerInput {
   readonly until: string;
 }
 
-export interface RunnerDto {
+export interface RunnerDto extends RunnerProjectScopeDto {
   readonly id: string;
   readonly name: string;
   readonly isolation: RunnerIsolation;
@@ -167,7 +248,8 @@ export interface RunnerDto {
   readonly pinnedVersion: string | null;
   readonly host: RunnerHostDto;
   readonly capabilities: RunnerCapabilitiesDto;
-  readonly allowedProjects: readonly string[];
+  /** The active projects the runner serves now under its scope (D3 applied), with the credential fit of each. */
+  readonly servedProjects: readonly RunnerServedProjectDto[];
   readonly enrolledAt: string;
   readonly lastSeenAt: string | null;
   readonly lastSeenCountry: string | null;
@@ -189,10 +271,9 @@ export interface RunnerDto {
  * Because `id` is also the DB lookup key (`runner_enrolments.code_hash`, the primary key), it must stay unique per
  * code: never shorten it, re-encode it or replace it with a display id (#522).
  */
-export interface PendingEnrolmentDto {
+export interface PendingEnrolmentDto extends RunnerProjectScopeDto {
   readonly id: string;
   readonly name: string;
-  readonly allowedProjects: readonly string[];
   readonly createdAt: string;
   readonly expiresAt: string;
 }
@@ -242,8 +323,24 @@ export function runnerHostOf(value: unknown): RunnerHostDto {
   };
 }
 
+/**
+ * The scope pair of a code or a PATCH. `projectScope` defaults to `all` and `allowedProjects` to `[]` when `optional`;
+ * a PATCH names both. Under `all` a non-empty list is refused: the scope is the one truth (migration 0036's CHECK).
+ */
+function projectScopeOf(fields: Record<string, unknown>, optional: boolean): RunnerProjectScopeDto {
+  const scope = fields['projectScope'];
+  const list = fields['allowedProjects'];
+  const projectScope =
+    optional && scope === undefined ? DEFAULT_RUNNER_PROJECT_SCOPE : oneOf('projectScope', scope, isRunnerProjectScope);
+  const allowedProjects = optional && list === undefined ? [] : slugList('allowedProjects', list);
+  if (projectScope === 'all' && allowedProjects.length > 0) {
+    throw new InputError('allowedProjects', 'allowedProjects must be empty when projectScope is all');
+  }
+  return { projectScope, allowedProjects };
+}
+
 function capabilities(value: unknown): RunnerCapabilitiesDto {
-  const fields = record(value, ['local', 'maxConcurrency']);
+  const fields = record(value, ['local', 'maxConcurrency', 'accessSources']);
   if (typeof fields['local'] !== 'boolean') {
     throw new InputError('capabilities.local', 'capabilities.local must be a boolean');
   }
@@ -259,20 +356,32 @@ function capabilities(value: unknown): RunnerCapabilitiesDto {
       `capabilities.maxConcurrency must be an integer from 1 to ${String(RUNNER_MAX_CONCURRENCY_MAX)}`,
     );
   }
-  return { local: fields['local'], maxConcurrency: concurrency };
+  const declared = fields['accessSources'];
+  return {
+    local: fields['local'],
+    maxConcurrency: concurrency,
+    ...(declared === undefined ? {} : { accessSources: accessSourcesOf('capabilities.accessSources', declared) }),
+  };
 }
 
 export function checkCreateEnrolmentCodeInput(body: unknown): InputCheck<CreateEnrolmentCodeInput> {
   return checked(() => {
-    const fields = record(body, ['name', 'allowedProjects']);
-    return { name: runnerName(fields['name']), allowedProjects: slugList('allowedProjects', fields['allowedProjects']) };
+    const fields = record(body, ['name', 'projectScope', 'allowedProjects']);
+    return { name: runnerName(fields['name']), ...projectScopeOf(fields, true) };
   });
 }
 
 export function checkUpdateRunnerInput(body: unknown): InputCheck<UpdateRunnerInput> {
+  return checked(() => projectScopeOf(record(body, ['projectScope', 'allowedProjects']), false));
+}
+
+/** The claim body: `{}` or the runner's `accessSources` declaration, nothing else. */
+export function checkClaimRunnerInput(body: unknown): InputCheck<ClaimRunnerInput> {
   return checked(() => {
-    const fields = record(body, ['allowedProjects']);
-    return { allowedProjects: slugList('allowedProjects', fields['allowedProjects']) };
+    // The runner sent `{}` since before the declaration existed; `null` is an empty body on the same door.
+    const fields = record(body ?? {}, ['accessSources']);
+    const declared = fields['accessSources'];
+    return declared === undefined ? {} : { accessSources: accessSourcesOf('accessSources', declared) };
   });
 }
 
@@ -440,12 +549,64 @@ function isRunnerHostDto(value: unknown): value is RunnerHostDto {
   return isRecord(value) && isString(value['os']) && isString(value['arch']) && isString(value['hostname']);
 }
 
+function isAccessSourceList(value: unknown): value is readonly AccessSource[] {
+  return Array.isArray(value) && value.every(isAccessSource);
+}
+
 function isRunnerCapabilitiesDto(value: unknown): value is RunnerCapabilitiesDto {
   return (
     isRecord(value) &&
     typeof value['local'] === 'boolean' &&
     typeof value['maxConcurrency'] === 'number' &&
-    Number.isInteger(value['maxConcurrency'])
+    Number.isInteger(value['maxConcurrency']) &&
+    (value['accessSources'] === undefined || isAccessSourceList(value['accessSources']))
+  );
+}
+
+export function isRunnerProjectScopeDto(value: unknown): value is RunnerProjectScopeDto {
+  return (
+    isRecord(value) &&
+    isRunnerProjectScope(value['projectScope']) &&
+    isStringList(value['allowedProjects']) &&
+    (value['projectScope'] === 'selected' || value['allowedProjects'].length === 0)
+  );
+}
+
+const isSlug = (value: unknown): value is string => typeof value === 'string' && isValidSlug(value);
+
+function isRunnerServedProjectDto(value: unknown): value is RunnerServedProjectDto {
+  return (
+    isRecord(value) && isSlug(value['slug']) && isAccessSource(value['accessSource']) && typeof value['fit'] === 'boolean'
+  );
+}
+
+/** Narrows the scope a claim carries; the runner holds itself to nothing it did not check. */
+export function isRunnerScopeDto(value: unknown): value is RunnerScopeDto {
+  if (!isRecord(value) || !isRunnerProjectScopeDto(value)) {
+    return false;
+  }
+  const projects = (value as Record<string, unknown>)['projects'];
+  return Array.isArray(projects) && projects.every(isSlug);
+}
+
+export function isRunnerSelfDto(value: unknown): value is RunnerSelfDto {
+  if (!isRecord(value) || !isRecord(value['runner']) || !Array.isArray(value['projects'])) {
+    return false;
+  }
+  const runner = value['runner'];
+  return (
+    isRunnerProjectScopeDto(runner) &&
+    isRunnerId(runner['id']) &&
+    isString(runner['name']) &&
+    isUlid(runner['accountId']) &&
+    isRunnerIsolation(runner['isolation']) &&
+    isRunnerVersion(runner['version']) &&
+    typeof runner['belowMinimum'] === 'boolean' &&
+    isNullable(runner['pausedUntil'], isTimestamp) &&
+    isNullable(runner['lastSeenAt'], isTimestamp) &&
+    value['projects'].every(
+      (project: unknown) => isRecord(project) && isSlug(project['slug']) && isAccessSource(project['accessSource']),
+    )
   );
 }
 
@@ -473,7 +634,9 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     isNullable(value['pinnedVersion'], isString) &&
     isRunnerHostDto(value['host']) &&
     isRunnerCapabilitiesDto(value['capabilities']) &&
-    isStringList(value['allowedProjects']) &&
+    isRunnerProjectScopeDto(value) &&
+    Array.isArray(value['servedProjects']) &&
+    value['servedProjects'].every(isRunnerServedProjectDto) &&
     isTimestamp(value['enrolledAt']) &&
     isNullable(value['lastSeenAt'], isTimestamp) &&
     isNullable(value['lastSeenCountry'], isString) &&
@@ -490,7 +653,7 @@ export function isPendingEnrolmentDto(value: unknown): value is PendingEnrolment
     isRecord(value) &&
     isEnrolmentId(value['id']) &&
     isString(value['name']) &&
-    isStringList(value['allowedProjects']) &&
+    isRunnerProjectScopeDto(value) &&
     isTimestamp(value['createdAt']) &&
     isTimestamp(value['expiresAt'])
   );
@@ -515,6 +678,6 @@ export function isEnrolmentCodeDto(value: unknown): value is EnrolmentCodeDto {
     isString(value['apiUrl']) &&
     isString(value['audience']) &&
     isString(value['name']) &&
-    isStringList(value['allowedProjects'])
+    isRunnerProjectScopeDto(value)
   );
 }

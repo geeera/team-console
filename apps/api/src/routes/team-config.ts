@@ -26,6 +26,7 @@ import { newUlid, problem, type ProblemExtensionValue, type WorkerContext, type 
 import {
   JobsRepo,
   RateLimitsRepo,
+  RunnersRepo,
   TeamConfigRepo,
   UsersRepo,
   rateWindowOf,
@@ -200,6 +201,10 @@ async function save(
   const at = now.toISOString();
   const actor = auditActorOf(c.get('identity'));
   const repo = new TeamConfigRepo(c.env.DB);
+  // R-SCOPE-2 (#775): a project switching to a subscription names the `all` runners whose sign-in now serves it.
+  const toSubscription = config.access.source === 'subscription' && current?.config.access?.source !== 'subscription';
+  const serving = toSubscription ? await new RunnersRepo(c.env.DB).allScopeRunnersServing(row.account_id, row.slug) : [];
+  const servedByRunners = serving.length > 0 ? serving : null;
   const outcome = await repo.save({
     projectSlug: row.slug,
     expectedRevision: expected,
@@ -213,6 +218,7 @@ async function save(
       revision_from: expected,
       revision_to: expected + 1,
       paths: auditPathsOf(diff),
+      ...(servedByRunners === null ? {} : { servedByRunners }),
     }),
   });
   switch (outcome.kind) {

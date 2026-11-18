@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import {
   JOB_LEASE_SECONDS,
   RUNNER_POLL_SECONDS,
+  checkClaimRunnerInput,
   checkFinishJobInput,
   checkJobEventsInput,
   finishCostOf,
@@ -9,6 +10,7 @@ import {
   type ClaimResponse,
   type HeartbeatResponse,
   type JobEventsResponse,
+  type RunnerScopeDto,
 } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
 import {
@@ -19,9 +21,10 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type JobRecord, type NewAuditEvent } from '@worker/db';
+import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type JobRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
 import { dispatchAdmittedActionsJobs } from '../actions/dispatch';
 import type { Identity } from '../auth/auth.types';
+import { runnerServesJob } from '../auth/runner-scope';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
@@ -54,10 +57,12 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
 }
 
-/** `job` as the live job of `runnerId` under `allowedProjects`; another runner's or a finished one is 404/409. */
-function judgeHeld(c: Context, job: JobRecord | null, runnerId: string, allowedProjects: readonly string[], now: string): JobRecord | Response {
-  // The allow-list is judged again (#490 review): a project the runner lost since the claim is no longer its.
-  if (job === null || job.runnerId !== runnerId || !allowedProjects.includes(job.projectSlug)) {
+type RunnerScopeHolder = Pick<RunnerRecord, 'accountId' | 'projectScope' | 'allowedProjects'> & { readonly runnerId: string };
+
+/** `job` as the live job of `runner` under its scope; another runner's or a finished one is 404/409. */
+function judgeHeld(c: Context, job: JobRecord | null, runner: RunnerScopeHolder, now: string): JobRecord | Response {
+  // The scope is judged again (#490 review, #775): a project the runner lost since the claim is no longer its.
+  if (job === null || job.runnerId !== runner.runnerId || !runnerServesJob(runner, job)) {
     return problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 });
   }
   if (job.state !== 'claimed' && job.state !== 'running') {
@@ -73,7 +78,17 @@ function judgeHeld(c: Context, job: JobRecord | null, runnerId: string, allowedP
 async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promise<JobRecord | Response> {
   const id = c.req.param('id') ?? '';
   const job = isUlid(id) ? await new JobsRepo(c.env.DB).findById(id) : null;
-  return judgeHeld(c, job, runner.runnerId, runner.allowedProjects, now);
+  return judgeHeld(c, job, runner, now);
+}
+
+/** The scope as the claim applied it (#775): the stored row plus the effective project list, D3 included. */
+async function scopeOf(repo: RunnersRepo, runner: RunnerRecord): Promise<RunnerScopeDto> {
+  const served = await repo.servedProjectsOf(runner.accountId, runner.id);
+  return {
+    projectScope: runner.projectScope,
+    allowedProjects: runner.allowedProjects,
+    projects: served.map((project) => project.slug),
+  };
 }
 
 /**
@@ -90,8 +105,13 @@ async function lostWriteRefusal(c: Context, runner: RunnerIdentity, jobId: strin
     c.get('logger').warn('runner rejected', { reason: 'runner-revoked' });
     return problem(c, { type: 'runner-revoked', title: 'Unauthorized', status: 401 });
   }
-  const allowed = stored.accountId === runner.accountId ? stored.allowedProjects : [];
-  const judged = judgeHeld(c, job, runner.runnerId, allowed, now);
+  // The stored row is read by id; a row of another account (impossible past 0021's identity trigger) serves nothing.
+  const judged = judgeHeld(
+    c,
+    job,
+    stored.accountId === runner.accountId ? { ...stored, runnerId: stored.id } : { ...runner, projectScope: 'selected', allowedProjects: [] },
+    now,
+  );
   return judged instanceof Response ? judged : problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
 }
 
@@ -121,6 +141,16 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         logger.warn('claim refused', { reason: 'runner-isolation-ephemeral', runnerId: runner.runnerId });
         return problem(c, { type: 'runner-isolation-ephemeral', title: 'Forbidden', status: 403 });
       }
+      const input = checkClaimRunnerInput(await jsonBody(c));
+      if (!input.ok) {
+        return invalid(c, 'claim-invalid', input.field, input.detail);
+      }
+      const runners = new RunnersRepo(c.env.DB);
+      // #775 (SECURITY question 7): the declaration is stored before the claim reads it, so the claim's `AND` term
+      // judges the stored row; a hosted or ephemeral identity's declaration is ignored by the write itself.
+      if (input.value.accessSources !== undefined && (await runners.setAccessSources(runner.runnerId, input.value.accessSources))) {
+        logger.info('runner declared access sources', { runnerId: runner.runnerId, accessSources: input.value.accessSources });
+      }
       const now = new Date();
       const nowIso = now.toISOString();
       const jobs = new JobsRepo(c.env.DB);
@@ -142,6 +172,11 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         c.header('Retry-After', String(RUNNER_POLL_SECONDS));
         return c.body(null, 204);
       }
+      const stored = await runners.findInAccount(runner.accountId, runner.runnerId);
+      if (stored === null) {
+        // The claim just wrote this runner's id on the job; a missing row is a bug, never an open door.
+        throw new Error('the claiming runner has no row');
+      }
       await jobs.appendEvents(job.id, runner.runnerId, [{ level: 'info', kind: 'notice', payload: { claimed: true, runnerId: runner.runnerId, attempt: job.attempt } }], nowIso);
       const country = c.req.header('CF-IPCountry') ?? null;
       await new AuditRepo(c.env.DB).append(
@@ -152,6 +187,8 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         job: jobDtoOf(job),
         jobToken: token,
         leaseSeconds: JOB_LEASE_SECONDS,
+        // #775: the scope as this claim applied it; the runner holds itself to it, not to the enrol-time copy.
+        scope: await scopeOf(runners, stored),
         // #687: the stamped revision's view; a change after this claim applies to the next one.
         ...(await claimTeamConfigOf(c.env.DB, job)),
       };

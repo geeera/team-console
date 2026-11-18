@@ -14,8 +14,17 @@ import { isLocalBypass } from './local-bypass';
 export type Scope =
   | { readonly kind: 'accounts'; readonly accountIds: readonly string[] }
   | { readonly kind: 'project'; readonly slug: string }
-  /** A runner: its `allowed_projects`, and only inside its own account (ADR 0008 decision 2, #467). */
-  | { readonly kind: 'runner'; readonly accountId: string; readonly slugs: readonly string[] }
+  /**
+   * A runner: its projects, and only inside its own account (ADR 0008 decision 2, #467). `all` (#775) is every
+   * active project of the account as `runnerServesSql` answers it (owner decision D3 included), which `lookup.ts`
+   * reads from D1; `admits` can judge the account alone for it — no runner-identity route resolves a slug today.
+   */
+  | {
+      readonly kind: 'runner';
+      readonly runnerId: string;
+      readonly accountId: string;
+      readonly projects: 'all' | readonly string[];
+    }
   | { readonly kind: 'none' };
 
 /**
@@ -67,7 +76,12 @@ export function scopeOf(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'A
         ? { kind: 'project', slug: identity.projectSlug }
         : { kind: 'none' };
     case 'runner':
-      return { kind: 'runner', accountId: identity.accountId, slugs: identity.allowedProjects };
+      return {
+        kind: 'runner',
+        runnerId: identity.runnerId,
+        accountId: identity.accountId,
+        projects: identity.projectScope === 'all' ? 'all' : identity.allowedProjects,
+      };
     case 'enrolment':
       return { kind: 'none' };
     default:
@@ -87,7 +101,9 @@ export function admits(
     case 'project':
       return scope.slug === project.slug;
     case 'runner':
-      return scope.accountId === project.account_id && scope.slugs.includes(project.slug);
+      return (
+        scope.accountId === project.account_id && (scope.projects === 'all' || scope.projects.includes(project.slug))
+      );
     case 'none':
       return false;
   }

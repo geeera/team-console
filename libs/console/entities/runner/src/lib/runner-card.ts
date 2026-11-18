@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { Chip, Icon, Ledger, LedgerRow, StatusCard, type ChipTone, type IconName, type StatusCardTone } from '@console/shared/ui';
-import { actionsRunIdOf, type RunnerDto } from '@shared/contracts';
+import { actionsRunIdOf, type RunnerDto, type RunnerServedProjectDto } from '@shared/contracts';
 import { runnerPresenceOf, type RunnerPresence } from './runner.model';
 
 const TONES: Readonly<Record<RunnerPresence, StatusCardTone & ChipTone>> = {
@@ -26,9 +26,10 @@ let nextCardId = 0;
 
 /**
  * One enrolled runner on Settings › Runners (#464, ADR 0008 row 2-E): its name and presence — with why and until when
- * it is paused (#571) — then backend, version
- * (flagged below the environment's minimum), when it was last seen (local time), host and the projects it may serve.
- * Text from the runner (name, hostname, os) is interpolated only. Actions are projected (`[tc-runner-actions]`).
+ * it is paused (#571) — then backend, version (flagged below the environment's minimum), when it was last seen (local
+ * time), host and its scope (#775): every project of the account, or the chosen list, with the projects it serves now
+ * and a mark on each its credential cannot serve (`fit`). Text from the runner (name, hostname, os) is interpolated
+ * only. Actions are projected (`[tc-runner-actions]`).
  */
 @Component({
   selector: 'tc-runner-card',
@@ -101,10 +102,22 @@ let nextCardId = 0;
           }
         </div>
         <div tc-ledger-row [label]="'runners.card.projects' | transloco">
-          @if (runner().allowedProjects.length > 0) {
+          @if (runner().projectScope === 'all') {
+            <span data-testid="runner-scope">{{ 'runners.card.scopeAll' | transloco }}</span>
+            @if (runner().servedProjects.length > 0) {
+              · <span data-testid="runner-projects">{{ 'runners.card.scopeAllNow' | transloco: { projects: servedSlugs() } }}</span>
+            } @else if (runner().revokedAt === null) {
+              · <span data-testid="runner-projects">{{ 'runners.card.scopeAllNone' | transloco }}</span>
+            }
+          } @else if (runner().allowedProjects.length > 0) {
             <span data-testid="runner-projects">{{ runner().allowedProjects.join(', ') }}</span>
           } @else {
             <span data-testid="runner-projects">{{ 'runners.card.noProjects' | transloco }}</span>
+          }
+          @for (project of unfit(); track project.slug) {
+            <tc-chip tone="warning" data-testid="runner-unfit" [attr.data-slug]="project.slug">{{
+              'runners.card.unfit.' + project.accessSource | transloco: { project: project.slug }
+            }}</tc-chip>
           }
         </div>
         @if (runner().revokedAt; as revoked) {
@@ -151,6 +164,11 @@ export class RunnerCard {
     return runner.isolation === 'actions-ephemeral' ? actionsRunIdOf(runner.name) : null;
   });
   protected readonly presenceKey = computed(() => (this.presence() === 'never-seen' ? 'neverSeen' : this.presence()));
+  protected readonly servedSlugs = computed(() => this.runner().servedProjects.map((project) => project.slug).join(', '));
+  /** Projects the runner serves but its declared credential cannot run: the owner sees it here, not at the first claim. */
+  protected readonly unfit = computed((): readonly RunnerServedProjectDto[] =>
+    this.runner().servedProjects.filter((project) => !project.fit),
+  );
   protected readonly tone = computed(() => TONES[this.presence()]);
   protected readonly mark = computed(() => MARKS[this.presence()]);
 }

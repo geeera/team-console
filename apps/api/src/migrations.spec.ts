@@ -96,7 +96,58 @@ describe('migrations on a fresh D1', () => {
       '0033_budget_waiver.sql',
       '0034_streak_excluded_index.sql',
       '0035_jobs_account_live_index.sql',
+      '0036_runner_project_scope.sql',
     ]);
+  });
+
+  // #775: a migration never widens a security scope — every runner and every unused code from before the column keeps
+  // `selected` with exactly the list it had; the CHECK keeps a list from riding beside `all`.
+  describe('0036 runner project scope', () => {
+    const key = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) });
+    const account = '01M6YSNJ0000000000000M036A';
+
+    beforeAll(async () => {
+      await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm036', 'M', '2026-11-17T00:00:00.000Z')`)
+        .bind(account)
+        .run();
+    });
+
+    it('leaves a runner and an unused code written without a scope as selected with their list', async () => {
+      await env.DB.batch([
+        env.DB
+          .prepare(
+            `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, allowed_projects, version, enrolled_at)
+             VALUES ('01M6YSNJ0000000000000M036R', ?1, 'old', ?2, 'user', '["p1"]', '0.1.0', '2026-11-17T00:00:00.000Z')`,
+          )
+          .bind(account, key),
+        env.DB
+          .prepare(
+            `INSERT INTO runner_enrolments (code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at)
+             VALUES (?2, ?1, 'old', '["p1"]', 'owner', '2026-11-17T00:00:00.000Z', '2026-11-17T00:10:00.000Z')`,
+          )
+          .bind(account, 'c'.repeat(64)),
+      ]);
+      const runner = await env.DB.prepare(`SELECT project_scope, allowed_projects, enrolled_by FROM runners WHERE id = '01M6YSNJ0000000000000M036R'`).first<{ project_scope: string; allowed_projects: string; enrolled_by: string | null }>();
+      expect(runner).toEqual({ project_scope: 'selected', allowed_projects: '["p1"]', enrolled_by: null });
+      const code = await env.DB.prepare(`SELECT project_scope, allowed_projects FROM runner_enrolments WHERE code_hash = ?1`).bind('c'.repeat(64)).first<{ project_scope: string; allowed_projects: string }>();
+      expect(code).toEqual({ project_scope: 'selected', allowed_projects: '["p1"]' });
+    });
+
+    it('refuses all beside a list, an unknown scope, and a rewritten enrolled_by or code scope', async () => {
+      await expect(
+        env.DB.prepare(`UPDATE runners SET project_scope = 'all' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+      ).rejects.toThrow(/CHECK/);
+      await expect(
+        env.DB.prepare(`UPDATE runners SET project_scope = 'everything', allowed_projects = '[]' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+      ).rejects.toThrow(/CHECK/);
+      await env.DB.prepare(`UPDATE runners SET project_scope = 'all', allowed_projects = '[]', enrolled_by = 'owner' WHERE id = '01M6YSNJ0000000000000M036R'`).run();
+      await expect(
+        env.DB.prepare(`UPDATE runners SET enrolled_by = 'someone-else' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+      ).rejects.toThrow(/keep their identity/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolments SET project_scope = 'all', allowed_projects = '[]' WHERE code_hash = ?1`).bind('c'.repeat(64)).run(),
+      ).rejects.toThrow(/never rewritten/);
+    });
   });
 
   it('give push_subscriptions the columns of the #11 architect note, endpoint as the key', async () => {
@@ -148,6 +199,7 @@ describe('migrations on a fresh D1', () => {
       'runner_policy',
       'dispatch',
       'access_source',
+      'created_by',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',

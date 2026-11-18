@@ -87,6 +87,7 @@ describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
   const PENDING = {
     id: 'a1'.repeat(32),
     name: 'Laptop',
+    projectScope: 'selected' as const,
     allowedProjects: [],
     createdAt: '2026-11-12T10:00:00.000Z',
     expiresAt: '2026-11-12T10:10:00.000Z',
@@ -213,7 +214,7 @@ describe('RunnerProjectsDialog', () => {
         {
           provide: RunnersApi,
           useValue: {
-            setAllowedProjects: async (...args: unknown[]) => {
+            setScope: async (...args: unknown[]) => {
               calls.push(args);
               return answer();
             },
@@ -233,15 +234,22 @@ describe('RunnerProjectsDialog', () => {
       (root.querySelector(`[data-slug="${slug}"] input`) as HTMLInputElement).click();
       await fixture.whenStable();
     };
+    const pick = async (scope: 'all' | 'selected'): Promise<void> => {
+      const radio = root.querySelector(`[data-testid="runner-scope-${scope}"]`) as HTMLInputElement;
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+    };
     const submit = async (): Promise<void> => {
       (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
       await settle();
     };
-    return { root, tick, submit, calls, close };
+    return { root, tick, pick, submit, calls, close };
   }
 
-  it('opens with the runner’s projects ticked, warns on narrowing and saves the new list', async () => {
+  it('opens with the runner’s scope and projects ticked, warns on narrowing and saves the new list', async () => {
     const { root, tick, submit, calls, close } = await render(runnerFixture());
+    expect((root.querySelector('[data-testid="runner-scope-selected"]') as HTMLInputElement).checked).toBe(true);
     const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
     expect(boxes.map((box) => box.checked)).toEqual([true, false]);
     await tick('team-console');
@@ -250,8 +258,39 @@ describe('RunnerProjectsDialog', () => {
       'Текущие задания раннера в проектах team-console будут отменены.',
     );
     await submit();
-    expect(calls).toEqual([[OWNER_ACCOUNT_ID, runnerFixture().id, ['storify']]]);
+    expect(calls).toEqual([[OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'selected', allowedProjects: ['storify'] }]]);
     expect(close).toHaveBeenCalledWith(runnerFixture({ allowedProjects: ['storify'] }));
+  });
+
+  // #775: the scope changes without re-enrolment; widening warns of nothing, narrowing from `all` names what it loses.
+  it('switches to all projects without a warning, and warns when all is narrowed to a list', async () => {
+    const all = runnerFixture({
+      projectScope: 'all',
+      allowedProjects: [],
+      servedProjects: [
+        { slug: 'team-console', accessSource: 'subscription', fit: true },
+        { slug: 'storify', accessSource: 'subscription', fit: true },
+      ],
+    });
+    const widened = await render(runnerFixture(), () => ({ ok: true, value: all }));
+    await widened.pick('all');
+    expect(widened.root.querySelector('[data-slug="team-console"]')).toBeNull();
+    expect(widened.root.querySelector('[data-testid="runner-projects-narrowing"]')).toBeNull();
+    await widened.submit();
+    expect(widened.calls).toEqual([[OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'all', allowedProjects: ['team-console'] }]]);
+    expect(widened.close).toHaveBeenCalledWith(all);
+    TestBed.resetTestingModule();
+
+    const narrowed = await render(all);
+    expect((narrowed.root.querySelector('[data-testid="runner-scope-all"]') as HTMLInputElement).checked).toBe(true);
+    await narrowed.pick('selected');
+    expect(narrowed.root.querySelector('[data-testid="runner-projects-narrowing"]')?.textContent).toContain(
+      'Текущие задания раннера в проектах team-console, storify будут отменены.',
+    );
+    await narrowed.tick('storify');
+    expect(narrowed.root.querySelector('[data-testid="runner-projects-narrowing"]')?.textContent).toContain(
+      'Текущие задания раннера в проектах team-console будут отменены.',
+    );
   });
 
   it('lists a slug the runner holds that is no longer an active project, so it can be removed', async () => {

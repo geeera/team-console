@@ -11,6 +11,7 @@ import { problem, type ProblemInit, type WorkerContext, type WorkerHonoEnv } fro
 import {
   AuditRepo,
   InstallationsRepo,
+  RunnersRepo,
   ProjectSignalsRepo,
   ProjectsRepo,
   auditEventStatement,
@@ -119,6 +120,12 @@ function setupOf(
     ...(facts.appInstalled === 'missing' ? { installUrl: installUrlFor(environment) } : {}),
     ...(facts.owner === null ? {} : { repoOwnerLogin: facts.owner.login }),
   };
+}
+
+/** R-SCOPE-2 (#775): the `all` runners serving the new project from now on, when there are any (ids only). */
+async function servedByRunnersOf(db: D1Database, accountId: string, slug: string): Promise<{ servedByRunners?: readonly string[] }> {
+  const serving = await new RunnersRepo(db).allScopeRunnersServing(accountId, slug);
+  return serving.length > 0 ? { servedByRunners: serving } : {};
 }
 
 /** An owner's registry action as an `audit_events` row (ADR 0008 decision 5): ids and enums only in `details`. */
@@ -329,6 +336,8 @@ export function createProjectRegistryRoutes(
         addedAt: at,
         accountId,
         repoId,
+        // D3 (#775): who created it, for the runner scope term; the audit actor, as `runners.enrolled_by` is.
+        createdBy: actor.actor,
       });
       const row = created === 'created' ? await projects.findActiveBySlug(slug) : null;
       if (row === null) {
@@ -353,7 +362,9 @@ export function createProjectRegistryRoutes(
         actor: actor.actor,
         kind: 'project.created',
         target: slug,
-        details: { repoId, installationId },
+        // R-SCOPE-2 (#775): the `all` runners that serve the new project from now on, so the audit says which machines
+        // (and whose Claude sign-in, D3) picked it up without anyone choosing it.
+        details: { repoId, installationId, ...(await servedByRunnersOf(c.env.DB, accountId, slug)) },
         ipCountry: c.req.header('CF-IPCountry') ?? null,
       });
       c.get('logger').info('project added', { slug });

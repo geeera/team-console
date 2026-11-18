@@ -26,7 +26,9 @@ const RUNNER: RunnerDto = {
   pinnedVersion: null,
   host: { os: 'darwin', arch: 'arm64', hostname: 'mac.local' },
   capabilities: { local: true, maxConcurrency: 1 },
+  projectScope: 'selected',
   allowedProjects: ['team-console'],
+  servedProjects: [{ slug: 'team-console', accessSource: 'subscription', fit: true }],
   enrolledAt: '2026-11-10T00:00:00.000Z',
   lastSeenAt: null,
   lastSeenCountry: null,
@@ -154,6 +156,7 @@ describe('runner guards', () => {
     const PENDING = {
       id: 'a1'.repeat(32),
       name: 'Mac',
+      projectScope: 'selected',
       allowedProjects: ['team-console'],
       createdAt: '2026-11-12T10:00:00.000Z',
       expiresAt: '2026-11-12T10:10:00.000Z',
@@ -170,6 +173,8 @@ describe('runner guards', () => {
       ['a code in place of the id', { id: `tce_${'e'.repeat(43)}` }],
       ['no expiry', { expiresAt: 'soon' }],
       ['a project list that is not strings', { allowedProjects: [1] }],
+      ['an unknown scope', { projectScope: 'everything' }],
+      ['a list beside all (#775)', { projectScope: 'all' }],
     ])('refuses a pending code with %s', (_, patch) => {
       expect(isPendingEnrolmentDto({ ...PENDING, ...patch })).toBe(false);
     });
@@ -188,9 +193,11 @@ describe('runner guards', () => {
       apiUrl: 'https://x.dev',
       audience: 'team-console:dev',
       name: 'Mac',
+      projectScope: 'all',
       allowedProjects: [],
     };
     expect(isEnrolmentCodeDto(dto)).toBe(true);
+    expect(isEnrolmentCodeDto({ ...dto, allowedProjects: ['x'] })).toBe(false);
     expect(isEnrolmentCodeDto({ ...dto, expiresAt: 'soon' })).toBe(false);
     expect(isEnrolmentCodeDto({ ...dto, code: 7 })).toBe(false);
   });

@@ -23,6 +23,7 @@ import { EVENT_TEXT_MAX, parseStreamLine, type StreamResult } from '../claude/st
 import { RunnerApiError } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { jobCredentialOf, type CredentialConfig } from '../env/credential';
+import { scopeOfConfig, type RunnerScope } from './runner-scope';
 import { DEFAULT_TOOLCHAIN_PATH, buildJobEnv } from '../env/env-builder';
 import { runnerGitEnv, withReadToken } from '../git/git';
 import { cloneForJob, syncMirror, vendorPlugin } from '../git/workspace';
@@ -50,7 +51,7 @@ export interface JobConsole extends ProxyForwarder {
  * (#669) builds this from its env and the exchange, in memory only. `vcs` exists only here: config.json refuses it, so
  * a token never lands in a file.
  */
-export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'allowedProjects' | 'repositories' | 'toolchain' | 'env'> & {
+export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'projectScope' | 'allowedProjects' | 'repositories' | 'toolchain' | 'env'> & {
   readonly backend: RunnerIsolation;
   readonly credential?: CredentialConfig | undefined;
   /** The mirror fetch's read token for the upstream (an Actions run's `github.token`); the job never sees it. */
@@ -70,6 +71,11 @@ export interface JobRunDeps {
   /** Aborted on Ctrl-C / SIGTERM. */
   readonly shutdown: AbortSignal;
   readonly limitStreak: number;
+  /**
+   * The scope the console answered last (#775): `GET /runner/self` at the loop's start, then each claim. The job's
+   * project must be in its `projects`; without one the enrol-time copy in `config` is the fallback.
+   */
+  readonly scope?: RunnerScope;
   /**
    * Mirrors a limit's pause to the console before the finish (#596): the console leaves a limit failure out of the
    * project's failure streak only while the finishing runner holds a pause. Errors are the callee's to report.
@@ -204,11 +210,13 @@ export async function runJob(
     if (!isValidSlug(job.projectSlug)) {
       throw new LaunchRefusal('repository-not-configured', 'the job names no valid project slug');
     }
-    // The runner enforces its own project scope, whatever the console's claim filter let through.
-    if (!config.allowedProjects.includes(job.projectSlug)) {
+    // The runner enforces its own project scope, whatever the console's claim filter let through: the scope the
+    // console answered last (#775), never the copy `enrol` wrote, so a change on Settings needs no restart.
+    const scope = deps.scope ?? scopeOfConfig(config);
+    if (!scope.projects.includes(job.projectSlug)) {
       throw new LaunchRefusal(
         'project-not-allowed',
-        `${job.projectSlug} is not in config.json allowedProjects`,
+        `${job.projectSlug} is not among the projects this runner serves (${scope.source}: ${scope.projectScope})`,
       );
     }
     const plan = launchPlanOf(job.role, teamConfig);

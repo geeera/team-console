@@ -1,5 +1,6 @@
 import { isUlid } from './account';
 import { isNullable, isString, isTimestamp } from './guards';
+import type { RunnerScopeDto } from './runner';
 import type { ResolvedTeamConfigDto } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
@@ -386,6 +387,11 @@ export interface ClaimResponse {
   /** Shown once; the console keeps its hash. Presented as `Authorization: Bearer` with the runner JWT in `X-Runner-Jwt`. */
   readonly jobToken: string;
   readonly leaseSeconds: number;
+  /**
+   * The runner's scope as the claim applied it (#775): the runner holds itself to this answer, never to the copy
+   * `enrol` wrote, so a change on Settings › Runners takes effect without a restart.
+   */
+  readonly scope: RunnerScopeDto;
   /**
    * The resolved team configuration the job runs with (ADR 0009 d.7, #687): the revision the claim stamped on the job,
    * so a later change applies to the next claim, never to this one.

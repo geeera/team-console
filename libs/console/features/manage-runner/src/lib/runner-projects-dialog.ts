@@ -1,14 +1,14 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import {
-  RunnerProjectsPicker,
+  RunnerScopePicker,
   RunnersApi,
   runnerFailureKeyOf,
   type RunnerProjectOption,
 } from '@console/entities/runner';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Banner, Button, DIALOG_DATA, DialogRef, Icon, SheetFooter } from '@console/shared/ui';
-import type { RunnerDto } from '@shared/contracts';
+import { runnerScopeCovers, type RunnerDto, type RunnerProjectScope } from '@shared/contracts';
 
 export interface RunnerProjectsData {
   readonly accountId: string;
@@ -19,19 +19,23 @@ export interface RunnerProjectsData {
 let nextFormId = 0;
 
 /**
- * Which projects one runner may serve (#464, `PATCH …/runners/:runner`): the same picker as enrolment, prefilled with
- * its `allowed_projects`. Saving a narrower list cancels the runner's live jobs in the projects it loses (#490), so
- * the dialog says so before the owner saves. Closes with the runner as the Worker answered it.
+ * Which projects one runner may serve (#464, #775, `PATCH …/runners/:runner`): the same scope picker as enrolment —
+ * every project of the account, or a list — prefilled with the runner's scope. Saving a scope that drops a project the
+ * runner serves now cancels its live jobs there (#490), so the dialog says so before the owner saves. Changing the
+ * scope needs no re-enrolment: the claim reads the stored row and the runner takes the scope from each claim. Closes
+ * with the runner as the Worker answered it.
  */
 @Component({
   selector: 'tc-runner-projects-dialog',
-  imports: [Banner, Button, Icon, RunnerProjectsPicker, SheetFooter, TranslocoPipe],
+  imports: [Banner, Button, Icon, RunnerScopePicker, SheetFooter, TranslocoPipe],
   template: `
     <form class="runner-projects-form" [id]="formId" (submit)="submit($event)" novalidate>
-      <tc-runner-projects-picker
-        [legend]="'runners.projects.editLegend' | transloco: { name: data.runner.name }"
+      <tc-runner-scope-picker
+        [legend]="'runners.scope.editLegend' | transloco: { name: data.runner.name }"
+        [projectsLegend]="'runners.projects.editLegend' | transloco: { name: data.runner.name }"
         [projects]="options()"
         [disabled]="running()"
+        [(scope)]="scope"
         [(selected)]="selected"
       />
       @if (removed().length > 0) {
@@ -93,6 +97,7 @@ export class RunnerProjectsDialog {
   private readonly announcer = inject(LiveAnnouncer);
 
   protected readonly formId = `tc-runner-projects-${nextFormId++}`;
+  protected readonly scope = signal<RunnerProjectScope>(this.data.runner.projectScope);
   protected readonly selected = signal<readonly string[]>(this.data.runner.allowedProjects);
   protected readonly running = signal(false);
   protected readonly failure = signal<string | null>(null);
@@ -106,9 +111,15 @@ export class RunnerProjectsDialog {
     return [...this.data.projects, ...stale];
   });
 
-  protected readonly removed = computed(() =>
-    this.data.runner.allowedProjects.filter((slug) => !this.selected().includes(slug)),
-  );
+  /** Projects the runner serves now that the new scope drops: their live jobs on it are cancelled by the save. */
+  protected readonly removed = computed(() => {
+    const next = { projectScope: this.scope(), allowedProjects: this.selected() };
+    const serving = new Set([
+      ...this.data.runner.servedProjects.map((project) => project.slug),
+      ...this.data.runner.allowedProjects,
+    ]);
+    return [...serving].filter((slug) => !runnerScopeCovers(next, slug));
+  });
 
   protected cancel(): void {
     if (!this.running()) {
@@ -124,7 +135,10 @@ export class RunnerProjectsDialog {
     this.running.set(true);
     this.failure.set(null);
     this.ref.disableClose = true;
-    const result = await this.api.setAllowedProjects(this.data.accountId, this.data.runner.id, this.selected());
+    const result = await this.api.setScope(this.data.accountId, this.data.runner.id, {
+      projectScope: this.scope(),
+      allowedProjects: this.selected(),
+    });
     this.running.set(false);
     this.ref.disableClose = false;
     if (!result.ok) {

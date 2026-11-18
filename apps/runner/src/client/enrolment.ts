@@ -1,5 +1,6 @@
 import {
   isRunnerId,
+  isRunnerProjectScopeDto,
   isUlid,
   isValidSlug,
   type EnrolRunnerInput,
@@ -26,8 +27,8 @@ export function isEnrolRunnerResponse(value: unknown): value is EnrolRunnerRespo
     isUlid(value['accountId']) &&
     typeof value['name'] === 'string' &&
     typeof value['audience'] === 'string' &&
-    Array.isArray(value['allowedProjects']) &&
-    value['allowedProjects'].every((slug) => typeof slug === 'string' && isValidSlug(slug)) &&
+    isRunnerProjectScopeDto(value) &&
+    value['allowedProjects'].every((slug) => isValidSlug(slug)) &&
     typeof value['pollSeconds'] === 'number' &&
     Number.isInteger(value['pollSeconds'])
   );

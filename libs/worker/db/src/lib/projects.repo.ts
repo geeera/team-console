@@ -49,6 +49,8 @@ export interface NewProject {
   readonly accountId: string;
   /** The provider's repository id as the API reported it at creation (decision 4); a row without one is never routed (#484). */
   readonly repoId: number;
+  /** The audit actor creating the project (#775, D3): the runner scope term compares it with `runners.enrolled_by`. */
+  readonly createdBy?: string | null;
 }
 
 /**
@@ -201,8 +203,8 @@ export class ProjectsRepo {
     try {
       const result = await this.db
         .prepare(
-          `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, account_id, repo_id)
-           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7
+          `INSERT INTO projects (slug, repo, display_name, installation_id, added_at, account_id, repo_id, created_by)
+           SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8
            WHERE NOT EXISTS (
              SELECT 1 FROM projects
              WHERE slug = ?1 OR lower(repo) = lower(?2) OR (provider = 'github' AND repo_id = ?7)
@@ -216,6 +218,7 @@ export class ProjectsRepo {
           project.addedAt,
           project.accountId,
           project.repoId,
+          project.createdBy ?? null,
         )
         .run();
       inserted = result.meta.changes === 1;
