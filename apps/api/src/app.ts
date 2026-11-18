@@ -157,8 +157,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/projects', createJobRoutes(github));
   // Pull or GitHub Actions per project (#670): the owner's switch; an Actions job is dispatched at enqueue.
   v1.route('/projects', createProjectDispatchRoutes(github));
-  // The customer's Actions setup (#759): this console's rendering of the runner workflow.
-  v1.route('/projects', createActionsSetupRoutes());
+  // The customer's Actions setup (#759): this console's rendering of the runner workflow and the readiness check.
+  v1.route('/projects', createActionsSetupRoutes(github));
   v1.route('/runner', createRunnerJobRoutes(github));
   // Team configuration (#687, ADR 0009): D1 behind the matrix; the import reads project.yml through the VCS adapter.
   v1.route('/projects', createTeamConfigRoutes(github, owners));

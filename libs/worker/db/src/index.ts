@@ -137,6 +137,7 @@ export type {
 } from './lib/jobs/jobs.repo';
 export { ProjectDispatchRepo } from './lib/jobs/project-dispatch.repo';
 export type {
+  ActionsReadinessTarget,
   ProjectDispatchOutcome,
   ProjectDispatchRecord,
   ProjectDispatchWrite,

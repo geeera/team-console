@@ -1,5 +1,12 @@
 export { dispatchRunnerWorkflow } from './lib/actions-dispatch';
 export {
+  RUNNER_WORKFLOW_PATH,
+  judgePullProvenance,
+  readActionsSetupPull,
+  sameWorkflowBytes,
+} from './lib/actions-setup-pull';
+export type { ActionsSetupPull, PullProvenance, PullProvenanceExpectation } from './lib/actions-setup-pull';
+export {
   RUNNER_WORKFLOW_MAX_BYTES,
   hasInferenceKeySecret,
   readActionsEnvironment,
@@ -35,7 +42,12 @@ export {
   createAppJwt,
   importAppPrivateKey,
 } from './lib/app-auth';
-export type { GitHubAppAuthOptions, GitHubAppCredentials } from './lib/app-auth';
+export type {
+  GitHubAppAuthOptions,
+  GitHubAppCredentials,
+  InstallationPermissions,
+  PermissionLevel,
+} from './lib/app-auth';
 export { GitHubClient } from './lib/client';
 export type {
   BoundedList,

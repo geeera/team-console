@@ -29,6 +29,11 @@ export interface MockRepository {
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
   /**
+   * #759: text files of another ref (a PR's head commit), by ref and path; `?ref=` names it. A ref not listed here
+   * serves `files`, as the one snapshot the mock holds.
+   */
+  readonly refFiles?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /**
    * Binary files (#277: design images), base64 by path. Listed with `files` by `GET …/git/trees/{sha}?recursive=1`
    * (every sha answers the same tree) and read by blob sha through `GET …/git/blobs/{sha}` with the raw media type.
    */
@@ -69,7 +74,8 @@ export interface MockRepository {
   readonly actionsWrite?: boolean;
   /**
    * #759: the installation accepted Environments: read on this repository, so an `environment-read` mint by its id
-   * succeeds; without it the mint answers 422.
+   * succeeds; without it the mint answers 422. `GET /app/installations/{id}` lists the permissions of the
+   * installation's first repository in the fixtures.
    */
   readonly environmentsRead?: boolean;
   /**
@@ -197,9 +203,14 @@ function listOf(
   // GitHub's `labels=a,b` lists items carrying every one of them.
   const labels = (query.get('labels') ?? '').split(',').filter((label) => label !== '');
   const base = list === 'pulls' ? query.get('base') : null;
+  // #759: GitHub's `head=<owner>:<branch>`; a fixture names the head's owner in `head.repo.owner.login`.
+  const head = list === 'pulls' ? query.get('head') : null;
   return items.filter((item) => {
     const itemBase = item['base'];
     if (base !== null && !(isRecord(itemBase) && itemBase['ref'] === base)) {
+      return false;
+    }
+    if (head !== null && headLabelOf(item) !== head) {
       return false;
     }
     if (state !== 'all' && item['state'] !== state) {
@@ -218,6 +229,17 @@ function listOf(
       String((assigned as Record<string, unknown>)['number']) === milestone
     );
   });
+}
+
+/** `<owner>:<ref>` of a pull request fixture's head, as GitHub's `head` filter matches it. */
+function headLabelOf(item: Readonly<Record<string, unknown>>): string | null {
+  const head = item['head'];
+  if (!isRecord(head) || typeof head['ref'] !== 'string') {
+    return null;
+  }
+  const repo = head['repo'];
+  const owner = isRecord(repo) && isRecord(repo['owner']) ? repo['owner']['login'] : undefined;
+  return typeof owner === 'string' ? `${owner}:${head['ref']}` : null;
 }
 
 /** A per-repository read token, or the installation-wide `metadata` token of the repository list (#194). */
@@ -359,6 +381,13 @@ class MockGitHubServer {
         : json(401, { message: 'A JSON web token could not be decoded' });
     }
 
+    // #759: one installation as the app sees it, with the permissions its installer accepted.
+    if (method === 'GET' && segments.length === 3 && segments[0] === 'app' && segments[1] === 'installations') {
+      return (await this.isValidJwt(bearer))
+        ? this.installation(Number(segments[2]))
+        : json(401, { message: 'A JSON web token could not be decoded' });
+    }
+
     if (method === 'GET' && url.pathname === '/installation/repositories') {
       return this.installationRepositories(bearer, url);
     }
@@ -472,7 +501,7 @@ class MockGitHubServer {
       }
       if (isContentsRead) {
         const accept = new Headers(init.headers).get('accept') ?? '';
-        return this.file(found.fixture, segments.slice(4).join('/'), found.name, accept);
+        return this.file(found.fixture, segments.slice(4).join('/'), found.name, accept, url.searchParams.get('ref'));
       }
       if (isListRead) {
         const items = listOf(found.fixture, listed, url.searchParams);
@@ -527,8 +556,18 @@ class MockGitHubServer {
    * The contents API's answer for a file (base64 content, as GitHub sends it) or, for a folder that holds fixture
    * files, its listing: one entry per file or sub-folder directly inside it.
    */
-  private async file(fixture: MockRepository, path: string, repo: string, accept: string): Promise<Response> {
-    const text = fixture.files?.[path];
+  private async file(
+    fixture: MockRepository,
+    path: string,
+    repo: string,
+    accept: string,
+    ref: string | null = null,
+  ): Promise<Response> {
+    const atRef = ref === null ? undefined : fixture.refFiles?.[ref];
+    const text = atRef === undefined ? fixture.files?.[path] : atRef[path];
+    if (atRef !== undefined && text === undefined) {
+      return notFound();
+    }
     if (text === undefined) {
       return this.listing(fixture, path, repo);
     }
@@ -691,6 +730,36 @@ class MockGitHubServer {
   private issue(fixture: MockRepository, number: string): Response {
     const issue = fixture.issues?.find((item) => String(item['number']) === number);
     return issue === undefined ? notFound() : json(200, issue);
+  }
+
+  /**
+   * `GET /app/installations/{id}`: the first fixture repository on the installation names what was accepted —
+   * the read set always, `actions: write`, `environments: read` and the setup write set by its flags.
+   */
+  private installation(installationId: number): Response {
+    const fixture = Object.values(this.fixtures.repositories).find((entry) => entry.installationId === installationId);
+    if (fixture === undefined) {
+      return notFound();
+    }
+    const owner = ownerOf(fixture);
+    return json(200, {
+      id: installationId,
+      app_id: Number(MOCK_APP_ID),
+      app_slug: 'team-console-local',
+      account: owner === null ? null : { id: owner.id, login: owner.login, type: 'User' },
+      html_url: `https://github.com/settings/installations/${String(installationId)}`,
+      repository_selection: 'selected',
+      suspended_at: null,
+      permissions: {
+        metadata: 'read',
+        issues: 'write',
+        pull_requests: fixture.setupWrite === true ? 'write' : 'read',
+        contents: fixture.setupWrite === true ? 'write' : 'read',
+        actions: fixture.actionsWrite === true ? 'write' : 'read',
+        ...(fixture.environmentsRead === true ? { environments: 'read' } : {}),
+        ...(fixture.setupWrite === true ? { workflows: 'write' } : {}),
+      },
+    });
   }
 
   /**

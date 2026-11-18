@@ -1,31 +1,26 @@
 import { Hono } from 'hono';
-import { checkProjectDispatchInput, type ProjectDispatchDto } from '@shared/contracts';
-import { problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import { blockingItemsOf, checkProjectDispatchInput, type ProjectDispatchDto } from '@shared/contracts';
+import { problem, type ProblemExtensionValue, type WorkerHonoEnv } from '@worker/core';
 import { ProjectDispatchRepo } from '@worker/db';
-import { GitHubClient, readRegisteredRepository } from '@worker/github';
+import { checkActionsReadiness, readinessTargetOf } from '../actions/readiness';
 import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { repoOf } from '../projects/lookup';
+import { actionsNotReady, readinessRateRefusal, repositoryUnverified, uncheckedReadiness } from './actions-setup-problems';
 import { actionsOnSubscription } from './dispatch-problems';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { jobAuditOf } from './jobs';
 
-type Context = WorkerContext<ApiEnv>;
-
 const P = '/api/v1/projects/:slug';
-
-function refused(c: Context, type: string, detail: string): Response {
-  const extensions: Record<string, ProblemExtensionValue> = { field: 'dispatch' };
-  return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
-}
 
 /**
  * `GET|PUT /api/v1/projects/:slug/dispatch` (#670): how the project's jobs reach a runner — `pull` or `actions`.
- * The owner switches it; the account reads it. Switching to `actions` reads the repository from GitHub first and
- * takes `default_branch` from that answer (#695 item 4), after checking GitHub's `id` is the registered `repo_id`;
- * the write then refuses, inside its own UPDATE, a `subscription` project (#706). A `pinned`/`failover` placement
+ * The owner switches it; the account reads it. Switching to `actions` runs the readiness check of #759 inside the
+ * request (`actions/readiness.ts`; no client "ready" flag exists) and refuses 422 `actions-not-ready` with the blocking
+ * items; the check reads the repository by its registered `repo_id` and its `default_branch` is what the switch
+ * records (#695 item 4). A `subscription` project is refused first, before any GitHub call (#706), and again inside
+ * the UPDATE. Switching to `pull` is never gated and calls no GitHub. A `pinned`/`failover` placement
  * stays as it is (#728): it applies to the project's pull jobs, which on an Actions project are its `needs_local` jobs
  * alone. Audited as `project.dispatch-changed`. Jobs keep the dispatch they were enqueued with.
  */
@@ -54,23 +49,33 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
       let defaultBranch: string | null = null;
       if (dispatch === 'actions') {
         if (row.repo_id === null) {
-          return refused(c, 'dispatch-repository-unverified', 'The repository id of this project was never recorded');
+          return repositoryUnverified(c, 'The repository id of this project was never recorded');
         }
-        const registered = repoOf(c, row);
-        if (registered instanceof Response) {
-          return registered;
+        const target = await readinessTargetOf({ env: c.env }, row);
+        if (target === null) {
+          return problem(c, { type: 'project-not-found', title: 'Project not found', status: 404 });
         }
-        const { auth, fetch } = await github.connect(c.env);
-        const repository = await readRegisteredRepository(
-          new GitHubClient(fetch, auth.tokenSourceFor(registered)),
-          registered,
-          row.repo_id,
+        if (target.accessSource !== 'api_key') {
+          return actionsOnSubscription(c);
+        }
+        const limited = await readinessRateRefusal(c, row.slug, github.now());
+        if (limited !== null) {
+          return limited;
+        }
+        const readiness = await checkActionsReadiness(
+          { env: c.env, github, logger: c.get('logger'), requestOrigin: new URL(c.req.url).origin },
+          row,
+          target,
         );
-        if (repository === null) {
-          c.get('logger').warn('dispatch refused', { reason: 'repository-id-mismatch', slug: row.slug });
-          return refused(c, 'dispatch-repository-unverified', 'GitHub names another repository under this name');
+        if (readiness.kind !== 'checked') {
+          return uncheckedReadiness(c, readiness);
         }
-        defaultBranch = repository.defaultBranch;
+        const blocking = blockingItemsOf(readiness.setup.items);
+        if (blocking.length > 0 || readiness.defaultBranch === null) {
+          c.get('logger').info('dispatch refused', { reason: 'actions-not-ready', slug: row.slug, items: blocking.join(',') });
+          return actionsNotReady(c, blocking);
+        }
+        defaultBranch = readiness.defaultBranch;
       }
       const at = new Date().toISOString();
       const outcome = await repo.set({
@@ -86,7 +91,7 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
         case 'access-source-hosted':
           return actionsOnSubscription(c);
         case 'repository-unverified':
-          return refused(c, 'dispatch-repository-unverified', 'The repository id of this project was never recorded');
+          return repositoryUnverified(c, 'The repository id of this project was never recorded');
         case 'saved': {
           c.get('logger').info('project dispatch changed', { slug: row.slug, dispatch });
           const body: ProjectDispatchDto = { dispatch: outcome.record.dispatch, defaultBranch: outcome.record.defaultBranch };

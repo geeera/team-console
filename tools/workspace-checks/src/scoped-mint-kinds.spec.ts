@@ -15,10 +15,11 @@ import * as ts from 'typescript';
 const SCOPED_KINDS = ['actions-dispatch', 'environment-read', 'workflow-pr'] as const;
 type ScopedKind = (typeof SCOPED_KINDS)[number];
 
-/** The modules that may name each kind. Empty means no module may mint it yet (#759 PRs 3 and 4 add theirs). */
+/** The modules that may name each kind. Empty means no module may mint it yet (#759 PR 4 adds the write's). */
 const ALLOWED_CALLERS: Readonly<Record<ScopedKind, readonly string[]>> = {
   'actions-dispatch': ['apps/api/src/actions/dispatch.ts'],
-  'environment-read': [],
+  // #759 PR 3: the readiness check, behind `GET …/actions-setup` and the switch `PUT …/dispatch {actions}`.
+  'environment-read': ['apps/api/src/actions/readiness.ts'],
   'workflow-pr': [],
 };
 

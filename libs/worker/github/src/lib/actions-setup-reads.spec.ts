@@ -109,6 +109,7 @@ describe('Actions setup readiness reads (#759)', () => {
       const token = await readToken(STRICT);
       const environment = await readActionsEnvironment(fetch, token, parseRepoName(STRICT.repo));
       expect(environment).toEqual({
+        id: 1,
         branchPolicy: { protectedBranches: false, customBranchPolicies: true },
         protectionRules: ['required_reviewers', 'branch_policy'],
       });
@@ -119,6 +120,7 @@ describe('Actions setup readiness reads (#759)', () => {
     it('reports a wait timer above zero and an Environment every branch may deploy to', async () => {
       const token = await readToken(BARE);
       await expect(readActionsEnvironment(fetch, token, parseRepoName(BARE.repo))).resolves.toEqual({
+        id: null,
         branchPolicy: null,
         protectionRules: ['wait_timer'],
       });
@@ -135,6 +137,7 @@ describe('Actions setup readiness reads (#759)', () => {
       const token = await readToken({ installationId: 1001, repositoryId: 900001 });
       const repo = parseRepoName('geeera/team-console');
       await expect(readActionsEnvironment(fetch, token, repo)).resolves.toEqual({
+        id: 7001,
         branchPolicy: { protectedBranches: false, customBranchPolicies: true },
         protectionRules: ['branch_policy'],
       });

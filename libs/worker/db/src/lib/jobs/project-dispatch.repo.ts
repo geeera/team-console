@@ -1,4 +1,4 @@
-import type { ProjectDispatch } from '@shared/contracts';
+import type { AccessSource, ProjectDispatch } from '@shared/contracts';
 import { auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 import { subscriptionActionsSql } from '../team-config/access-source';
 
@@ -17,6 +17,13 @@ import { subscriptionActionsSql } from '../team-config/access-source';
 export interface ProjectDispatchRecord {
   readonly dispatch: ProjectDispatch;
   readonly defaultBranch: string | null;
+}
+
+export interface ActionsReadinessTarget {
+  readonly dispatch: ProjectDispatch;
+  readonly accessSource: AccessSource;
+  readonly repoId: number | null;
+  readonly linkedInstallationId: number | null;
 }
 
 export type ProjectDispatchOutcome =
@@ -80,6 +87,37 @@ export class ProjectDispatchRepo {
       return { kind: 'access-source-hosted' };
     }
     return { kind: 'repository-unverified' };
+  }
+
+  /**
+   * #759: what the Actions readiness check starts from, in one read. `linkedInstallationId` is the project's
+   * installation only while it is linked to the project's own account, unsuspended (the dispatch's terms,
+   * `findDispatchTarget`), so a check never mints through an installation of another account.
+   */
+  async readinessTargetOf(slug: string): Promise<ActionsReadinessTarget | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT p.dispatch, p.access_source, p.repo_id,
+           (SELECT CAST(i.installation_id AS INTEGER) FROM installations i
+            WHERE i.provider = p.provider AND i.installation_id = CAST(p.installation_id AS TEXT)
+              AND i.account_id = p.account_id AND i.unlinked_at IS NULL AND i.suspended_at IS NULL) AS linked_installation_id
+         FROM projects p WHERE p.slug = ?1`,
+      )
+      .bind(slug)
+      .first<{
+        dispatch: ProjectDispatch;
+        access_source: AccessSource;
+        repo_id: number | null;
+        linked_installation_id: number | null;
+      }>();
+    return row === null
+      ? null
+      : {
+          dispatch: row.dispatch,
+          accessSource: row.access_source,
+          repoId: row.repo_id,
+          linkedInstallationId: row.linked_installation_id,
+        };
   }
 
   /**

@@ -12,3 +12,4 @@ export {
   type RunnerWorkflowPins,
   type RunnerWorkflowRendering,
 } from './lib/render';
+export { ACTIONS_SETUP_BRANCH_PREFIX, actionsSetupBranchOf } from './lib/setup-branch';

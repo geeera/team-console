@@ -19,6 +19,8 @@ export type ActionsSetupReadOptions = GitHubTransportOptions & { readonly now?: 
 export type EnvironmentProtectionRule = 'required_reviewers' | 'wait_timer' | 'branch_policy' | 'other';
 
 export interface ActionsEnvironment {
+  /** GitHub's id of the Environment, for the link to its settings page; `null` when the answer carries none. */
+  readonly id: number | null;
   /** GitHub's `deployment_branch_policy`; `null` when every branch may deploy to the Environment. */
   readonly branchPolicy: { readonly protectedBranches: boolean; readonly customBranchPolicies: boolean } | null;
   /** The rule types present, each once, in GitHub's order. A wait timer of 0 minutes is no rule. */
@@ -114,7 +116,8 @@ function environmentOf(body: unknown, status: number): ActionsEnvironment {
       protectionRules.push(type);
     }
   }
-  return { branchPolicy, protectionRules };
+  const id = body['id'];
+  return { id: Number.isSafeInteger(id) && (id as number) > 0 ? (id as number) : null, branchPolicy, protectionRules };
 }
 
 /**
