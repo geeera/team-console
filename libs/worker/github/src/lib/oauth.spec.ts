@@ -199,15 +199,19 @@ describe('GitHubOAuth.fetchUser', () => {
   });
 });
 
-describe('GitHubOAuth.revokeGrant', () => {
-  it('DELETEs /applications/{client_id}/grant with Basic client credentials and the token in the body', async () => {
+// #86: the grant revoke ends every token of the user's grant; the token revoke ends one access token only.
+describe.each(['grant', 'token'] as const)('GitHubOAuth revoke (%s)', (scope) => {
+  const revoke = (oauth: GitHubOAuth, token: string) =>
+    scope === 'grant' ? oauth.revokeGrant(token) : oauth.revokeToken(token);
+
+  it(`DELETEs /applications/{client_id}/${scope} with Basic client credentials and the token in the body`, async () => {
     const { github, oauth } = oauthWith(() => new Response(null, { status: 204 }));
 
-    await expect(oauth.revokeGrant(ACCESS)).resolves.toBe('revoked');
+    await expect(revoke(oauth, ACCESS)).resolves.toBe('revoked');
 
     const [call] = github.calls;
     expect(call?.method).toBe('DELETE');
-    expect(call?.url).toBe(`https://api.github.com/applications/${CREDENTIALS.clientId}/grant`);
+    expect(call?.url).toBe(`https://api.github.com/applications/${CREDENTIALS.clientId}/${scope}`);
     expect(call?.headers.get('authorization')).toBe(
       `Basic ${btoa(`${CREDENTIALS.clientId}:${CREDENTIALS.clientSecret}`)}`,
     );
@@ -216,7 +220,7 @@ describe('GitHubOAuth.revokeGrant', () => {
 
   it.each([404, 422])('treats %i as a rejected token (the grant may live on)', async (status) => {
     const { oauth } = oauthWith(() => json(status, {}));
-    await expect(oauth.revokeGrant(ACCESS)).resolves.toBe('token-rejected');
+    await expect(revoke(oauth, ACCESS)).resolves.toBe('token-rejected');
   });
 
   it.each([
@@ -225,6 +229,6 @@ describe('GitHubOAuth.revokeGrant', () => {
     [400, 'github-unexpected'],
   ])('%i is a GitHubError (%s)', async (status, type) => {
     const { oauth } = oauthWith(() => json(status, {}));
-    expect((await errorOf(oauth.revokeGrant(ACCESS))).problem.type).toBe(type);
+    expect((await errorOf(revoke(oauth, ACCESS))).problem.type).toBe(type);
   });
 });
