@@ -93,6 +93,18 @@
                       >
                         {{ 'runners.scope.edit' | transloco }}
                       </button>
+                      @if (runner.enroller === 'claimable') {
+                        <button
+                          tc-button
+                          size="sm"
+                          type="button"
+                          data-testid="runner-claim-enroller"
+                          [attr.aria-label]="'runners.enroller.aria' | transloco: { name: runner.name }"
+                          (click)="claimEnroller(runner)"
+                        >
+                          {{ 'runners.enroller.open' | transloco }}
+                        </button>
+                      }
                       @if (runner.suspect !== null) {
                         <button
                           tc-button

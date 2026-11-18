@@ -13,6 +13,7 @@ import {
   type EnrolmentCodeDto,
   type PendingEnrolmentDto,
   type RunnerDto,
+  type RunnerEnrollerState,
   type RunnerListDto,
   type RunnerPolicyDto,
   type RunnerProjectScopeDto,
@@ -88,12 +89,33 @@ export function servedProjectsDtoOf(runner: RunnerRecord, served: readonly Serve
     }));
 }
 
+/**
+ * #827: whether the console knows the runner's enroller, never who it is. `claimable` are the ids the caller may claim
+ * now (`RunnersRepo.enrollerClaimableIdsOf`, the claim's own terms).
+ */
+function enrollerStateOf(runner: RunnerRecord, claimable: readonly string[]): RunnerEnrollerState {
+  if (runner.revokedAt !== null || runner.hosted || runner.isolation === 'actions-ephemeral') {
+    return 'not-applicable';
+  }
+  if (runner.enrolledBy !== null) {
+    return 'recorded';
+  }
+  return claimable.includes(runner.id) ? 'claimable' : 'unrecorded';
+}
+
+/** The user id the sole-owner rule compares (#827); the Access owner before the link and the local bypass have none. */
+function claimerUserIdOf(c: Context): string | null {
+  const identity = c.get('identity');
+  return identity.kind === 'user' ? identity.userId : null;
+}
+
 export function runnerDtoOf(
   runner: RunnerRecord,
   now: Date,
   minimumVersion: string | null,
   viewer: string,
   served: readonly ServedProjectRecord[] = [],
+  claimable: readonly string[] = [],
 ): RunnerDto {
   const online =
     runner.revokedAt === null &&
@@ -125,6 +147,7 @@ export function runnerDtoOf(
     pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
     // `enrolled_by` is the audit actor of the code's creator; compared, never sent (R-RUN).
     enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === viewer,
+    enroller: enrollerStateOf(runner, claimable),
   };
 }
 
@@ -159,6 +182,25 @@ export function auditOf(
     details,
     ipCountry: c.req.header('CF-IPCountry') ?? null,
   };
+}
+
+/** The runner as stored after a change, in the list's shape (served projects, enroller state). */
+async function currentRunnerDtoOf(
+  c: Context,
+  runners: RunnersRepo,
+  accountId: string,
+  before: RunnerRecord,
+  now: Date,
+): Promise<RunnerDto> {
+  const updated = (await runners.findInAccount(accountId, before.id)) ?? before;
+  return runnerDtoOf(
+    updated,
+    now,
+    runnerReleaseOf(c.env).minimumVersion,
+    auditActorOf(c.get('identity')).actor,
+    await runners.servedProjectsOf(accountId, before.id),
+    await runners.enrollerClaimableIdsOf(accountId, claimerUserIdOf(c)),
+  );
 }
 
 /**
@@ -277,12 +319,14 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const runners = new RunnersRepo(c.env.DB);
       // One read for every runner's effective projects (#775), the claim's own term.
       const served = await runners.servedProjectsOf(account.id);
+      const claimable = await runners.enrollerClaimableIdsOf(account.id, claimerUserIdOf(c));
+      const viewer = auditActorOf(c.get('identity')).actor;
       const body: RunnerListDto = {
         // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
         // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
         runners: (await runners.listForAccount(account.id))
           .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, auditActorOf(c.get('identity')).actor, served)),
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, viewer, served, claimable)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),
@@ -344,10 +388,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (!cleared) {
         return problem(c, { type: 'runner-not-suspect', title: 'Conflict', status: 409, detail: 'The runner is not marked suspect' });
       }
-      const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
-      );
+      return c.json(await currentRunnerDtoOf(c, runners, account.id, runner, now));
     })
 
     // #775: the runner's scope — every project of the account, present and future, or a list — changeable without
@@ -405,10 +446,58 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           detail: 'Only the owner who enrolled this runner can add projects to it: its sign-in may be their subscription',
         });
       }
-      const updated = await runners.findInAccount(account.id, runner.id);
-      return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
+      return c.json(await currentRunnerDtoOf(c, runners, account.id, runner, now));
+    })
+
+    // #827 (owner decision (a)): a runner from before `enrolled_by` is nobody's to widen once a second owner joins
+    // (D3, #795). While the account has one owner, that owner records themselves as its enroller, audited.
+    .post('/:id/runners/:runner/claim-enroller', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const runnerId = c.req.param('runner');
+      const runners = new RunnersRepo(c.env.DB);
+      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+      if (runner === null) {
+        return runnerNotFound(c);
+      }
+      const now = new Date();
+      const by = auditActorOf(c.get('identity')).actor;
+      // Every rule is judged inside the write; the outcome only picks the answer.
+      const claim = await runners.claimEnroller(
+        account.id,
+        runner.id,
+        by,
+        claimerUserIdOf(c),
+        auditOf(c, account, now.toISOString(), 'runner.enroller-claimed', runner.id, { basis: 'sole-owner' }),
       );
+      switch (claim) {
+        case 'claimed':
+          c.get('logger').info('runner enroller claimed', { runnerId: runner.id });
+          return c.json(await currentRunnerDtoOf(c, runners, account.id, runner, now));
+        case 'not-found':
+          return runnerNotFound(c);
+        case 'already-set':
+          return problem(c, {
+            type: 'runner-enroller-set',
+            title: 'Conflict',
+            status: 409,
+            detail: 'The console already knows who enrolled this runner',
+          });
+        case 'revoked':
+          return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409, detail: 'The runner is revoked' });
+        case 'fixed':
+          return invalid(c, 'runner-enroller-fixed', 'runner', 'A hosted or GitHub Actions runner has no enroller to claim');
+        case 'not-sole-owner':
+          c.get('logger').warn('runner enroller claim refused', { reason: 'runner-enroller-not-sole-owner', runnerId: runner.id });
+          return problem(c, {
+            type: 'runner-enroller-not-sole-owner',
+            title: 'Forbidden',
+            status: 403,
+            detail: 'Only the sole owner of the account can claim a runner as theirs; re-enrol it instead',
+          });
+      }
     })
 
     .post('/:id/runners/:runner/revoke', async (c) => {

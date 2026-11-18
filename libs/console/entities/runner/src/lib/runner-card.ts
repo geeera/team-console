@@ -28,8 +28,8 @@ let nextCardId = 0;
  * One enrolled runner on Settings › Runners (#464, ADR 0008 row 2-E): its name and presence — with why and until when
  * it is paused (#571) — then backend, version (flagged below the environment's minimum), when it was last seen (local
  * time), host and its scope (#775): every project of the account, or the chosen list, with the projects it serves now
- * and a mark on each its credential cannot serve (`fit`). Text from the runner (name, hostname, os) is interpolated
- * only. Actions are projected (`[tc-runner-actions]`).
+ * and a mark on each its credential cannot serve (`fit`), and a note when no enroller is recorded (#827). Text from
+ * the runner (name, hostname, os) is interpolated only. Actions are projected (`[tc-runner-actions]`).
  */
 @Component({
   selector: 'tc-runner-card',
@@ -59,6 +59,11 @@ let nextCardId = 0;
       @if (runner().suspect; as suspect) {
         <p tc-status-card-body class="runner-card__note" data-testid="runner-suspect">
           {{ 'runners.card.suspect.' + suspect.reason | transloco: { day: suspect.at | localDay, time: suspect.at | localTime } }}
+        </p>
+      }
+      @if (enrollerNote(); as note) {
+        <p tc-status-card-body class="runner-card__note" data-testid="runner-enroller" [attr.data-state]="runner().enroller">
+          {{ note | transloco }}
         </p>
       }
       @if (runner().pause; as pause) {
@@ -169,6 +174,11 @@ export class RunnerCard {
   protected readonly unfit = computed((): readonly RunnerServedProjectDto[] =>
     this.runner().servedProjects.filter((project) => !project.fit),
   );
+  /** #827: a runner from before enrollers were recorded; the page projects the claim action when it is `claimable`. */
+  protected readonly enrollerNote = computed(() => {
+    const state = this.runner().enroller;
+    return state === 'unrecorded' || state === 'claimable' ? `runners.card.enroller.${state}` : null;
+  });
   protected readonly tone = computed(() => TONES[this.presence()]);
   protected readonly mark = computed(() => MARKS[this.presence()]);
 }

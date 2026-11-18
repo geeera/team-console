@@ -56,6 +56,7 @@ function d3Runner(enrolledByYou: boolean): RunnerDto {
     belowMinimum: false,
     pause: null,
     enrolledByYou,
+    enroller: 'recorded',
   };
 }
 

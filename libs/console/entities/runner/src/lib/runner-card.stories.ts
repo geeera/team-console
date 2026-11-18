@@ -93,6 +93,10 @@ export const UnfitProject: Story = {
     }),
   },
 };
+/** #827: enrolled before enrollers were recorded, and the caller is the sole owner: the page offers the claim. */
+export const EnrollerClaimable: Story = { args: { runner: runnerFixture({ enroller: 'claimable' }) } };
+/** #827: the same runner once the account has a second owner: nobody can widen it, re-enrolling is the way out. */
+export const EnrollerUnrecorded: Story = { args: { runner: runnerFixture({ enroller: 'unrecorded' }) } };
 /** #668: the ephemeral identity of one GitHub Actions run, listed while the run is live. */
 export const ActionsRun: Story = {
   args: {

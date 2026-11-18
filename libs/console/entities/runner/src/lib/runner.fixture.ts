@@ -30,6 +30,7 @@ export function runnerFixture(overrides: Partial<RunnerDto> = {}): RunnerDto {
     belowMinimum: false,
     enrolledByYou: false,
     pause: null,
+    enroller: 'recorded',
     ...overrides,
   };
 }

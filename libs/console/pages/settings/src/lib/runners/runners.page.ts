@@ -167,6 +167,23 @@ export class RunnersPage {
     }
   }
 
+  protected async claimEnroller(runner: RunnerDto): Promise<void> {
+    const account = this.store.account();
+    if (account === null) {
+      return;
+    }
+    const outcome = await this.manage.claimEnroller({ accountId: account.id, runner });
+    if (outcome.kind === 'claimed') {
+      this.store.apply(outcome.runner);
+      void this.announcer.announce(
+        this.transloco.translate('runners.enroller.done', { name: outcome.runner.name }),
+        'polite',
+      );
+    } else if (outcome.kind === 'stale') {
+      void this.store.load();
+    }
+  }
+
   protected async withdrawEnrolment(enrolment: PendingEnrolmentDto): Promise<void> {
     const account = this.store.account();
     if (account === null) {

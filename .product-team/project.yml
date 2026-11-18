@@ -48,6 +48,13 @@ review:
   code_paths: ["apps/**", "libs/**", "tools/**"]
   max_rework_rounds: 1       # guidance: after one rework round only blockers go back; the rest become follow-ups
 
+# #788: changes to the Actions workflow template and its renderer always need SECURITY (plugin >= 0.11.1 reads this
+# from the PR's base branch). These run with the customer's repository token, so they are treated as auth code.
+security_paths:
+  - "apps/runner/templates/**"
+  - "libs/shared/actions-workflow/**"
+  - "apps/runner/src/actions-template.spec.ts"
+
 team:
   plugin_ref: stable
   reviewer_logins: ['team-console-review[bot]']
