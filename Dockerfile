@@ -23,15 +23,51 @@ ENV NX_DAEMON=false NX_NO_CLOUD=true NX_TUI=false WRANGLER_SEND_METRICS=false CI
 COPY . .
 RUN npx nx run-many -t build
 
+# --- runtime-deps: the lockfile's own tree pruned to wrangler (#263) ---
+# A bare `npm install wrangler` re-resolved the tree and dropped the root `overrides` (sharp, undici). Pruning the
+# `npm ci` tree keeps the exact lockfile versions; the check fails the build if an installed version drifts from it.
+FROM deps AS runtime-deps
+COPY <<'EOF' /tmp/runtime-package.mjs
+import { readFileSync, writeFileSync } from 'node:fs';
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+// A production dependency, so `npm ls` under the image's NODE_ENV=production still lists the tree.
+const runtime = { name: pkg.name, private: true, dependencies: { wrangler: pkg.devDependencies.wrangler }, overrides: pkg.overrides };
+writeFileSync('package.json', `${JSON.stringify(runtime, null, 2)}\n`);
+EOF
+COPY <<'EOF' /tmp/check-runtime-tree.mjs
+import { existsSync, readFileSync } from 'node:fs';
+const packagesOf = (path) => JSON.parse(readFileSync(path, 'utf8')).packages;
+const locked = packagesOf('/tmp/workspace-lock.json');
+const drift = [];
+for (const [path, entry] of Object.entries(packagesOf('package-lock.json'))) {
+  if (path === '') continue;
+  const manifest = `${path}/package.json`;
+  // Optional platform builds for other OSes/CPUs are in the lockfile but never on disk.
+  if (!existsSync(manifest)) {
+    if (!entry.optional) drift.push(`${path}: missing`);
+    continue;
+  }
+  const installed = JSON.parse(readFileSync(manifest, 'utf8')).version;
+  if (installed !== locked[path]?.version) drift.push(`${path}: ${installed} != ${locked[path]?.version}`);
+}
+if (drift.length > 0) {
+  console.error(`runtime tree drifts from package-lock.json:\n${drift.join('\n')}`);
+  process.exit(1);
+}
+EOF
+RUN cp package-lock.json /tmp/workspace-lock.json \
+  && node /tmp/runtime-package.mjs \
+  && npm prune --no-audit --no-fund \
+  && node /tmp/check-runtime-tree.mjs \
+  && npm ls sharp undici \
+  && rm /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs
+
 # --- runtime: wrangler only, the bundled Worker, the built assets, the config and the migrations ---
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production WRANGLER_SEND_METRICS=false CI=true
 WORKDIR /app
-COPY --from=build /app/package.json /tmp/workspace-package.json
-RUN echo '{ "name": "team-console-runtime", "private": true }' > package.json \
-  && wanted="$(node -p "require('/tmp/workspace-package.json').devDependencies.wrangler")" \
-  && npm install --no-audit --no-fund --no-save --no-package-lock "wrangler@${wanted}" \
-  && rm /tmp/workspace-package.json
+COPY --from=runtime-deps /app/package.json /app/package-lock.json ./
+COPY --from=runtime-deps /app/node_modules ./node_modules
 COPY --from=build /app/dist/apps/console/browser ./dist/apps/console/browser
 COPY --from=build /app/dist/apps/api ./dist/apps/api
 COPY --from=build /app/apps/api/wrangler.jsonc ./apps/api/wrangler.jsonc

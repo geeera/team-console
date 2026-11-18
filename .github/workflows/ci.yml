@@ -80,6 +80,13 @@ jobs:
       - name: Test
         run: npx nx "${NX_MODE}" -t test
 
+      # #71: workspace-checks specs read other projects' files (wrangler.jsonc, env.ts, worker-db) and root files
+      # (Dockerfile, .product-team/) at runtime. Its implicitDependencies ["*"] make any project change affect it,
+      # but a file no project owns affects nothing, so the affected path always runs it too.
+      - name: Workspace checks (always)
+        if: env.NX_MODE == 'affected'
+        run: npx nx run workspace-checks:test
+
       # #491: every project with a tsconfig.spec.json gets this target from tools/nx-plugins/typecheck-spec.plugin.ts,
       # so a new project is covered without touching this workflow. `test` (vitest, esbuild-transformed) never
       # typechecks spec files on its own — this is the only thing that does.
