@@ -15,12 +15,13 @@ import * as ts from 'typescript';
 const SCOPED_KINDS = ['actions-dispatch', 'environment-read', 'workflow-pr'] as const;
 type ScopedKind = (typeof SCOPED_KINDS)[number];
 
-/** The modules that may name each kind. Empty means no module may mint it yet (#759 PR 4 adds the write's). */
+/** The modules that may name each kind: one reviewed caller per kind. */
 const ALLOWED_CALLERS: Readonly<Record<ScopedKind, readonly string[]>> = {
   'actions-dispatch': ['apps/api/src/actions/dispatch.ts'],
   // #759 PR 3: the readiness check, behind `GET …/actions-setup` and the switch `PUT …/dispatch {actions}`.
   'environment-read': ['apps/api/src/actions/readiness.ts'],
-  'workflow-pr': [],
+  // #759 PR 4: the workflow pull request, behind `POST …/actions-setup/workflow-pr` on the account owner's click.
+  'workflow-pr': ['apps/api/src/actions/workflow-pr.ts'],
 };
 
 const APP_AUTH = 'libs/worker/github/src/lib/app-auth.ts';
@@ -89,9 +90,16 @@ const MINT_CALLS: readonly MintCall[] = SOURCES.flatMap((file) => {
 const KIND_LITERAL_HOLDERS: Readonly<Record<ScopedKind, readonly string[]>> = {
   'actions-dispatch': [APP_AUTH, SCOPED_MINT, 'libs/worker/github/src/lib/actions-dispatch.ts'],
   'environment-read': [APP_AUTH, SCOPED_MINT, 'libs/worker/github/src/lib/actions-setup-reads.ts'],
-  'workflow-pr': [APP_AUTH, SCOPED_MINT],
+  'workflow-pr': [APP_AUTH, SCOPED_MINT, 'libs/worker/github/src/lib/actions-setup-writes.ts'],
 };
 const CALLER_FILES: ReadonlySet<string> = new Set(Object.values(ALLOWED_CALLERS).flat());
+
+/**
+ * Names that hold a kind's letters without being one: the route's path segment and the audit events of #759 PR 4.
+ * They are taken out of a text before it is searched, so `'workflow-pr'` on its own, or built from pieces, is still
+ * found in the same file.
+ */
+const NOT_A_KIND = /\/actions-setup\/workflow-pr\b|\bactions-workflow-pr-(?:attempted|opened|failed)\b/g;
 
 /** The string a literal, a template or a `+` of them spells, or `null` when any part is not constant. */
 function constantText(node: ts.Node): string | null {
@@ -174,7 +182,7 @@ const ALIAS_FINDINGS: { readonly names: Mention[]; readonly kinds: Mention[] } =
         }
         for (const kind of SCOPED_KINDS) {
           const mayHold = KIND_LITERAL_HOLDERS[kind].includes(file) || ALLOWED_CALLERS[kind].includes(file);
-          if (text.includes(kind) && !mayHold) {
+          if (text.replace(NOT_A_KIND, '').includes(kind) && !mayHold) {
             kinds.push({ file, line: lineOf(source, node), text });
           }
         }
@@ -193,6 +201,15 @@ describe('no alias reaches a scoped mint (#759 SEC 1)', () => {
 
   it('writes a kind only in the library, its token-taking helpers and the allowed callers of that kind', () => {
     expect(ALIAS_FINDINGS.kinds).toEqual([]);
+  });
+
+  it('takes the route path and the audit event names for what they are, and still finds a kind beside them', () => {
+    const strip = (text: string): string => text.replace(NOT_A_KIND, '');
+    expect(strip('POST /api/v1/projects/:slug/actions-setup/workflow-pr')).not.toContain('workflow-pr');
+    expect(strip('project.actions-workflow-pr-attempted')).not.toContain('workflow-pr');
+    expect(strip('workflow-pr')).toBe('workflow-pr');
+    expect(strip('/actions-setup/workflow-pr workflow-pr')).toContain('workflow-pr');
+    expect(strip('actions-workflow-pr-minted')).toContain('workflow-pr');
   });
 
   it('would catch element access, .bind, destructuring, template keys and kinds built from pieces', () => {

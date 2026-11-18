@@ -135,6 +135,17 @@ test('asks the PM for the next sprint: one owner comment, nothing else written, 
   });
   await openForm(page);
   await expect(dialog(page).getByTestId('request-previous')).toHaveAttribute('data-state', 'applied');
+  // #273: "Open the issue" next to the previous-request line, to where the PM's own note is.
+  const openIssue = dialog(page).getByTestId('request-open-issue');
+  await expect(openIssue).toHaveAttribute('href', `https://github.com/${REPO}/issues/${ISSUE}`);
+  await expect(openIssue).toHaveAttribute('target', '_blank');
+  await expect(openIssue).toHaveAccessibleName(
+    `${ru('commands.request.open')} ${ru('ui.frame.newTab')}`,
+  );
+  await expect(openIssue.locator('xpath=preceding-sibling::*[1]')).toHaveAttribute(
+    'data-testid',
+    'request-previous',
+  );
   await dialog(page)
     .getByRole('button', { name: ru('commands.dialog.cancel') })
     .click();

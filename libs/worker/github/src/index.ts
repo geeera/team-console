@@ -7,6 +7,22 @@ export {
 } from './lib/actions-setup-pull';
 export type { ActionsSetupPull, PullProvenance, PullProvenanceExpectation } from './lib/actions-setup-pull';
 export {
+  closeSetupPull,
+  createSetupBranch,
+  openSetupPull,
+  putRunnerWorkflow,
+  readSetupBlobSha,
+} from './lib/actions-setup-writes';
+export type {
+  ActionsSetupWriteOptions,
+  CreatedSetupBranch,
+  OpenedSetupPull,
+  RunnerWorkflowWrite,
+  SetupBranchOutcome,
+  SetupBranchRequest,
+  SetupPullText,
+} from './lib/actions-setup-writes';
+export {
   RUNNER_WORKFLOW_MAX_BYTES,
   hasInferenceKeySecret,
   readActionsEnvironment,
@@ -41,6 +57,7 @@ export {
   INSTALLATION_PERMISSIONS,
   createAppJwt,
   importAppPrivateKey,
+  installationGrants,
 } from './lib/app-auth';
 export type {
   GitHubAppAuthOptions,

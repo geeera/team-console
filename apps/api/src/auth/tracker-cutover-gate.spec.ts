@@ -11,6 +11,8 @@ const NOT_TRACKER_WRITES: ReadonlySet<TrackerRoute> = new Set<TrackerRoute>([
   'POST /api/v1/projects/:slug/jobs',
   'PUT /api/v1/projects/:slug/runner-policy',
   'PUT /api/v1/projects/:slug/dispatch',
+  // #759 PR 4: a pull request in the project's repository; it writes nothing to the console tracker.
+  'POST /api/v1/projects/:slug/actions-setup/workflow-pr',
   'PUT /api/v1/projects/:slug/team-config',
   'POST /api/v1/projects/:slug/team-config/reset',
   'POST /api/v1/projects/:slug/team-config/import',

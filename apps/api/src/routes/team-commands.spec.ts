@@ -299,6 +299,32 @@ describe('POST /team/pause and /team/resume', () => {
     });
   });
 
+  it('an own pause or resume refreshes the cached team state the board and overview read, at once (#169)', async () => {
+    const h = harness();
+    await seedConnection(h.fake, { nowMs: h.clock });
+    h.fake.seedMilestones(REPO, []);
+    h.fake.seedPulls(REPO, []);
+
+    // The board's /sprint shares `ProjectReads.teamRun()` (30 s TTL) with the overview tile (#27): whichever reads
+    // it first fills the one cache entry both depend on.
+    const teamStateOf = async (): Promise<string> => {
+      const response = await fetchApi('/api/v1/projects/tc/sprint', localEnv(SECRETS), { github: h.github });
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as { team: { state: string } };
+      return body.team.state;
+    };
+
+    expect(await teamStateOf()).toBe('running'); // fills the 30 s cache
+
+    expect((await call(h, 'POST', '/team/pause', { reason: 'x' })).status).toBe(201);
+    // Same clock, well inside the TTL: without the fix this would still read the stale 'running'.
+    expect(await teamStateOf()).toBe('paused');
+
+    h.clock += 5 * MINUTE;
+    expect((await call(h, 'POST', '/team/resume')).status).toBe(201);
+    expect(await teamStateOf()).toBe('running');
+  });
+
   it('without the owner connection pause is 403 github-owner-not-connected and nothing is written', async () => {
     const h = harness();
     const response = await call(h, 'POST', '/team/pause', {});

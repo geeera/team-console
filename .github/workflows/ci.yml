@@ -262,6 +262,16 @@ jobs:
           path: ~/.cache/ms-playwright
           key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
 
+      # #808: `install-deps`/`install --with-deps` shells out to `apt-get install`, which fails immediately
+      # (rather than waiting) when another process — the runner's own unattended-upgrades, typically — holds
+      # `/var/lib/dpkg/lock-frontend`. `DPkg::Lock::Timeout` makes every apt-get invocation on this runner
+      # (including the one inside playwright's install-deps, which takes no apt flags of its own) wait up to
+      # two minutes for the lock instead of failing on contention; the retry loop below still absorbs anything
+      # that outlasts that wait or fails for an unrelated reason.
+      - name: Make apt wait for the dpkg lock instead of failing on contention
+        if: matrix.project != 'iphone-webkit'
+        run: echo 'DPkg::Lock::Timeout "120";' | sudo tee /etc/apt/apt.conf.d/99-dpkg-lock-timeout
+
       - name: Install the browser
         if: matrix.project != 'iphone-webkit'
         timeout-minutes: 11

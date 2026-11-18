@@ -171,6 +171,65 @@ an unknown version). The scheme reuses `libs/worker/core/src/lib/sealed.ts` with
 - **Actions dispatch**: the Worker mints the downscoped dispatch token and calls `workflow_dispatch` on the default
   branch with `inputs: {job_id}`; the run exchanges its OIDC token for the job token (decision 7a′).
 
+### Amendment (#759, 2026-11-18): Actions onboarding
+
+Architect and security notes on #759; threat model C11, the rows marked #759. This amends decision 7(a′) and owner
+item 9 where they differ.
+
+- **The console sets up nothing a repository admin must own.** It does not create the `team-console` Environment, its
+  deployment-branch rule or its secret: at GitHub those are repository **Administration** writes, a permission that
+  also deletes the repository and changes its collaborators, and one that would let a compromised console widen the
+  branch rule that keeps the key on the default branch. **The app never asks for Administration** (owner decision).
+  The customer makes the Environment on one GitHub page; the console checks every detail and names the fix.
+- **No Environment variables.** `TC_CONSOLE_URL` and `TC_CONSOLE_AUDIENCE` are literals of the workflow file the
+  console renders (`@shared/actions-workflow`: the bundled template, `CONSOLE_PUBLIC_ORIGIN` and
+  `runnerAudienceOf(ENVIRONMENT)`), not Environment variables as decision 7(a′) first had them. The file on the
+  default branch is the whole configuration, and the readiness check compares it byte for byte.
+- **The app's permissions.** One App per environment (owner decision; a separate optional "setup" App was the
+  alternative). Its registration gains **Environments: Read-only**, **Contents**, **Workflows** and **Pull requests:
+  Read and write**, beside the **Actions: Read and write** of item 9. Stage and production hold **Environments:
+  Read-only** alone until their kill switch is turned on. An installer who has not accepted the update keeps the old
+  set; the console then reads those items as `unknown`, never ok, and offers the Copy path, so the write permissions
+  are never a condition of using the product.
+- **"The console never writes to a customer repository" becomes: it writes one path on a branch it has just
+  created and opens a pull request.** `POST /api/v1/projects/:slug/actions-setup/workflow-pr`, on the account owner's
+  click, creates `team-console/runner-<12 hex of the rendering's sha256>` at the default branch's head, commits
+  `.github/workflows/team-console-runner.yml` there and opens the pull request (`setup`, `bump` or `restore`, decided
+  by the server from the file on the default branch). It never writes to the default branch, never moves or deletes
+  a ref, never merges, and never lowers a pinned version. Nothing of the request reaches GitHub.
+- **Named scoped tokens.** No mint takes a free-form permission set: `actions-dispatch`, `environment-read` and
+  `workflow-pr` are the three kinds, each minted for `repository_ids: [projects.repo_id]`, never cached, revoked once
+  its calls are made, and each named by one reviewed module. `workflows: write` exists in the `workflow-pr` set
+  alone. **R8 stands for job tokens**: a Phase 3 per-job token never carries `workflows: write` except for an item
+  flagged `workflow-change`, and never through these kinds.
+- **Readiness is advisory.** `GET …/actions-setup` and the refusal of `PUT …/dispatch {actions}` tell the customer
+  what is missing. No check of the OIDC exchange or of the dispatch reads readiness or is relaxed because of it;
+  `ref`, `workflow_ref`, `environment`, `repository_id` and `runner_environment` stay the controls. Required
+  reviewers or a wait timer on the Environment **warn and never block** (owner decision): they are the customer's
+  stronger control.
+- **The kill switch of the setup write (SEC 4).** The write path runs only while **both** hold, judged on every
+  request before anything is counted, minted or audited (503 `github-write-disabled` otherwise):
+  1. the api Worker's var `ALLOW_ACTIONS_SETUP_WRITE` is exactly `true`. It is committed in `wrangler.jsonc` per
+     environment (`true` on dev, `false` on stage and production), so **switching the path on is a reviewed change**
+     with the security label, made together with the App's write permissions for that environment;
+  2. no row `actions-setup-write` is in `operator_stops` (migration 0040). **Switching the path off needs no
+     deploy**: the operator writes the row with `wrangler d1 execute` and the next request is refused.
+
+  Decided this way, over the var alone with a dashboard edit as the incident step, because a var edited outside the
+  repository is overwritten by the next deploy (every merge into `dev` deploys), so a stop made that way
+  would not hold, and because a flag a request could flip either way would let a stolen session turn the path on.
+  The stop can only switch off: it is read by the Worker and written by no route (a spec), and the var stays the
+  only way on. `tools/workspace-checks/src/actions-setup-kill-switch.spec.ts` asserts that no `--var`, no secret and
+  no workflow variable named `ALLOW_ACTIONS_SETUP_WRITE` exists, so nothing but the committed value sets it.
+  Rejected: an operator route for the stop (a new owner-grade surface for a switch used in incidents only; the
+  `wrangler` step needs the same Cloudflare access as any other incident action).
+- **Residual: High** (security note on #759; the owner chose one App with the kill switch). Whoever holds the app's private key or code
+  execution in the api Worker mints their own tokens, and on an accepting installation without a default-branch
+  ruleset can push a workflow to the default branch and read the inference key. Token discipline does not close
+  this; "Only select repositories", the customer's ruleset, no Administration, the audit rows and the incident steps
+  bound it. To be re-decided before the first external customer (Stage C gate): a separate "setup" App the customer
+  can uninstall after merging.
+
 ## Delivery
 
 Rows are in build order; ids are the ones the child issues of #446 carry; tiers are the architect's
@@ -239,6 +298,11 @@ owner decisions, not open questions. Item 9 is still open.
 9. **`actions: write` on the GitHub App** (decision 7a′ dispatch; an R1-class permission change, minted only as a
    token downscoped to one repository) — **open**; the PM asks it (`access`) together with 3b's permission question,
    before any customer uses the Actions packaging.
+   **Extended by #759 (owner decisions on #759):** one App per environment with a kill switch on the
+   write path; Environments: Read-only, Contents, Workflows and Pull requests: Read and write on the dev App now, and
+   on stage and production only Environments: Read-only until each App's kill switch is turned on; **no
+   Administration**; required reviewers or a wait timer on the Environment warn and do not block. See "Amendment
+   (#759)" under "Runner, installer and hosted dispatch".
 10. **A VPS for a `container` runner of your own** (decision 12) — **open, `money`**: the owner's own spend (a small
     instance is a few euros a month); the team configures nothing until he says so. The Mac alone is enough for
     Stage A.

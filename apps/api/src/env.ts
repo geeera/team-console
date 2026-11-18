@@ -61,7 +61,9 @@ export interface ApiEnv extends WorkerBaseEnv {
   /**
    * Non-secret var, the kill switch of the Actions setup's write path (#759, security note): only the exact value
    * `true` lets the `workflow-pr` mint (Contents, Workflows and Pull requests write) run. `false` on stage and
-   * production until the write route's security review (PR 4 of #759); unset is off.
+   * production until a reviewed change turns each on; unset is off. Set by `wrangler.jsonc` alone, never by `--var`
+   * or a secret. The operator's stop in D1 switches the path off without a deploy (ADR 0008,
+   * "Amendment (#759)").
    */
   readonly ALLOW_ACTIONS_SETUP_WRITE?: string;
   /**

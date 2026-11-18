@@ -333,7 +333,8 @@ items:
     neededBy: ["apps/api (выключатель записи настройки GitHub Actions: ветка, файл workflow и PR, #759)"]
     purpose: >-
       Аварийный выключатель: только точное значение `true` разрешает токен с правами Contents, Workflows и Pull
-      requests на запись. `true` на dev, `false` на stage и production — фиксировано в wrangler.jsonc.
+      requests на запись. `true` на dev, `false` на stage и production — фиксировано в wrangler.jsonc. Включается
+      только ревью-PR; выключается без деплоя остановкой оператора в D1 (docs/runbooks/deploy-and-rollback.md).
     guide:
       obtain: null
       scopes: null

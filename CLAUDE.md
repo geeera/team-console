@@ -55,6 +55,12 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   wins) and returns the `tcep_` poll token once; `approve {fingerprint}` is compare-and-set and writes the runner from
   the intent row alone through `runnerInsertStatement` (the code enrolment's own INSERT); unknown, expired and
   withdrawn are one 404 with one body on `start` and `poll`. No intent DTO carries a credential, its kind or length.
+- Actions setup write (#759, ADR 0008 "Amendment (#759)", migration 0040): `POST …/actions-setup/workflow-pr` is the
+  console's only write to a customer repository, in `apps/api/src/actions/workflow-pr.ts` (the one caller of the
+  `workflow-pr` scoped mint) through `libs/worker/github/src/lib/actions-setup-writes.ts`: a branch it has just
+  created, the one workflow file, a pull request; never the default branch, never a `PATCH`/`DELETE` of a ref, never a
+  merge, nothing from the request. It runs only while `ALLOW_ACTIONS_SETUP_WRITE` is `true` in `wrangler.jsonc` (never
+  `--var`, a secret or a dashboard edit) and no `operator_stops` row stops it; no Worker code writes that table.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not

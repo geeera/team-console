@@ -522,6 +522,8 @@ describe('GET …/issues/:number/request', () => {
       next: { title: 'Sprint 05', due: '2026-10-28' },
       freezeNow: false,
       request: { kind: 'sprint', target: 'backlog', state: 'pending', handledAt: null },
+      // #273: the form's "Open the issue" link, next to the previous-request line.
+      htmlUrl: `https://github.com/${REPO}/issues/7`,
     });
   });
 
