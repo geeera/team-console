@@ -44,6 +44,14 @@ export function runnerServesSql(runner: string, slug: string): string {
 }
 
 /**
+ * `runnerServesSql` without D3: the scope alone covers `slug`. Only for telling the owner that D3 is what holds a
+ * runner back (`other-owner-subscription`, #775); never a term of a claim or a write.
+ */
+export function runnerScopeCoversSql(runner: string, slug: string): string {
+  return `(${runner}.project_scope = 'all' OR ${slug} IN (SELECT value FROM json_each(${runner}.allowed_projects)))`;
+}
+
+/**
  * The placement `policy` (an SQL expression; NULL means `any`) would pick the runner `runnerId` (an SQL expression)
  * for a job. Machine-agnostic: whether the runner is hosted or lists the project is the caller's to add.
  */
@@ -56,6 +64,41 @@ export function policyAdmitsRunnerSql(policy: string, runnerId: string): string 
               json_extract(${policy}, '$.preferred') = ${runnerId}
               OR ${runnerId} IN (SELECT value FROM json_each(${policy}, '$.fallback'))))
       )`;
+}
+
+/**
+ * The claim's placement term (ADR 0008 decision 12), which `policyAdmitsRunnerSql` widens on purpose: `failover` takes
+ * a fallback only while the preferred is revoked or silent past `offline_after_seconds` at `now`. The claim and the
+ * jobs tile's `runnerAvailability` (#775) share it, so the tile never says `ready` for a runner the claim would skip.
+ * Every argument is an SQL expression; `offlineDefault` stands for a policy without `offline_after_seconds`.
+ */
+export function claimPlacementAdmitsSql(policy: string, runnerId: string, now: string, offlineDefault: string): string {
+  return `(
+               ${policy} IS NULL
+               OR json_extract(${policy}, '$.mode') = 'any'
+               OR (json_extract(${policy}, '$.mode') = 'pinned' AND json_extract(${policy}, '$.runner') = ${runnerId})
+               OR (json_extract(${policy}, '$.mode') = 'failover' AND (
+                    json_extract(${policy}, '$.preferred') = ${runnerId}
+                    OR (${runnerId} IN (SELECT value FROM json_each(${policy}, '$.fallback'))
+                        AND NOT EXISTS (
+                          SELECT 1 FROM runners pr
+                          WHERE pr.id = json_extract(${policy}, '$.preferred') AND pr.revoked_at IS NULL
+                            AND pr.last_seen_at IS NOT NULL
+                            AND (julianday(${now}) - julianday(pr.last_seen_at)) * 86400.0
+                                < COALESCE(json_extract(${policy}, '$.offline_after_seconds'), ${offlineDefault})))
+               ))
+             )`;
+}
+
+/**
+ * The runner row aliased `runner` may take a job of the project aliased `project` by access source: C12 row 6 on the
+ * server-set columns (a `subscription` never on a hosted or `actions-ephemeral` runner), then the runner's declared
+ * `capabilities.accessSources`, which only ever narrows (SECURITY Q7). Shared by the claim and `runnerAvailability`.
+ */
+export function runnerFitsAccessSourceSql(runner: string, project: string): string {
+  return `(${project}.access_source = 'api_key' OR (${runner}.hosted = 0 AND ${runner}.isolation <> 'actions-ephemeral'))
+                 AND (json_type(${runner}.capabilities, '$.accessSources') IS NULL
+                      OR ${project}.access_source IN (SELECT value FROM json_each(${runner}.capabilities, '$.accessSources')))`;
 }
 
 /**

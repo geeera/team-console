@@ -32,7 +32,7 @@ import {
   type AuditCondition,
   type NewAuditEvent,
 } from '../accounts/audit.repo';
-import { runnerServesSql } from '../team-config/access-source';
+import { claimPlacementAdmitsSql, runnerFitsAccessSourceSql, runnerServesSql } from '../team-config/access-source';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -554,27 +554,11 @@ export class JobsRepo {
                  AND (me.paused_until IS NULL OR julianday(me.paused_until) <= julianday(?2))
                  AND (SELECT COUNT(*) FROM jobs held WHERE held.runner_id = ?1 AND held.state IN ('claimed', 'running'))
                      < COALESCE(json_extract(me.capabilities, '$.maxConcurrency'), 1)
-                 AND (p.access_source = 'api_key' OR (me.hosted = 0 AND me.isolation <> 'actions-ephemeral'))
-                 AND (json_type(me.capabilities, '$.accessSources') IS NULL
-                      OR p.access_source IN (SELECT value FROM json_each(me.capabilities, '$.accessSources'))))
+                 AND ${runnerFitsAccessSourceSql('me', 'p')})
              AND ${ROLE_ADMITTED_SQL}
              AND ${budgetAdmittedSql('?2')}
              AND ${entitledConcurrencyAdmittedSql('?10', '?11', '?12')}
-             AND (
-               ${POLICY} IS NULL
-               OR json_extract(${POLICY}, '$.mode') = 'any'
-               OR (json_extract(${POLICY}, '$.mode') = 'pinned' AND json_extract(${POLICY}, '$.runner') = ?1)
-               OR (json_extract(${POLICY}, '$.mode') = 'failover' AND (
-                    json_extract(${POLICY}, '$.preferred') = ?1
-                    OR (?1 IN (SELECT value FROM json_each(${POLICY}, '$.fallback'))
-                        AND NOT EXISTS (
-                          SELECT 1 FROM runners pr
-                          WHERE pr.id = json_extract(${POLICY}, '$.preferred') AND pr.revoked_at IS NULL
-                            AND pr.last_seen_at IS NOT NULL
-                            AND (julianday(?2) - julianday(pr.last_seen_at)) * 86400.0
-                                < COALESCE(json_extract(${POLICY}, '$.offline_after_seconds'), ?7)))
-               ))
-             )
+             AND ${claimPlacementAdmitsSql(POLICY, '?1', '?2', '?7')}
            ORDER BY j.priority DESC, j.created_at ASC, j.id ASC
            LIMIT 1
          )

@@ -1,8 +1,12 @@
 import {
+  RUNNER_ONLINE_WINDOW_SECONDS,
+  RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
   isAccessSource,
   type AccessSource,
   type Ed25519PublicJwk,
+  type RunnerAvailability,
   type RunnerCapabilitiesDto,
+  type RunnerUnavailableReason,
   type RunnerHostDto,
   type RunnerIsolation,
   type RunnerPauseReason,
@@ -12,7 +16,13 @@ import {
 } from '@shared/contracts';
 import { auditEventStatement, auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
-import { hostedEnrolmentRefusedSql, runnerServesSql } from '../team-config/access-source';
+import {
+  claimPlacementAdmitsSql,
+  hostedEnrolmentRefusedSql,
+  runnerFitsAccessSourceSql,
+  runnerScopeCoversSql,
+  runnerServesSql,
+} from '../team-config/access-source';
 
 /**
  * Runners and their enrolment codes (#467, ADR 0008 row 2-A, migration 0021). Every write names the account it acts
@@ -219,6 +229,9 @@ function toEnrolment(row: EnrolmentRow): EnrolmentRecord {
     usedAt: row.used_at,
   };
 }
+
+/** `availabilityOf`'s best runner level, as its statement ranks them. */
+const AVAILABILITY_BY_LEVEL: readonly RunnerAvailability[] = ['none', 'offline', 'paused', 'ready'];
 
 export class RunnersRepo {
   constructor(private readonly db: D1Database) {}
@@ -560,6 +573,73 @@ export class RunnersRepo {
     return results
       .filter((row) => isAccessSource(row.access_source))
       .map((row) => ({ runnerId: row.runner_id, slug: row.slug, accessSource: row.access_source as AccessSource }));
+  }
+
+  /**
+   * Whether a Run now of `slug` could be claimed at `now` (#775): the claim's runner terms, read for every unrevoked
+   * runner of the project's account — the account equality, `runnerServesSql` (D3 applied), the access-source fit and
+   * the claim's placement term — then the best of them: online and not paused, online but paused, or seen too long
+   * ago. A suspended account or an archived project claims nothing, so it is `none`; an Actions project needs no
+   * runner (#670), so it is `ready`. What it leaves to the claim is transient: the runner's free slots, the role's
+   * `max_parallel`, the budget and the account's concurrency, which make a job wait, not fail to start.
+   */
+  async availabilityOf(slug: string, now: string): Promise<RunnerAvailability> {
+    const row = await this.db
+      .prepare(
+        `SELECT p.dispatch, (a.suspended_at IS NULL AND p.archived_at IS NULL) AS live,
+           MAX(CASE
+                 WHEN me.id IS NULL THEN 0
+                 WHEN me.last_seen_at IS NULL OR (julianday(?2) - julianday(me.last_seen_at)) * 86400.0 > ?3 THEN 1
+                 WHEN me.paused_until IS NOT NULL AND julianday(me.paused_until) > julianday(?2) THEN 2
+                 ELSE 3
+               END) AS level
+         FROM projects p JOIN accounts a ON a.id = p.account_id
+         LEFT JOIN runners me ON me.account_id = p.account_id AND me.revoked_at IS NULL
+           AND me.isolation <> 'actions-ephemeral'
+           AND ${runnerServesSql('me', 'p.slug')}
+           AND ${runnerFitsAccessSourceSql('me', 'p')}
+           AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'me.id', '?2', '?4')}
+         WHERE p.slug = ?1
+         GROUP BY p.slug`,
+      )
+      .bind(slug, now, RUNNER_ONLINE_WINDOW_SECONDS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS)
+      .first<{ dispatch: string; live: number; level: number }>();
+    if (row === null || row.live !== 1) {
+      return 'none';
+    }
+    if (row.dispatch === 'actions') {
+      return 'ready';
+    }
+    return AVAILABILITY_BY_LEVEL[row.level] ?? 'none';
+  }
+
+  /**
+   * Why no runner may serve `slug` (#775), for the owner's eyes only: the caller asks it only for an owner and only
+   * when `availabilityOf` said `none`. Each reason is the claim's runner terms with one of them turned around: a runner
+   * that serves the project and its placement admits but whose access sources do not fit it (`access-mismatch`, told
+   * first, since the owner fixes it on the runner or the team configuration), or one D3 alone holds back
+   * (`other-owner-subscription`). Otherwise `no-runner`.
+   */
+  async unavailableReasonOf(slug: string, now: string): Promise<RunnerUnavailableReason> {
+    const candidate = `FROM runners me WHERE me.account_id = p.account_id AND me.revoked_at IS NULL
+             AND me.isolation <> 'actions-ephemeral'
+             AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'me.id', '?2', '?3')}`;
+    const row = await this.db
+      .prepare(
+        `SELECT
+           EXISTS (SELECT 1 ${candidate} AND ${runnerServesSql('me', 'p.slug')}
+                   AND NOT (${runnerFitsAccessSourceSql('me', 'p')})) AS mismatch,
+           EXISTS (SELECT 1 ${candidate} AND ${runnerScopeCoversSql('me', 'p.slug')} AND NOT ${runnerServesSql('me', 'p.slug')}
+                   AND ${runnerFitsAccessSourceSql('me', 'p')}) AS held_by_d3
+         FROM projects p JOIN accounts a ON a.id = p.account_id
+         WHERE p.slug = ?1`,
+      )
+      .bind(slug, now, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS)
+      .first<{ mismatch: number; held_by_d3: number }>();
+    if (row?.mismatch === 1) {
+      return 'access-mismatch';
+    }
+    return row?.held_by_d3 === 1 ? 'other-owner-subscription' : 'no-runner';
   }
 
   /** The unrevoked `all` runners of `accountId` that serve `slug` now (R-SCOPE-2: audited when a project appears). */

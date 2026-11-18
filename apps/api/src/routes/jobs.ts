@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import {
   checkCreateJobInput,
   checkRunnerPolicy,
+  isJobKindBeforeCutover,
   isJobState,
   isUlid,
   roleOfJobKind,
@@ -18,7 +19,7 @@ import { isJobRole } from '../auth/job-roles';
 import type { ApiGitHub } from '../github';
 import { actionsOnSubscription } from './dispatch-problems';
 import { auditActorOf } from '../auth/scope';
-import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
+import { policyActorOfContext, trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { trackerProjectOf } from '../projects/lookup';
@@ -97,23 +98,26 @@ export function jobAuditOf(c: Context, accountId: string, at: string, kind: NewA
 /**
  * `POST|GET /api/v1/projects/:slug/jobs`, `GET …/jobs/:id`, `GET …/jobs/:id/events`, `GET|PUT …/runner-policy`
  * (#467, ADR 0008 row 2-A): the queue behind the route matrix (the owner enqueues; the owner, a member and the
- * project's own job read), D1 only. Run now carries no `Idempotency-Key`: the dedupe key answers a repeat with 409
- * `job-exists` while the first is live. Placement (ADR 0008 decision 12) is written per project here and per account
+ * project's own job read), D1 only. The list carries `runnerAvailability` (#775), so a member who cannot read
+ * Settings › Runners sees whether a Run now would be taken. Run now carries no `Idempotency-Key`: the dedupe key
+ * answers a repeat with 409 `job-exists` while the first is live. Placement (ADR 0008 decision 12) is written per project here and per account
  * in `account-runners.ts`; a policy naming another account's runner is 422 `runner-policy-invalid`.
  */
 export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .post('/:slug/jobs', trackerAccess(`POST ${P}/jobs`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
       const row = trackerProjectOfContext(c);
-      const refusal = trackerWriteRefusal(c, trackerProjectOf(row));
-      if (refusal !== null) {
-        return refusal;
-      }
       const input = checkCreateJobInput(await jsonBody(c));
       if (!input.ok) {
         return invalid(c, 'job-invalid', input.field, input.detail);
       }
       const { value } = input;
+      // #775 (SECURITY Q8): a job is not a tracker write, so a project still on GitHub Issues takes the kinds that act
+      // on GitHub through the plugin; the allow-list keeps a kind that writes the console tracker (or a new one) out.
+      const notCutOver = trackerWriteRefusal(c, trackerProjectOf(row));
+      if (notCutOver !== null && !isJobKindBeforeCutover(value.kind)) {
+        return notCutOver;
+      }
       const role = roleOfJobKind(value.kind, value.role);
       if (!isJobRole(role)) {
         return invalid(c, 'job-invalid', 'role', 'role must be a role the matrix knows');
@@ -185,7 +189,17 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
         limit,
       });
       const page = rows.slice(0, limit);
-      const body: JobListDto = { jobs: page.map(jobDtoOf), nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null };
+      const runners = new RunnersRepo(c.env.DB);
+      const now = new Date().toISOString();
+      const body: JobListDto = {
+        jobs: page.map(jobDtoOf),
+        nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+        runnerAvailability: await runners.availabilityOf(row.slug, now),
+      };
+      // SECURITY review of #804: the reason names a subscription and D3, so only the account's owner hears it.
+      if (body.runnerAvailability === 'none' && policyActorOfContext(c).kind === 'owner') {
+        return c.json({ ...body, runnerUnavailableReason: await runners.unavailableReasonOf(row.slug, now) } satisfies JobListDto);
+      }
       return c.json(body);
     })
 

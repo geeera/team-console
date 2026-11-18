@@ -9,7 +9,7 @@ type ListAnswer = JobResult<JobListDto>;
 type EventsAnswer = JobResult<JobEventListDto>;
 
 const ok = <T>(value: T): JobResult<T> => ({ ok: true, value });
-const jobsOf = (...jobs: JobDto[]): ListAnswer => ok({ jobs, nextCursor: null });
+const jobsOf = (...jobs: JobDto[]): ListAnswer => ok({ jobs, nextCursor: null, runnerAvailability: 'ready' });
 const eventsOf = (...events: JobEventDto[]): EventsAnswer => ok({ events, nextCursor: null });
 
 /** A JobsApi whose answers each case queues; every call is recorded. */

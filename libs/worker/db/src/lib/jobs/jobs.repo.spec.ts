@@ -53,6 +53,9 @@ interface RunnerRowOptions {
   readonly accessSources?: readonly string[];
   /** D3: who enrolled the runner. */
   readonly enrolledBy?: string | null;
+  /** A hosted runner (C12 row 6); the identity columns are fixed at insert. */
+  readonly hosted?: boolean;
+  readonly isolation?: 'user' | 'actions-ephemeral';
 }
 
 /**
@@ -72,8 +75,8 @@ async function runner(
     capabilities['accessSources'] = options.accessSources;
   }
   await env.DB.prepare(
-    `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at, project_scope, enrolled_by)
-     VALUES (?1, ?2, 'r', ?3, ?7, 'user', ?4, '0.1.0', ?5, ?6, ?8, ?9)`,
+    `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at, project_scope, enrolled_by, hosted)
+     VALUES (?1, ?2, 'r', ?3, ?7, ?10, ?4, '0.1.0', ?5, ?6, ?8, ?9, ?11)`,
   )
     .bind(
       id,
@@ -85,6 +88,8 @@ async function runner(
       JSON.stringify(capabilities),
       allowed === 'all' ? 'all' : 'selected',
       options.enrolledBy ?? null,
+      options.isolation ?? 'user',
+      options.hosted === true ? 1 : 0,
     )
     .run();
   return id;
@@ -1069,5 +1074,234 @@ describe('JobsRepo.enqueueAll', () => {
 
   it('writes nothing for an empty batch', async () => {
     expect(await jobs.enqueueAll([])).toBe('ok');
+  });
+});
+
+// #775 (R-RUN): the jobs tile's `runnerAvailability` reads the claim's own terms, so it never says `ready` for a Run
+// now no runner could claim, and says `ready` whenever an online runner would claim it. Each case is its own account,
+// so an `all` runner of one case never serves another's project.
+describe('RunnersRepo.availabilityOf agrees with the claim', () => {
+  const runners = new RunnersRepo(env.DB);
+  const SILENT = '2026-11-10T09:50:00.000Z';
+  let accounts = 0;
+  let tokens = 0;
+
+  interface Case {
+    readonly accountId: string;
+    readonly slug: string;
+    /** The runners of the case and whether each is online at T1. */
+    readonly runners: readonly { readonly id: string; readonly isOnline: boolean }[];
+  }
+
+  async function account(): Promise<string> {
+    accounts += 1;
+    const id = `01M6YSNJ00000000000000AV${String(accounts).padStart(2, '0')}`;
+    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, ?2, 'AV', '{"max_concurrency":32}', ?3)`).bind(id, `jb-av-${String(accounts)}`, T0).run();
+    return id;
+  }
+
+  async function seen(id: string, lastSeenAt: string | null): Promise<{ id: string; isOnline: boolean }> {
+    await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2 WHERE id = ?1`).bind(id, lastSeenAt).run();
+    return { id, isOnline: lastSeenAt === T1 };
+  }
+
+  /** Every runner of the case tries to claim the case's queued job; `true` when an online one took it. */
+  async function onlineRunnerClaims(c: Case): Promise<boolean> {
+    let isClaimed = false;
+    for (const r of c.runners.filter((candidate) => candidate.isOnline)) {
+      tokens += 1;
+      const job = await claimAs(r.id, { accountId: c.accountId, tokenHash: `a7a11${tokens.toString(16)}`.padEnd(64, '0') });
+      isClaimed ||= job !== null;
+    }
+    return isClaimed;
+  }
+
+  const cases: readonly (readonly [string, 'ready' | 'paused' | 'offline' | 'none', () => Promise<Case>])[] = [
+    ['no runner at all', 'none', async () => {
+      const accountId = await account();
+      return { accountId, slug: await project(accountId), runners: [] };
+    }],
+    ['a selected runner that does not list the project', 'none', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      return { accountId, slug, runners: [await seen(await runner(accountId, ['elsewhere']), T1)] };
+    }],
+    ['a selected runner that lists it, online', 'ready', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), T1)] };
+    }],
+    ['an all runner, online', 'ready', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      return { accountId, slug, runners: [await seen(await runner(accountId, 'all'), T1)] };
+    }],
+    ['the only eligible runner silent past the online window', 'offline', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), SILENT)] };
+    }],
+    ['the only eligible runner never seen', 'offline', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), null)] };
+    }],
+    ['the only eligible runner online but paused', 'paused', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      const r = await seen(await runner(accountId, [slug]), T1);
+      await env.DB.prepare(`UPDATE runners SET paused_until = '2026-11-10T12:00:00.000Z', pause_reason = 'usage-limit' WHERE id = ?1`).bind(r.id).run();
+      return { accountId, slug, runners: [r] };
+    }],
+    ['a pause that has already ended', 'ready', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      const r = await seen(await runner(accountId, [slug]), T1);
+      await env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = 'rate-limit' WHERE id = ?1`).bind(r.id, T0).run();
+      return { accountId, slug, runners: [r] };
+    }],
+    ['a revoked runner', 'none', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      const r = await seen(await runner(accountId, [slug]), T1);
+      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(r.id, T0).run();
+      return { accountId, slug, runners: [r] };
+    }],
+    ['an all runner of another account', 'none', async () => {
+      const accountId = await account();
+      const other = await account();
+      const slug = await project(accountId);
+      await seen(await runner(other, 'all'), T1);
+      return { accountId, slug, runners: [] };
+    }],
+    ['a project pinned to another runner, which is silent', 'offline', async () => {
+      const accountId = await account();
+      const pinned = await seen(await runner(accountId, 'all'), SILENT);
+      const slug = await project(accountId, JSON.stringify({ mode: 'pinned', runner: pinned.id }));
+      return { accountId, slug, runners: [pinned, await seen(await runner(accountId, 'all'), T1)] };
+    }],
+    // `policyAdmitsRunnerSql` alone would admit the fallback here; the claim waits out `offline_after_seconds`.
+    ['failover: the preferred silent for less than offline_after_seconds, the fallback online', 'offline', async () => {
+      const accountId = await account();
+      const preferred = await seen(await runner(accountId, 'all'), SILENT);
+      const fallback = await seen(await runner(accountId, 'all'), T1);
+      const policy = { mode: 'failover', preferred: preferred.id, fallback: [fallback.id], offline_after_seconds: 3600 };
+      return { accountId, slug: await project(accountId, JSON.stringify(policy)), runners: [preferred, fallback] };
+    }],
+    ['failover: the preferred silent past offline_after_seconds, the fallback online', 'ready', async () => {
+      const accountId = await account();
+      const preferred = await seen(await runner(accountId, 'all'), SILENT);
+      const fallback = await seen(await runner(accountId, 'all'), T1);
+      const policy = { mode: 'failover', preferred: preferred.id, fallback: [fallback.id], offline_after_seconds: 60 };
+      return { accountId, slug: await project(accountId, JSON.stringify(policy)), runners: [preferred, fallback] };
+    }],
+    ['a runner declaring only api_key on a subscription project', 'none', async () => {
+      const accountId = await account();
+      const slug = await projectBy(accountId, null, 'subscription');
+      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1)] };
+    }],
+    ['a hosted runner on a subscription project (C12 row 6)', 'none', async () => {
+      const accountId = await account();
+      const slug = await projectBy(accountId, null, 'subscription');
+      const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+      return { accountId, slug, runners: [r] };
+    }],
+    ['a hosted runner on an api_key project', 'ready', async () => {
+      const accountId = await account();
+      const slug = await projectBy(accountId, null, 'api_key');
+      const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+      return { accountId, slug, runners: [r] };
+    }],
+    ['D3: two owners, a subscription all runner, another owner’s project', 'none', async () => {
+      const accountId = await account();
+      await owners(accountId, 2);
+      const slug = await projectBy(accountId, 'owner-2');
+      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1)] };
+    }],
+    ['D3: two owners, a subscription all runner, its enroller’s project', 'ready', async () => {
+      const accountId = await account();
+      await owners(accountId, 2);
+      const slug = await projectBy(accountId, 'owner-1');
+      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1)] };
+    }],
+    ['a suspended account', 'none', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      const r = await seen(await runner(accountId, [slug]), T1);
+      await env.DB.prepare(`UPDATE accounts SET suspended_at = ?2 WHERE id = ?1`).bind(accountId, T0).run();
+      return { accountId, slug, runners: [r] };
+    }],
+    ['an archived project', 'none', async () => {
+      const accountId = await account();
+      const slug = await project(accountId);
+      const r = await seen(await runner(accountId, [slug]), T1);
+      await env.DB.prepare(`UPDATE projects SET archived_at = ?2 WHERE slug = ?1`).bind(slug, T0).run();
+      return { accountId, slug, runners: [r] };
+    }],
+  ];
+
+  it.each(cases)('%s: %s', async (_name, expected, seed) => {
+    const c = await seed();
+    const availability = await runners.availabilityOf(c.slug, T1);
+    expect(availability).toBe(expected);
+    await enqueue(c.slug, c.accountId, { priority: URGENT });
+    // `ready` exactly when an online runner claims it; a silent runner does not poll, so its claim is not asked.
+    expect(await onlineRunnerClaims(c)).toBe(availability === 'ready');
+  });
+
+  it('an Actions project needs no runner: ready while live, none when archived', async () => {
+    const accountId = await account();
+    const slug = await projectBy(accountId, null, 'api_key');
+    await env.DB.prepare(`UPDATE projects SET dispatch = 'actions' WHERE slug = ?1`).bind(slug).run();
+    expect(await runners.availabilityOf(slug, T1)).toBe('ready');
+    await env.DB.prepare(`UPDATE projects SET archived_at = ?2 WHERE slug = ?1`).bind(slug, T0).run();
+    expect(await runners.availabilityOf(slug, T1)).toBe('none');
+  });
+
+  it('an actions-ephemeral identity is no runner for a Run now', async () => {
+    const accountId = await account();
+    const slug = await projectBy(accountId, null, 'api_key');
+    await seen(await runner(accountId, [slug], null, 8, { isolation: 'actions-ephemeral' }), T1);
+    expect(await runners.availabilityOf(slug, T1)).toBe('none');
+  });
+
+  // SECURITY review of #804: the owner's reason for `none`, from the same terms with one turned around.
+  it.each([
+    ['no runner at all', 'no-runner', async (accountId: string) => project(accountId)],
+    ['a runner whose access sources do not fit', 'access-mismatch', async (accountId: string) => {
+      const slug = await projectBy(accountId, null, 'subscription');
+      await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1);
+      return slug;
+    }],
+    ['a hosted runner on a subscription project', 'access-mismatch', async (accountId: string) => {
+      const slug = await projectBy(accountId, null, 'subscription');
+      await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+      return slug;
+    }],
+    ['D3 holding back the only subscription runner', 'other-owner-subscription', async (accountId: string) => {
+      await owners(accountId, 2);
+      const slug = await projectBy(accountId, 'owner-2');
+      await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1);
+      return slug;
+    }],
+    ['D3 runner pinned away from the project', 'no-runner', async (accountId: string) => {
+      await owners(accountId, 2);
+      const elsewhere = await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1' });
+      const d3 = await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] });
+      const slug = await projectBy(accountId, 'owner-2');
+      await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(slug, JSON.stringify({ mode: 'pinned', runner: elsewhere })).run();
+      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(elsewhere, T0).run();
+      expect(d3).not.toBe(elsewhere);
+      return slug;
+    }],
+  ] as const)('none because of %s: %s', async (_name, reason, seed) => {
+    const accountId = await account();
+    const slug = await seed(accountId);
+    expect(await runners.availabilityOf(slug, T1)).toBe('none');
+    expect(await runners.unavailableReasonOf(slug, T1)).toBe(reason);
+  });
+
+  it('is none for a project that does not exist', async () => {
+    expect(await runners.availabilityOf('no-such-project', T1)).toBe('none');
   });
 });
