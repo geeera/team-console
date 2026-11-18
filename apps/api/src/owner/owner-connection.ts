@@ -148,9 +148,10 @@ export class OwnerConnection implements OwnerTokenSource {
    * Stores a fresh pair from the callback, replacing any previous connection of the environment. The previous
    * access token is revoked first (#86); a failed revoke is logged and the connect goes on. Only the access token:
    * GitHub does not document that this ends its refresh token too, so a reconnect is not a remediation for a leaked
-   * pair — that stays "Revoke all user tokens" (ADR 0003 decision 7).
+   * pair — that stays "Revoke all user tokens" (ADR 0003 decision 7). The connection keeps the login and id only;
+   * the profile name goes to the user row, not here (#775).
    */
-  async connect(user: GitHubUser, pair: UserTokenPair): Promise<void> {
+  async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<void> {
     const previous = await this.repo.find(this.environment);
     if (previous !== null) {
       if (previous.user_id !== user.id) {
