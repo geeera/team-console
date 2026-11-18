@@ -13,6 +13,7 @@ import {
 import { EnrolRunner } from '@console/features/enrol-runner';
 import {
   ManageRunner,
+  type ClaimEnrollerOutcome,
   type ClearSuspectOutcome,
   type RevokeOutcome,
   type WithdrawOutcome,
@@ -50,6 +51,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     edited = null as RunnerDto | null,
     clearOutcome = { kind: 'cancelled' } as ClearSuspectOutcome,
     withdrawOutcome = { kind: 'cancelled' } as WithdrawOutcome,
+    claimOutcome = { kind: 'cancelled' } as ClaimEnrollerOutcome,
   } = {}) {
     const api = {
       accounts: vi.fn(async () => accounts),
@@ -65,6 +67,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       editProjects: vi.fn(async () => edited),
       clearSuspect: vi.fn(async () => clearOutcome),
       withdrawEnrolment: vi.fn(async () => withdrawOutcome),
+      claimEnroller: vi.fn(async () => claimOutcome),
     };
     TestBed.configureTestingModule({
       providers: [
@@ -215,6 +218,42 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     expect(manage.clearSuspect).toHaveBeenCalledWith({ accountId: OWNER_ACCOUNT_ID, runner: suspect });
     expect(find('runner-suspect')).toBeNull();
     expect(find('runner-clear-suspect')).toBeNull();
+  });
+
+  // #827
+  it('offers the claim on a claimable runner only, applies the claimed runner and reads a stale claim again', async () => {
+    const unrecorded = await open({
+      list: () => ({ ok: true, value: { runners: [runnerFixture({ enroller: 'unrecorded' })], pendingEnrolments: [], release: RELEASE } }),
+    });
+    expect(unrecorded.find('runner-enroller')).not.toBeNull();
+    expect(unrecorded.find('runner-claim-enroller')).toBeNull();
+    harness.fixture.nativeElement.remove();
+    TestBed.resetTestingModule();
+
+    const legacy = runnerFixture({ enroller: 'claimable' });
+    const { find, manage } = await open({
+      list: () => ({ ok: true, value: { runners: [legacy], pendingEnrolments: [], release: RELEASE } }),
+      claimOutcome: { kind: 'claimed', runner: runnerFixture({ enroller: 'recorded' }) },
+    });
+    const button = find('runner-claim-enroller') as HTMLButtonElement;
+    expect(button.textContent?.trim()).toBe('Закрепить за мной');
+    expect(button.getAttribute('aria-label')).toBe('Закрепить раннер Mac за мной');
+    button.click();
+    await settle();
+    expect(manage.claimEnroller).toHaveBeenCalledWith({ accountId: OWNER_ACCOUNT_ID, runner: legacy });
+    expect(find('runner-enroller')).toBeNull();
+    expect(find('runner-claim-enroller')).toBeNull();
+    harness.fixture.nativeElement.remove();
+    TestBed.resetTestingModule();
+
+    const stale = await open({
+      list: () => ({ ok: true, value: { runners: [legacy], pendingEnrolments: [], release: RELEASE } }),
+      claimOutcome: { kind: 'stale' },
+    });
+    const reads = stale.api.list.mock.calls.length;
+    (stale.find('runner-claim-enroller') as HTMLButtonElement).click();
+    await settle();
+    expect(stale.api.list.mock.calls.length).toBe(reads + 1);
   });
 
   it('lists pending codes with their expiry and drops a withdrawn one', async () => {

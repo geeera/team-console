@@ -167,6 +167,73 @@ describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
   });
 });
 
+// #827: claiming a runner from before enrollers were recorded, behind a confirm that says it is final.
+describe('ManageRunner.claimEnroller', () => {
+  const LEGACY = runnerFixture({ enroller: 'claimable' });
+  const CLAIMED = runnerFixture({ enroller: 'recorded' });
+
+  function setup(claimEnroller: () => Promise<unknown>) {
+    const options: ConfirmOptions[] = [];
+    const failures: string[] = [];
+    const sheet = {
+      confirm: vi.fn(async (confirm: ConfirmOptions) => {
+        options.push(confirm);
+        try {
+          await confirm.action?.('');
+          return true;
+        } catch (error: unknown) {
+          if (!(error instanceof ConfirmFailure)) {
+            throw error;
+          }
+          failures.push(error.message);
+          return false;
+        }
+      }),
+    };
+    const api = { claimEnroller: vi.fn(claimEnroller) };
+    TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }, { provide: RunnersApi, useValue: api }],
+    });
+    return { manage: TestBed.inject(ManageRunner), api, options, failures };
+  }
+
+  it('asks first, says only the owner will add projects and that it is audited, then claims', async () => {
+    const { manage, api, options } = setup(async () => ({ ok: true, value: CLAIMED }));
+    expect(await manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({
+      kind: 'claimed',
+      runner: CLAIMED,
+    });
+    expect(api.claimEnroller).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, LEGACY.id);
+    expect(options[0]).toMatchObject({ title: 'Закрепить раннер «Mac» за вами?', confirmLabel: 'Закрепить' });
+    expect(options[0]?.items).toContain('Действие попадёт в журнал аккаунта.');
+  });
+
+  it('reads a recorded, revoked or gone runner and a second owner as a stale list, and offline as nothing done', async () => {
+    for (const [kind, slug] of [
+      ['enroller-set', 'runner-enroller-set'],
+      ['revoked', 'runner-revoked'],
+      ['not-found', 'runner-not-found'],
+      ['forbidden', 'runner-enroller-not-sole-owner'],
+    ] as const) {
+      TestBed.resetTestingModule();
+      const { manage, failures } = setup(async () => ({ ok: false, failure: { kind, slug, field: null } }));
+      expect(await manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({ kind: 'stale' });
+      expect(failures).toHaveLength(1);
+    }
+    TestBed.resetTestingModule();
+    const second = setup(async () => ({
+      ok: false,
+      failure: { kind: 'forbidden', slug: 'runner-enroller-not-sole-owner', field: null },
+    }));
+    await second.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY });
+    expect(second.failures[0]).toBe('Закрепить раннер может только единственный владелец аккаунта. Подключите раннер заново.');
+
+    TestBed.resetTestingModule();
+    const offline = setup(async () => ({ ok: false, failure: { kind: 'offline', slug: null, field: null } }));
+    expect(await offline.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({ kind: 'cancelled' });
+  });
+});
+
 describe('ManageRunner.editProjects', () => {
   it('opens the allow-list dialog and resolves the runner it closed with', async () => {
     const updated = runnerFixture({ allowedProjects: [] });

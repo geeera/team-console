@@ -5,12 +5,14 @@ import { TimeoutError } from 'rxjs';
 /**
  * Why a Settings › Runners call did not succeed, as the screens word it (#464):
  * - `forbidden` — 403: the caller is no owner of the account (`account-owner-only`), this identity may not act, or
- *   another owner tried to add projects to a subscription runner (`runner-scope-enroller-only`, #795);
+ *   another owner tried to add projects to a subscription runner (`runner-scope-enroller-only`, #795), or the caller
+ *   is not the account's sole owner (`runner-enroller-not-sole-owner`, #827);
  * - `not-found` — 404: the account, runner or project is not the caller's (the same answer as one that is missing);
  * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-scope-fixed`, `runner-policy-invalid`, …)
  *   and the field;
  * - `revoked` — 409 `runner-revoked`: someone revoked it meanwhile;
  * - `not-suspect` — 409 `runner-not-suspect`: its suspect mark was cleared meanwhile (#492);
+ * - `enroller-set` — 409 `runner-enroller-set`: its enroller was recorded meanwhile (#827);
  * - `rate-limited` — 429; `offline` — no answer; `timeout` — none in `RUNNER_CALL_TIMEOUT_MS`;
  * - `session-expired` — Access wants a new login (the app root takes over); `error` — anything else.
  */
@@ -20,6 +22,7 @@ export type RunnerFailureKind =
   | 'invalid'
   | 'revoked'
   | 'not-suspect'
+  | 'enroller-set'
   | 'rate-limited'
   | 'offline'
   | 'timeout'
@@ -69,6 +72,8 @@ export function runnerFailureOf(error: unknown): RunnerFailure {
           return failure('revoked');
         case 'runner-not-suspect':
           return failure('not-suspect');
+        case 'runner-enroller-set':
+          return failure('enroller-set');
         default:
           return failure('error');
       }
@@ -109,6 +114,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
   if (failure.kind === 'forbidden' && failure.slug === 'runner-scope-enroller-only') {
     return 'runners.err.enrollerOnly';
   }
+  if (failure.kind === 'forbidden' && failure.slug === 'runner-enroller-not-sole-owner') {
+    return 'runners.err.enrollerNotSoleOwner';
+  }
   if (failure.kind === 'not-found' && failure.slug === 'enrolment-not-found') {
     return 'runners.err.enrolmentGone';
   }
@@ -120,6 +128,7 @@ const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid'>, strin
   'not-found': 'runners.err.notFound',
   revoked: 'runners.err.revoked',
   'not-suspect': 'runners.err.notSuspect',
+  'enroller-set': 'runners.err.enrollerSet',
   'rate-limited': 'runners.err.rateLimited',
   offline: 'runners.err.offline',
   timeout: 'runners.err.timeout',

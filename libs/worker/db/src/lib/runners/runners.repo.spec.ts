@@ -361,6 +361,156 @@ describe('RunnersRepo', () => {
     await env.DB.prepare(`UPDATE accounts SET name = 'B' WHERE id = ?1`).bind(ACCOUNT_B).run();
   });
 
+  // #827 (owner decision (a)): the sole owner records themselves as the enroller of a runner from before 0036.
+  describe('claimEnroller', () => {
+    const CLAIM = 'runner.enroller-claimed' as const;
+    let accounts = 0;
+    let users = 0;
+
+    async function accountWithOwners(...owners: readonly string[]): Promise<string> {
+      accounts += 1;
+      const accountId = `01M6YSNJ00000000000000CE${String(accounts).padStart(2, '0')}`;
+      await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, ?2, 'CE', ?3)`)
+        .bind(accountId, `rn-ce-${String(accounts)}`, T0)
+        .run();
+      for (const owner of owners) {
+        await addOwner(accountId, owner);
+      }
+      return accountId;
+    }
+
+    const seededUsers = new Set<string>();
+    async function addOwner(accountId: string, userId: string): Promise<void> {
+      if (!seededUsers.has(userId)) {
+        seededUsers.add(userId);
+        users += 1;
+        await env.DB.prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
+          .bind(userId, String(827000 + users), `rn-ce-${userId.slice(-3)}`, T0)
+          .run();
+      }
+      await env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`)
+        .bind(accountId, userId, T0)
+        .run();
+    }
+
+    const claimAudit = (accountId: string, target: string): NewAuditEvent => ({ ...audit(CLAIM, accountId), target });
+    const claim = (accountId: string, runnerId: string, userId: string | null, by: string = userId ?? 'access-owner') =>
+      repo.claimEnroller(accountId, runnerId, by, userId, claimAudit(accountId, runnerId));
+
+    const U1 = '01M6YSNJ00000000000000CEA1';
+    const U2 = '01M6YSNJ00000000000000CEA2';
+    const U9 = '01M6YSNJ00000000000000CEA9';
+
+    it('lets the sole owner claim a runner with no enroller once, audited once', async () => {
+      const accountId = await accountWithOwners(U1);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      expect(await repo.enrollerClaimableIdsOf(accountId, U1)).toEqual([legacy.id]);
+
+      expect(await claim(accountId, legacy.id, U1)).toBe('claimed');
+      expect((await repo.findById(legacy.id))?.enrolledBy).toBe(U1);
+      expect(await auditRows(CLAIM, legacy.id)).toBe(1);
+      expect(await repo.enrollerClaimableIdsOf(accountId, U1)).toEqual([]);
+
+      expect(await claim(accountId, legacy.id, U1)).toBe('already-set');
+      expect(await auditRows(CLAIM, legacy.id)).toBe(1);
+    });
+
+    it('lets the door owner with no user id claim while the account has at most one owner row', async () => {
+      const accountId = await accountWithOwners();
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      expect(await claim(accountId, legacy.id, null, 'access-owner')).toBe('claimed');
+      expect((await repo.findById(legacy.id))?.enrolledBy).toBe('access-owner');
+    });
+
+    it('refuses once a second owner exists, writing and auditing nothing', async () => {
+      const accountId = await accountWithOwners(U1, U2);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      expect(await repo.enrollerClaimableIdsOf(accountId, U1)).toEqual([]);
+      for (const userId of [U1, U2, null]) {
+        expect(await claim(accountId, legacy.id, userId)).toBe('not-sole-owner');
+      }
+      expect((await repo.findById(legacy.id))?.enrolledBy).toBeNull();
+      expect(await auditRows(CLAIM, legacy.id)).toBe(0);
+    });
+
+    it('refuses a user who is not the sole owner row, as a session read before a membership change would be', async () => {
+      const accountId = await accountWithOwners(U1);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      expect(await claim(accountId, legacy.id, U9)).toBe('not-sole-owner');
+      expect((await repo.findById(legacy.id))?.enrolledBy).toBeNull();
+    });
+
+    it('never rewrites a recorded enroller, and the 0036 trigger refuses it below the repo too', async () => {
+      const accountId = await accountWithOwners(U1);
+      const recorded = await enrolled({ accountId, enrolledBy: 'owner-1' });
+      expect(await claim(accountId, recorded.id, U1)).toBe('already-set');
+      expect((await repo.findById(recorded.id))?.enrolledBy).toBe('owner-1');
+      expect(await auditRows(CLAIM, recorded.id)).toBe(0);
+      await expect(
+        env.DB.prepare(`UPDATE runners SET enrolled_by = ?2 WHERE id = ?1`).bind(recorded.id, U1).run(),
+      ).rejects.toThrow(/keep their identity/);
+    });
+
+    it('answers revoked, fixed and not-found for a revoked, a hosted and another account’s runner', async () => {
+      const accountId = await accountWithOwners(U1);
+      const revoked = await enrolled({ accountId, enrolledBy: null });
+      expect(await repo.revoke(accountId, revoked.id, T1, { ...audit('runner.revoked', accountId), target: revoked.id })).toBe(true);
+      expect(await claim(accountId, revoked.id, U1)).toBe('revoked');
+
+      const codeHash = hash('ce');
+      await repo.createEnrolment(
+        { codeHash, accountId, name: 'hosted', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+        audit('enrolment-code.created', accountId),
+      );
+      const hosted = runnerOf({ accountId, enrolledBy: null, allowedProjects: [] });
+      expect(await repo.enrolHosted(codeHash, hosted, audit('runner.enrolled', accountId))).toBe('ok');
+      expect(await claim(accountId, hosted.id, U1)).toBe('fixed');
+
+      const other = await accountWithOwners(U2);
+      const theirs = await enrolled({ accountId: other, enrolledBy: null });
+      expect(await claim(accountId, theirs.id, U1)).toBe('not-found');
+      expect((await repo.findById(theirs.id))?.enrolledBy).toBeNull();
+      expect(await repo.enrollerClaimableIdsOf(accountId, U1)).toEqual([]);
+      for (const id of [revoked.id, hosted.id, theirs.id]) {
+        expect(await auditRows(CLAIM, id)).toBe(0);
+      }
+    });
+
+    it('judges the owners inside the write: an owner who joins after the caller looked is refused', async () => {
+      const accountId = await accountWithOwners(U1);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      expect(await repo.enrollerClaimableIdsOf(accountId, U1)).toEqual([legacy.id]);
+      await addOwner(accountId, U2);
+      expect(await claim(accountId, legacy.id, U1)).toBe('not-sole-owner');
+      expect((await repo.findById(legacy.id))?.enrolledBy).toBeNull();
+    });
+
+    it('lets one of two concurrent claims win, with one audit row', async () => {
+      const accountId = await accountWithOwners(U1);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      const outcomes = await Promise.all([claim(accountId, legacy.id, U1), claim(accountId, legacy.id, U1)]);
+      expect([...outcomes].sort()).toEqual(['already-set', 'claimed']);
+      expect(await auditRows(CLAIM, legacy.id)).toBe(1);
+    });
+
+    it('never ends with a claim beside a second owner when the two race', async () => {
+      const accountId = await accountWithOwners(U1);
+      const legacy = await enrolled({ accountId, enrolledBy: null });
+      const [, outcome] = await Promise.all([addOwner(accountId, U2), claim(accountId, legacy.id, U1)]);
+      expect(['claimed', 'not-sole-owner']).toContain(outcome);
+      // Either the claim committed first (it was the sole owner then) or it saw the second owner and wrote nothing.
+      const expected =
+        outcome === 'claimed'
+          ? { enrolledBy: U1, audits: 1, again: 'already-set' }
+          : { enrolledBy: null, audits: 0, again: 'not-sole-owner' };
+      expect({
+        enrolledBy: (await repo.findById(legacy.id))?.enrolledBy,
+        audits: await auditRows(CLAIM, legacy.id),
+        again: await claim(accountId, legacy.id, U1),
+      }).toEqual(expected);
+    });
+  });
+
   describe('sightings (threat model C4, detection)', () => {
     const alertOf = (reason: 'new-country' | 'two-pollers'): NewAuditEvent => ({
       ...audit('runner.suspect'),

@@ -58,6 +58,7 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'PATCH /api/v1/accounts/:id/runners/:runner': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/:runner/claim-enroller': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'no-owner-write',
   // #634: enrolment intents are D1 only, owner-of-account and narrower (the creator alone, enrolment-intents.spec.ts).
   'POST /api/v1/accounts/:id/runners/enrolment-intents': 'no-owner-write',
