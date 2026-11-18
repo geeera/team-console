@@ -267,8 +267,17 @@ export class OverviewPage {
     return this.host.nativeElement.querySelector<HTMLElement>(selector);
   }
 
+  /**
+   * A team that stopped itself (`failing`) or whose run log cannot be trusted (`unknown`) stays with the projects
+   * that need attention even with no open question (#170): the owner's own pause is still "no questions for you".
+   */
   private isQuiet(row: TileRow): boolean {
-    return row.project.kind === 'read' && row.waiting === 0;
+    return (
+      row.project.kind === 'read' &&
+      row.waiting === 0 &&
+      row.project.team !== 'failing' &&
+      row.project.team !== 'unknown'
+    );
   }
 
   private async load(): Promise<void> {

@@ -22,7 +22,7 @@ import { Router } from '@angular/router';
 import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
-import { projectPauseOf, RunnersStore } from '@console/entities/runner';
+import { d3RunnerOf, projectPauseOf, RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
   daysUntilDemo,
@@ -77,7 +77,8 @@ import {
 } from '@console/shared/ui';
 import { currentSprintOf, type ItemDto, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
 import { map } from 'rxjs';
-import { BoardJobs } from './board-jobs';
+import { BoardJobs, type JobsPauseLine } from './board-jobs';
+import { BoardRunLog } from './board-run-log';
 import { BoardMoveButton } from './board-move-button';
 import {
   arrivalsLast,
@@ -220,6 +221,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
   selector: 'tc-sprint-board',
   imports: [
     BoardJobs,
+    BoardRunLog,
     BoardMoveButton,
     Button,
     Chip,
@@ -300,6 +302,7 @@ export class SprintBoard {
   protected readonly tileLayout = computed(() => tileLayoutOf(this.width(), this.compact()));
   protected readonly tileColumns = computed(() => TILE_COLUMNS[this.tileLayout()]);
   private readonly tabs = viewChild(Tabs);
+  private readonly boardJobs = viewChild(BoardJobs);
   private readonly pullsHeading = viewChild<ElementRef<HTMLElement>>('pullsHeading');
   private readonly runsHeading = viewChild<ElementRef<HTMLElement>>('runsHeading');
   private ring: Arrival | null = null;
@@ -359,8 +362,17 @@ export class SprintBoard {
    * Every runner that may serve the project is paused on a usage or rate limit (#571): the tile says so and until
    * when, unless a job is running anyway. Only the account's owner reads runners, so a member never sees it.
    */
-  protected readonly jobsPause = computed(() =>
-    this.isJobsBoard() ? projectPauseOf(this.runners.runners(), this.project().slug) : null,
+  protected readonly jobsPause = computed(() => projectPauseOf(this.runners.runners(), this.project().slug));
+  /** The owner's paused line (#775): only when the Worker says this caller may Run now here, so it reads its runners. */
+  protected readonly jobsPauseLine = computed((): JobsPauseLine | null => {
+    const pause = this.jobsPause();
+    return pause === null || !this.jobs.canRunNow()
+      ? null
+      : { reason: pause.reason, time: localTimeOf(pause.until, this.lang()) };
+  });
+  /** The runner D3 holds back from the project, for the owner's `other-owner-subscription` copy (#775). */
+  protected readonly d3Runner = computed(() =>
+    this.jobs.canRunNow() ? d3RunnerOf(this.runners.runners(), this.project().slug) : null,
   );
   /** The tile's state as shown: `paused` over everything but a running job. */
   protected readonly jobsTileShown = computed(() => {
@@ -397,11 +409,12 @@ export class SprintBoard {
     }
     return this.transloco.translate(`board.team.${this.board()?.team.state ?? 'unknown'}`);
   });
-  /** What the runs tab counts: the job cards shown, or the run log's latest runs. */
-  protected readonly runsCount = computed(() =>
-    this.isJobsBoard()
-      ? this.jobs.current().length + this.jobs.recent().length
-      : (this.board()?.team.recentRuns.length ?? 0),
+  /** What the runs tab counts: the job cards shown, plus the run log's latest runs on a GitHub-tracker project. */
+  protected readonly runsCount = computed(
+    () =>
+      this.jobs.current().length +
+      this.jobs.recent().length +
+      (this.isJobsBoard() ? 0 : (this.board()?.team.recentRuns.length ?? 0)),
   );
   /** «Waiting for you»: the count the shell's badge shows; `null` until the first read answered. */
   protected readonly waiting = computed(() =>
@@ -474,12 +487,9 @@ export class SprintBoard {
         void this.load(slug, true);
       });
     });
-    // A console-tracker project's queue (#464): watched while the board shows that project, polled only while visible.
+    // The project's queue (#464; every tracker since #775): watched while the board shows it, polled only while visible.
     effect((onCleanup) => {
       const slug = this.project().slug;
-      if (!this.isJobsBoard()) {
-        return;
-      }
       untracked(() => {
         const stop = this.jobs.watch(slug);
         // Runner names for the cards; a member (or a failed read) leaves them unnamed, the cards show a short id.
@@ -581,6 +591,18 @@ export class SprintBoard {
     // The list is often on screen already: the ring (as for a #n deep link) is what says the tap did something.
     this.ring?.clear();
     this.ring = markArrival(heading.closest<HTMLElement>('tc-tab-panel') ?? heading, heading);
+  }
+
+  /**
+   * The header's «Run» (#775, owners only): the runs open (the tab on a narrow screen) and focus lands on «What to
+   * run», or on the «no runner» heading when there is no form.
+   */
+  protected goToRunNow(): void {
+    if (this.compact()) {
+      this.onTab('runs');
+      this.tabs()?.select('runs');
+    }
+    afterNextRender(() => this.boardJobs()?.focusEntry(), { injector: this.injector });
   }
 
   protected openQuestions(): void {

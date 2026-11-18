@@ -191,13 +191,16 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       const page = rows.slice(0, limit);
       const runners = new RunnersRepo(c.env.DB);
       const now = new Date().toISOString();
+      const isOwner = policyActorOfContext(c).kind === 'owner';
       const body: JobListDto = {
         jobs: page.map(jobDtoOf),
         nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
         runnerAvailability: await runners.availabilityOf(row.slug, now),
+        // #775: judged per project, so an owner of one account who is a member of another sees the right Run now.
+        canRunNow: isOwner,
       };
       // SECURITY review of #804: the reason names a subscription and D3, so only the account's owner hears it.
-      if (body.runnerAvailability === 'none' && policyActorOfContext(c).kind === 'owner') {
+      if (body.runnerAvailability === 'none' && isOwner) {
         return c.json({ ...body, runnerUnavailableReason: await runners.unavailableReasonOf(row.slug, now) } satisfies JobListDto);
       }
       return c.json(body);

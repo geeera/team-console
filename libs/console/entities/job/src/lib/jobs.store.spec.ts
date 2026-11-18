@@ -9,7 +9,7 @@ type ListAnswer = JobResult<JobListDto>;
 type EventsAnswer = JobResult<JobEventListDto>;
 
 const ok = <T>(value: T): JobResult<T> => ({ ok: true, value });
-const jobsOf = (...jobs: JobDto[]): ListAnswer => ok({ jobs, nextCursor: null, runnerAvailability: 'ready' });
+const jobsOf = (...jobs: JobDto[]): ListAnswer => ok({ jobs, nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
 const eventsOf = (...events: JobEventDto[]): EventsAnswer => ok({ events, nextCursor: null });
 
 /** A JobsApi whose answers each case queues; every call is recorded. */
@@ -75,6 +75,29 @@ describe('JobsStore', () => {
     expect(store.eventsOf(JOB_FIXTURE_IDS.first).map((event) => event.seq)).toEqual([1, 2]);
     expect(store.tile().state).toBe('running');
     stop();
+  });
+
+  // #775: the view words Run now from these; a member's list carries no reason.
+  it('keeps the availability, the reason and canRunNow of the last read, and forgets them for the next project', async () => {
+    const store = setup();
+    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' }));
+    const stop = store.watch('team-console');
+    expect(store.availability()).toBeNull();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.availability()).toBe('none');
+    expect(store.unavailableReason()).toBe('other-owner-subscription');
+    expect(store.canRunNow()).toBe(true);
+    stop();
+
+    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'offline', canRunNow: false }));
+    const next = store.watch('storify');
+    expect(store.availability()).toBeNull();
+    expect(store.canRunNow()).toBe(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.availability()).toBe('offline');
+    expect(store.unavailableReason()).toBeNull();
+    expect(store.canRunNow()).toBe(false);
+    next();
   });
 
   it('carries the events cursor on from the last event seen', async () => {

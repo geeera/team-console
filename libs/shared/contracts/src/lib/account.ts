@@ -107,6 +107,11 @@ export const AUDIT_EVENT_KINDS = [
   'team-config.changed',
   // #670: the owner switched how the project's jobs reach a runner (`pull` or `actions`).
   'project.dispatch-changed',
+  // #759 PR 4: the owner asked the console to open the runner-workflow pull request in the project's repository.
+  // `attempted` is written before the write token is minted, then `opened` or `failed` (a fixed reason).
+  'project.actions-workflow-pr-attempted',
+  'project.actions-workflow-pr-opened',
+  'project.actions-workflow-pr-failed',
 ] as const;
 export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 export const isAuditEventKind = (value: unknown): value is AuditEventKind =>

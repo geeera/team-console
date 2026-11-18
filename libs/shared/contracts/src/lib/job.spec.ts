@@ -82,17 +82,19 @@ describe('job guards', () => {
   });
 
   it('checks every job of a list, its cursor and the runner availability', () => {
-    expect(isJobListDto({ jobs: [JOB], nextCursor: null, runnerAvailability: 'ready' })).toBe(true);
-    expect(isJobListDto({ jobs: [JOB], nextCursor: JOB.id, runnerAvailability: 'none' })).toBe(true);
-    expect(isJobListDto({ jobs: [{ ...JOB, dispatch: 'cron' }], nextCursor: null, runnerAvailability: 'ready' })).toBe(false);
-    expect(isJobListDto({ jobs: [], runnerAvailability: 'ready' })).toBe(false);
+    expect(isJobListDto({ jobs: [JOB], nextCursor: null, runnerAvailability: 'ready', canRunNow: true })).toBe(true);
+    expect(isJobListDto({ jobs: [JOB], nextCursor: JOB.id, runnerAvailability: 'none', canRunNow: true })).toBe(true);
+    expect(isJobListDto({ jobs: [{ ...JOB, dispatch: 'cron' }], nextCursor: null, runnerAvailability: 'ready', canRunNow: true })).toBe(false);
+    expect(isJobListDto({ jobs: [], runnerAvailability: 'ready', canRunNow: true })).toBe(false);
     expect(isJobListDto({ jobs: [], nextCursor: null })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'busy' })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', runnerUnavailableReason: 'access-mismatch' })).toBe(true);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', runnerUnavailableReason: 'no-runner' })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', runnerUnavailableReason: 'stolen' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'busy', canRunNow: true })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'access-mismatch' })).toBe(true);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true, runnerUnavailableReason: 'no-runner' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'stolen' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: 'yes' })).toBe(false);
     for (const availability of RUNNER_AVAILABILITIES) {
-      expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability })).toBe(true);
+      expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability, canRunNow: false })).toBe(true);
     }
   });
 

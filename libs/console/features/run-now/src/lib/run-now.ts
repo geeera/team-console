@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, input, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import {
   jobFailureKeyOf,
   JobsApi,
@@ -16,17 +16,24 @@ let nextRunNowId = 0;
  * Run now (#464, ADR 0008 row 2-E): a kind picker and one button that queues a job of that kind for the project
  * (`POST …/jobs`). The button waits while the request is out, so a double press queues nothing twice (the Worker's
  * dedupe key answers a repeat slot with 409 `job-exists` anyway). A refusal is said under the button, worded by the
- * problem slug; the queued job is emitted for the view to show at once.
+ * problem slug; the queued job is emitted for the view to show at once. With no runner online (#775) the button still
+ * works, so it is never disabled for that: the outcome says the job waits for the runner instead.
  */
 @Component({
   selector: 'tc-run-now',
   imports: [Button, Field, FieldControl, Icon, TranslocoPipe],
   template: `
     <form class="run-now" data-testid="run-now" [attr.aria-labelledby]="titleId" (submit)="run($event)">
-      <h3 class="run-now__title" [id]="titleId">{{ 'jobs.runNow.title' | transloco }}</h3>
+      <h4 class="run-now__title" [id]="titleId">{{ 'jobs.runNow.title' | transloco }}</h4>
       <div class="run-now__row">
-        <tc-field class="run-now__kind" [label]="'jobs.runNow.kind' | transloco" required>
+        <tc-field
+          class="run-now__kind"
+          [label]="'jobs.runNow.kind' | transloco"
+          [hint]="'jobs.runNow.hint' | transloco"
+          required
+        >
           <select
+            #kindSelect
             tcInput
             data-testid="run-now-kind"
             [disabled]="submitting()"
@@ -60,7 +67,8 @@ let nextRunNowId = 0;
           }}</span>
         } @else if (queuedKind(); as kind) {
           <span data-testid="run-now-queued">{{
-            'jobs.runNow.queued' | transloco: { kind: ('jobs.kind.' + kind | transloco) }
+            (waiting() ? 'jobs.runNow.queuedWaiting' : 'jobs.runNow.queued')
+              | transloco: { kind: ('jobs.kind.' + kind | transloco) }
           }}</span>
         }
       </p>
@@ -109,8 +117,12 @@ export class RunNow {
   private readonly api = inject(JobsApi);
 
   readonly slug = input.required<string>();
+  /** No runner can take the job now (offline or paused): a queued job waits for one, and the outcome says so. */
+  readonly waiting = input(false);
   /** The job the Worker queued. */
   readonly enqueued = output<JobDto>();
+
+  private readonly kindSelect = viewChild.required<ElementRef<HTMLSelectElement>>('kindSelect');
 
   protected readonly titleId = `tc-run-now-${nextRunNowId++}`;
   protected readonly kinds = RUN_NOW_KINDS;
@@ -118,6 +130,11 @@ export class RunNow {
   protected readonly submitting = signal(false);
   protected readonly failure = signal<JobFailure | null>(null);
   protected readonly queuedKind = signal<RunNowKind | null>(null);
+
+  /** The header's «Run» lands here (#775): the kind picker is the form's first control. */
+  focus(): void {
+    this.kindSelect().nativeElement.focus();
+  }
 
   protected choose(value: string): void {
     const kind = RUN_NOW_KINDS.find((candidate) => candidate === value);

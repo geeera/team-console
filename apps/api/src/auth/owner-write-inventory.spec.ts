@@ -79,6 +79,8 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'PUT /api/v1/accounts/:id/runner-policy': 'no-owner-write',
   // #467: Run now and placement, owner rows of the matrix (the service is refused there like on every tracker write).
   'POST /api/v1/projects/:slug/jobs': 'tracker-matrix',
+  // #759 PR 4: the workflow pull request, an owner row of the matrix (app token, never the owner's).
+  'POST /api/v1/projects/:slug/actions-setup/workflow-pr': 'tracker-matrix',
   'PUT /api/v1/projects/:slug/runner-policy': 'tracker-matrix',
   // #670: the dispatch switch, an owner-only row of the matrix.
   'PUT /api/v1/projects/:slug/dispatch': 'tracker-matrix',

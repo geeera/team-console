@@ -31,8 +31,16 @@
     @if (isJobsBoard()) {
       <span class="board__open" data-testid="open-count">{{ 'board.sections.open' | translocoPlural: openCount() }}</span>
     }
-    @if (sprintActions()) {
+    @if (sprintActions() || jobs.canRunNow()) {
     <div class="board__actions">
+      @if (jobs.canRunNow()) {
+      <!-- #775: the owner's way to Run now from the top; it opens the runs and lands on the form. -->
+      <button tc-button size="sm" type="button" data-testid="board-run-now" (click)="goToRunNow()">
+        <tc-icon name="play" size="sm" />
+        {{ 'board.runNow' | transloco }}
+      </button>
+      }
+      @if (sprintActions()) {
       <button
         tc-button
         size="sm"
@@ -57,6 +65,7 @@
       >
         {{ 'board.ask' | transloco }}
       </button>
+      }
     </div>
     }
   </header>
@@ -239,26 +248,17 @@
         >{{ runsCount() | localNumber }}</span
       >
     </h2>
-    @if (isJobsBoard()) {
-    <tc-board-jobs [slug]="project().slug" [runnerNames]="runnerNames()" />
-    } @else if (board.team.state === 'unknown') {
-    <!-- An unknown team means the run log could not be read or trusted (#201): never "no runs yet" with a check. -->
-    <tc-state-block
-      kind="empty"
-      compact
-      icon="question"
-      data-testid="runs-unavailable"
-      [title]="'board.runs.unavailable' | transloco"
-      [description]="'board.runs.unavailableHint' | transloco"
+    <!-- #775: the team's jobs on every project, whatever its tracker; Run now is the owner's. -->
+    <tc-board-jobs
+      [slug]="project().slug"
+      [projectName]="project().name"
+      [runnerNames]="runnerNames()"
+      [pause]="jobsPauseLine()"
+      [d3Runner]="d3Runner()"
     />
-    } @else if (board.team.recentRuns.length === 0) {
-    <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
-    } @if (!isJobsBoard() && (board.team.recentRuns.length > 0 || board.team.runLogUrl)) {
-    <tc-sprint-run-list
-      [runs]="board.team.recentRuns"
-      [runLogUrl]="board.team.runLogUrl"
-      [label]="'board.runs.title' | transloco"
-    />
+    @if (!isJobsBoard()) {
+    <!-- Scheduled routines still report to the run log on GitHub (owner answer Q1 on #775). -->
+    <tc-board-run-log [team]="board.team" />
     }
   </tc-tab-panel>
 </tc-tabs>

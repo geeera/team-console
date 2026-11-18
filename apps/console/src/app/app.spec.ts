@@ -116,6 +116,10 @@ describe('App', () => {
     http
       .match((request) => request.url.endsWith('/team/status'))
       .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
+    // The board reads the project's jobs and the accounts for runner names on every tracker (#775); not looked at here.
+    http
+      .match((request) => request.url.endsWith('/jobs') || request.url === '/api/v1/accounts')
+      .forEach((request) => request.flush({}, { status: 503, statusText: 'Service Unavailable' }));
     // The window title and the environment mark ask where the app runs (#237); the routing tests do not look.
     http
       .match(HEALTH_URL)

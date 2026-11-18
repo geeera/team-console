@@ -275,6 +275,11 @@ export interface RunnerDto extends RunnerProjectScopeDto {
   readonly belowMinimum: boolean;
   /** The pause in force now (#571): `null` once `until` has passed, whatever the row still says. */
   readonly pause: RunnerPauseDto | null;
+  /**
+   * Whether the caller enrolled this runner (#775, D3): judged for the reader, never who did, so the owner's client can
+   * word the D3 state without any person's id, login or e-mail in the DTO.
+   */
+  readonly enrolledByYou: boolean;
   /** #827: never who enrolled it, only whether the console knows and whether the caller may claim it. */
   readonly enroller: RunnerEnrollerState;
 }
@@ -662,6 +667,7 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     isNullable(value['revokedAt'], isTimestamp) &&
     typeof value['belowMinimum'] === 'boolean' &&
     isNullable(value['pause'], isRunnerPauseDto) &&
+    typeof value['enrolledByYou'] === 'boolean' &&
     isRunnerEnrollerState(value['enroller'])
   );
 }

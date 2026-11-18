@@ -63,10 +63,12 @@
   gap: var(--space-6);
 }
 
+/* One column no wider than the panel: an `auto` track would grow to its widest unbreakable child (#775). */
 .board__tasks,
 .board__pulls,
 .board__runs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-3);
   min-width: 0;

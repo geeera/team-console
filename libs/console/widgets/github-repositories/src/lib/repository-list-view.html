@@ -233,6 +233,7 @@
       @if (selectionUrl(); as selectionUrl) {
       <a
         tc-button
+        wrap
         variant="primary"
         data-testid="repos-missing-link"
         [href]="selectionUrl"
@@ -246,6 +247,7 @@
       }
       <button
         tc-button
+        wrap
         type="button"
         data-testid="repos-missing-refresh"
         [loading]="refreshing()"

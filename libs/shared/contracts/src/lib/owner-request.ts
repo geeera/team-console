@@ -90,6 +90,8 @@ export interface IssueRequestDto {
   /** Today is inside the current sprint's freeze. */
   readonly freezeNow: boolean;
   readonly request: OwnerRequestStatusDto | null;
+  /** The issue on github.com (#273: "Open the issue", next to the previous request); `null` when GitHub sent none. */
+  readonly htmlUrl: string | null;
 }
 
 /** One row of the issue picker. */

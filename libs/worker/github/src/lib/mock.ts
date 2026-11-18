@@ -80,7 +80,11 @@ export interface MockRepository {
   readonly environmentsRead?: boolean;
   /**
    * #759: the installation accepted Contents, Workflows and Pull requests write on this repository, so a `workflow-pr`
-   * mint by its id succeeds; without it the mint answers 422.
+   * mint by its id succeeds; without it the mint answers 422. With that token the mock takes the setup's writes and
+   * remembers them for the life of the mock: `POST …/git/refs` (a new branch at the default branch's head; 422 when
+   * the name is taken), `PUT …/contents/{path}` on a branch created that way, `POST …/pulls` from it and
+   * `PATCH …/pulls/{number}`. A write that names no branch, the default branch or a ref the mock did not create is a
+   * tripwire (403): the console must make none.
    */
   readonly setupWrite?: boolean;
   /**
@@ -256,6 +260,36 @@ type IssuedToken =
 
 const LIST_PAGE_MAX = 100;
 
+/** A branch the console created through the mock (#759), with the files committed to it and its head commit. */
+interface WrittenBranch {
+  headSha: string;
+  commits: number;
+  readonly files: Map<string, string>;
+}
+
+/** What the setup's writes left on one repository: its created branches and the pull requests opened from them. */
+interface WrittenState {
+  readonly branches: Map<string, WrittenBranch>;
+  readonly pulls: Record<string, unknown>[];
+}
+
+function parsedBody(body: RequestInit['body']): Record<string, unknown> | null {
+  if (typeof body !== 'string') {
+    return null;
+  }
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return isRecord(parsed) ? parsed : null;
+  } catch (error: unknown) {
+    if (error instanceof SyntaxError) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+const tripwire = (message: string): Response => json(403, { message: `mock: ${message}` });
+
 function dispatchBodyAsksForRun(body: RequestInit['body']): boolean {
   if (typeof body !== 'string') {
     return false;
@@ -341,6 +375,7 @@ function pageOf(items: readonly unknown[], url: URL): Response {
 
 class MockGitHubServer {
   private readonly issued = new Map<string, IssuedToken>();
+  private readonly written = new Map<string, WrittenState>();
 
   constructor(
     private readonly fixtures: MockFixtures,
@@ -445,6 +480,15 @@ class MockGitHubServer {
       return this.environmentRead(bearer, segments);
     }
 
+    // #759: the setup's own calls, with a `workflow-pr` token of exactly this repository.
+    const setupToken = this.issued.get(bearer);
+    if (segments[0] === 'repos' && setupToken?.scope === 'scoped' && setupToken.kind === 'workflow-pr') {
+      if (setupToken.expiresAt <= Date.now()) {
+        return json(401, { message: 'Bad credentials' });
+      }
+      return this.setupWrite(setupToken.repo, method, segments, url, init.body);
+    }
+
     const isRepositoryRead = segments.length === 3;
     const isContentsRead = segments.length > 4 && segments[3] === 'contents';
     const listed = segments.length === 4 ? segments[3] : undefined;
@@ -490,11 +534,12 @@ class MockGitHubServer {
       if (token.scope === 'scoped') {
         return json(403, { message: `mock: the ${token.kind} token must not read this` });
       }
-      const found = this.repository(repo);
+      const fixtureFound = this.repository(repo);
       // A downscoped token sees only its own repository; GitHub answers 404 for the rest.
-      if (found === undefined || found.name.toLowerCase() !== token.repo.toLowerCase()) {
+      if (fixtureFound === undefined || fixtureFound.name.toLowerCase() !== token.repo.toLowerCase()) {
         return notFound();
       }
+      const found = { name: fixtureFound.name, fixture: this.withWrites(fixtureFound.name, fixtureFound.fixture) };
       const reply = found.fixture.reply;
       if (reply !== undefined) {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
@@ -724,6 +769,146 @@ class MockGitHubServer {
         : notFound();
     }
     return notFound();
+  }
+
+  /** The fixture as the reads see it once the setup wrote: its pull requests, their files and their head commits. */
+  private withWrites(name: string, fixture: MockRepository): MockRepository {
+    const state = this.written.get(name.toLowerCase());
+    if (state === undefined) {
+      return fixture;
+    }
+    const pullFiles: Record<string, readonly Readonly<Record<string, unknown>>[]> = { ...fixture.pullFiles };
+    const refFiles: Record<string, Readonly<Record<string, string>>> = { ...fixture.refFiles };
+    for (const pull of state.pulls) {
+      const head = pull['head'];
+      const branch = isRecord(head) && typeof head['ref'] === 'string' ? state.branches.get(head['ref']) : undefined;
+      if (branch === undefined) {
+        continue;
+      }
+      pullFiles[String(pull['number'])] = [...branch.files.keys()].map((filename) => ({ filename }));
+      refFiles[branch.headSha] = Object.fromEntries(branch.files);
+    }
+    return { ...fixture, pulls: [...state.pulls, ...(fixture.pulls ?? [])], pullFiles, refFiles };
+  }
+
+  /**
+   * #759: the calls a `workflow-pr` token makes. Anything else it asks for is a tripwire, as is a write outside a
+   * branch this mock created.
+   */
+  private async setupWrite(
+    tokenRepo: string,
+    method: string,
+    segments: readonly string[],
+    url: URL,
+    rawBody: RequestInit['body'],
+  ): Promise<Response> {
+    const found = this.repository(`${segments[1]}/${segments[2]}`);
+    if (found === undefined || found.name.toLowerCase() !== tokenRepo.toLowerCase()) {
+      return notFound();
+    }
+    const { name, fixture } = found;
+    const defaultBranch = String(fixture.repository?.['default_branch']);
+    const key = name.toLowerCase();
+    const state = this.written.get(key) ?? { branches: new Map<string, WrittenBranch>(), pulls: [] };
+    this.written.set(key, state);
+    const rest = segments.slice(3);
+    const body = parsedBody(rawBody);
+
+    if (method === 'GET' && rest.length === 2 && rest[0] === 'branches') {
+      return this.branch(fixture, rest[1] ?? '');
+    }
+    if (method === 'POST' && rest.join('/') === 'git/refs') {
+      const ref = typeof body?.['ref'] === 'string' ? body['ref'] : '';
+      const branch = ref.startsWith('refs/heads/') ? ref.slice('refs/heads/'.length) : '';
+      const head = await sha1Hex(`branch:${defaultBranch}`);
+      if (branch === '' || body?.['sha'] !== head) {
+        return json(422, { message: 'Object does not exist' });
+      }
+      if (branch === defaultBranch || state.branches.has(branch)) {
+        return json(422, { message: 'Reference already exists' });
+      }
+      state.branches.set(branch, { headSha: head, commits: 0, files: new Map() });
+      return json(201, { ref, object: { sha: head, type: 'commit' } });
+    }
+    if (rest[0] === 'contents' && rest.length > 1 && (method === 'GET' || method === 'PUT')) {
+      const path = rest.slice(1).join('/');
+      const branchName = method === 'GET' ? url.searchParams.get('ref') : body?.['branch'];
+      if (typeof branchName !== 'string' || branchName === '') {
+        return tripwire('a setup write names its branch; without one GitHub commits to the default branch');
+      }
+      const branch = state.branches.get(branchName);
+      if (branch === undefined) {
+        return tripwire('the console writes only to a branch it has just created');
+      }
+      const current = branch.files.get(path) ?? fixture.files?.[path];
+      const currentSha = current === undefined ? null : await sha1Hex(`blob:${path}:${current}`);
+      if (method === 'GET') {
+        return current === undefined || currentSha === null
+          ? notFound()
+          : json(200, { type: 'file', path, sha: currentSha, size: current.length });
+      }
+      const content = typeof body?.['content'] === 'string' ? body['content'] : null;
+      if (content === null || typeof body?.['message'] !== 'string') {
+        return json(422, { message: 'Invalid request' });
+      }
+      const given = body['sha'];
+      if (currentSha !== null && given !== currentSha) {
+        return json(given === undefined ? 422 : 409, { message: 'sha does not match' });
+      }
+      if (currentSha === null && given !== undefined) {
+        return json(422, { message: 'sha was supplied for a file that does not exist' });
+      }
+      const text = new TextDecoder().decode(Uint8Array.from(atob(content), (char) => char.charCodeAt(0)));
+      branch.files.set(path, text);
+      branch.commits += 1;
+      branch.headSha = await sha1Hex(`commit:${branchName}:${String(branch.commits)}:${text}`);
+      return json(currentSha === null ? 201 : 200, {
+        content: { path, sha: await sha1Hex(`blob:${path}:${text}`) },
+        commit: { sha: branch.headSha },
+      });
+    }
+    if (method === 'POST' && rest.length === 1 && rest[0] === 'pulls') {
+      const head = typeof body?.['head'] === 'string' ? body['head'] : '';
+      const branch = state.branches.get(head);
+      if (branch === undefined || body?.['base'] !== defaultBranch || typeof body['title'] !== 'string') {
+        return json(422, { message: 'Validation Failed' });
+      }
+      const isOpenFrom = (pull: Readonly<Record<string, unknown>>): boolean =>
+        pull['state'] === 'open' && isRecord(pull['head']) && pull['head']['ref'] === head;
+      if (state.pulls.some(isOpenFrom)) {
+        return json(422, { message: 'A pull request already exists for this branch' });
+      }
+      const numbers = [...state.pulls, ...(fixture.pulls ?? []), ...(fixture.issues ?? [])].map((item) =>
+        typeof item['number'] === 'number' ? item['number'] : 0,
+      );
+      const number = Math.max(9000, ...numbers) + 1;
+      const repository = { id: fixture.repository?.['id'], owner: { login: name.split('/')[0] ?? '' } };
+      const pull: Record<string, unknown> = {
+        number,
+        state: 'open',
+        title: body['title'],
+        body: typeof body['body'] === 'string' ? body['body'] : '',
+        html_url: `https://github.com/${name}/pull/${String(number)}`,
+        user: { login: 'team-console-local[bot]', type: 'Bot' },
+        head: { ref: head, sha: branch.headSha, repo: repository },
+        base: { ref: defaultBranch, repo: repository },
+        commits: branch.commits,
+        changed_files: branch.files.size,
+      };
+      state.pulls.unshift(pull);
+      return json(201, pull);
+    }
+    if (method === 'PATCH' && rest.length === 2 && rest[0] === 'pulls') {
+      const pull = state.pulls.find((item) => String(item['number']) === rest[1]);
+      if (pull === undefined) {
+        return tripwire('the console closes only a pull request it has just opened');
+      }
+      if (body?.['state'] === 'closed') {
+        pull['state'] = 'closed';
+      }
+      return json(200, pull);
+    }
+    return tripwire(`the workflow-pr token must not ask for ${method} ${rest.join('/')}`);
   }
 
   /** An issue as GitHub sends it: labels as objects. */

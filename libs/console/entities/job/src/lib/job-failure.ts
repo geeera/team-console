@@ -6,7 +6,8 @@ import { TimeoutError } from 'rxjs';
  * Why a jobs call did not succeed, as Run now and the job view word it (#464, routes of #467):
  * - `forbidden` — 403: Run now is the owner's (`owner-only`), or this identity may not read the project's jobs;
  * - `not-found` — 404: the project (or job) is not the caller's, the same answer as a missing one;
- * - `not-cut-over` — 409 `tracker-not-cut-over`: the project is still on GitHub Issues;
+ * - `not-cut-over` — 409 `tracker-not-cut-over`: the project is still on GitHub Issues and the kind is off the
+ *   allow-list (#775), so nothing was queued;
  * - `exists` — 409 `job-exists`: a job of this kind is already queued or running for the project;
  * - `invalid` — 413/422 (`job-invalid`): the request was refused as malformed;
  * - `rate-limited` — 429; `offline` — no answer; `timeout` — none in `JOB_CALL_TIMEOUT_MS`;
@@ -78,7 +79,7 @@ export function jobFailureOf(error: unknown): JobFailure {
 const FAILURE_KEYS: Readonly<Record<JobFailureKind, string>> = {
   forbidden: 'jobs.err.forbidden',
   'not-found': 'jobs.err.notFound',
-  'not-cut-over': 'jobs.err.notCutOver',
+  'not-cut-over': 'jobs.err.kindNotAllowed',
   exists: 'jobs.err.exists',
   invalid: 'jobs.err.invalid',
   'rate-limited': 'jobs.err.rateLimited',

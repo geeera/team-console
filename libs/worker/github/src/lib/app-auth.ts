@@ -193,6 +193,19 @@ export interface InstallationPermissions {
   readonly suspended: boolean;
 }
 
+const LEVEL_RANK: Readonly<Record<PermissionLevel, number>> = { read: 1, write: 2, admin: 3 };
+
+/** Whether the installation was granted every permission of `wanted`, at its level or above. */
+export function installationGrants(
+  installation: InstallationPermissions,
+  wanted: Readonly<Record<string, 'read' | 'write'>>,
+): boolean {
+  return Object.entries(wanted).every(([name, level]) => {
+    const granted = installation.permissions[name];
+    return granted !== undefined && LEVEL_RANK[granted] >= LEVEL_RANK[level];
+  });
+}
+
 const PERMISSION_LEVELS: ReadonlySet<unknown> = new Set(['read', 'write', 'admin']);
 const PERMISSION_NAME = /^[a-z_]{1,64}$/;
 // GitHub app slugs: lower-case letters, digits and dashes.

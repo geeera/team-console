@@ -31,6 +31,7 @@ export type ButtonSize = 'sm' | 'md';
     '[class.tc-button--danger]': 'variant() === "danger"',
     '[class.tc-button--sm]': 'size() === "sm"',
     '[class.tc-button--block]': 'block()',
+    '[class.tc-button--wrap]': 'wrap()',
     '[class.tc-button--loading]': 'loading()',
     '[class.tc-button--off]': 'off()',
     '[class.tc-button--dot]': 'dot()',
@@ -42,6 +43,11 @@ export class Button {
   readonly size = input<ButtonSize>('md');
   /** Full width; the phone layout stacks actions this way. */
   readonly block = input(false, { transform: booleanAttribute });
+  /**
+   * A long label wraps inside its column instead of widening the page (#281, #761, #775): the label stays on one
+   * line by default, which a narrow column or a wider font can push past the screen's edge.
+   */
+  readonly wrap = input(false, { transform: booleanAttribute });
   readonly loading = input(false, { transform: booleanAttribute });
   /**
    * Off with a reason (#114): the button stays focusable and readable but no longer looks pressable (a dashed edge).

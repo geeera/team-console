@@ -195,6 +195,32 @@ describe('OverviewPage', () => {
     expect(root.querySelector('[data-testid="count"]')?.textContent?.trim()).toBe('3 projects');
   });
 
+  it('keeps a failing or unknown team with no questions out of the quiet group (#170)', async () => {
+    const failing: OverviewProjectDto = { ...quietOne, slug: 'failing', name: 'Failing', team: 'failing' };
+    const unknown: OverviewProjectDto = { ...quietOne, slug: 'unknown', name: 'Unknown', team: 'unknown' };
+    const { root, fixture } = await render([
+      projectDto('alpha'),
+      projectDto('failing'),
+      projectDto('unknown'),
+      projectDto('quiet'),
+    ]);
+    await answer(fixture, {
+      projects: [alpha, failing, unknown, quietOne],
+      checkedAt: '2026-10-01T12:00:00Z',
+    });
+
+    const main = root.querySelector('[data-testid="overview-list"]') as HTMLElement;
+    const quiet = root.querySelector('[data-testid="overview-quiet"]') as HTMLElement;
+    // A team that stopped itself, or whose run log cannot be trusted, needs a look even with no open question;
+    // the owner's own pause (`quietOne`, team: 'paused') is still "no questions for you".
+    expect([...main.querySelectorAll('[data-project]')].map((el) => el.getAttribute('data-project'))).toEqual(
+      ['alpha', 'failing', 'unknown'],
+    );
+    expect(
+      [...quiet.querySelectorAll('[data-project]')].map((el) => el.getAttribute('data-project')),
+    ).toEqual(['quiet']);
+  });
+
   it('leaves out an item answered from this device while GitHub still lists it', async () => {
     const { root, fixture } = await render([projectDto('alpha')]);
     await answer(fixture, { projects: [alpha], checkedAt: '2026-10-01T12:00:00Z' });

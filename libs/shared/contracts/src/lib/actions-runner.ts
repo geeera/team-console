@@ -273,6 +273,53 @@ export interface ActionsSetupDto {
   readonly items: readonly ActionsSetupItemDto[];
 }
 
+/**
+ * `POST /api/v1/projects/:slug/actions-setup/workflow-pr` (#759 PR 4): the pull request the console opened in the
+ * project's repository with its rendering of the runner workflow. The server decides the kind from the file on the
+ * default branch: `setup` when there is none, `bump` when the file pins an older runner, Node.js or Claude Code
+ * version, `restore` when it differs in any other way. The console never merges the pull request.
+ */
+export const ACTIONS_WORKFLOW_PR_KINDS = ['setup', 'bump', 'restore'] as const;
+export type ActionsWorkflowPrKind = (typeof ACTIONS_WORKFLOW_PR_KINDS)[number];
+
+export interface ActionsWorkflowPrDto {
+  readonly number: number;
+  /** GitHub's `html_url` of the pull request; always `https://github.com/…`. */
+  readonly url: string;
+  readonly kind: ActionsWorkflowPrKind;
+}
+
+export function isActionsWorkflowPrDto(value: unknown): value is ActionsWorkflowPrDto {
+  if (!isRecord(value) || Object.keys(value).length !== 3) {
+    return false;
+  }
+  const { number, url, kind } = value;
+  return (
+    Number.isSafeInteger(number) &&
+    (number as number) > 0 &&
+    isGitHubUiUrl(url) &&
+    (ACTIONS_WORKFLOW_PR_KINDS as readonly unknown[]).includes(kind)
+  );
+}
+
+/**
+ * The route's own refusals, as problem types (it also answers the setup routes' `console-origin-misconfigured`,
+ * `dispatch-repository-unverified` and `rate-limited`). `actions-setup-pr-open` (409) carries `extensions.number`, `url` and
+ * `provenance` of the open pull request; `actions-permission-missing` (422) names the missing app permissions in
+ * `extensions.permissions`; `actions-setup-downgrade` (422) names the pins the console's file would lower in
+ * `extensions.pins`. `github-write-disabled` (503) is the operator's kill switch: the Copy path stays.
+ */
+export const ACTIONS_WORKFLOW_PR_REFUSALS = [
+  'actions-setup-pr-open',
+  'actions-setup-branch-exists',
+  'actions-setup-pr-tampered',
+  'actions-permission-missing',
+  'actions-setup-ready',
+  'actions-setup-downgrade',
+  'github-write-disabled',
+] as const;
+export type ActionsWorkflowPrRefusal = (typeof ACTIONS_WORKFLOW_PR_REFUSALS)[number];
+
 /** 422 `actions-not-ready` of `PUT …/dispatch {actions}`: `extensions.items` names the items that hold it back. */
 export const ACTIONS_NOT_READY = 'actions-not-ready';
 
