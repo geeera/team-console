@@ -360,6 +360,103 @@ describe('runner list, allowed projects and revoke', () => {
   });
 });
 
+// #795 (owner decision (a)): a subscription runner takes new projects from the owner who enrolled it only; any owner
+// may narrow it; a runner that cannot serve a subscription is every owner's to change, as before.
+describe('the scope of a subscription runner in a two-owner account', () => {
+  let enroller: SessionUser;
+  let other: SessionUser;
+
+  beforeAll(async () => {
+    enroller = await seedSessionUser('owner');
+    const userId = await seedUser('owner');
+    await seedMembership(enroller.account.id, userId, 'owner');
+    other = { userId, cookie: await seedSession(userId), account: enroller.account };
+  });
+
+  const projectOf = async (by: SessionUser): Promise<string> => {
+    const { slug } = await seedAccountProject(enroller.account);
+    await env.DB.prepare(`UPDATE projects SET created_by = ?2 WHERE slug = ?1`).bind(slug, by.userId).run();
+    return slug;
+  };
+  const patch = (as: SessionUser, runnerId: string, body: unknown): Promise<Response> =>
+    sendAsSession(as, 'PATCH', `${runnersPath(enroller.account.id)}/${runnerId}`, body);
+  const storedScope = (runnerId: string) =>
+    env.DB.prepare(`SELECT project_scope, allowed_projects FROM runners WHERE id = ?1`).bind(runnerId).first<{ project_scope: string; allowed_projects: string }>();
+  const scopeAudits = (runnerId: string) =>
+    env.DB.prepare(`SELECT actor, details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id`)
+      .bind(runnerId)
+      .all<{ actor: string; details: string }>()
+      .then((rows) => rows.results.map((row) => ({ actor: row.actor, details: JSON.parse(row.details) as unknown })));
+
+  it('lets the enroller add another owner’s project, and audits it as every scope change', async () => {
+    const theirs = await projectOf(other);
+    const runner = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected' });
+    const response = await patch(enroller, runner.id, { projectScope: 'selected', allowedProjects: [theirs] });
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as RunnerDto).servedProjects.map((row) => row.slug)).toEqual([theirs]);
+    expect(await scopeAudits(runner.id)).toEqual([
+      {
+        actor: enroller.userId,
+        details: { from: { projectScope: 'selected', allowedProjects: [] }, to: { projectScope: 'selected', allowedProjects: [theirs] } },
+      },
+    ]);
+  });
+
+  it('refuses another owner adding a project, even their own, or widening to all (403 runner-scope-enroller-only)', async () => {
+    const mine = await projectOf(enroller);
+    const theirs = await projectOf(other);
+    const runner = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected', allowedProjects: [mine] });
+    for (const body of [
+      { projectScope: 'selected', allowedProjects: [mine, theirs] },
+      { projectScope: 'selected', allowedProjects: [theirs] },
+      { projectScope: 'all', allowedProjects: [] },
+    ]) {
+      const refused = await patch(other, runner.id, body);
+      expect(refused.status).toBe(403);
+      expect(await slugOf(refused)).toBe('runner-scope-enroller-only');
+    }
+    expect(await storedScope(runner.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([mine]) });
+    expect(await scopeAudits(runner.id)).toEqual([]);
+    // Saving the scope it already has adds nothing: not a refusal.
+    expect((await patch(other, runner.id, { projectScope: 'selected', allowedProjects: [mine] })).status).toBe(200);
+  });
+
+  it('lets another owner narrow it, from a list and from all, and audits the change', async () => {
+    const mine = await projectOf(enroller);
+    const alsoMine = await projectOf(enroller);
+    const listed = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected', allowedProjects: [mine, alsoMine] });
+    const narrowed = await patch(other, listed.id, { projectScope: 'selected', allowedProjects: [alsoMine] });
+    expect(narrowed.status).toBe(200);
+    expect(await storedScope(listed.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([alsoMine]) });
+    expect(await scopeAudits(listed.id)).toEqual([
+      {
+        actor: other.userId,
+        details: { from: { projectScope: 'selected', allowedProjects: [mine, alsoMine] }, to: { projectScope: 'selected', allowedProjects: [alsoMine] } },
+      },
+    ]);
+    expect((await patch(other, listed.id, { projectScope: 'selected', allowedProjects: [] })).status).toBe(200);
+
+    // Under `all` (D3) it serves the enroller's projects; another owner may keep some of those, never one of theirs.
+    const everything = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'all' });
+    const theirs = await projectOf(other);
+    const widening = await patch(other, everything.id, { projectScope: 'selected', allowedProjects: [mine, theirs] });
+    expect(widening.status).toBe(403);
+    expect((await patch(other, everything.id, { projectScope: 'selected', allowedProjects: [mine] })).status).toBe(200);
+    expect(await storedScope(everything.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([mine]) });
+  });
+
+  it('leaves a runner that cannot serve a subscription to every owner, as before', async () => {
+    const theirs = await projectOf(other);
+    const apiKey = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'selected',
+      enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
+    });
+    expect((await patch(other, apiKey.id, { projectScope: 'selected', allowedProjects: [theirs] })).status).toBe(200);
+    expect((await patch(other, apiKey.id, { projectScope: 'all', allowedProjects: [] })).status).toBe(200);
+  });
+});
+
 // #492: the owner clears a suspect mark and withdraws a pending enrolment code, inside the account only.
 describe('clear a suspect mark', () => {
   let owner: SessionUser;

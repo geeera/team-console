@@ -5,7 +5,7 @@ import { IdempotencyKeysRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
 import { cancelJob, cancelJobsInFlight, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, setProjectAccessSource, type TestRunner } from '../testing/runner-kit';
 import type { RunnerSelfDto } from '@shared/contracts';
-import { seedAccountProject, seedSessionUser, sendAsSession } from '../testing/session-kit';
+import { seedAccountProject, seedMembership, seedSessionUser, seedUser, sendAsSession } from '../testing/session-kit';
 import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
 // #467, ADR 0006 "Claim"/"Run"/"Report", ADR 0008 decisions 2, 8 and 12; threat model C9 ("a runner claiming
@@ -721,5 +721,82 @@ describe('tracker writes under a job token judge the stored runner and job insid
     const after = await writtenRows(held.lost);
     expect(after.comments).toBe(before.comments + 1);
     expect(after.completedKeys).toBe(before.completedKeys + 1);
+  });
+});
+
+// #794: the routes judge a job's runner scope by the claim's own SQL term, owner decision D3 included — a subscription
+// runner under `all` in an account with more than one owner serves only the projects its enrolling owner created.
+describe('the job token under owner decision D3 (#794)', () => {
+  const setCreator = (slug: string, by: string) =>
+    env.DB.prepare(`UPDATE projects SET created_by = ?2 WHERE slug = ?1`).bind(slug, by).run();
+  const readAsJob = (runner: TestRunner, jobToken: string, slug: string, jobId: string) =>
+    sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${slug}/jobs/${jobId}`);
+
+  /** A two-owner account, a project the second owner created, and a live job on it claimed by the first owner's runner. */
+  async function otherOwnersJob() {
+    const owner = await seedSessionUser('owner');
+    const second = await seedUser('owner');
+    await seedMembership(owner.account.id, second, 'owner');
+    const theirs = await seedAccountProject(owner.account, { tracker: 'console' });
+    await setCreator(theirs.slug, second);
+    const runner = await enrolRunner(owner.account.id, { as: owner, projectScope: 'selected', allowedProjects: [theirs.slug] });
+    const jobId = await enqueueJob(theirs.slug, {}, owner);
+    const claimed = await claim(runner);
+    expect(claimed?.job.id).toBe(jobId);
+    const ok = await readAsJob(runner, claimed?.jobToken ?? '', theirs.slug, jobId);
+    expect(ok.status).toBe(200);
+    return { owner, slug: theirs.slug, runner, jobId, jobToken: claimed?.jobToken ?? '' };
+  }
+
+  it('refuses a live job’s token once its runner’s stored scope goes from selected to all and D3 drops the project', async () => {
+    const held = await otherOwnersJob();
+    // The row alone, as a write that commits past any cancel batch would leave it: the token is still stored.
+    await env.DB.prepare(`UPDATE runners SET project_scope = 'all', allowed_projects = '[]' WHERE id = ?1`).bind(held.runner.id).run();
+
+    const read = await readAsJob(held.runner, held.jobToken, held.slug, held.jobId);
+    expect(read.status).toBe(403);
+    expect(await slugOf(read)).toBe('job-runner-mismatch');
+    const heartbeat = await sendAsRunner(held.runner, 'POST', `/api/v1/runner/jobs/${held.jobId}/heartbeat`, {});
+    expect(heartbeat.status).toBe(404);
+    expect(await slugOf(heartbeat)).toBe('job-not-found');
+  });
+
+  it('cancels the job a selected→all change drops under D3, in the change’s own batch', async () => {
+    const held = await otherOwnersJob();
+    const patched = await sendAsSession(held.owner, 'PATCH', `/api/v1/accounts/${held.owner.account.id}/runners/${held.runner.id}`, {
+      projectScope: 'all',
+      allowedProjects: [],
+    });
+    expect(patched.status).toBe(200);
+    expect(await env.DB.prepare(`SELECT state, token_hash, result FROM jobs WHERE id = ?1`).bind(held.jobId).first()).toEqual({
+      state: 'cancelled',
+      token_hash: null,
+      result: '{"reason":"runner-allow-list"}',
+    });
+    const read = await readAsJob(held.runner, held.jobToken, held.slug, held.jobId);
+    expect(read.status).toBe(401);
+    expect(await slugOf(read)).toBe('job-token-invalid');
+  });
+
+  it('refuses a live job’s token once a second owner joins and D3 drops a project the enroller did not create', async () => {
+    const owner = await seedSessionUser('owner');
+    const member = await seedUser('member');
+    await seedMembership(owner.account.id, member, 'member');
+    const project = await seedAccountProject(owner.account, { tracker: 'console' });
+    await setCreator(project.slug, member);
+    const runner = await enrolRunner(owner.account.id, { as: owner, projectScope: 'all' });
+    const jobId = await enqueueJob(project.slug, {}, owner);
+    const claimed = await claim(runner);
+    expect(claimed?.job.id).toBe(jobId);
+    const jobToken = claimed?.jobToken ?? '';
+    expect((await readAsJob(runner, jobToken, project.slug, jobId)).status).toBe(200);
+
+    await seedMembership(owner.account.id, await seedUser('owner'), 'owner');
+
+    const read = await readAsJob(runner, jobToken, project.slug, jobId);
+    expect(read.status).toBe(403);
+    expect(await slugOf(read)).toBe('job-runner-mismatch');
+    const events = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/events`, { events: [{ level: 'info', kind: 'log', payload: {} }] });
+    expect(events.status).toBe(404);
   });
 });

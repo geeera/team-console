@@ -114,6 +114,7 @@ export type {
   NewRunner,
   RunnerRecord,
   RunnerSighting,
+  ScopeWrite,
   ServedProjectRecord,
   SightingOutcome,
 } from './lib/runners/runners.repo';
@@ -129,6 +130,7 @@ export type {
   DispatchTargetRecord,
   EnqueueOutcome,
   FinishSpend,
+  HeldJobRecord,
   JobEventRecord,
   JobFilter,
   JobRecord,

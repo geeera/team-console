@@ -19,9 +19,11 @@ import { isConstraintError } from '../tracker/constraint-error';
 import {
   claimPlacementAdmitsSql,
   hostedEnrolmentRefusedSql,
+  runnerAccountHasOneOwnerSql,
   runnerFitsAccessSourceSql,
   runnerScopeCoversSql,
   runnerServesSql,
+  runnerTakesSubscriptionSql,
 } from '../team-config/access-source';
 
 /**
@@ -29,6 +31,26 @@ import {
  * in, so a runner of account A is never read, revoked or re-scoped through account B's routes; the audit row of a
  * change travels in the change's own batch.
  */
+
+/** What `setScope` did (#795). */
+export type ScopeWrite = 'changed' | 'unchanged' | 'enroller-only';
+
+/**
+ * The scope write bound as `setScope` binds it (?3 the new list, ?4 the new scope, ?5 the writer's audit actor) may
+ * go ahead on the stored row aliased `runner` (#795): the runner cannot serve a subscription, or the writer enrolled
+ * it, or the write adds nothing it does not serve now — a `selected` list of projects it serves already, or `all` on
+ * a runner that is `all` already. A row from before `enrolled_by` (NULL, migration 0036) counts as its sole owner's
+ * while the account has one; with a second owner nobody may add to it until it is enrolled again.
+ */
+function scopeWriteAllowedSql(runner: string): string {
+  return `(
+    NOT ${runnerTakesSubscriptionSql(runner)}
+    OR (${runner}.enrolled_by IS NOT NULL AND ${runner}.enrolled_by = ?5)
+    OR (${runner}.enrolled_by IS NULL AND ${runnerAccountHasOneOwnerSql(runner)})
+    OR (?4 = 'selected' AND NOT EXISTS (SELECT 1 FROM json_each(?3) added WHERE NOT ${runnerServesSql(runner, 'added.value')}))
+    OR (?4 = 'all' AND ${runner}.project_scope = 'all')
+  )`;
+}
 
 export interface RunnerRecord {
   readonly id: string;
@@ -499,22 +521,33 @@ export class RunnersRepo {
   }
 
   /**
-   * The runner's scope (#775): `all`, or `selected` with its list. `true` only when something changed. `false` when
-   * the runner is not the account's, is hosted or `actions-ephemeral` (R-SCOPE-4: those are never widened; the route
-   * answers 422 before this, the WHERE holds it in the write), or already holds exactly this scope: that write changes
-   * no row, audits nothing and cancels nothing (#533). "The same list" is set equality (#547): order and duplicates do
-   * not count as a change. The list was checked against the account's projects by the caller; under `all` it is `[]`.
+   * The runner's scope (#775): `all`, or `selected` with its list, set by the owner whose audit actor is `by`.
+   * `changed` only when something changed. `unchanged` when the runner is not the account's, is hosted or
+   * `actions-ephemeral` (R-SCOPE-4: those are never widened; the route answers 422 before this, the WHERE holds it in
+   * the write), or already holds exactly this scope: that write changes no row, audits nothing and cancels nothing
+   * (#533). "The same list" is set equality (#547): order and duplicates do not count as a change. The list was checked
+   * against the account's projects by the caller; under `all` it is `[]`.
+   *
+   * `enroller-only` (#795, owner decision (a)): on a runner that can serve a subscription, only the owner who enrolled
+   * it may give it a project it does not serve now — another owner may only narrow, since the subscription is the
+   * enroller's. Judged in the batch on the stored row, with the claim's own term (`runnerServesSql`), so a change that
+   * commits in between cannot slip past it.
    */
   async setScope(
     accountId: string,
     id: string,
     scope: RunnerProjectScopeDto,
+    by: string,
     audit: NewAuditEvent,
     alsoInBatch: readonly D1PreparedStatement[] = [],
-  ): Promise<boolean> {
+  ): Promise<ScopeWrite> {
     const list = JSON.stringify(scope.projectScope === 'all' ? [] : [...new Set(scope.allowedProjects)]);
+    const mayWrite = scopeWriteAllowedSql('runners');
     // #531: as in `revoke`, the audit row only for a write that happened, the extra statements after the pair.
-    const [update] = await this.db.batch<{ id: string }>([
+    const [refusal, update] = await this.db.batch<{ id: string; refused?: number }>([
+      this.db
+        .prepare(`SELECT id, NOT ${mayWrite} AS refused FROM runners WHERE id = ?1 AND account_id = ?2`)
+        .bind(id, accountId, list, scope.projectScope, by),
       ...auditedWrite(
         this.db,
         this.db
@@ -524,15 +557,18 @@ export class RunnersRepo {
                project_scope <> ?4
                OR EXISTS (SELECT 1 FROM json_each(?3) n WHERE n.value NOT IN (SELECT value FROM json_each(runners.allowed_projects)))
                OR EXISTS (SELECT 1 FROM json_each(runners.allowed_projects) o WHERE o.value NOT IN (SELECT value FROM json_each(?3)))
-             ) RETURNING id`,
+             ) AND ${mayWrite} RETURNING id`,
           )
-          .bind(id, accountId, list, scope.projectScope),
+          .bind(id, accountId, list, scope.projectScope, by),
         audit,
       ),
       ...alsoInBatch,
     ]);
     // RETURNING, not `meta.changes`: D1 counts the rows the 0023 trigger revokes in role_keys there too.
-    return (update?.results.length ?? 0) === 1;
+    if ((update?.results.length ?? 0) === 1) {
+      return 'changed';
+    }
+    return refusal?.results[0]?.refused === 1 ? 'enroller-only' : 'unchanged';
   }
 
   /**

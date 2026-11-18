@@ -283,7 +283,7 @@ describe('JobsRepo.claim', () => {
     // Explicit selection serves the other owner's project whatever the credential.
     await setAccessSource(theirs, 'subscription');
     const picked = await enqueue(theirs, account);
-    await new RunnersRepo(env.DB).setScope(account, subscription, { projectScope: 'selected', allowedProjects: [theirs] }, audit('runner.scope-changed', account));
+    await new RunnersRepo(env.DB).setScope(account, subscription, { projectScope: 'selected', allowedProjects: [theirs] }, 'owner-1', audit('runner.scope-changed', account));
     expect(((await claimIn(subscription, 46)) as { id: string }).id).toBe(picked);
   });
 
@@ -309,7 +309,7 @@ describe('JobsRepo.claim', () => {
     const r = await runner(ACCOUNT_A, [dropped, kept]);
     const id = await enqueue(dropped);
     expect((await new RunnersRepo(env.DB).findById(r))?.allowedProjects).toContain(dropped);
-    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, { ...audit('runner.scope-changed'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1));
+    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', { ...audit('runner.scope-changed'), target: r }, jobs.cancelUnservedStatements(r, T1));
     expect(await claimAs(r, { tokenHash: '5a'.repeat(32) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
   });
@@ -948,7 +948,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     const r = await runner(ACCOUNT_A, [kept, lost]);
     const id = await enqueue(lost);
     await claimAs(r, { tokenHash: '7'.repeat(64) });
-    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, audit('runner.scope-changed'), jobs.cancelOutsideStatements(r, [kept], T1));
+    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', audit('runner.scope-changed'), jobs.cancelUnservedStatements(r, T1));
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
   });
 
@@ -961,7 +961,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     expect(((await claimAs(r, { tokenHash: tok(60) })) as { id: string }).id).toBe(id);
     const runners = new RunnersRepo(env.DB);
     const narrowed = { projectScope: 'selected' as const, allowedProjects: [kept] };
-    expect(await runners.setScope(ACCOUNT_A, r, narrowed, { ...audit('runner.scope-changed'), target: r }, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(true);
+    expect(await runners.setScope(ACCOUNT_A, r, narrowed, 'owner', { ...audit('runner.scope-changed'), target: r }, jobs.cancelUnservedStatements(r, T1))).toBe('changed');
     expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
   });
 
@@ -975,7 +975,7 @@ describe('TeamStateRepo.recordOutcome', () => {
     await allow(r, [kept]);
     const runners = new RunnersRepo(env.DB);
     const same = { ...audit('runner.scope-changed'), target: r };
-    expect(await runners.setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, same, jobs.cancelOutsideStatements(r, [kept], T1))).toBe(false);
+    expect(await runners.setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', same, jobs.cancelUnservedStatements(r, T1))).toBe('unchanged');
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
   });
 

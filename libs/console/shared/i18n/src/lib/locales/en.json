@@ -2260,6 +2260,7 @@
       "accessSourceHosted": "This project runs on a subscription, and a subscription never goes to GitHub Actions or a hosted runner. Switch its access source to an API key first.",
       "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
       "scopeFixed": "A runner hosted by us or a GitHub Actions runner serves what the console gave it. Its projects cannot be changed.",
+      "enrollerOnly": "Only the owner who enrolled this runner can add projects to it: it may run on their Claude subscription. You can still remove projects from it.",
       "openTeam": "Open team settings"
     },
     "dispatch": {

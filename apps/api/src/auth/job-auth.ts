@@ -1,10 +1,9 @@
 import { problem, sha256Hex, type Logger, type WorkerContext } from '@worker/core';
-import { JobsRepo, RunnersRepo, type JobRecord, type JobTokenHold, type RunnerRecord } from '@worker/db';
+import { JobsRepo, RunnersRepo, type HeldJobRecord, type JobTokenHold } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
 import { isJobRole } from './job-roles';
 import { RUNNER_JWT_HEADER, recordSighting, runnerJwtOf, runnerRefusal, verifyRunnerJwt } from './runner-auth';
-import { runnerServesJob } from './runner-scope';
 
 type JobIdentity = Extract<Identity, { kind: 'job' }>;
 
@@ -23,20 +22,17 @@ function refusalResponse(c: WorkerContext<ApiEnv>, logger: Logger, refusal: JobR
 }
 
 /**
- * Whether the job behind a token still holds for `runner` under its stored scope: the same judgement at
+ * Whether the job behind a token still holds for the runner `runnerId` under its stored scope: the same judgement at
  * authentication and after a tracker write's batch refused (#580), so both answer alike.
  */
-function judgeJob(
-  job: JobRecord | null,
-  runner: Pick<RunnerRecord, 'id' | 'accountId' | 'projectScope' | 'allowedProjects'>,
-  now: Date,
-): JobRefusal | null {
+function judgeJob(job: HeldJobRecord | null, runnerId: string, now: Date): JobRefusal | null {
   if (job === null) {
     return { type: 'job-token-invalid', status: 401 };
   }
-  // The runner's scope is judged again here (#490 review, #775): a project it lost after the claim closes the job's
-  // door at once, whatever the cancel batch managed.
-  if (job.runnerId !== runner.id || !runnerServesJob(runner, job)) {
+  // The runner's scope is judged again here (#490 review, #775) by the claim's own term on the stored row, read with
+  // the job (#794: D3 included, never a TypeScript copy): a project it lost after the claim closes the job's door at
+  // once, whatever the cancel batch managed.
+  if (job.runnerId !== runnerId || !job.runnerServes) {
     return { type: 'job-runner-mismatch', status: 403 };
   }
   if (
@@ -72,8 +68,8 @@ export async function jobIdentityOf(
   }
   const now = new Date();
   const tokenHash = await sha256Hex(token);
-  const job = await new JobsRepo(c.env.DB).findByTokenHash(tokenHash);
-  const refusal = judgeJob(job, verification.runner, now);
+  const job = await new JobsRepo(c.env.DB).findHeldByTokenHash(tokenHash);
+  const refusal = judgeJob(job, verification.runner.id, now);
   if (refusal !== null || job === null) {
     return refusalResponse(c, logger, refusal ?? { type: 'job-token-invalid', status: 401 });
   }
@@ -146,13 +142,13 @@ export async function lostJobHoldRefusal(
 ): Promise<Response | null> {
   const [runner, job] = await Promise.all([
     identity.runnerId === undefined ? null : new RunnersRepo(c.env.DB).findById(identity.runnerId),
-    identity.tokenHash === undefined ? null : new JobsRepo(c.env.DB).findByTokenHash(identity.tokenHash),
+    identity.tokenHash === undefined ? null : new JobsRepo(c.env.DB).findHeldByTokenHash(identity.tokenHash),
   ]);
   if (runner === null || runner.revokedAt !== null) {
     logger.warn('runner rejected', { reason: 'runner-revoked' });
     return problem(c, { type: 'runner-revoked', title: 'Unauthorized', status: 401 });
   }
   const sameJob = job !== null && job.id === identity.jobId && job.accountId === runner.accountId ? job : null;
-  const refusal = judgeJob(sameJob, runner, new Date());
+  const refusal = judgeJob(sameJob, runner.id, new Date());
   return refusal === null ? null : refusalResponse(c, logger, refusal);
 }
