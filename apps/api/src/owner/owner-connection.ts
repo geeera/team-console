@@ -144,14 +144,22 @@ export class OwnerConnection implements OwnerTokenSource {
     throw refreshBusyError();
   }
 
-  /** Stores a fresh pair from the callback, replacing any previous connection of the environment. */
+  /**
+   * Stores a fresh pair from the callback, replacing any previous connection of the environment. The previous
+   * access token is revoked first (#86); a failed revoke is logged and the connect goes on. Only the access token:
+   * GitHub does not document that this ends its refresh token too, so a reconnect is not a remediation for a leaked
+   * pair — that stays "Revoke all user tokens" (ADR 0003 decision 7).
+   */
   async connect(user: GitHubUser, pair: UserTokenPair): Promise<void> {
     const previous = await this.repo.find(this.environment);
-    if (previous !== null && previous.user_id !== user.id) {
-      this.logger.warn('owner connection: the GitHub user id changed since the last connect', {
-        securitySignal: 'owner-user-id-changed',
-        login: user.login,
-      });
+    if (previous !== null) {
+      if (previous.user_id !== user.id) {
+        this.logger.warn('owner connection: the GitHub user id changed since the last connect', {
+          securitySignal: 'owner-user-id-changed',
+          login: user.login,
+        });
+      }
+      await this.revokePrevious(previous);
     }
     await this.repo.connect({
       environment: this.environment,
@@ -203,6 +211,36 @@ export class OwnerConnection implements OwnerTokenSource {
         return null;
       }
       throw error;
+    }
+  }
+
+  /** Best effort: the reconnect must not fail because the pair it replaces cannot be revoked. */
+  private async revokePrevious(row: OwnerConnectionRow): Promise<void> {
+    const token = await this.storedAccessToken(row);
+    if (token === null) {
+      this.logger.warn('owner reconnect: the previous access token was not revoked', {
+        reason: 'no-usable-token',
+      });
+      return;
+    }
+    try {
+      const outcome = await this.oauth.revokeToken(token);
+      if (outcome === 'revoked') {
+        this.logger.info('owner reconnect: the previous access token was revoked');
+      } else {
+        this.logger.warn('owner reconnect: the previous access token was not revoked', {
+          reason: 'token-rejected',
+        });
+      }
+    } catch (error: unknown) {
+      if (!(error instanceof GitHubError)) {
+        throw error;
+      }
+      this.logger.warn('owner reconnect: the previous access token was not revoked', {
+        reason: 'revoke-failed',
+        problem: error.problem.type,
+        githubStatus: error.githubStatus,
+      });
     }
   }
 
