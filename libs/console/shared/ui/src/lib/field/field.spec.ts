@@ -6,7 +6,7 @@ import { Field, FieldControl } from './field';
 @Component({
   imports: [Field, FieldControl],
   template: `
-    <tc-field label="Repository" [hint]="hint()" [error]="error()" [note]="note()" [required]="required()">
+    <tc-field label="Repository" [hint]="hint()" [error]="error()" [note]="note()" [required]="required()" [optionalHint]="optionalHint()">
       <input tcInput type="text" />
     </tc-field>
   `,
@@ -16,6 +16,7 @@ class Host {
   readonly error = signal('');
   readonly note = signal('');
   readonly required = signal(true);
+  readonly optionalHint = signal(true);
 }
 
 describe('Field', () => {
@@ -95,5 +96,15 @@ describe('Field', () => {
     await fixture.whenStable();
 
     expect(label.textContent).toContain('(необязательно)');
+  });
+
+  it('leaves the optional suffix off when optionalHint is false', async () => {
+    const { fixture, label } = await render();
+
+    fixture.componentInstance.required.set(false);
+    fixture.componentInstance.optionalHint.set(false);
+    await fixture.whenStable();
+
+    expect(label.textContent).not.toContain('необязательно');
   });
 });

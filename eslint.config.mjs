@@ -59,6 +59,8 @@ export default [
       '**/.nx',
       '**/vitest.config.*.timestamp*',
       'docs/design/**',
+      // wrangler dev writes minified bundler output here on every run
+      '**/.wrangler/**',
     ],
   },
   {

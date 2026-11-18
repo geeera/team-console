@@ -53,7 +53,7 @@
 .space__title {
   margin: 0;
   font-family: var(--font-display);
-  font-size: var(--fs-xl);
+  font-size: var(--fs-2xl);
   font-weight: var(--fw-display);
   line-height: var(--lh-tight);
   overflow-wrap: anywhere;

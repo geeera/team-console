@@ -2,10 +2,6 @@
   gap: var(--space-8);
 }
 
-.settings__title {
-  font-size: var(--fs-2xl);
-}
-
 .settings__section {
   display: grid;
   gap: var(--space-3);
