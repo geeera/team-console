@@ -115,6 +115,21 @@ describe('RunnerCard', () => {
     expect(named.querySelector('h3')?.textContent?.trim()).toBe('actions:42');
   });
 
+  // #827: a runner from before enrollers were recorded says so; the claim itself is the page's projected action.
+  it('notes a runner with no recorded enroller, worded by whether the caller may claim it', async () => {
+    const unrecorded = await render(runnerFixture({ enroller: 'unrecorded' }));
+    expect(unrecorded.querySelector('[data-testid="runner-enroller"]')?.getAttribute('data-state')).toBe('unrecorded');
+    expect(text(unrecorded, 'runner-enroller')).toContain('подключите его заново');
+    TestBed.resetTestingModule();
+    expect(text(await render(runnerFixture({ enroller: 'claimable' })), 'runner-enroller')).toContain(
+      'Пока вы единственный владелец аккаунта, закрепите его за собой.',
+    );
+    for (const enroller of ['recorded', 'not-applicable'] as const) {
+      TestBed.resetTestingModule();
+      expect((await render(runnerFixture({ enroller }))).querySelector('[data-testid="runner-enroller"]')).toBeNull();
+    }
+  });
+
   it('says a runner with no projects takes no jobs', async () => {
     expect(text(await render(runnerFixture({ allowedProjects: [] })), 'runner-projects')).toBe(
       'ни одного — раннер не возьмёт задания',

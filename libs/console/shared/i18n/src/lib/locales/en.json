@@ -2140,6 +2140,10 @@
       "unfit": {
         "api_key": "{{project}} does not fit: the project runs on an API key, the runner has a subscription",
         "subscription": "{{project}} does not fit: the project runs on a subscription, the runner has an API key"
+      },
+      "enroller": {
+        "unrecorded": "No one is recorded as having enrolled this runner: it predates that record. While the account has more than one owner, no one can add projects to it — enrol it again.",
+        "claimable": "No one is recorded as having enrolled this runner: it predates that record. While you are the account's only owner, claim it as yours."
       }
     },
     "projects": {
@@ -2261,7 +2265,9 @@
       "repositoryUnverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
       "scopeFixed": "A runner hosted by us or a GitHub Actions runner serves what the console gave it. Its projects cannot be changed.",
       "enrollerOnly": "Only the owner who enrolled this runner can add projects to it: it may run on their Claude subscription. You can still remove projects from it.",
-      "openTeam": "Open team settings"
+      "openTeam": "Open team settings",
+      "enrollerNotSoleOwner": "Only the account's sole owner can claim a runner. Enrol the runner again.",
+      "enrollerSet": "The console already knows who enrolled this runner. Refresh the list."
     },
     "dispatch": {
       "title": "Where jobs run",
@@ -2315,6 +2321,17 @@
       "title": "Runner projects",
       "edit": "Projects",
       "editAria": "Change the projects of runner {{name}}"
+    },
+    "enroller": {
+      "open": "Claim as mine",
+      "aria": "Claim runner {{name}} as mine",
+      "title": "Claim runner “{{name}}” as yours?",
+      "message": "The console records that you enrolled this runner. This cannot be changed later.",
+      "itemOnlyYou": "Only you can add projects to it, even after other owners join the account.",
+      "itemAudit": "The action is written to the account's audit log.",
+      "confirm": "Claim",
+      "busy": "Claiming…",
+      "done": "Runner {{name}} is claimed as yours"
     }
   },
   "jobs": {

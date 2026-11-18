@@ -108,6 +108,7 @@ export {
 export type { AuditEventRecord, AuditPage, NewAuditEvent } from './lib/accounts/audit.repo';
 export { RunnersRepo, SERVER_SET_ACCESS_SOURCES, TWO_POLLERS_WINDOW_MS } from './lib/runners/runners.repo';
 export type {
+  EnrollerClaim,
   EnrolmentRecord,
   HostedEnrolOutcome,
   NewEnrolment,

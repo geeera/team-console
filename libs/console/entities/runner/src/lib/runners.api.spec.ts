@@ -84,6 +84,16 @@ describe('RunnersApi', () => {
     expect(await revoked).toEqual({ ok: false, failure: { kind: 'revoked', slug: 'runner-revoked', field: null } });
   });
 
+  // #827
+  it('posts a claim-enroller answered with the runner', async () => {
+    const { api, http } = setup();
+    const claimed = api.claimEnroller(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+    const claim = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}/claim-enroller`);
+    expect(claim.request.method).toBe('POST');
+    claim.flush(runnerFixture({ enroller: 'recorded' }));
+    expect(await claimed).toMatchObject({ ok: true, value: { enroller: 'recorded' } });
+  });
+
   // #492
   it('posts a clear-suspect answered with the runner, and a withdraw answered with 204', async () => {
     const { api, http } = setup();
@@ -151,6 +161,8 @@ describe('runnerFailureOf', () => {
     [problem(404, 'account-not-found'), 'not-found'],
     [problem(409, 'runner-revoked'), 'revoked'],
     [problem(409, 'runner-not-suspect'), 'not-suspect'],
+    [problem(409, 'runner-enroller-set'), 'enroller-set'],
+    [problem(403, 'runner-enroller-not-sole-owner'), 'forbidden'],
     [problem(409, 'something-else'), 'error'],
     [problem(422, 'allowed-projects-invalid', { field: 'allowedProjects' }), 'invalid'],
     [problem(413, 'too-large'), 'invalid'],
@@ -181,6 +193,8 @@ describe('runnerFailureKeyOf', () => {
     expect(of('invalid', 'enrolment-code-invalid-input', 'name')).toBe('runners.err.invalid');
     expect(of('forbidden')).toBe('runners.err.forbidden');
     expect(of('forbidden', 'runner-scope-enroller-only')).toBe('runners.err.enrollerOnly');
+    expect(of('forbidden', 'runner-enroller-not-sole-owner')).toBe('runners.err.enrollerNotSoleOwner');
+    expect(of('enroller-set', 'runner-enroller-set')).toBe('runners.err.enrollerSet');
     expect(of('not-found')).toBe('runners.err.notFound');
     expect(of('not-found', 'enrolment-not-found')).toBe('runners.err.enrolmentGone');
     expect(of('not-suspect', 'runner-not-suspect')).toBe('runners.err.notSuspect');

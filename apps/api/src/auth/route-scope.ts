@@ -129,6 +129,8 @@ export const ROUTE_SCOPES = {
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'account',
   // #492: the owner clears a suspect mark and withdraws a pending code; another account's is 404, as above.
   'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'account',
+  // #827: the sole owner claims a runner from before `enrolled_by`; another account's is 404, as above.
+  'POST /api/v1/accounts/:id/runners/:runner/claim-enroller': 'account',
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'account',
   // #634: enrolment intents of the owner's wizard; one of another account or another owner is 404 (R-INT-2).
   'POST /api/v1/accounts/:id/runners/enrolment-intents': 'account',

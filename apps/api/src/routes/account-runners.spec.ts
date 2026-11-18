@@ -457,6 +457,138 @@ describe('the scope of a subscription runner in a two-owner account', () => {
   });
 });
 
+// #827 (owner decision (a)): a runner from before `enrolled_by` (migration 0036) is claimed by the sole owner, audited.
+describe('claim a runner as its enroller', () => {
+  let legacyCount = 0;
+
+  /** A runner row as enrolments wrote it before 0036: no enroller. */
+  async function legacyRunner(accountId: string): Promise<string> {
+    legacyCount += 1;
+    const id = `01M6YSNJ00000000000827R${String(legacyCount).padStart(3, '0')}`;
+    const { publicKeyJwk } = await generateRunnerKey();
+    await env.DB.prepare(
+      `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
+       VALUES (?1, ?2, 'Mac', ?3, '{"os":"darwin","arch":"arm64","hostname":"mac.local"}', '{"local":true,"maxConcurrency":1}', 'user', '[]', '0.1.0', '2026-11-01T00:00:00.000Z', 0, 'selected', NULL)`,
+    )
+      .bind(id, accountId, JSON.stringify(publicKeyJwk))
+      .run();
+    return id;
+  }
+
+  const claim = (as: SessionUser, runnerId: string, accountId: string = as.account.id, extra = {}): Promise<Response> =>
+    sendAsSession(as, 'POST', `${runnersPath(accountId)}/${runnerId}/claim-enroller`, undefined, extra);
+  const enrollerOf = (runnerId: string): Promise<string | null> =>
+    env.DB.prepare(`SELECT enrolled_by FROM runners WHERE id = ?1`).bind(runnerId).first<string | null>('enrolled_by');
+  const claimAudits = (runnerId: string) =>
+    env.DB.prepare(`SELECT actor, actor_kind, details FROM audit_events WHERE kind = 'runner.enroller-claimed' AND target = ?1`)
+      .bind(runnerId)
+      .all<{ actor: string; actor_kind: string; details: string }>()
+      .then((rows) => rows.results);
+  const listedEnroller = async (as: SessionUser, runnerId: string): Promise<string | undefined> => {
+    const list = (await (await sendAsSession(as, 'GET', runnersPath(as.account.id))).json()) as RunnerListDto;
+    return list.runners.find((runner) => runner.id === runnerId)?.enroller;
+  };
+
+  it('lets the sole owner claim it once: the list offers it, the claim records them and audits it', async () => {
+    const owner = await seedSessionUser('owner');
+    const runnerId = await legacyRunner(owner.account.id);
+    expect(await listedEnroller(owner, runnerId)).toBe('claimable');
+
+    const response = await claim(owner, runnerId);
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as RunnerDto).enroller).toBe('recorded');
+    expect(await enrollerOf(runnerId)).toBe(owner.userId);
+    expect(await claimAudits(runnerId)).toEqual([
+      { actor: owner.userId, actor_kind: 'user', details: JSON.stringify({ basis: 'sole-owner' }) },
+    ]);
+    expect(await listedEnroller(owner, runnerId)).toBe('recorded');
+
+    const again = await claim(owner, runnerId);
+    expect(again.status).toBe(409);
+    expect(await slugOf(again)).toBe('runner-enroller-set');
+    expect(await claimAudits(runnerId)).toHaveLength(1);
+  });
+
+  it('refuses every owner once a second owner exists (403 runner-enroller-not-sole-owner)', async () => {
+    const owner = await seedSessionUser('owner');
+    const secondId = await seedUser('owner');
+    await seedMembership(owner.account.id, secondId, 'owner');
+    const second: SessionUser = { userId: secondId, cookie: await seedSession(secondId), account: owner.account };
+    const runnerId = await legacyRunner(owner.account.id);
+    expect(await listedEnroller(owner, runnerId)).toBe('unrecorded');
+    for (const as of [owner, second]) {
+      const refused = await claim(as, runnerId);
+      expect(refused.status).toBe(403);
+      expect(await slugOf(refused)).toBe('runner-enroller-not-sole-owner');
+    }
+    expect(await enrollerOf(runnerId)).toBeNull();
+    expect(await claimAudits(runnerId)).toEqual([]);
+  });
+
+  it('refuses a runner whose enroller is recorded, and a revoked one', async () => {
+    const owner = await seedSessionUser('owner');
+    const recorded = await enrolRunner(owner.account.id, { as: owner });
+    expect(await listedEnroller(owner, recorded.id)).toBe('recorded');
+    const refused = await claim(owner, recorded.id);
+    expect(refused.status).toBe(409);
+    expect(await slugOf(refused)).toBe('runner-enroller-set');
+
+    const revoked = await legacyRunner(owner.account.id);
+    await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/${revoked}/revoke`, {});
+    expect(await listedEnroller(owner, revoked)).toBe('not-applicable');
+    const onRevoked = await claim(owner, revoked);
+    expect(onRevoked.status).toBe(409);
+    expect(await slugOf(onRevoked)).toBe('runner-revoked');
+    expect(await enrollerOf(revoked)).toBeNull();
+  });
+
+  it('answers another account’s runner exactly as a missing one, and a member 403', async () => {
+    const owner = await seedSessionUser('owner');
+    const runnerId = await legacyRunner(owner.account.id);
+    const stranger = await seedSessionUser('owner');
+
+    // Through the stranger's own account: their runner list holds no such id, the same answer as an unknown one.
+    const foreign = await claim(stranger, runnerId);
+    const missing = await claim(stranger, '01M6YSNJ00000000000827RZZZ');
+    expect([foreign.status, missing.status]).toEqual([404, 404]);
+    const bodyOf = async (response: Response) => {
+      const { type, title, status, detail } = (await response.json()) as Record<string, unknown>;
+      return { type, title, status, detail };
+    };
+    expect(await bodyOf(foreign)).toEqual(await bodyOf(missing));
+    expect(await slugOf(await claim(stranger, 'not-a-runner'))).toBe('runner-not-found');
+    // Through the owner's account: the stranger is no member there.
+    const outside = await claim(stranger, runnerId, owner.account.id);
+    expect(outside.status).toBe(404);
+    expect(await slugOf(outside)).toBe('account-not-found');
+
+    const memberId = await seedUser('member');
+    await seedMembership(owner.account.id, memberId, 'member');
+    const asMember = await claim({ userId: memberId, cookie: await seedSession(memberId), account: owner.account }, runnerId);
+    expect(asMember.status).toBe(403);
+    expect(await slugOf(asMember)).toBe('account-owner-only');
+    expect(await enrollerOf(runnerId)).toBeNull();
+    expect(await claimAudits(runnerId)).toEqual([]);
+  });
+
+  it('refuses a cross-site write with 403 csrf and writes nothing', async () => {
+    const owner = await seedSessionUser('owner');
+    const runnerId = await legacyRunner(owner.account.id);
+    const crossSite = await claim(owner, runnerId, owner.account.id, { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    expect(crossSite.status).toBe(403);
+    expect(await slugOf(crossSite)).toBe('csrf');
+    expect(await enrollerOf(runnerId)).toBeNull();
+  });
+
+  it('answers two concurrent claims with one 200 and one 409, audited once', async () => {
+    const owner = await seedSessionUser('owner');
+    const runnerId = await legacyRunner(owner.account.id);
+    const statuses = (await Promise.all([claim(owner, runnerId), claim(owner, runnerId)])).map((response) => response.status);
+    expect(statuses.sort()).toEqual([200, 409]);
+    expect(await claimAudits(runnerId)).toHaveLength(1);
+  });
+});
+
 // #492: the owner clears a suspect mark and withdraws a pending enrolment code, inside the account only.
 describe('clear a suspect mark', () => {
   let owner: SessionUser;

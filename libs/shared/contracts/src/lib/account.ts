@@ -66,6 +66,8 @@ export const AUDIT_EVENT_KINDS = [
   // #775: the owner changed which projects a runner serves (`all` or a list); details hold the two scopes.
   'runner.scope-changed',
   'runner.suspect',
+  // #827: the sole owner recorded themselves as the enroller of a runner from before `enrolled_by`.
+  'runner.enroller-claimed',
   // The owner's runner management (#492): a suspect mark cleared, a pending code withdrawn.
   'runner.suspect-cleared',
   'enrolment-code.withdrawn',
