@@ -22,6 +22,7 @@ import {
 } from '../testing/github-kit';
 import { fakeGitHub, resetOwnerConnections, seedConnection } from '../testing/owner-kit';
 import { seedMembership, seedSessionUser, sendAsSession } from '../testing/session-kit';
+import { sendAsService } from '../testing/tracker-kit';
 import { AuditRepo, InstallationsRepo } from '@worker/db';
 import { OWNER_ACCOUNT_ID } from '@shared/contracts';
 
@@ -906,6 +907,63 @@ describe('POST /api/v1/projects — the account (#466)', () => {
     );
     await expectProblem(archived, 404, 'project-not-found');
     expect(await rowCount()).toBe(1);
+  });
+});
+
+// #372: the dev/stage CI service identity passes Access but must not change the registry; the reads stay open to it.
+describe('the registry and the service identity (#372)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  async function registryRow(): Promise<unknown> {
+    return env.DB.prepare(
+      'SELECT slug, display_name, routine_id, archived_at FROM projects ORDER BY slug',
+    ).all();
+  }
+
+  it('add, rename and archive answer 403 owner-only and write nothing to D1', async () => {
+    await seedProject('storify', 'geeera/storify');
+    const before = await registryRow();
+    const auditBefore = await new AuditRepo(env.DB).listForAccount(OWNER_ACCOUNT_ID, null, 10);
+
+    await expectProblem(
+      await sendAsService('POST', '/api/v1/projects', { repo: 'geeera/other' }),
+      403,
+      'owner-only',
+    );
+    await expectProblem(
+      await sendAsService('PATCH', '/api/v1/projects/storify', { displayName: 'Renamed', routineId: null }),
+      403,
+      'owner-only',
+    );
+    await expectProblem(
+      await sendAsService('POST', '/api/v1/projects/storify/archive', {}),
+      403,
+      'owner-only',
+    );
+
+    expect(await registryRow()).toEqual(before);
+    expect(await rowCount()).toBe(1);
+    await expect(new AuditRepo(env.DB).listForAccount(OWNER_ACCOUNT_ID, null, 10)).resolves.toEqual(
+      auditBefore,
+    );
+  });
+
+  it('refuses a slug that does not exist the same way, so the answer reveals no slug', async () => {
+    await expectProblem(
+      await sendAsService('PATCH', '/api/v1/projects/nope', { displayName: 'x' }),
+      403,
+      'owner-only',
+    );
+    await expectProblem(await sendAsService('POST', '/api/v1/projects/nope/archive', {}), 403, 'owner-only');
+  });
+
+  it('still reads the list', async () => {
+    await seedProject('storify', 'geeera/storify');
+    const response = await sendAsService('GET', '/api/v1/projects');
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual([expect.objectContaining({ slug: 'storify' })]);
   });
 });
 

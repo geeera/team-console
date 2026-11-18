@@ -1,3 +1,4 @@
+import { isRecord } from '@shared/contracts';
 import { createRemoteJWKSet, customFetch, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
 import type { AccessConfig } from './access-config';
 import type { Identity } from './auth.types';
@@ -9,7 +10,7 @@ const REQUIRED_CLAIMS = ['exp', 'iat', 'aud', 'iss'];
 const CLOCK_TOLERANCE_SECONDS = 30;
 
 /**
- * How long a failed JWKS load (network error, timeout, non-200) is remembered per URL. Without this, an
+ * How long a failed JWKS load (network error, timeout, non-200, a 200 that is not a key set) is remembered per URL. Without this, an
  * outage or a valid-looking but wrong `ACCESS_TEAM_DOMAIN` turns every well-formed token into a fresh fetch
  * (#56); jose's own cooldown only covers an unmatched `kid` after a *successful* load.
  */
@@ -28,17 +29,28 @@ function isJwksLoadCoolingDown(href: string): boolean {
   return failedAt !== undefined && Date.now() - failedAt < JWKS_LOAD_NEGATIVE_CACHE_MS;
 }
 
+/** The shape jose's `isJwkSet` accepts; anything else makes it throw after the load "succeeded" (#283). */
+async function isKeySetBody(response: Response): Promise<boolean> {
+  let body: unknown;
+  try {
+    body = await response.clone().json();
+  } catch {
+    return false;
+  }
+  return isRecord(body) && Array.isArray(body['keys']) && body['keys'].every(isRecord);
+}
+
 /**
  * Wraps `fetch` so the negative cache above tracks the load itself — not jose's downstream key-selection
  * outcome (an unmatched `kid` after a healthy load must not trip it). Passed to jose as `customFetch`; jose
  * still sets `redirect: 'manual'` on `options` itself (pinned by the spec in auth.middleware.spec.ts), this
- * wrapper only observes the result.
+ * wrapper only observes the result (it reads a clone of the body, so jose still gets the original).
  */
 function observedFetch(href: string): (url: string, options: RequestInit) => Promise<Response> {
   return async (url, options) => {
     try {
       const response = await fetch(url, options);
-      if (response.status === 200) {
+      if (response.status === 200 && (await isKeySetBody(response))) {
         jwksLoadFailedAt.delete(href);
       } else {
         jwksLoadFailedAt.set(href, Date.now());

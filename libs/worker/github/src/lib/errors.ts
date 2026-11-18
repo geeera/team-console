@@ -156,11 +156,14 @@ function isRateLimited(response: Response): boolean {
   );
 }
 
-/** Seconds to wait: `Retry-After` when GitHub sends it, else until `x-ratelimit-reset`, else a minute. */
+/**
+ * Seconds to wait: `Retry-After` when GitHub sends it, else until `x-ratelimit-reset`, else a minute.
+ * Both branches floor at one second: a `0` would tell clients to retry while we are being limited (#133).
+ */
 export function retryAfterOf(headers: Headers, nowMs: number): number {
   const retryAfter = Number(headers.get('retry-after'));
   if (headers.has('retry-after') && Number.isFinite(retryAfter) && retryAfter >= 0) {
-    return Math.min(Math.ceil(retryAfter), MAX_RETRY_AFTER);
+    return Math.min(Math.max(Math.ceil(retryAfter), 1), MAX_RETRY_AFTER);
   }
   const reset = Number(headers.get('x-ratelimit-reset'));
   if (headers.has('x-ratelimit-reset') && Number.isFinite(reset) && reset > 0) {

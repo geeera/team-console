@@ -25,7 +25,10 @@ import { JOB_READ_MODEL_ROUTES, TRACKER_MATRIX } from './tracker-matrix';
 // owner-request.spec.ts ("the GET changes a row only on a trusted bot's strict marker") pins it (#270).
 
 type ServiceRule =
-  /** Refused outright by `ownerOnlyMiddleware` (403 owner-only), before any handler code runs. */
+  /**
+   * Refused outright (403 owner-only) by `ownerOnlyMiddleware` or `userOrOwnerMiddleware`, before any handler
+   * code runs.
+   */
   | 'owner-only'
   /** An owner write allowed only on an `e2e:fixture` issue (`service-write-gate.ts`); proven in its route spec. */
   | 'fixture-gate'
@@ -118,9 +121,11 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/items/:key/pr-links': 'job-only',
   // #612: review jobs on a pull request, the orchestrator job only (the owner gets 403 review-request-role).
   'POST /api/v1/projects/:slug/prs/:number/reviews': 'job-only',
-  'POST /api/v1/projects': 'no-owner-write',
-  'PATCH /api/v1/projects/:slug': 'no-owner-write',
-  'POST /api/v1/projects/:slug/archive': 'no-owner-write',
+  // #372: the registry is the owner's; rename and archive also reach an account owner's session (#482), so they
+  // refuse the service identity with `userOrOwnerMiddleware` rather than `ownerOnlyMiddleware`.
+  'POST /api/v1/projects': 'owner-only',
+  'PATCH /api/v1/projects/:slug': 'owner-only',
+  'POST /api/v1/projects/:slug/archive': 'owner-only',
 };
 
 const STATE_CHANGING: ReadonlySet<string> = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
