@@ -36,3 +36,7 @@ Each page has a spec (`src/p<issue>.py`: notes and the demo bar), its own CSS an
 into the app's catalogue as they are. Values the Paper Desk sketch has no token for (spacing scale, 44 px target,
 16 px input text, stagger, reduced-motion fade) are declared once as tokens at the top of `src/kit.css` and
 proposed for the UI kit. Fonts are OFL (Source Serif 4, Source Sans 3, Source Code Pro); icons are inline strokes.
+The shipped console self-hosts those three faces (#375, option a): woff2, Cyrillic + Latin subsets, only the weights the
+tokens use (serif 600, sans 400/600/700, mono 400), under `apps/console/public/fonts/` with the OFL text next to them.
+`@font-face` (`font-display: swap`, unicode-range) lives in the kit's `base.css`, Storybook serves the same files, the
+ngsw `assets` group caches them lazily, and `font-src 'self'` is unchanged.

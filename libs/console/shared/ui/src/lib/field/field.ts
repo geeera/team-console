@@ -41,6 +41,10 @@ export class Field {
   /** A live line under the control that also describes it, e.g. a preview of what the value becomes. */
   readonly note = input<string>('');
   readonly required = input(false, { transform: booleanAttribute });
+  /** Turn off for search and filter boxes: they are never required, so the suffix is only noise (and read aloud). */
+  readonly optionalHint = input(true, { transform: booleanAttribute });
+
+  readonly showsOptional = computed(() => !this.required() && this.optionalHint());
 
   readonly id = `tc-field-${nextFieldId++}`;
   readonly controlId = `${this.id}-control`;
