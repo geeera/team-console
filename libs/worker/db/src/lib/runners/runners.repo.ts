@@ -588,17 +588,17 @@ export class RunnersRepo {
       .prepare(
         `SELECT p.dispatch, (a.suspended_at IS NULL AND p.archived_at IS NULL) AS live,
            MAX(CASE
-                 WHEN me.id IS NULL THEN 0
-                 WHEN me.last_seen_at IS NULL OR (julianday(?2) - julianday(me.last_seen_at)) * 86400.0 > ?3 THEN 1
-                 WHEN me.paused_until IS NOT NULL AND julianday(me.paused_until) > julianday(?2) THEN 2
+                 WHEN r.id IS NULL THEN 0
+                 WHEN r.last_seen_at IS NULL OR (julianday(?2) - julianday(r.last_seen_at)) * 86400.0 > ?3 THEN 1
+                 WHEN r.paused_until IS NOT NULL AND julianday(r.paused_until) > julianday(?2) THEN 2
                  ELSE 3
                END) AS level
          FROM projects p JOIN accounts a ON a.id = p.account_id
-         LEFT JOIN runners me ON me.account_id = p.account_id AND me.revoked_at IS NULL
-           AND me.isolation <> 'actions-ephemeral'
-           AND ${runnerServesSql('me', 'p.slug')}
-           AND ${runnerFitsAccessSourceSql('me', 'p')}
-           AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'me.id', '?2', '?4')}
+         LEFT JOIN runners r ON r.account_id = p.account_id AND r.revoked_at IS NULL
+           AND r.isolation <> 'actions-ephemeral'
+           AND ${runnerServesSql('r', 'p.slug')}
+           AND ${runnerFitsAccessSourceSql('r', 'p')}
+           AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'r.id', '?2', '?4')}
          WHERE p.slug = ?1
          GROUP BY p.slug`,
       )
@@ -621,16 +621,16 @@ export class RunnersRepo {
    * (`other-owner-subscription`). Otherwise `no-runner`.
    */
   async unavailableReasonOf(slug: string, now: string): Promise<RunnerUnavailableReason> {
-    const candidate = `FROM runners me WHERE me.account_id = p.account_id AND me.revoked_at IS NULL
-             AND me.isolation <> 'actions-ephemeral'
-             AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'me.id', '?2', '?3')}`;
+    const candidate = `FROM runners r WHERE r.account_id = p.account_id AND r.revoked_at IS NULL
+             AND r.isolation <> 'actions-ephemeral'
+             AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'r.id', '?2', '?3')}`;
     const row = await this.db
       .prepare(
         `SELECT
-           EXISTS (SELECT 1 ${candidate} AND ${runnerServesSql('me', 'p.slug')}
-                   AND NOT (${runnerFitsAccessSourceSql('me', 'p')})) AS mismatch,
-           EXISTS (SELECT 1 ${candidate} AND ${runnerScopeCoversSql('me', 'p.slug')} AND NOT ${runnerServesSql('me', 'p.slug')}
-                   AND ${runnerFitsAccessSourceSql('me', 'p')}) AS held_by_d3
+           EXISTS (SELECT 1 ${candidate} AND ${runnerServesSql('r', 'p.slug')}
+                   AND NOT (${runnerFitsAccessSourceSql('r', 'p')})) AS mismatch,
+           EXISTS (SELECT 1 ${candidate} AND ${runnerScopeCoversSql('r', 'p.slug')} AND NOT ${runnerServesSql('r', 'p.slug')}
+                   AND ${runnerFitsAccessSourceSql('r', 'p')}) AS held_by_d3
          FROM projects p JOIN accounts a ON a.id = p.account_id
          WHERE p.slug = ?1`,
       )
