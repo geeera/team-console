@@ -381,17 +381,27 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const now = new Date();
       const before: RunnerProjectScopeDto = { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
-      // Narrowing to a list cancels the runner's live jobs in the projects it loses, in the same batch (#490 review,
-      // R-SCOPE-5); `all` loses nothing, so nothing rides along. A no-op writes and audits nothing.
-      await runners.setScope(
+      // The runner's live jobs in projects the new scope no longer serves are cancelled in the same batch (#490 review,
+      // R-SCOPE-5, #794) — judged by the claim's own term, so `selected`→`all` under D3 cancels what it drops too. A
+      // no-op writes, audits and cancels nothing.
+      const written = await runners.setScope(
         account.id,
         runner.id,
         input.value,
+        auditActorOf(c.get('identity')).actor,
         auditOf(c, account, now.toISOString(), 'runner.scope-changed', runner.id, { from: before, to: input.value }),
-        input.value.projectScope === 'selected'
-          ? new JobsRepo(c.env.DB).cancelOutsideStatements(runner.id, input.value.allowedProjects, now.toISOString())
-          : [],
+        new JobsRepo(c.env.DB).cancelUnservedStatements(runner.id, now.toISOString()),
       );
+      // #795: a subscription runner is the enrolling owner's to widen; another owner may only narrow it.
+      if (written === 'enroller-only') {
+        c.get('logger').warn('runner scope refused', { reason: 'runner-scope-enroller-only', runnerId: runner.id });
+        return problem(c, {
+          type: 'runner-scope-enroller-only',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Only the owner who enrolled this runner can add projects to it: its sign-in may be their subscription',
+        });
+      }
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(
         runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runners.servedProjectsOf(account.id, runner.id)),

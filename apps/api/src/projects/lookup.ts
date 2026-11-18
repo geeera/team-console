@@ -2,7 +2,7 @@ import { problem, type WorkerContext } from '@worker/core';
 import { ProjectsRepo, RunnersRepo, type ProjectRow, type TrackerProject } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
 import { isOwnerIdentity } from '../auth/owner-only.middleware';
-import { admits, roleIn, scopeOf } from '../auth/scope';
+import { admits, roleIn, scopeOf, type Scope } from '../auth/scope';
 import type { ApiEnv } from '../env';
 
 // Threat row 2 of #9: a slug with `/`, `..` or an encoded slash never reaches D1 or GitHub. Looser than the
@@ -23,11 +23,28 @@ export async function findProject(c: WorkerContext<ApiEnv>, slug: string): Promi
   if (row === null) {
     return null;
   }
-  if (!admits(scopeOf(c.get('identity'), c.env), row)) {
+  const scope = scopeOf(c.get('identity'), c.env);
+  const inScope =
+    scope.kind === 'runner'
+      ? row.account_id === scope.accountId && (await runnerServedSlugsOf(c, scope)).has(row.slug)
+      : admits(scope, row);
+  if (!inScope) {
     c.get('logger').warn('project refused', { reason: 'out-of-scope', identity: c.get('identity').kind });
     return null;
   }
   return row;
+}
+
+/**
+ * The slugs a runner scope serves, as the claim's own term answers them (`servedProjectsOf`: `runnerServesSql` on the
+ * stored row, D3 applied, inside the runner's account) — one definition for `selected` and `all` alike (#794).
+ */
+async function runnerServedSlugsOf(
+  c: WorkerContext<ApiEnv>,
+  scope: Extract<Scope, { readonly kind: 'runner' }>,
+): Promise<ReadonlySet<string>> {
+  const served = await new RunnersRepo(c.env.DB).servedProjectsOf(scope.accountId, scope.runnerId);
+  return new Set(served.map((row) => row.slug));
 }
 
 /** The scope's active projects (`/needs-you`, `/overview`, the registry list): an empty scope lists nothing. */
@@ -46,14 +63,10 @@ export async function scopedProjectsOf(
       return row === null ? [] : [row];
     }
     case 'runner': {
-      // A runner lists the projects of its own account its scope serves (ADR 0008 decision 2, #775): under `all` the
-      // claim's own term answers (`servedProjectsOf`, D3 applied); a slug of another account is not its, whatever
-      // `allowed_projects` says.
+      // A runner lists the projects of its own account its scope serves (ADR 0008 decision 2, #775); a slug of
+      // another account is not its, whatever `allowed_projects` says.
       const rows = await repo.listActive([scope.accountId]);
-      const served =
-        scope.projects === 'all'
-          ? new Set((await new RunnersRepo(c.env.DB).servedProjectsOf(scope.accountId, scope.runnerId)).map((row) => row.slug))
-          : new Set(scope.projects);
+      const served = await runnerServedSlugsOf(c, scope);
       return rows.filter((row) => served.has(row.slug));
     }
     case 'none':

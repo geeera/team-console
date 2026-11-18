@@ -21,10 +21,9 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type JobRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
+import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type HeldJobRecord, type JobRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
 import { dispatchAdmittedActionsJobs } from '../actions/dispatch';
 import type { Identity } from '../auth/auth.types';
-import { runnerServesJob } from '../auth/runner-scope';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
@@ -57,12 +56,11 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
 }
 
-type RunnerScopeHolder = Pick<RunnerRecord, 'accountId' | 'projectScope' | 'allowedProjects'> & { readonly runnerId: string };
-
-/** `job` as the live job of `runner` under its scope; another runner's or a finished one is 404/409. */
-function judgeHeld(c: Context, job: JobRecord | null, runner: RunnerScopeHolder, now: string): JobRecord | Response {
-  // The scope is judged again (#490 review, #775): a project the runner lost since the claim is no longer its.
-  if (job === null || job.runnerId !== runner.runnerId || !runnerServesJob(runner, job)) {
+/** `job` as the live job of the runner `runnerId` under its scope; another runner's or a finished one is 404/409. */
+function judgeHeld(c: Context, job: HeldJobRecord | null, runnerId: string, now: string): JobRecord | Response {
+  // The scope is judged again (#490 review, #775) by the claim's own term, read with the job (#794, D3 included): a
+  // project the runner lost since the claim is no longer its.
+  if (job === null || job.runnerId !== runnerId || !job.runnerServes) {
     return problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 });
   }
   if (job.state !== 'claimed' && job.state !== 'running') {
@@ -74,11 +72,15 @@ function judgeHeld(c: Context, job: JobRecord | null, runner: RunnerScopeHolder,
   return job;
 }
 
-/** The job behind `:id` as this runner's live job, judged on the runner row read at authentication. */
+/** The job behind `:id` as this runner's live job, judged on the stored runner row in the same read (#794). */
 async function heldJobOf(c: Context, runner: RunnerIdentity, now: string): Promise<JobRecord | Response> {
   const id = c.req.param('id') ?? '';
-  const job = isUlid(id) ? await new JobsRepo(c.env.DB).findById(id) : null;
-  return judgeHeld(c, job, runner, now);
+  const job = isUlid(id) ? await new JobsRepo(c.env.DB).findHeldById(id) : null;
+  if (job !== null && job.runnerId === runner.runnerId && !job.runnerServes) {
+    // The stored row no longer serves it: a revoke since authentication answers as the runner door does.
+    return lostWriteRefusal(c, runner, job.id, now);
+  }
+  return judgeHeld(c, job, runner.runnerId, now);
 }
 
 /** The scope as the claim applied it (#775): the stored row plus the effective project list, D3 included. */
@@ -98,20 +100,16 @@ async function scopeOf(repo: RunnersRepo, runner: RunnerRecord): Promise<RunnerS
  */
 async function lostWriteRefusal(c: Context, runner: RunnerIdentity, jobId: string, now: string): Promise<Response> {
   const [job, stored] = await Promise.all([
-    new JobsRepo(c.env.DB).findById(jobId),
+    new JobsRepo(c.env.DB).findHeldById(jobId),
     new RunnersRepo(c.env.DB).findById(runner.runnerId),
   ]);
   if (stored === null || stored.revokedAt !== null) {
     c.get('logger').warn('runner rejected', { reason: 'runner-revoked' });
     return problem(c, { type: 'runner-revoked', title: 'Unauthorized', status: 401 });
   }
-  // The stored row is read by id; a row of another account (impossible past 0021's identity trigger) serves nothing.
-  const judged = judgeHeld(
-    c,
-    job,
-    stored.accountId === runner.accountId ? { ...stored, runnerId: stored.id } : { ...runner, projectScope: 'selected', allowedProjects: [] },
-    now,
-  );
+  // `runnerServes` holds the account equality of the stored row; a row of another account (impossible past 0021's
+  // identity trigger) serves nothing.
+  const judged = judgeHeld(c, stored.accountId === runner.accountId ? job : null, runner.runnerId, now);
   return judged instanceof Response ? judged : problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
 }
 

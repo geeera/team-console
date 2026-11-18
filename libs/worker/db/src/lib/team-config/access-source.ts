@@ -32,15 +32,28 @@ export function hostedRunnerAdmittedSql(slug: string, policy: string): string {
  * (threat model C9, R-SCOPE-3). `hostedRunnerAdmittedSql` stays blind to it on purpose (R-SCOPE-4).
  */
 export function runnerServesSql(runner: string, slug: string): string {
-  const subscriptionCapable = `(json_type(${runner}.capabilities, '$.accessSources') IS NULL
-          OR EXISTS (SELECT 1 FROM json_each(${runner}.capabilities, '$.accessSources') WHERE value = 'subscription'))`;
-  const oneOwner = `(SELECT COUNT(*) FROM account_members om WHERE om.account_id = ${runner}.account_id AND om.role = 'owner') <= 1`;
+  const subscriptionCapable = runnerTakesSubscriptionSql(runner);
+  const oneOwner = runnerAccountHasOneOwnerSql(runner);
   const ownProject = `(${runner}.enrolled_by IS NOT NULL
           AND ${runner}.enrolled_by = (SELECT cp.created_by FROM projects cp WHERE cp.slug = ${slug}))`;
   return `(
       (${runner}.project_scope = 'all' AND (NOT ${subscriptionCapable} OR ${oneOwner} OR ${ownProject}))
       OR ${slug} IN (SELECT value FROM json_each(${runner}.allowed_projects))
     )`;
+}
+
+/**
+ * The runner row aliased `runner` can serve a Claude subscription — the D3 kind (owner decisions D3 and #795): its
+ * `capabilities.accessSources` names `subscription`, or it declares nothing (so nothing rules it out).
+ */
+export function runnerTakesSubscriptionSql(runner: string): string {
+  return `(json_type(${runner}.capabilities, '$.accessSources') IS NULL
+          OR EXISTS (SELECT 1 FROM json_each(${runner}.capabilities, '$.accessSources') WHERE value = 'subscription'))`;
+}
+
+/** The account of the runner row aliased `runner` has at most one owner (D3 holds back nothing there). */
+export function runnerAccountHasOneOwnerSql(runner: string): string {
+  return `(SELECT COUNT(*) FROM account_members om WHERE om.account_id = ${runner}.account_id AND om.role = 'owner') <= 1`;
 }
 
 /**

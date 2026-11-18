@@ -4,7 +4,8 @@ import { TimeoutError } from 'rxjs';
 
 /**
  * Why a Settings › Runners call did not succeed, as the screens word it (#464):
- * - `forbidden` — 403: the caller is no owner of the account (`account-owner-only`) or this identity may not act;
+ * - `forbidden` — 403: the caller is no owner of the account (`account-owner-only`), this identity may not act, or
+ *   another owner tried to add projects to a subscription runner (`runner-scope-enroller-only`, #795);
  * - `not-found` — 404: the account, runner or project is not the caller's (the same answer as one that is missing);
  * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-scope-fixed`, `runner-policy-invalid`, …)
  *   and the field;
@@ -103,6 +104,10 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
       default:
         return 'runners.err.invalid';
     }
+  }
+  // #795: a subscription runner takes new projects from the owner who enrolled it only.
+  if (failure.kind === 'forbidden' && failure.slug === 'runner-scope-enroller-only') {
+    return 'runners.err.enrollerOnly';
   }
   if (failure.kind === 'not-found' && failure.slug === 'enrolment-not-found') {
     return 'runners.err.enrolmentGone';

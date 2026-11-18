@@ -1,5 +1,5 @@
 import { workspaceRoot } from '@nx/devkit';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -43,6 +43,17 @@ describe('runnerServesSql is the one project term of a runner', () => {
     const uses = [...jobs.matchAll(/runnerServesSql\('(\w+)'/gu), ...runners.matchAll(/runnerServesSql\('(\w+)'/gu)];
     expect(uses.length).toBeGreaterThanOrEqual(3);
     expect(uses.every((use) => use[1] === 'r')).toBe(true);
+  });
+
+  // #794: the routes judged the scope with a TypeScript copy that lacked D3, so a job outlived a scope change. They read
+  // `RUNNER_STILL_ALLOWS_SQL` / `servedProjectsOf` now; the copy in contracts is the console's preview only.
+  it('the Worker never judges a runner scope with the TypeScript preview of the term', () => {
+    const files = readdirSync(join(workspaceRoot, 'apps/api/src'), { recursive: true, encoding: 'utf8' }).filter(
+      (file) => file.endsWith('.ts') && !file.endsWith('.spec.ts'),
+    );
+    expect(files.length).toBeGreaterThan(10);
+    const users = files.filter((file) => /\brunnerScopeCovers\b/u.test(read(join('apps/api/src', file))));
+    expect(users).toEqual([]);
   });
 
   it('hostedRunnerAdmittedSql stays blind to the scope and the list (C12 row 6)', () => {

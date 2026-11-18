@@ -209,8 +209,8 @@ describe('RunnersRepo', () => {
 
   it('changes the scope inside the account only', async () => {
     const runner = await enrolled();
-    expect(await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), audit(SCOPE_AUDIT, ACCOUNT_B))).toBe(false);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3']), audit(SCOPE_AUDIT))).toBe(true);
+    expect(await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', audit(SCOPE_AUDIT, ACCOUNT_B))).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3']), 'owner-1', audit(SCOPE_AUDIT))).toBe('changed');
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2', 'p3']);
   });
 
@@ -218,12 +218,46 @@ describe('RunnersRepo', () => {
   it('switches to all and back without re-enrolment, auditing each change once', async () => {
     const runner = await enrolled();
     const changed = { ...audit(SCOPE_AUDIT), target: runner.id };
-    expect(await repo.setScope(ACCOUNT_A, runner.id, { projectScope: 'all', allowedProjects: ['p1'] }, changed)).toBe(true);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, { projectScope: 'all', allowedProjects: ['p1'] }, 'owner-1', changed)).toBe('changed');
     expect(await repo.findById(runner.id)).toMatchObject({ projectScope: 'all', allowedProjects: [] });
-    expect(await repo.setScope(ACCOUNT_A, runner.id, ALL, changed)).toBe(false);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p1']), changed)).toBe(true);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, ALL, 'owner-1', changed)).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p1']), 'owner-1', changed)).toBe('changed');
     expect(await repo.findById(runner.id)).toMatchObject({ projectScope: 'selected', allowedProjects: ['p1'] });
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(2);
+  });
+
+  // #795: on a runner that can serve a subscription only its enroller adds; any owner narrows; the guard is in the write.
+  it('lets only the enroller add to a subscription runner, any writer narrow, and leaves an api_key runner alone', async () => {
+    const ACCOUNT_C = '01M6YSNJ00000000000000RNC3';
+    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-c', 'C', ?2)`).bind(ACCOUNT_C, T0).run();
+    const addOwner = async (userId: string): Promise<void> => {
+      await env.DB.batch([
+        env.DB
+          .prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
+          .bind(userId, String(795000 + Number(userId.slice(-3))), `rn-${userId.slice(-3)}`, T0),
+        env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`).bind(ACCOUNT_C, userId, T0),
+      ]);
+    };
+    await addOwner('01M6YSNJ00000000000000W001');
+    const inC = (target: string) => ({ ...audit(SCOPE_AUDIT, ACCOUNT_C), target });
+    const subscription = await enrolled({ accountId: ACCOUNT_C, enrolledBy: 'owner-1' });
+    const legacy = await enrolled({ accountId: ACCOUNT_C, enrolledBy: null });
+    const apiKey = await enrolled({ accountId: ACCOUNT_C, enrolledBy: 'owner-1', capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } });
+
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1', 'p2']), 'owner-2', inC(subscription.id))).toBe('enroller-only');
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, ALL, 'owner-2', inC(subscription.id))).toBe('enroller-only');
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1']), 'owner-2', inC(subscription.id))).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1', 'p2']), 'owner-1', inC(subscription.id))).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p2']), 'owner-2', inC(subscription.id))).toBe('changed');
+    expect(await auditRows(SCOPE_AUDIT, subscription.id)).toBe(2);
+    expect(await repo.setScope(ACCOUNT_C, apiKey.id, selected(['p1', 'p9']), 'owner-2', inC(apiKey.id))).toBe('changed');
+
+    // A row from before `enrolled_by`: its sole owner's to widen; with a second owner, nobody's until enrolled again.
+    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2']), 'owner-2', inC(legacy.id))).toBe('changed');
+    await addOwner('01M6YSNJ00000000000000W002');
+    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2', 'p3']), 'owner-1', inC(legacy.id))).toBe('enroller-only');
+    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1']), 'owner-1', inC(legacy.id))).toBe('changed');
+    expect((await repo.findById(legacy.id))?.allowedProjects).toEqual(['p1']);
   });
 
   // R-SCOPE-4: a hosted identity keeps the scope the server gave it, whatever the owner's write says.
@@ -241,8 +275,8 @@ describe('RunnersRepo', () => {
       allowedProjects: [],
       capabilities: { local: false, maxConcurrency: 1, accessSources: ['api_key'] },
     });
-    expect(await repo.setScope(ACCOUNT_A, hosted.id, ALL, { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe(false);
-    expect(await repo.setScope(ACCOUNT_A, hosted.id, selected(['p1']), { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe(false);
+    expect(await repo.setScope(ACCOUNT_A, hosted.id, ALL, 'owner-1', { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_A, hosted.id, selected(['p1']), 'owner-1', { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, hosted.id)).toBe(0);
     expect(await repo.setAccessSources(hosted.id, ['subscription'])).toBe(false);
     expect((await repo.findById(hosted.id))?.capabilities.accessSources).toEqual(['api_key']);
@@ -265,8 +299,8 @@ describe('RunnersRepo', () => {
   it('changes no row and audits nothing for a list that is already stored', async () => {
     const runner = await enrolled();
     const updated = { ...audit(SCOPE_AUDIT), target: runner.id };
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), updated)).toBe(true);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), updated)).toBe(false);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), 'owner-1', updated)).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), 'owner-1', updated)).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(1);
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2']);
   });
@@ -275,14 +309,14 @@ describe('RunnersRepo', () => {
   it('treats a reordered or duplicated list as no change, and a real narrowing as a change', async () => {
     const runner = await enrolled();
     const updated = { ...audit(SCOPE_AUDIT), target: runner.id };
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3', 'p4']), updated)).toBe(true);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2', 'p3']), updated)).toBe(false);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p3', 'p3', 'p2', 'p4']), updated)).toBe(false);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3', 'p4']), 'owner-1', updated)).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2', 'p3']), 'owner-1', updated)).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p3', 'p3', 'p2', 'p4']), 'owner-1', updated)).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(1);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2']), updated)).toBe(true);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2']), 'owner-1', updated)).toBe('changed');
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p4', 'p2']);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), updated)).toBe(true);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), updated)).toBe(false);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), 'owner-1', updated)).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), 'owner-1', updated)).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(3);
   });
 
@@ -304,12 +338,12 @@ describe('RunnersRepo', () => {
       await repo.revoke(ACCOUNT_B, runner.id, T1, { ...audit('runner.revoked', ACCOUNT_B), target: runner.id }),
     ).toBe(false);
     expect(
-      await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), { ...audit(SCOPE_AUDIT, ACCOUNT_B), target: runner.id }),
-    ).toBe(false);
+      await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', { ...audit(SCOPE_AUDIT, ACCOUNT_B), target: runner.id }),
+    ).toBe('unchanged');
     expect(await auditRows('runner.revoked', runner.id)).toBe(0);
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(0);
 
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), { ...audit(SCOPE_AUDIT), target: runner.id })).toBe(true);
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), 'owner-1', { ...audit(SCOPE_AUDIT), target: runner.id })).toBe('changed');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(1);
   });
 

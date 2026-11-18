@@ -15,16 +15,11 @@ export type Scope =
   | { readonly kind: 'accounts'; readonly accountIds: readonly string[] }
   | { readonly kind: 'project'; readonly slug: string }
   /**
-   * A runner: its projects, and only inside its own account (ADR 0008 decision 2, #467). `all` (#775) is every
-   * active project of the account as `runnerServesSql` answers it (owner decision D3 included), which `lookup.ts`
-   * reads from D1; `admits` can judge the account alone for it — no runner-identity route resolves a slug today.
+   * A runner: the projects of its own account its stored scope serves (ADR 0008 decision 2, #467, #775) as
+   * `runnerServesSql` answers it, owner decision D3 included. Only D1 can answer that, so `lookup.ts` reads it there
+   * (`servedProjectsOf`) and `admits` takes no runner scope (#794): no TypeScript copy of the term to drift.
    */
-  | {
-      readonly kind: 'runner';
-      readonly runnerId: string;
-      readonly accountId: string;
-      readonly projects: 'all' | readonly string[];
-    }
+  | { readonly kind: 'runner'; readonly runnerId: string; readonly accountId: string }
   | { readonly kind: 'none' };
 
 /**
@@ -76,12 +71,7 @@ export function scopeOf(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'A
         ? { kind: 'project', slug: identity.projectSlug }
         : { kind: 'none' };
     case 'runner':
-      return {
-        kind: 'runner',
-        runnerId: identity.runnerId,
-        accountId: identity.accountId,
-        projects: identity.projectScope === 'all' ? 'all' : identity.allowedProjects,
-      };
+      return { kind: 'runner', runnerId: identity.runnerId, accountId: identity.accountId };
     case 'enrolment':
       return { kind: 'none' };
     default:
@@ -90,9 +80,9 @@ export function scopeOf(identity: Identity, env: Pick<ApiEnv, 'ENVIRONMENT' | 'A
   }
 }
 
-/** Whether a project of `accountId` with `slug` is inside the scope. */
+/** Whether a project of `accountId` with `slug` is inside the scope; a runner's is D1's to answer (`lookup.ts`). */
 export function admits(
-  scope: Scope,
+  scope: Exclude<Scope, { readonly kind: 'runner' }>,
   project: { readonly slug: string; readonly account_id: string },
 ): boolean {
   switch (scope.kind) {
@@ -100,10 +90,6 @@ export function admits(
       return scope.accountIds.includes(project.account_id);
     case 'project':
       return scope.slug === project.slug;
-    case 'runner':
-      return (
-        scope.accountId === project.account_id && (scope.projects === 'all' || scope.projects.includes(project.slug))
-      );
     case 'none':
       return false;
   }

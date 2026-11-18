@@ -180,6 +180,7 @@ describe('runnerFailureKeyOf', () => {
     expect(of('invalid', 'runner-policy-invalid', 'fallback')).toBe('runners.err.policy');
     expect(of('invalid', 'enrolment-code-invalid-input', 'name')).toBe('runners.err.invalid');
     expect(of('forbidden')).toBe('runners.err.forbidden');
+    expect(of('forbidden', 'runner-scope-enroller-only')).toBe('runners.err.enrollerOnly');
     expect(of('not-found')).toBe('runners.err.notFound');
     expect(of('not-found', 'enrolment-not-found')).toBe('runners.err.enrolmentGone');
     expect(of('not-suspect', 'runner-not-suspect')).toBe('runners.err.notSuspect');

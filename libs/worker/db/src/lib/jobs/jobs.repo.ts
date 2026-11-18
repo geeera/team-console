@@ -70,6 +70,15 @@ export interface JobRecord {
   readonly teamConfigRevision: number | null;
 }
 
+/**
+ * A job read together with `RUNNER_STILL_ALLOWS_SQL` (#794): `runnerServes` is the claim's own scope term (owner
+ * decision D3 included) on the runner row the job names, in the same read. The route-level checks judge this flag,
+ * never a TypeScript copy of the term, so a route and a write cannot answer a scope differently.
+ */
+export interface HeldJobRecord extends JobRecord {
+  readonly runnerServes: boolean;
+}
+
 export interface NewJob {
   readonly id: string;
   readonly accountId: string;
@@ -429,12 +438,22 @@ export class JobsRepo {
     return row === null ? null : toRecord(row);
   }
 
-  async findByTokenHash(tokenHash: string): Promise<JobRecord | null> {
+  /** The job behind a job token, judged for its runner as every job-token write judges it (#794). */
+  async findHeldByTokenHash(tokenHash: string): Promise<HeldJobRecord | null> {
+    return this.findHeld('token_hash = ?1', tokenHash);
+  }
+
+  /** The job `id`, judged for its runner as the runner routes' writes judge it (#794). */
+  async findHeldById(id: string): Promise<HeldJobRecord | null> {
+    return this.findHeld('id = ?1', id);
+  }
+
+  private async findHeld(where: string, value: string): Promise<HeldJobRecord | null> {
     const row = await this.db
-      .prepare(`SELECT ${COLUMNS} FROM jobs WHERE token_hash = ?1`)
-      .bind(tokenHash)
-      .first<JobRow>();
-    return row === null ? null : toRecord(row);
+      .prepare(`SELECT ${COLUMNS}, ${RUNNER_STILL_ALLOWS_SQL} AS runner_serves FROM jobs WHERE ${where}`)
+      .bind(value)
+      .first<JobRow & { runner_serves: number }>();
+    return row === null ? null : { ...toRecord(row), runnerServes: row.runner_serves === 1 };
   }
 
   /** Newest first, cursor by id (ULIDs sort by time), at most `limit + 1` so the caller sees the next page. */
@@ -1149,19 +1168,21 @@ export class JobsRepo {
   }
 
   /**
-   * The statements that cancel this runner's live jobs outside `slugs`, for the allow-list write's batch (#490 review).
-   * `AUDITED_WRITE_HAPPENED_SQL` reads the audit row just before it (#533): they run only when the write happened, so they must come
-   * directly after the `auditedWrite` pair, as `RunnersRepo.setAllowedProjects` places them.
+   * The statements that cancel this runner's live jobs its new scope no longer serves, for the scope write's batch
+   * (#490 review, #794). Judged by `RUNNER_STILL_ALLOWS_SQL` on the row the write just stored, so `selected`→`all`
+   * under owner decision D3 cancels the other owners' jobs as a narrowed list does. `AUDITED_WRITE_HAPPENED_SQL` reads
+   * the audit row just before it (#533): they run only when the write happened, so they must come directly after the
+   * `auditedWrite` pair, as `RunnersRepo.setScope` places them.
    */
-  cancelOutsideStatements(runnerId: string, slugs: readonly string[], now: string): D1PreparedStatement[] {
+  cancelUnservedStatements(runnerId: string, now: string): D1PreparedStatement[] {
     return [
       this.db
         .prepare(
           `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = '{"reason":"runner-allow-list"}', token_hash = NULL, lease_until = NULL
-           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND project_slug NOT IN (SELECT value FROM json_each(?3))
+           WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND NOT ${RUNNER_STILL_ALLOWS_SQL}
              AND ${AUDITED_WRITE_HAPPENED_SQL}`,
         )
-        .bind(runnerId, now, JSON.stringify(slugs)),
+        .bind(runnerId, now),
     ];
   }
 
