@@ -18,6 +18,7 @@ import {
   InvalidRepoNameError,
   RUNNER_WORKFLOW_PATH,
   hasInferenceKeySecret,
+  installationGrants,
   judgePullProvenance,
   parseRepoName,
   readActionsEnvironment,
@@ -28,12 +29,11 @@ import {
   sameWorkflowBytes,
   type ActionsEnvironment,
   type DeploymentBranchPolicies,
-  type InstallationPermissions,
-  type PermissionLevel,
   type RepoName,
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { repositoryUrlOf } from './github-links';
 
 /**
  * The Actions setup's readiness check (#759 PR 3; architect note §4, security note rows "Readiness over-reads or
@@ -75,15 +75,6 @@ const REQUIRED_PERMISSIONS: Readonly<Record<string, 'read' | 'write'>> = Object.
   ...ACTIONS_DISPATCH_PERMISSIONS,
 });
 
-const LEVEL_RANK: Readonly<Record<PermissionLevel, number>> = { read: 1, write: 2, admin: 3 };
-
-function grants(installation: InstallationPermissions, wanted: Readonly<Record<string, 'read' | 'write'>>): boolean {
-  return Object.entries(wanted).every(([name, level]) => {
-    const granted = installation.permissions[name];
-    return granted !== undefined && LEVEL_RANK[granted] >= LEVEL_RANK[level];
-  });
-}
-
 type Items = Record<ActionsSetupItemId, ActionsSetupItemDto>;
 
 function item(
@@ -112,10 +103,6 @@ const ORDER: readonly ActionsSetupItemId[] = [
   'workflow',
 ];
 
-function repoUrl(repo: RepoName): string {
-  return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}`;
-}
-
 function refPath(ref: string): string {
   return ref.split('/').map((segment) => encodeURIComponent(segment)).join('/');
 }
@@ -123,11 +110,11 @@ function refPath(ref: string): string {
 /** The Environment's settings page: GitHub's UI addresses it by id (`…/settings/environments/{id}/edit`). */
 function environmentLink(repo: RepoName, environment: ActionsEnvironment | null): string {
   if (environment === null) {
-    return `${repoUrl(repo)}/settings/environments/new`;
+    return `${repositoryUrlOf(repo)}/settings/environments/new`;
   }
   return environment.id === null
-    ? `${repoUrl(repo)}/settings/environments`
-    : `${repoUrl(repo)}/settings/environments/${String(environment.id)}/edit`;
+    ? `${repositoryUrlOf(repo)}/settings/environments`
+    : `${repositoryUrlOf(repo)}/settings/environments/${String(environment.id)}/edit`;
 }
 
 /** Exactly one deployment-branch rule, of ref type Branch, naming the default branch: only `main` reads the key. */
@@ -249,9 +236,9 @@ async function workflowItem(
           url: pull.htmlUrl,
           provenance: judgePullProvenance(pull, { ...expectation, rendering: bytes }),
         };
-  const fileUrl = `${repoUrl(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
+  const fileUrl = `${repositoryUrlOf(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
   if (file.kind === 'missing') {
-    return item('workflow', 'missing', `${repoUrl(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`, pr);
+    return item('workflow', 'missing', `${repositoryUrlOf(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`, pr);
   }
   // No earlier release's rendering is kept yet, so a file that differs is `modified`, never `outdated`.
   const status: ActionsSetupStatus =
@@ -345,7 +332,7 @@ export async function checkActionsReadiness(
     deps.logger.warn('actions readiness refused', { reason: 'repository-id-mismatch', slug: row.slug });
     return { kind: 'repository-unverified', detail: 'GitHub names another repository under this name' };
   }
-  const environment = grants(installation, ENVIRONMENT_READ_PERMISSIONS)
+  const environment = installationGrants(installation, ENVIRONMENT_READ_PERMISSIONS)
     ? await environmentItems(
         deps,
         connection,
@@ -365,7 +352,7 @@ export async function checkActionsReadiness(
       'access-source': accessSource,
       'app-permissions': item(
         'app-permissions',
-        grants(installation, REQUIRED_PERMISSIONS) ? 'ok' : 'missing',
+        installationGrants(installation, REQUIRED_PERMISSIONS) ? 'ok' : 'missing',
         installation.htmlUrl,
       ),
       environment: environment.environment,

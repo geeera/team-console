@@ -196,6 +196,13 @@ const ROWS: readonly Row[] = [
     setup: async (project) => ({ method: 'GET', path: `${P}/${project.slug}/actions-setup` }),
     expect: (who) => (who === 'owner' ? refused('console-origin-misconfigured', 503) : refused('owner-only')),
   },
+  // #759 PR 4: the workflow pull request is the owner's; admitted, the owner gets the same 503 on this stack, before
+  // any GitHub call (routes/actions-workflow-pr.spec.ts has the 201).
+  {
+    route: `POST ${P}/:slug/actions-setup/workflow-pr`,
+    setup: async (project) => ({ method: 'POST', path: `${P}/${project.slug}/actions-setup/workflow-pr` }),
+    expect: (who) => (who === 'owner' ? refused('console-origin-misconfigured', 503) : refused('owner-only')),
+  },
   reads(`GET ${P}/:slug/items`, async (project) => `${P}/${project.slug}/items`),
   reads(`GET ${P}/:slug/items/:key`, async (project) => (await item(project)).path),
   reads(`GET ${P}/:slug/items/:key/events`, async (project) => `${(await item(project)).path}/events`),
@@ -494,6 +501,8 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   // #759: the rendered runner workflow is the account's to read; no job needs it. The readiness check is the owner's.
   `GET ${P}/:slug/actions-setup/workflow`,
   `GET ${P}/:slug/actions-setup`,
+  // #759 PR 4: the workflow pull request is the owner's alone.
+  `POST ${P}/:slug/actions-setup/workflow-pr`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,

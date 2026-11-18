@@ -12,4 +12,13 @@ export {
   type RunnerWorkflowPins,
   type RunnerWorkflowRendering,
 } from './lib/render';
+export {
+  RUNNER_WORKFLOW_PINS,
+  RUNNER_WORKFLOW_PIN_NAMES,
+  compareVersions,
+  loweredPinsOf,
+  readRunnerWorkflowPins,
+  type ReadRunnerWorkflowPins,
+  type RunnerWorkflowPin,
+} from './lib/pins';
 export { ACTIONS_SETUP_BRANCH_PREFIX, actionsSetupBranchOf } from './lib/setup-branch';
