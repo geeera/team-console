@@ -33,10 +33,12 @@ const CONSOLE = 'http://127.0.0.1:2';
 const JOB_TOKEN = `tcj_${'J'.repeat(43)}`;
 /**
  * The end-to-end cases run the real job loop (git HTTP server, fake Claude CLI, sandbox sweep): about 550 ms each on
- * an idle host, but vitest's default 5 s timeout flakes under load (#714). 15 s gives a loaded host ~25x headroom
- * without masking a genuine hang.
+ * an idle host, but vitest's default 5 s timeout flakes under load (#714). 15 s still wasn't enough — `git archive`
+ * itself was timing out, not just the test around it, once load average passed the host's core count (#846). 45 s
+ * gives real headroom under contention without masking a genuine hang; it is this suite's own override, not the
+ * runner's global `testTimeout` (apps/runner/vitest.config.mts), which stays untouched.
  */
-const E2E_TIMEOUT_MS = 15_000;
+const E2E_TIMEOUT_MS = 45_000;
 const b64 = (value: unknown): string => Buffer.from(JSON.stringify(value)).toString('base64url');
 /** A token shaped as GitHub's (a compact JWS); never verified here, only carried. */
 const ID_TOKEN = `${b64({ alg: 'RS256', typ: 'JWT', kid: 'k' })}.${b64({ aud: 'team-console:local', run_id: '9123456789' })}.${'s'.repeat(86)}`;
