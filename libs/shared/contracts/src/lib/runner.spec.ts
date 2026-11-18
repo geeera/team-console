@@ -37,6 +37,7 @@ const RUNNER: RunnerDto = {
   revokedAt: null,
   belowMinimum: false,
   enrolledByYou: false,
+  enrolledByName: null,
   pause: null,
 };
 
@@ -133,6 +134,8 @@ describe('runner guards', () => {
     ['no belowMinimum', { belowMinimum: undefined }],
     ['no enrolledByYou', { enrolledByYou: undefined }],
     ['a person in enrolledByYou', { enrolledByYou: 'user-1' }],
+    ['no enrolledByName', { enrolledByName: undefined }],
+    ['an empty enrolledByName', { enrolledByName: '' }],
     ['an unknown backend', { isolation: 'vm' }],
     ['a malformed id', { id: 'runner-1' }],
     ['an unknown suspect reason', { suspect: { at: '2026-11-10T00:00:00.000Z', reason: 'other' } }],

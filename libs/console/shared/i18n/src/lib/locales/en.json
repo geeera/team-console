@@ -2443,10 +2443,14 @@
       "d3Mine": "Your runner “{{runner}}” works on your Claude subscription. Set to “All account projects”, it serves only your projects, and {{project}} was created by another account owner. To let it serve this project too, add the project to its list by hand.",
       "d3MineOpen": "Open the runner “{{runner}}”",
       "why": "Why",
-      "whyBody": "A Claude subscription is personal: its holder answers for the work it does. So a runner on a subscription takes another owner’s projects only when its owner adds them on purpose."
+      "whyBody": "A Claude subscription is personal: its holder answers for the work it does. So a runner on a subscription takes another owner’s projects only when its owner adds them on purpose.",
+      "memberNamed": "None of the account’s runners serves this project yet. The account owner can connect one — {{owners}}.",
+      "d3Named": "The runner “{{runner}}” works on a Claude subscription that belongs to {{owner}}. Set to “All account projects”, such a runner serves only its owner’s projects, and you created this one. Connect your own runner, or ask the runner’s owner to add {{project}} to its list by hand.",
+      "d3MineNamed": "Your runner “{{runner}}” works on your Claude subscription. Set to “All account projects”, it serves only your projects, and {{project}} was created by another owner — {{owner}}. To let it serve this project too, add the project to its list by hand."
     },
     "member": {
-      "line": "Only the account owner can start jobs."
+      "line": "Only the account owner can start jobs.",
+      "lineNamed": "Only the account owner can start jobs — {{owners}}."
     }
   },
   "quickTask": {

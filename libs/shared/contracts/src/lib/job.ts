@@ -1,5 +1,5 @@
 import { isUlid } from './account';
-import { isNullable, isString, isTimestamp } from './guards';
+import { isDisplayName, isNullable, isString, isTimestamp } from './guards';
 import type { RunnerScopeDto } from './runner';
 import type { ResolvedTeamConfigDto } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
@@ -354,6 +354,18 @@ export interface JobListDto {
   readonly canRunNow: boolean;
   /** Present only for the owner, and only with `runnerAvailability: 'none'`. */
   readonly runnerUnavailableReason?: RunnerUnavailableReason;
+  /**
+   * The display names of the account's owners, in the order they joined (#775, migration 0038), for a member's line
+   * «Запускать задачи может владелец аккаунта — {owners}». Present for a member of the project's account only; never
+   * a login, e-mail or user id (SECURITY review of #804, condition 2). Owners without a name are left out, so the list
+   * may be empty, and the console words its line without names then.
+   */
+  readonly accountOwnerNames?: readonly string[];
+  /**
+   * The display name of the owner who created the project, for the owner's D3 copy (#775): present only with
+   * `runnerUnavailableReason: 'other-owner-subscription'`, and only when that owner has a name.
+   */
+  readonly projectCreatorName?: string;
 }
 
 export interface JobEventDto {
@@ -408,7 +420,11 @@ export function isJobListDto(value: unknown): value is JobListDto {
     isRunnerAvailability(value['runnerAvailability']) &&
     typeof value['canRunNow'] === 'boolean' &&
     (value['runnerUnavailableReason'] === undefined ||
-      (value['runnerAvailability'] === 'none' && isRunnerUnavailableReason(value['runnerUnavailableReason'])))
+      (value['runnerAvailability'] === 'none' && isRunnerUnavailableReason(value['runnerUnavailableReason']))) &&
+    (value['accountOwnerNames'] === undefined ||
+      (Array.isArray(value['accountOwnerNames']) && value['accountOwnerNames'].every(isDisplayName))) &&
+    (value['projectCreatorName'] === undefined ||
+      (value['runnerUnavailableReason'] === 'other-owner-subscription' && isDisplayName(value['projectCreatorName'])))
   );
 }
 

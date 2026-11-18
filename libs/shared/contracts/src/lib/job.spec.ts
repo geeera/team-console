@@ -93,6 +93,13 @@ describe('job guards', () => {
     expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'stolen' })).toBe(false);
     expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready' })).toBe(false);
     expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: 'yes' })).toBe(false);
+    // #775: owners' names for a member, the creator's name with the D3 reason only.
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['Анна'] })).toBe(true);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: [''] })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: [{ login: 'x' }] })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['А'.repeat(256)] })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription', projectCreatorName: 'Вера' })).toBe(true);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'no-runner', projectCreatorName: 'Вера' })).toBe(false);
     for (const availability of RUNNER_AVAILABILITIES) {
       expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability, canRunNow: false })).toBe(true);
     }

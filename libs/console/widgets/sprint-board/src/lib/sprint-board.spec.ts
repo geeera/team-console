@@ -1539,6 +1539,41 @@ describe('SprintBoard', () => {
       expect((runsLane(root).querySelector('[data-testid="jobs-none"]') as HTMLElement).dataset['none']).toBe('owner');
     });
 
+    // #775 (migration 0038): the owners' display names, when the Worker sends any; isolated, never markup.
+    it('names the account owners to a member, on the line and in the «no runner» block', async () => {
+      const ready = await renderGitHub({ runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['Анна', 'Борис'] }, [], { role: 'member' });
+      expect(runsLane(ready.root).querySelector('[data-testid="jobs-member-line"]')?.textContent?.trim()).toBe(
+        'Запускать задачи может владелец аккаунта — \u2068Анна\u2069, \u2068Борис\u2069.',
+      );
+      document.body.innerHTML = '';
+      http.match(() => true);
+      TestBed.resetTestingModule();
+      const none = await renderGitHub({ runnerAvailability: 'none', canRunNow: false, accountOwnerNames: ['Анна'] }, [], { role: 'member' });
+      expect(runsLane(none.root).querySelector('[data-testid="jobs-none-body"]')?.textContent?.trim()).toBe(
+        'Ни один раннер аккаунта пока не обслуживает этот проект. Подключить раннер может владелец аккаунта — \u2068Анна\u2069.',
+      );
+    });
+
+    it('names the runner’s owner in D3 and the project’s creator in the own-runner D3', async () => {
+      const other = await renderGitHub(
+        { runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' },
+        [d3Runner({ enrolledByName: 'Анна' })],
+      );
+      expect(runsLane(other.root).querySelector('[data-testid="jobs-none-body"]')?.textContent).toContain(
+        'Раннер «\u2068Mac\u2069» работает по подписке Claude, владелец подписки — \u2068Анна\u2069.',
+      );
+      document.body.innerHTML = '';
+      http.match(() => true);
+      TestBed.resetTestingModule();
+      const mine = await renderGitHub(
+        { runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription', projectCreatorName: 'Борис\u202E' },
+        [d3Runner({ enrolledByYou: true })],
+      );
+      const body = runsLane(mine.root).querySelector('[data-testid="jobs-none-body"]')?.textContent ?? '';
+      expect(body).toContain('создал другой владелец — \u2068Борис\u2069.');
+      expect(body).not.toContain('\u202E');
+    });
+
     it('a refused kind says so in clay and queues nothing', async () => {
       const { root, settle } = await renderGitHub({ runnerAvailability: 'ready', canRunNow: true });
       (root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement).click();

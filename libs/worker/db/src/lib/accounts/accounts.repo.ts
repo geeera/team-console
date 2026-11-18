@@ -218,6 +218,23 @@ export class AccountsRepo {
     return role ?? null;
   }
 
+  /**
+   * The account's owners who have a display name (#775, migration 0038), by user id, in the order they joined: for the
+   * member's line and the D3 copy. Only the name leaves this method's callers; the id stays a lookup key, never sent.
+   */
+  async ownerDisplayNamesOf(accountId: string): Promise<ReadonlyMap<string, string>> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT m.user_id, u.display_name
+         FROM account_members m JOIN users u ON u.id = m.user_id
+         WHERE m.account_id = ?1 AND m.role = 'owner' AND u.display_name IS NOT NULL
+         ORDER BY m.joined_at, m.user_id`,
+      )
+      .bind(accountId)
+      .all<{ user_id: string; display_name: string }>();
+    return new Map(results.map((row) => [row.user_id, row.display_name] as const));
+  }
+
   /** Owners first, then by join date. */
   async membersOf(accountId: string): Promise<MemberRecord[]> {
     const { results } = await this.db

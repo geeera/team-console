@@ -309,6 +309,31 @@ describe('GET /api/v1/github/callback', () => {
     expect(parsedLogs(h.logs).some((line) => line['message'] === 'owner connected')).toBe(true);
   });
 
+  // #775 (migration 0038): the owner's connect is the sign-in until T-3; it writes the profile name, cleaned, onto the
+  // owner's user row and refreshes it on the next connect. A connect creates no user.
+  it('writes the owner’s profile name, cleaned, onto their user row, and refreshes it on the next connect', async () => {
+    const userId = '01M6YSNJ00000000000000GC75';
+    await env.DB.prepare(
+      `INSERT OR IGNORE INTO users (id, provider, provider_user_id, login, created_at, last_seen_at)
+       VALUES (?1, 'github', '1001', 'geeera', '2026-11-18T00:00:00.000Z', '2026-11-18T00:00:00.000Z')`,
+    )
+      .bind(userId)
+      .run();
+    const nameOf = async (): Promise<string | null | undefined> =>
+      (await env.DB.prepare(`SELECT display_name FROM users WHERE provider = 'github' AND provider_user_id = '1001'`).first<{ display_name: string | null }>())?.display_name;
+
+    const first = await connectAs(harness(), { login: 'geeera', id: 1001, name: ' Kirill\u202E ' });
+    expectBackToSettings(first.response, '/settings?github=connected');
+    expect(await nameOf()).toBe('Kirill');
+
+    await resetOwnerConnections();
+    const later = await connectAs(harness(), { login: 'geeera', id: 1001 });
+    expectBackToSettings(later.response, '/settings?github=connected');
+    expect(await nameOf()).toBeNull();
+    const users = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE provider_user_id = '1001'`).first<{ n: number }>();
+    expect(users?.n).toBe(1);
+  });
+
   it('accepts the owner login in another case', async () => {
     const h = harness();
     const { response } = await connectAs(h, { login: 'GeeEra', id: 1001 });

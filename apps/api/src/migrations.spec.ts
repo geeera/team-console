@@ -99,6 +99,7 @@ describe('migrations on a fresh D1', () => {
       '0035_jobs_account_live_index.sql',
       '0036_runner_project_scope.sql',
       '0037_runner_enrolment_requests.sql',
+      '0038_user_display_name.sql',
     ]);
   });
 
@@ -243,6 +244,24 @@ describe('migrations on a fresh D1', () => {
         insert('project_scope, isolation, created_by', `'all', 'actions-ephemeral', 'owner'`),
       ).rejects.toThrow(/CHECK/);
       await expect(insert('project_scope, isolation', `'all', 'user'`)).rejects.toThrow(/NOT NULL/);
+    });
+  });
+
+  // #775: a display name is optional and bounded; rows from before the column have none until their next sign-in.
+  describe('0038 user display name', () => {
+    const insert = (id: string, name: string | null) =>
+      env.DB.prepare(
+        `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at, display_name)
+         VALUES (?1, 'github', ?2, 'm038', '2026-11-18T00:00:00.000Z', '2026-11-18T00:00:00.000Z', ?3)`,
+      )
+        .bind(id, String(380000 + Number(id.slice(-1))), name)
+        .run();
+
+    it('keeps NULL and a name up to 255 characters, and refuses an empty or longer one', async () => {
+      await insert('01M6YSNJ0000000000000M0381', null);
+      await insert('01M6YSNJ0000000000000M0382', 'А'.repeat(255));
+      await expect(insert('01M6YSNJ0000000000000M0383', '')).rejects.toThrow(/CHECK/);
+      await expect(insert('01M6YSNJ0000000000000M0384', 'А'.repeat(256))).rejects.toThrow(/CHECK/);
     });
   });
 

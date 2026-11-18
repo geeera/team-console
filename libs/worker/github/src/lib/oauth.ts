@@ -53,6 +53,8 @@ export type TokenEndpointResult =
 export interface GitHubUser {
   readonly login: string;
   readonly id: number;
+  /** The profile name as GitHub sent it (#775): raw, possibly absent; the writer cleans it before it is stored. */
+  readonly name: string | null;
 }
 
 export interface AuthorizeRequest {
@@ -151,7 +153,9 @@ export class GitHubOAuth {
     ) {
       throw githubUnexpectedError('GitHub returned a user of an unexpected shape', response.status);
     }
-    return { login: body['login'], id: body['id'] };
+    // A missing or odd `name` is not a reason to refuse the sign-in: the console words its copy without one.
+    const name = typeof body['name'] === 'string' ? body['name'] : null;
+    return { login: body['login'], id: body['id'], name };
   }
 
   /**

@@ -45,7 +45,12 @@ export function isolatedName(name: string): string {
       />
     } @else {
       @if (noneKind(); as none) {
-        <tc-board-jobs-none [kind]="none" [projectName]="projectLabel()" [runnerName]="d3RunnerLabel()" />
+        <tc-board-jobs-none
+          [kind]="none"
+          [projectName]="projectLabel()"
+          [runnerName]="d3RunnerLabel()"
+          [people]="nonePeople()"
+        />
       } @else {
         <!-- One polite region: a change from ready to offline on refresh is announced once. -->
         <div class="board-jobs__availability" role="status" data-testid="jobs-availability" [attr.data-availability]="store.availability()">
@@ -88,7 +93,11 @@ export function isolatedName(name: string): string {
         } @else if (store.status() === 'ready') {
           <p class="board-jobs__member" data-testid="jobs-member-line">
             <tc-icon name="lock" size="sm" />
-            <span>{{ 'jobs.member.line' | transloco }}</span>
+            <span dir="auto">{{
+              ownersLabel() === ''
+                ? ('jobs.member.line' | transloco)
+                : ('jobs.member.lineNamed' | transloco: { owners: ownersLabel() })
+            }}</span>
           </p>
         }
       }
@@ -306,6 +315,25 @@ export class BoardJobs {
   });
 
   protected readonly projectLabel = computed(() => isolatedName(this.projectName() || this.slug()));
+  /** The account owners a member's copy names (#775): display names only, each isolated; empty without any. */
+  protected readonly ownersLabel = computed(() => this.store.ownerNames().map(isolatedName).join(', '));
+  /** Who the «no runner» block names: the owners for a member, the runner's owner or the project's creator for D3. */
+  protected readonly nonePeople = computed(() => {
+    switch (this.noneKind()) {
+      case 'member':
+        return this.ownersLabel();
+      case 'd3': {
+        const name = this.d3Runner()?.enrolledByName ?? null;
+        return name === null ? '' : isolatedName(name);
+      }
+      case 'd3-mine': {
+        const name = this.store.projectCreatorName();
+        return name === null ? '' : isolatedName(name);
+      }
+      default:
+        return '';
+    }
+  });
   protected readonly d3RunnerLabel = computed(() => {
     const runner = this.d3Runner();
     return runner === null ? '' : isolatedName(runner.name);

@@ -177,11 +177,17 @@ describe('GitHubOAuth.refresh', () => {
 });
 
 describe('GitHubOAuth.fetchUser', () => {
-  it('reads login and numeric id from GET /user with the fresh token', async () => {
+  it('reads login, numeric id and the profile name from GET /user with the fresh token', async () => {
     const { github, oauth } = oauthWith(() => json(200, { login: 'geeera', id: 1001, name: 'x' }));
-    await expect(oauth.fetchUser(ACCESS)).resolves.toEqual({ login: 'geeera', id: 1001 });
+    await expect(oauth.fetchUser(ACCESS)).resolves.toEqual({ login: 'geeera', id: 1001, name: 'x' });
     expect(github.calls[0]?.url).toBe('https://api.github.com/user');
     expect(github.calls[0]?.headers.get('authorization')).toBe(`Bearer ${ACCESS}`);
+  });
+
+  // #775: a profile without a name, or with an odd one, still signs in; the console words its copy without it.
+  it.each([{ name: null }, {}, { name: 42 }])('reads no name from %o', async (extra) => {
+    const { oauth } = oauthWith(() => json(200, { login: 'geeera', id: 1001, ...extra }));
+    await expect(oauth.fetchUser(ACCESS)).resolves.toEqual({ login: 'geeera', id: 1001, name: null });
   });
 
   it.each([

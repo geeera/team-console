@@ -76,7 +76,7 @@ export async function seedConnection(
     now: () => nowMs,
     ...(options.environment === undefined ? {} : { environment: options.environment }),
   });
-  await connection.connect(user, {
+  await connection.connect({ login: user.login, id: user.id, name: user.name ?? null }, {
     ...pair,
     accessExpiresAt: nowSeconds + (options.accessSecondsLeft ?? 8 * 60 * 60),
     refreshExpiresAt: nowSeconds + (options.refreshSecondsLeft ?? 180 * 24 * 60 * 60),

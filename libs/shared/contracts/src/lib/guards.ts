@@ -13,3 +13,11 @@ export function isTimestamp(value: unknown): value is string {
 export function isNullable<T>(value: unknown, is: (inner: unknown) => inner is T): value is T | null {
   return value === null || is(value);
 }
+
+/** The longest display name a user row keeps (#775, migration 0038's CHECK). */
+export const DISPLAY_NAME_MAX = 255;
+
+/** A person's display name as the Worker sends it (#775): non-empty and bounded; plain text, never markup. */
+export function isDisplayName(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= DISPLAY_NAME_MAX;
+}

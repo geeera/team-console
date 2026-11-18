@@ -328,7 +328,7 @@ describe('runner list, allowed projects and revoke', () => {
     const firstDto = (JSON.parse(firstText) as RunnerListDto).runners.find((runner) => runner.id === mine.id);
     expect(firstDto?.enrolledByYou).toBe(true);
     expect(Object.keys(firstDto ?? {}).sort()).toEqual([
-      'allowedProjects', 'belowMinimum', 'capabilities', 'enrolledAt', 'enrolledByYou', 'host', 'hosted', 'id',
+      'allowedProjects', 'belowMinimum', 'capabilities', 'enrolledAt', 'enrolledByName', 'enrolledByYou', 'host', 'hosted', 'id',
       'isolation', 'lastSeenAt', 'lastSeenCountry', 'name', 'online', 'pause', 'pinnedVersion', 'projectScope',
       'revokedAt', 'servedProjects', 'suspect', 'version',
     ]);
@@ -339,6 +339,12 @@ describe('runner list, allowed projects and revoke', () => {
       expect(text).not.toContain(account.userId);
       expect(text).not.toContain(secondId);
     }
+    // #775 (migration 0038): the enroller's display name once they have one, to both owners; still no id or login.
+    expect(firstDto?.enrolledByName).toBeNull();
+    await env.DB.prepare(`UPDATE users SET display_name = 'Анна' WHERE id = ?1`).bind(account.userId).run();
+    const named = await (await sendAsSession(second, 'GET', runnersPath(account.account.id))).text();
+    expect((JSON.parse(named) as RunnerListDto).runners.find((runner) => runner.id === mine.id)?.enrolledByName).toBe('Анна');
+    expect(named).not.toContain(account.userId);
   });
 
   it('revokes a runner once, inside the account, and its JWT is refused from then on', async () => {

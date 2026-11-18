@@ -1,5 +1,5 @@
 import { isUlid } from './account';
-import { isNullable, isString, isStringList, isTimestamp } from './guards';
+import { isDisplayName, isNullable, isString, isStringList, isTimestamp } from './guards';
 import { isValidSlug } from './project-slug';
 import { ACCESS_SOURCES, isAccessSource, type AccessSource } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
@@ -268,6 +268,11 @@ export interface RunnerDto extends RunnerProjectScopeDto {
    * word the D3 state without any person's id, login or e-mail in the DTO.
    */
   readonly enrolledByYou: boolean;
+  /**
+   * The display name of the owner who enrolled it (#775, migration 0038), for the owner's D3 copy; `null` when that
+   * owner has none or is not an owner of the account any more. Never a login, e-mail or user id.
+   */
+  readonly enrolledByName: string | null;
 }
 
 /**
@@ -653,7 +658,8 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     isNullable(value['revokedAt'], isTimestamp) &&
     typeof value['belowMinimum'] === 'boolean' &&
     isNullable(value['pause'], isRunnerPauseDto) &&
-    typeof value['enrolledByYou'] === 'boolean'
+    typeof value['enrolledByYou'] === 'boolean' &&
+    isNullable(value['enrolledByName'], isDisplayName)
   );
 }
 

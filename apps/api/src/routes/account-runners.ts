@@ -88,11 +88,24 @@ export function servedProjectsDtoOf(runner: RunnerRecord, served: readonly Serve
     }));
 }
 
+/** Who reads a runner (#775): their audit actor, and the account owners' display names by user id. */
+export interface RunnerReader {
+  readonly actor: string;
+  readonly ownerNames: ReadonlyMap<string, string>;
+}
+
+async function runnerReaderOf(c: Context, account: AccountRecord): Promise<RunnerReader> {
+  return {
+    actor: auditActorOf(c.get('identity')).actor,
+    ownerNames: await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(account.id),
+  };
+}
+
 export function runnerDtoOf(
   runner: RunnerRecord,
   now: Date,
   minimumVersion: string | null,
-  viewer: string,
+  reader: RunnerReader,
   served: readonly ServedProjectRecord[] = [],
 ): RunnerDto {
   const online =
@@ -124,7 +137,9 @@ export function runnerDtoOf(
     // A revoked runner claims nothing anyway; its last pause is history, not a state.
     pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
     // `enrolled_by` is the audit actor of the code's creator; compared, never sent (R-RUN).
-    enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === viewer,
+    enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === reader.actor,
+    // The enroller's display name only, and only while they own the account; their id never leaves (#804 condition 2).
+    enrolledByName: runner.enrolledBy === null ? null : (reader.ownerNames.get(runner.enrolledBy) ?? null),
   };
 }
 
@@ -277,12 +292,13 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const runners = new RunnersRepo(c.env.DB);
       // One read for every runner's effective projects (#775), the claim's own term.
       const served = await runners.servedProjectsOf(account.id);
+      const reader = await runnerReaderOf(c, account);
       const body: RunnerListDto = {
         // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
         // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
         runners: (await runners.listForAccount(account.id))
           .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, auditActorOf(c.get('identity')).actor, served)),
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, reader, served)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),
@@ -346,7 +362,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runnerReaderOf(c, account), await runners.servedProjectsOf(account.id, runner.id)),
       );
     })
 
@@ -407,7 +423,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runnerReaderOf(c, account), await runners.servedProjectsOf(account.id, runner.id)),
       );
     })
 
@@ -446,6 +462,6 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       c.get('logger').info('runner revoked', { runnerId: runner.id });
       const updated = await runners.findInAccount(account.id, runner.id);
       // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor));
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runnerReaderOf(c, account)));
     });
 }
