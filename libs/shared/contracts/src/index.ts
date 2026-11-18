@@ -152,6 +152,38 @@ export type {
   UpdateRunnerInput,
 } from './lib/runner';
 export {
+  ENROLMENT_INTENTS_LIVE_MAX,
+  ENROLMENT_INTENTS_PER_HOUR,
+  ENROLMENT_INTENT_COLLECT_SECONDS,
+  ENROLMENT_INTENT_POLL_SECONDS,
+  ENROLMENT_INTENT_STATES,
+  ENROLMENT_INTENT_TTL_SECONDS,
+  checkApproveEnrolmentIntentInput,
+  checkCreateEnrolmentIntentInput,
+  checkPollEnrolmentInput,
+  checkStartEnrolmentInput,
+  isEnrolmentIntentCreatedDto,
+  isEnrolmentIntentDto,
+  isEnrolmentIntentId,
+  isEnrolmentIntentState,
+  isPollEnrolmentPendingDto,
+  isRunnerKeyFingerprint,
+  isStartEnrolmentResponse,
+  runnerKeyFingerprintOf,
+  setupCommandOf,
+} from './lib/enrolment-intent';
+export type {
+  ApproveEnrolmentIntentInput,
+  CreateEnrolmentIntentInput,
+  EnrolmentIntentCreatedDto,
+  EnrolmentIntentDto,
+  EnrolmentIntentState,
+  PollEnrolmentInput,
+  PollEnrolmentPendingDto,
+  StartEnrolmentInput,
+  StartEnrolmentResponse,
+} from './lib/enrolment-intent';
+export {
   BUDGET_PAUSER,
   JOB_COST_USD_MAX,
   JOB_EVENTS_MAX_PER_BATCH,

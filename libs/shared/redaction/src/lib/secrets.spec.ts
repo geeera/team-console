@@ -1,5 +1,6 @@
 import {
   ENROLMENT_CODE_PREFIX,
+  ENROLMENT_POLL_TOKEN_PREFIX,
   JOB_TOKEN_PREFIX,
   SECRET_KINDS,
   findSecret,
@@ -48,6 +49,7 @@ const SECRETS: readonly (readonly [string, SecretKind, string])[] = [
   ['a private key cut off before its END line', 'private-key', pem('EC ').split('-----END')[0] ?? ''],
   ['a console job token', 'job-token', join(JOB_TOKEN_PREFIX, 'k'.repeat(43))],
   ['a runner enrolment code', 'enrolment-code', join(ENROLMENT_CODE_PREFIX, 'e'.repeat(43))],
+  ['an enrolment poll token', 'enrolment-poll-token', join(ENROLMENT_POLL_TOKEN_PREFIX, 'p'.repeat(43))],
   ['TC_JOB_TOKEN as an assignment', 'job-token', join('TC_JOB', '_TOKEN=', 'opaque-value-1234')],
   ['TC_JOB_TOKEN quoted after a colon', 'job-token', join('TC_JOB', '_TOKEN: "', 'opaque-value-1234"')],
   ['an Anthropic API key', 'anthropic-key', join('sk-', 'ant-', 'api03-', 'w'.repeat(40))],
@@ -211,6 +213,7 @@ describe('redactSecrets in loose mode (logs and audit rows)', () => {
     ['a routine trigger token cut short (#114)', 'anthropic-key', join('sk-', 'ant-', 'oat01')],
     ['a job token cut short', 'job-token', join(JOB_TOKEN_PREFIX, 'k'.repeat(10))],
     ['an enrolment code cut short', 'enrolment-code', join(ENROLMENT_CODE_PREFIX, 'e'.repeat(10))],
+    ['an enrolment poll token cut short', 'enrolment-poll-token', join(ENROLMENT_POLL_TOKEN_PREFIX, 'p'.repeat(10))],
     ['TC_JOB_TOKEN with a short value', 'job-token', join('TC_JOB', '_TOKEN=', 'abc')],
     [
       'a JWT whose payload is not a JSON object',

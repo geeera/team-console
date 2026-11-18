@@ -220,6 +220,60 @@ function toEnrolment(row: EnrolmentRow): EnrolmentRecord {
   };
 }
 
+/**
+ * The condition a runner row is written under, judged by the INSERT itself: a subquery the row is written only if it
+ * `EXISTS`. Its own placeholders are plain `?`, numbered by SQLite after the row's `?1`–`?13`; it may name `?2` (the
+ * account) and `?10` (the enrolment time).
+ */
+export interface RunnerInsertGate {
+  readonly exists: string;
+  readonly params: readonly (string | number | null)[];
+}
+
+/**
+ * The one INSERT every enrolment door writes a runner with (the one-time code, and the enrolment intent of #634), so
+ * the two can never drift apart in what a runner row holds. Module-internal to `@worker/db`: only a repo that marks
+ * its own credential used in the same batch may call it.
+ */
+export function runnerInsertStatement(
+  db: D1Database,
+  runner: NewRunner,
+  hosted: boolean,
+  gate: RunnerInsertGate,
+): D1PreparedStatement {
+  const hostedRefusal = hosted ? `AND NOT ${hostedEnrolmentRefusedSql('?2', '?1')}` : '';
+  // R-SCOPE-4: a hosted runner is created `selected` with what the server declares for it, whatever the code says;
+  // its scope is never widened to `all` (`setScope` refuses it too).
+  const scope: RunnerProjectScopeDto = hosted
+    ? { projectScope: 'selected', allowedProjects: runner.allowedProjects }
+    : { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
+  const capabilities: RunnerCapabilitiesDto = hosted
+    ? { ...runner.capabilities, accessSources: SERVER_SET_ACCESS_SOURCES }
+    : runner.capabilities;
+  return db
+    .prepare(
+      `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
+       SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13
+       WHERE EXISTS (${gate.exists}) ${hostedRefusal}`,
+    )
+    .bind(
+      runner.id,
+      runner.accountId,
+      runner.name,
+      JSON.stringify(runner.publicKeyJwk),
+      JSON.stringify(runner.host),
+      JSON.stringify(capabilities),
+      runner.isolation,
+      JSON.stringify(scope.allowedProjects),
+      runner.version,
+      runner.at,
+      hosted ? 1 : 0,
+      scope.projectScope,
+      runner.enrolledBy,
+      ...gate.params,
+    );
+}
+
 export class RunnersRepo {
   constructor(private readonly db: D1Database) {}
 
@@ -319,46 +373,17 @@ export class RunnersRepo {
     hosted: boolean,
     audit: NewAuditEvent,
   ): Promise<HostedEnrolOutcome> {
-    const hostedRefusal = hosted ? `AND NOT ${hostedEnrolmentRefusedSql('?2', '?1')}` : '';
-    // R-SCOPE-4: a hosted runner is created `selected` with what the server declares for it, whatever the code says;
-    // its scope is never widened to `all` (`setScope` refuses it too).
-    const scope: RunnerProjectScopeDto = hosted
-      ? { projectScope: 'selected', allowedProjects: runner.allowedProjects }
-      : { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
-    const capabilities: RunnerCapabilitiesDto = hosted
-      ? { ...runner.capabilities, accessSources: SERVER_SET_ACCESS_SOURCES }
-      : runner.capabilities;
     let results: D1Result[];
     try {
       results = await this.db.batch([
         // The runner row only while the code is still unused; the UPDATE below then marks it used, and the 0021
         // trigger aborts the whole batch when another request used it first (the WHERE names the row, not its state,
         // so the trigger sees the second use).
-        this.db
-          .prepare(
-            `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
-             SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?12, ?13, ?14
-             WHERE EXISTS (
-               SELECT 1 FROM runner_enrolments
-               WHERE code_hash = ?11 AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?10)
-             ) ${hostedRefusal}`,
-          )
-          .bind(
-            runner.id,
-            runner.accountId,
-            runner.name,
-            JSON.stringify(runner.publicKeyJwk),
-            JSON.stringify(runner.host),
-            JSON.stringify(capabilities),
-            runner.isolation,
-            JSON.stringify(scope.allowedProjects),
-            runner.version,
-            runner.at,
-            codeHash,
-            hosted ? 1 : 0,
-            scope.projectScope,
-            runner.enrolledBy,
-          ),
+        runnerInsertStatement(this.db, runner, hosted, {
+          exists: `SELECT 1 FROM runner_enrolments
+                   WHERE code_hash = ? AND used_by_runner_id IS NULL AND julianday(expires_at) > julianday(?10)`,
+          params: [codeHash],
+        }),
         // #522: the audit row only when this UPDATE marked the code, so a code withdrawn after the route's lookup
         // (both statements above then find no row) leaves no `runner.enrolled` row behind. #531: the expiry is judged
         // here too, at the same `now` as the INSERT, so a code that expired after the route's check is left unused

@@ -44,6 +44,7 @@ describe('migrations on a fresh D1', () => {
       'push_test_sends',
       'rate_limits',
       'role_keys',
+      'runner_enrolment_requests',
       'runner_enrolments',
       'runner_nonces',
       'runners',
@@ -97,7 +98,152 @@ describe('migrations on a fresh D1', () => {
       '0034_streak_excluded_index.sql',
       '0035_jobs_account_live_index.sql',
       '0036_runner_project_scope.sql',
+      '0037_runner_enrolment_requests.sql',
     ]);
+  });
+
+  // #634 PR 3: the enrolment intent's row guards — what the owner decided is never rewritten, the first bind wins and
+  // stays, one approval, and the state only moves forward (R-INT-1, R-INT-6).
+  describe('0037 runner enrolment requests', () => {
+    const account = '01M6YSNJ0000000000000M037A';
+    const runner = '01M6YSNJ0000000000000M037R';
+    const T0 = '2026-11-18T10:00:00.000Z';
+    const T1 = '2026-11-18T10:10:00.000Z';
+    let counter = 0;
+    const BIND = `state = 'bound', public_key = ?2, host = '{}', capabilities = '{}', version = '0.1.0',
+      fingerprint = 'ABCD-EFGH', poll_token_hash = ?3, bound_at = '${T0}'`;
+
+    async function pending(): Promise<string> {
+      counter += 1;
+      const id = `01M6YSNJ0000000000000M03${String(counter).padStart(2, '0')}`;
+      await env.DB.prepare(
+        `INSERT INTO runner_enrolment_requests (id, account_id, name, project_scope, isolation, created_by, created_at, expires_at)
+         VALUES (?1, ?2, 'mac', 'all', 'user', 'owner', ?3, ?4)`,
+      )
+        .bind(id, account, T0, T1)
+        .run();
+      return id;
+    }
+    const bind = (id: string, key = 'x'.repeat(43)) =>
+      env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, key, 'a'.repeat(64)).run();
+    const approve = (id: string) =>
+      env.DB.prepare(
+        `UPDATE runner_enrolment_requests SET state = 'approved', approved_at = ?2, approved_by = 'owner', runner_id = ?3 WHERE id = ?1`,
+      )
+        .bind(id, T0, runner)
+        .run();
+
+    beforeAll(async () => {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm037', 'M', ?2)`).bind(account, T0),
+        env.DB
+          .prepare(
+            `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+             VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`,
+          )
+          .bind(runner, account, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0),
+      ]);
+    });
+
+    it('never rewrites what the owner decided: account, name, scope, backend, creator or times', async () => {
+      const id = await pending();
+      for (const change of [
+        `account_id = '${OWNER_ACCOUNT_ID}'`,
+        `name = 'other'`,
+        `project_scope = 'selected'`,
+        `allowed_projects = '["p"]', project_scope = 'selected'`,
+        `isolation = 'none'`,
+        `created_by = 'someone-else'`,
+        `expires_at = '2027-01-01T00:00:00.000Z'`,
+      ]) {
+        await expect(
+          env.DB.prepare(`UPDATE runner_enrolment_requests SET ${change} WHERE id = ?1`).bind(id).run(),
+          change,
+        ).rejects.toThrow(/never rewritten/);
+      }
+    });
+
+    it('binds once: a second key, token or host on a bound request is refused', async () => {
+      const id = await pending();
+      await bind(id);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`).bind(id, 'y'.repeat(43)).run(),
+      ).rejects.toThrow(/bound once/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET poll_token_hash = ?2 WHERE id = ?1`).bind(id, 'b'.repeat(64)).run(),
+      ).rejects.toThrow(/bound once/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET host = '{"hostname":"x"}' WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/bound once/);
+    });
+
+    it('holds the bind whole, a key only from the bind on, and a token hash of 64 hex', async () => {
+      const id = await pending();
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`).bind(id, 'x'.repeat(43)).run(),
+      ).rejects.toThrow(/CHECK/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'bound' WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/CHECK/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, 'x'.repeat(43), 'not-a-hash').run(),
+      ).rejects.toThrow(/CHECK/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, '{"d":"private"}', 'a'.repeat(64)).run(),
+      ).rejects.toThrow(/CHECK/);
+    });
+
+    it('approves once, with a runner, and never points an approved request at another one', async () => {
+      const id = await pending();
+      await bind(id);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'approved' WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/CHECK/);
+      await approve(id);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET runner_id = ?2 WHERE id = ?1`).bind(id, runner).run(),
+      ).rejects.toThrow(/approved once/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET approved_by = 'someone-else' WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/approved once/);
+    });
+
+    it('moves the state forward only: no way back from bound, approved, used or withdrawn', async () => {
+      const used = await pending();
+      await bind(used);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'pending' WHERE id = ?1`).bind(used).run(),
+      ).rejects.toThrow(/moves forward/);
+      await approve(used);
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`).bind(used, T0).run(),
+      ).rejects.toThrow(/moves forward/);
+      await env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'used', collected_at = ?2 WHERE id = ?1`).bind(used, T0).run();
+      await expect(
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'approved', collected_at = NULL WHERE id = ?1`).bind(used).run(),
+      ).rejects.toThrow(/moves forward/);
+
+      const withdrawn = await pending();
+      await env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`).bind(withdrawn, T0).run();
+      await expect(bind(withdrawn)).rejects.toThrow(/moves forward/);
+    });
+
+    it('refuses a list beside all, an Actions backend and a missing creator', async () => {
+      const insert = (columns: string, values: string) =>
+        env.DB.prepare(
+          `INSERT INTO runner_enrolment_requests (id, account_id, name, created_at, expires_at, ${columns})
+           VALUES ('01M6YSNJ0000000000000M03ZZ', ?1, 'mac', ?2, ?3, ${values})`,
+        )
+          .bind(account, T0, T1)
+          .run();
+      await expect(
+        insert('project_scope, allowed_projects, isolation, created_by', `'all', '["p"]', 'user', 'owner'`),
+      ).rejects.toThrow(/CHECK/);
+      await expect(
+        insert('project_scope, isolation, created_by', `'all', 'actions-ephemeral', 'owner'`),
+      ).rejects.toThrow(/CHECK/);
+      await expect(insert('project_scope, isolation', `'all', 'user'`)).rejects.toThrow(/NOT NULL/);
+    });
   });
 
   // #775: a migration never widens a security scope — every runner and every unused code from before the column keeps

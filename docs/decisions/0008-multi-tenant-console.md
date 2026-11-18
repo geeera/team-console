@@ -136,6 +136,19 @@ an unknown version). The scheme reuses `libs/worker/core/src/lib/sealed.ts` with
   the pinned identity of this repository's release workflow, creates the runner's directories (and, for the `user`
   backend, the two local users with the documented single sudoers rule), writes the config, runs `enrol`, and never
   writes outside its prefix.
+- **Enrolment without a typed code: intents** (#634 PR 3, migration 0037; threat model C4 R-INT-1…7). The one-time
+  code (`POST /runner/enrol`) stays for the CLI and fixtures. Beside it, the owner's wizard creates an **enrolment
+  intent** (`POST /accounts/:id/runners/enrolment-intents {name, projectScope, allowedProjects, isolation}`): a ULID
+  that is an identifier, never a credential, valid ten minutes. The runner's `setup` binds its public key to it
+  (`POST /runner/enrol/start`, first bind wins) and gets a 256-bit poll token once; the owner sees the request with the
+  key's fingerprint, compares it with the terminal and approves (`…/approve {fingerprint}`, compare-and-set) or
+  withdraws; the runner collects its enrolment once (`POST /runner/enrol/poll`). There is **no approve page reachable
+  by a link**: an intent answers only to the owner who made it, so a stranger's runner cannot be consented into an
+  account. The runner row comes from the intent row alone and is written by the same statement as a code enrolment,
+  with `audit_events` `runner.enrolled {via: 'intent'}` (a code enrolment is `via: 'code'`). Nothing in these calls
+  carries a credential, its kind or its length. Two departures from the architect note, both from the security note:
+  an expired or withdrawn intent is one 404 on the poll as well (not 410), and a withdrawn intent keeps the key that
+  asked (the row never changes a bound key); `expired` is the reader's judgement of `expires_at`, never a stored state.
 - **Self-update** follows decision 8: trust root in the installed binary, no downgrade, customer pin or opt-out.
 - **Backends** (decision 8) are chosen at `enrol` (or implied: `actions-ephemeral` by the OIDC exchange, hosted by
   the dispatcher) and reported in `capabilities`; the console refuses to enqueue a job of an account with real

@@ -7,7 +7,11 @@ import {
   type EnrolRunnerInput,
   type EnrolRunnerResponse,
   type EnrolmentCodeDto,
+  type EnrolmentIntentCreatedDto,
+  type EnrolmentIsolation,
   type RunnerProjectScope,
+  type StartEnrolmentInput,
+  type StartEnrolmentResponse,
 } from '@shared/contracts';
 import { env } from 'cloudflare:test';
 import { vi } from 'vitest';
@@ -163,6 +167,92 @@ export async function postEnrol(body: unknown, request: Partial<ApiRequest> = {}
     body: typeof body === 'string' ? body : JSON.stringify(body),
     ...(request.logSink === undefined ? {} : { logSink: request.logSink }),
   });
+}
+
+/** The owner's wizard asks for an enrolment intent (#634): the local bypass (the owner account) or a session user. */
+export async function createEnrolmentIntent(
+  accountId: string,
+  input: { name?: string; projectScope?: RunnerProjectScope; allowedProjects?: readonly string[]; isolation?: EnrolmentIsolation } = {},
+  as: SessionUser | 'local' = 'local',
+): Promise<EnrolmentIntentCreatedDto> {
+  const body = {
+    name: input.name ?? 'mac',
+    projectScope: input.projectScope ?? 'selected',
+    allowedProjects: input.allowedProjects ?? [],
+    isolation: input.isolation ?? 'user',
+  };
+  const path = `/api/v1/accounts/${accountId}/runners/enrolment-intents`;
+  const response =
+    as === 'local'
+      ? await fetchApi(path, localEnv(), {
+          method: 'POST',
+          headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'Idempotency-Key': newKey() },
+          body: JSON.stringify(body),
+        })
+      : await sendAsSession(as, 'POST', path, body);
+  if (response.status !== 201) {
+    throw new Error(`creating an enrolment intent answered ${String(response.status)}: ${await response.text()}`);
+  }
+  return (await response.json()) as EnrolmentIntentCreatedDto;
+}
+
+export function startBodyOf(
+  intentId: string,
+  publicKeyJwk: Ed25519PublicJwk,
+  overrides: Partial<StartEnrolmentInput> = {},
+): StartEnrolmentInput {
+  return {
+    intentId,
+    publicKey: publicKeyJwk,
+    host: { os: 'darwin', arch: 'arm64', hostname: 'mac.local' },
+    capabilities: { local: true, maxConcurrency: 1 },
+    isolation: 'user',
+    version: '0.1.0',
+    ...overrides,
+  };
+}
+
+/** A call on an intent's door as the runner binary sends it: no cookie, no bearer, an address of its own. */
+export async function postEnrolDoor(
+  call: 'start' | 'poll',
+  body: unknown,
+  request: Partial<ApiRequest> = {},
+  bindings: ApiEnv = localEnv(),
+): Promise<Response> {
+  return fetchApi(`/api/v1/runner/enrol/${call}`, bindings, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': uniqueAddress(), ...request.headers },
+    body: typeof body === 'string' ? body : JSON.stringify(body),
+    ...(request.logSink === undefined ? {} : { logSink: request.logSink }),
+  });
+}
+
+/** A runner's key bound to a fresh intent of `accountId`, with the poll token only the binder holds. */
+export async function bindIntent(
+  accountId: string,
+  options: Parameters<typeof createEnrolmentIntent>[1] & { as?: SessionUser | 'local'; start?: Partial<StartEnrolmentInput> } = {},
+): Promise<{
+  readonly intentId: string;
+  readonly privateKey: CryptoKey | KeyObject;
+  readonly publicKeyJwk: Ed25519PublicJwk;
+  readonly start: StartEnrolmentResponse;
+}> {
+  const { as, start, ...input } = options;
+  const { intentId } = await createEnrolmentIntent(accountId, input, as ?? 'local');
+  const key = await generateRunnerKey();
+  const response = await postEnrolDoor(
+    'start',
+    startBodyOf(intentId, key.publicKeyJwk, { isolation: input.isolation ?? 'user', ...start }),
+  );
+  if (response.status !== 200) {
+    throw new Error(`binding answered ${String(response.status)}: ${await response.text()}`);
+  }
+  return { intentId, ...key, start: (await response.json()) as StartEnrolmentResponse };
+}
+
+/** Lets the binder poll again at once: the `slow-down` clock of the intent is put back. */
+export async function resetPollClock(intentId: string): Promise<void> {
+  await env.DB.prepare(`UPDATE runner_enrolment_requests SET last_polled_at = NULL WHERE id = ?1`).bind(intentId).run();
 }
 
 /** A runner enrolled through the API on a fresh code of `accountId`. */

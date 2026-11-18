@@ -49,6 +49,12 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   `project-not-found` outside it, the same as a missing slug); listings use `scopedProjectsOf`; repos never take a
   `project_slug` or `account_id` from a body; the hooks Worker matches repositories by id and requires
   `installations.account_id = projects.account_id`; `audit_events.details` holds ids and enums only.
+- Enrolment intents (#634 PR 3, migration 0037, `EnrolmentIntentsRepo`, `routes/enrolment-intents.ts`): the runner's
+  second door beside the one-time code. An intent's id is an identifier, never a credential; `GET`/`approve`/
+  `withdraw` answer only the owner who made it (404 otherwise); `POST /runner/enrol/start` binds a key (first bind
+  wins) and returns the `tcep_` poll token once; `approve {fingerprint}` is compare-and-set and writes the runner from
+  the intent row alone through `runnerInsertStatement` (the code enrolment's own INSERT); unknown, expired and
+  withdrawn are one 404 with one body on `start` and `poll`. No intent DTO carries a credential, its kind or length.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not

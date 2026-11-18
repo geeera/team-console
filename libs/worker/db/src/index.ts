@@ -117,6 +117,16 @@ export type {
   ServedProjectRecord,
   SightingOutcome,
 } from './lib/runners/runners.repo';
+export { EnrolmentIntentsRepo } from './lib/runners/enrolment-intents.repo';
+export type {
+  CreateIntentOutcome,
+  EnrolmentIntentBind,
+  EnrolmentIntentCaps,
+  EnrolmentIntentRecord,
+  IntentOwner,
+  NewEnrolmentIntent,
+  StoredIntentState,
+} from './lib/runners/enrolment-intents.repo';
 export { RateLimitsRepo, rateWindowOf, retryAfterOf } from './lib/runners/rate-limits.repo';
 export { JobsRepo, effectivePolicyOf } from './lib/jobs/jobs.repo';
 export type {
