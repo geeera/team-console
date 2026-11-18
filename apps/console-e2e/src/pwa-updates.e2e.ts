@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
-import { ru } from './support/i18n';
+import { en, ru } from './support/i18n';
+import { seed } from './support/stack';
 import {
   BUILD_MARKER,
   leaveAndReturn,
@@ -143,4 +144,54 @@ test.describe('PWA updates', () => {
     expect(oldChunks).toEqual([]);
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
+
+  for (const [locale, colorScheme] of [
+    ['ru-RU', 'light'],
+    ['en-US', 'dark'],
+  ] as const) {
+    test.describe(`a project space on the phone (${locale}, ${colorScheme})`, () => {
+      test.use({ locale, colorScheme });
+
+      // #368: the banner and the bottom tab bar stick to the same edge; the banner used to paint over the bar.
+      test('the banner sits above the bottom tab bar and every section stays reachable', async ({
+        page,
+        stack,
+      }, testInfo) => {
+        test.skip(testInfo.project.name !== 'iphone', 'the bottom tab bar is the phone layout');
+        await seed(stack, ['geeera/team-console']);
+        await openInstalled(page, '/p/team-console/board');
+
+        // An open sheet holds the switch back, which leaves the banner up (as in the first test).
+        await page.getByRole('button', { name: (locale === 'ru-RU' ? ru : en)('shell.openSwitcher') }).click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        deploys.deployNext();
+        await leaveAndReturn(page);
+        await expect(page.getByTestId('update-banner')).toBeVisible({ timeout: 20_000 });
+        await page.keyboard.press('Escape');
+        await expect(page.getByRole('dialog')).toBeHidden();
+
+        const banner = page.getByTestId('update-banner');
+        const bar = page.locator('nav.tc-tab-bar--bottom');
+        const tabs = bar.getByRole('link');
+        expect(await tabs.count()).toBeGreaterThan(1);
+
+        for (let index = 0; index < (await tabs.count()); index += 1) {
+          const tab = tabs.nth(index);
+          const isTopmost = await tab.evaluate((element) => {
+            const box = element.getBoundingClientRect();
+            const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+            return hit !== null && element.contains(hit);
+          });
+          expect(isTopmost, `tab ${index} is covered`).toBe(true);
+        }
+        const bannerBox = await banner.boundingBox();
+        const barBox = await bar.boundingBox();
+        expect(bannerBox && barBox && bannerBox.y + bannerBox.height <= barBox.y + 0.5).toBe(true);
+        await expect(
+          banner.getByRole('button', { name: (locale === 'ru-RU' ? ru : en)('app.update.apply') }),
+        ).toBeVisible();
+        await expectAccessible(page, `the update banner above the tab bar (${locale}, ${colorScheme})`);
+      });
+    });
+  }
 });
