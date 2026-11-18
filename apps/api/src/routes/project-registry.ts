@@ -23,10 +23,10 @@ import { isRepoOwnedBy, isValidRepoName, readCacheKey, type OwnerAccount } from 
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
+import { ownerOnlyMiddleware, userOrOwnerMiddleware } from '../auth/owner-only.middleware';
 import { auditActorOf, membershipsOf } from '../auth/scope';
 import {
   findProject,
-  ownerOrServiceRefusal,
   projectNotFound,
   projectOwnerRefusal,
   repoOf,
@@ -172,17 +172,10 @@ export function createProjectRegistryRoutes(
       return c.json(body);
     })
 
-    .post('/', limit, async (c) => {
-      // #482 security review: the add checks repository ownership against the environment owner's connection and
-      // mints with the environment's app, so until T-4 binds a connection per user only the Access owner (and the
-      // service identity on its dev/stage path) adds a project — the same rule as the `own-user` routes.
-      const refusal = ownerOrServiceRefusal(
-        c,
-        'Projects are added by the environment owner until connections are per user',
-      );
-      if (refusal !== null) {
-        return refusal;
-      }
+    // #482 security review: the add checks repository ownership against the environment owner's connection and
+    // mints with the environment's app, so until T-4 binds a connection per user only the Access owner adds a
+    // project; the dev/stage service identity is refused too (#372): CI never needs to change the registry.
+    .post('/', ownerOnlyMiddleware, limit, async (c) => {
       const identity = c.get('identity');
       const request = parseAddProject(await jsonBody(c));
       if (isRefusal(request)) {
@@ -372,7 +365,7 @@ export function createProjectRegistryRoutes(
       return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), null), 201);
     })
 
-    .patch('/:slug', limit, async (c) => {
+    .patch('/:slug', userOrOwnerMiddleware, limit, async (c) => {
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);
@@ -396,7 +389,7 @@ export function createProjectRegistryRoutes(
       return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), trackerProjectOf(row)));
     })
 
-    .post('/:slug/archive', async (c) => {
+    .post('/:slug/archive', userOrOwnerMiddleware, async (c) => {
       const project = await findProject(c, c.req.param('slug'));
       if (project === null) {
         return projectNotFound(c);

@@ -80,7 +80,11 @@ export function base64url(value: string | Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-type JwksReply = { readonly keys: readonly JWK[] } | { readonly status: number };
+type JwksReply =
+  | { readonly keys: readonly JWK[] }
+  | { readonly status: number }
+  /** A 200 with this exact body: a captive portal or a broken proxy in front of the team domain (#283). */
+  | { readonly rawBody: string };
 
 export interface JwksServer {
   /** Replace what a domain's `/cdn-cgi/access/certs` answers (key rotation, outage). */
@@ -103,8 +107,11 @@ export function stubJwksServer(): JwksServer {
       throw new Error(`unexpected outbound fetch in a test: ${url.href}`);
     }
     counts.set(url.hostname, (counts.get(url.hostname) ?? 0) + 1);
-    return 'status' in reply
-      ? new Response('upstream error', { status: reply.status })
+    if ('status' in reply) {
+      return new Response('upstream error', { status: reply.status });
+    }
+    return 'rawBody' in reply
+      ? new Response(reply.rawBody, { status: 200 })
       : Response.json({ keys: reply.keys });
   });
   return {

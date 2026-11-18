@@ -10,7 +10,7 @@ export interface HttpProblem {
   readonly problem: ProblemDetails | null;
   /** The problem's extension members (`step`, `installUrl`, …), still untrusted: read them with type guards. */
   readonly extensions: Readonly<Record<string, unknown>>;
-  /** Seconds from `Retry-After`, when the response carried a usable one. */
+  /** Seconds from `Retry-After`, when the response carried a usable (positive) one. */
   readonly retryAfterSeconds: number | null;
 }
 
@@ -22,7 +22,8 @@ function retryAfterOf(error: HttpErrorResponse): number | null {
     return null;
   }
   const seconds = Number(header);
-  return Number.isInteger(seconds) && seconds >= 0 ? seconds : null;
+  // `0` is "retry now" during a rate limit: callers fall back to their own default instead (#133).
+  return Number.isInteger(seconds) && seconds > 0 ? seconds : null;
 }
 
 /** Narrows anything an `HttpClient` call threw; a non-HTTP error is a programming error and is rethrown. */

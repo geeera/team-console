@@ -45,6 +45,12 @@ describe('httpProblemOf', () => {
     expect(httpProblemOf(error).retryAfterSeconds).toBeNull();
   });
 
+  it('treats Retry-After: 0 as missing so callers use their own default (#133)', () => {
+    const error = new HttpErrorResponse({ status: 429, headers: new HttpHeaders({ 'Retry-After': '0' }) });
+
+    expect(httpProblemOf(error).retryAfterSeconds).toBeNull();
+  });
+
   it('rethrows anything that is not an HTTP error', () => {
     expect(() => httpProblemOf(new TypeError('bug'))).toThrow('bug');
   });

@@ -78,6 +78,16 @@ describe('retryAfterOf', () => {
   it('ignores a malformed header', () => {
     expect(retryAfterOf(new Headers({ 'retry-after': 'soon' }), NOW)).toBe(60);
   });
+
+  it('floors retry-after: 0 at one second instead of "retry now" (#133)', () => {
+    expect(retryAfterOf(new Headers({ 'retry-after': '0' }), NOW)).toBe(1);
+    expect(retryAfterOf(new Headers({ 'retry-after': '0.2' }), NOW)).toBe(1);
+  });
+
+  it('answers 429 with Retry-After 1 when GitHub says retry-after: 0 (#133)', () => {
+    const error = mapGitHubResponse(reply(403, { 'retry-after': '0' }), NOW);
+    expect(error.problem).toMatchObject({ type: 'github-rate-limit', status: 429, retryAfter: 1 });
+  });
 });
 
 describe('appNotInstalledError', () => {
