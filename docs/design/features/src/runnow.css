@@ -1,0 +1,90 @@
+/* ===== #775 Run now on every project, on the Paper Desk tokens (ADR 0002) =====
+   The shell and board are #766's (wide.css). What is drawn here mirrors existing app parts: `.rn` is `tc-run-now`,
+   `.jc` is `tc-job-card` on `tc-status-card`, `.jx-empty` is the compact `tc-state-block`, `.rlog` is
+   `tc-sprint-run-list`. The one new part is `.jx-none`, the «no eligible runner» block (the compact state block with an
+   action and a disclosure). No new tokens. */
+
+/* the frames: the board fills the window; the phone opens on the Runs tab */
+.app .wd{height:100%}
+@container win (max-width:519.98px){
+  .bd[data-ptab=tasks] .bd__sec--tasks{display:grid}
+  .bd[data-ptab] .bd__sec{display:none}
+  .bd[data-ptab=tasks] .bd__sec--tasks,.bd[data-ptab=pulls] .bd__sec--pulls,.bd[data-ptab=runs] .bd__sec--runs{display:grid}
+  .bd__sec--runs>h3{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .rn__submit{flex:1 1 100%;justify-content:center}
+  .rn__select{min-height:var(--target);font-size:var(--fs-input)}
+  .jx-none__actions .btn{flex:1 1 100%;justify-content:center}
+}
+.ptab-n{font-family:var(--font-mono);opacity:.75}
+
+/* ----- the jobs section (`tc-board-jobs`) ----- */
+.jx,.rlog{display:grid;gap:var(--sp-3);align-content:start;min-width:0}
+.rlog{margin-top:var(--sp-5);padding-top:var(--sp-4);border-top:1px solid var(--border)}
+.jx__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none}
+.jx__head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.jx__sub{margin:0;font-size:var(--fs-md);font-weight:600}
+.jx__list,.rlog__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.jx__note{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.jx__av:empty{display:none}
+.jx__av .ext{white-space:nowrap}
+.jx__member{display:flex;gap:var(--sp-2);align-items:flex-start;margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-sm)}
+.jx__member .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.jx__state{padding:var(--sp-5) var(--sp-3)}
+.jx__err{padding:var(--sp-4)}
+.jx__err h5{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display)}
+.jx-empty{display:grid;gap:var(--sp-1);padding:var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-md);text-align:center;font-size:var(--fs-sm)}
+.jx-empty p{margin:0}
+.jx-empty__t{font-weight:600}
+.jx-empty__h{color:var(--text-2)}
+
+/* Run now (`tc-run-now`) */
+.rn{display:grid;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
+.rn__title{margin:0;font-size:var(--fs-md);font-weight:600}
+.rn__row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--sp-2)}
+.rn__kind{flex:1 1 12rem;min-width:0}
+.rn__select{width:100%;min-height:var(--btn-h);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit}
+.rn__select:focus-visible{outline:2px solid var(--focus);outline-offset:var(--focus-offset)}
+.rn__outcome{margin:0;font-size:var(--fs-sm)}
+.rn__outcome:empty{display:none}
+.rn__err{color:var(--danger-text)}
+
+/* a job (`tc-job-card` on `tc-status-card`) */
+.jc{display:grid;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-1)}
+.jc--warning{border-color:var(--warning-text)}.jc--danger{border-color:var(--danger-text)}
+.jc__row{display:flex;align-items:center;gap:var(--sp-3)}
+.jc__mark{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-sunken);color:var(--text-2)}
+.jc__mark .ico{width:16px;height:16px}
+.jc--success .jc__mark{background:var(--success-soft);color:var(--success-text)}
+.jc--warning .jc__mark{background:var(--warning-soft);color:var(--warning-text)}
+.jc--danger .jc__mark{background:var(--danger-soft);color:var(--danger-text)}
+.jc__who{display:grid;gap:2px;min-width:0}
+.jc__title{margin:0;font-family:var(--font-display);font-size:var(--fs-md);font-weight:var(--fw-display)}
+.jc__meta{margin:0}
+.jchip{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--sp-2);border-radius:999px;background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.jchip--success{background:var(--success-soft);color:var(--success-text)}
+.jchip--warning{background:var(--warning-soft);color:var(--warning-text)}
+.jchip--danger{background:var(--danger-soft);color:var(--danger-text)}
+.jc__facts{font-size:var(--fs-xs)}
+.jc-new .jc{animation:jc-in var(--dur-base) var(--ease-enter)}
+@keyframes jc-in{from{opacity:0;transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){.jc-new .jc{animation-duration:120ms;animation-name:jc-fade}}
+:root[data-motion=reduce] .jc-new .jc{animation-duration:120ms;animation-name:jc-fade}
+@keyframes jc-fade{from{opacity:0}}
+
+/* the «no eligible runner» block: a compact state block that names the cause and the one way out */
+.jx-none{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-lg);background:var(--surface)}
+.jx-none__mark{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-sunken);color:var(--text-2)}
+.jx-none__mark .ico{width:16px;height:16px}
+.jx-none__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none}
+.jx-none__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:var(--measure)}
+.jx-none__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.jx-none .btn{text-decoration:none}
+.jx__why{font-size:var(--fs-sm);color:var(--text-2)}
+.jx__why summary{min-height:var(--target);display:flex;align-items:center;color:var(--accent-text);font-weight:600;cursor:pointer}
+.jx__why p{margin:0;max-width:var(--measure)}
+
+/* the GitHub run log under the jobs */
+.rlog .ext{justify-self:start;min-height:var(--target)}
+
+/* screenshots: headless Chrome lays out at least 500 px, so the phone app is pinned to 375 px at the left edge */
+:root[data-shot] .phone-frame>.app{width:375px}
