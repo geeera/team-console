@@ -322,3 +322,59 @@ test('clear a runner’s suspect mark after a confirmation', async ({ page, stac
   await expect(card.getByTestId('runner-presence')).not.toHaveText(ru('runners.presence.suspect'));
   await expectAccessible(page, 'Settings › Runners (mark cleared)');
 });
+
+/** A runner row as enrolments wrote it before migration 0036 (#827): no enroller recorded. */
+async function insertLegacyRunner(workerIndex: number, runnerId: string): Promise<void> {
+  if (!isRunnerId(runnerId)) {
+    throw new Error('not a runner id');
+  }
+  const jwk = generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' });
+  const key = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: jwk.x });
+  if (!/^[\w":{},-]+$/.test(key)) {
+    throw new Error('unexpected key text');
+  }
+  await localD1(
+    workerIndex,
+    `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
+     VALUES ('${runnerId}', '${OWNER_ACCOUNT_ID}', 'Old Mac', '${key}', '{"os":"darwin","arch":"arm64","hostname":"old-mac.local"}',
+       '{"local":true,"maxConcurrency":1}', 'user', '[]', '0.2.0', '2026-11-01T09:00:00.000Z', 0, 'selected', NULL)`,
+  );
+}
+
+// #827 (owner decision (a)): a runner enrolled before enrollers were recorded says so, and the account's sole owner
+// claims it as theirs behind a confirmation; the card then shows no note and no action.
+test('claim a runner from before enrollers were recorded as its enroller', async ({ page, stack }, testInfo) => {
+  const runnerId = '01M6YSNJ0000000000000827E1';
+  await insertLegacyRunner(testInfo.workerIndex, runnerId);
+  await page.goto('/settings/runners');
+  const card = page.getByTestId('runner-card').filter({ hasText: 'Old Mac' });
+  await expect(card.getByTestId('runner-enroller')).toHaveText(ru('runners.card.enroller.claimable'));
+  const claim = card.getByTestId('runner-claim-enroller');
+  await expect(claim).toHaveText(ru('runners.enroller.open'));
+  await expect(claim).toHaveAccessibleName(ru('runners.enroller.aria', { name: 'Old Mac' }));
+  await expectAccessible(page, 'Settings › Runners (runner with no enroller)');
+
+  await claim.click();
+  const confirm = page.getByRole('alertdialog', { name: ru('runners.enroller.title', { name: 'Old Mac' }) });
+  await expect(confirm).toContainText(ru('runners.enroller.itemOnlyYou'));
+  await expect(confirm).toContainText(ru('runners.enroller.itemAudit'));
+  await expectAccessible(page, 'Claim runner confirmation');
+  await confirm.getByRole('button', { name: ru('runners.enroller.confirm') }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(card.getByTestId('runner-enroller')).toHaveCount(0);
+  await expect(card.getByTestId('runner-claim-enroller')).toHaveCount(0);
+  await expectAccessible(page, 'Settings › Runners (runner claimed)');
+
+  const api = await apiClient(stack);
+  try {
+    const listed = (await (await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)).json()) as RunnerListDto;
+    expect(listed.runners.find((runner) => runner.id === runnerId)?.enroller).toBe('recorded');
+    const again = await api.post(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runnerId}/claim-enroller`, {
+      data: {},
+      headers: { 'Sec-Fetch-Site': 'same-origin' },
+    });
+    expect(again.status()).toBe(409);
+  } finally {
+    await api.dispose();
+  }
+});

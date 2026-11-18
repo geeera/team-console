@@ -29,6 +29,12 @@ export type ClearSuspectOutcome =
   | { readonly kind: 'stale' }
   | { readonly kind: 'cancelled' };
 
+export type ClaimEnrollerOutcome =
+  | { readonly kind: 'claimed'; readonly runner: RunnerDto }
+  /** Recorded, revoked, gone or a second owner meanwhile: the list should be read again. */
+  | { readonly kind: 'stale' }
+  | { readonly kind: 'cancelled' };
+
 export type WithdrawOutcome =
   | { readonly kind: 'withdrawn' }
   /** The code was used, expired or withdrawn meanwhile: the list should be read again. */
@@ -36,10 +42,12 @@ export type WithdrawOutcome =
   | { readonly kind: 'cancelled' };
 
 const STALE_KINDS: readonly RunnerFailureKind[] = ['not-suspect', 'revoked', 'not-found'];
+/** A second owner joined meanwhile (403) reads as stale too: the list then shows the runner as unrecorded. */
+const CLAIM_STALE_KINDS: readonly RunnerFailureKind[] = ['enroller-set', 'revoked', 'not-found', 'forbidden'];
 
 /**
  * A runner's own actions on Settings › Runners (#464): which projects it may serve, clearing its suspect mark and
- * withdrawing a pending enrolment code (#492), and revoke. Revoking is final
+ * withdrawing a pending enrolment code (#492), claiming it as its enroller (#827), and revoke. Revoking is final
  * (threat model C4: a revoked key is never trusted again) and cancels the jobs it holds, so it asks first with a
  * danger confirmation; a refusal keeps the dialog open with the reason and Try again.
  */
@@ -109,6 +117,33 @@ export class ManageRunner {
     });
     if (confirmed && seen.cleared !== null) {
       return { kind: 'cleared', runner: seen.cleared };
+    }
+    return seen.stale ? { kind: 'stale' } : { kind: 'cancelled' };
+  }
+
+  /**
+   * The sole owner claims a runner from before enrollers were recorded (#827). Final, so it asks first and says why;
+   * a refusal keeps the dialog open with the reason.
+   */
+  async claimEnroller(target: ManagedRunnerTarget): Promise<ClaimEnrollerOutcome> {
+    const seen: { claimed: RunnerDto | null; stale: boolean } = { claimed: null, stale: false };
+    const confirmed = await this.sheet.confirm({
+      title: this.t('runners.enroller.title', { name: target.runner.name }),
+      message: this.t('runners.enroller.message'),
+      items: [this.t('runners.enroller.itemOnlyYou'), this.t('runners.enroller.itemAudit')],
+      confirmLabel: this.t('runners.enroller.confirm'),
+      busyLabel: this.t('runners.enroller.busy'),
+      action: async () => {
+        const result = await this.api.claimEnroller(target.accountId, target.runner.id);
+        if (!result.ok) {
+          seen.stale = CLAIM_STALE_KINDS.includes(result.failure.kind);
+          throw new ConfirmFailure(this.t(runnerFailureKeyOf(result.failure)));
+        }
+        seen.claimed = result.value;
+      },
+    });
+    if (confirmed && seen.claimed !== null) {
+      return { kind: 'claimed', runner: seen.claimed };
     }
     return seen.stale ? { kind: 'stale' } : { kind: 'cancelled' };
   }

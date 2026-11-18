@@ -37,6 +37,7 @@ const RUNNER: RunnerDto = {
   revokedAt: null,
   belowMinimum: false,
   pause: null,
+  enroller: 'recorded',
 };
 
 describe('runnerReleaseChannelOf', () => {
@@ -126,6 +127,9 @@ describe('runner guards', () => {
       }),
     ).toBe(true);
     expect(isRunnerDto({ ...RUNNER, pause: { reason: 'usage-limit', until: '2026-11-10T05:00:00.000Z' } })).toBe(true);
+    for (const enroller of ['unrecorded', 'claimable', 'not-applicable']) {
+      expect(isRunnerDto({ ...RUNNER, enroller })).toBe(true);
+    }
   });
 
   it.each([
@@ -137,6 +141,8 @@ describe('runner guards', () => {
     ['no pause member', { pause: undefined }],
     ['an unknown pause reason', { pause: { reason: 'tired', until: '2026-11-10T05:00:00.000Z' } }],
     ['a pause without until', { pause: { reason: 'manual' } }],
+    ['no enroller state', { enroller: undefined }],
+    ['an unknown enroller state', { enroller: 'owner-1' }],
   ])('refuses a runner with %s', (_, patch) => {
     expect(isRunnerDto({ ...RUNNER, ...patch })).toBe(false);
   });
