@@ -1732,7 +1732,8 @@
       "run": "Run",
       "offReason": "Not set up: this routine has no trigger token",
       "newTask": "New task",
-      "newTaskDraft": "New task, draft waiting"
+      "newTaskDraft": "New task, draft waiting",
+      "longLabel": "Open the runner settings of this account"
     },
     "card": {
       "kind": "Question",

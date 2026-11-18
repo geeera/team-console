@@ -5,7 +5,7 @@ import { Button, ButtonVariant, IconButton } from './button';
 @Component({
   imports: [Button, IconButton],
   template: `
-    <button tc-button [variant]="variant()" [loading]="loading()" [dot]="dot()" type="button">Save</button>
+    <button tc-button [variant]="variant()" [loading]="loading()" [dot]="dot()" [wrap]="wrap()" type="button">Save</button>
     <button tc-icon-button [dot]="dot()" type="button" aria-label="Close">x</button>
   `,
 })
@@ -13,6 +13,7 @@ class Host {
   readonly variant = signal<ButtonVariant>('secondary');
   readonly loading = signal(false);
   readonly dot = signal(false);
+  readonly wrap = signal(false);
 }
 
 describe('Button', () => {
@@ -82,5 +83,15 @@ describe('Button', () => {
       expect(dot?.getAttribute('aria-hidden')).toBe('true');
     }
     expect(button.textContent?.trim()).toBe('Save');
+  });
+
+  it('lets a long label wrap only when asked (#775)', async () => {
+    const { host, button, stabilise } = await render();
+    expect(button.classList.contains('tc-button--wrap')).toBe(false);
+
+    host.wrap.set(true);
+    await stabilise();
+
+    expect(button.classList.contains('tc-button--wrap')).toBe(true);
   });
 });

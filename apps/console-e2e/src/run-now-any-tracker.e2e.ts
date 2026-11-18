@@ -71,6 +71,21 @@ async function routeRunners(page: Page, runners: readonly RunnerDto[]): Promise<
   });
 }
 
+/**
+ * What sticks out of the runs column (#829 CI): its labels are long and the kit button keeps one line by default, so
+ * with wider type a block grew the column's `auto` track past the screen. Text must wrap inside the column.
+ */
+async function outsideRunsColumn(page: Page): Promise<string[]> {
+  return page.getByTestId('runs').evaluate((column) => {
+    const edge = column.getBoundingClientRect().right;
+    return Array.from(column.querySelectorAll('*'))
+      .filter((element) => element.closest('.tc-sr-only') === null)
+      .filter((element) => element.getBoundingClientRect().right > edge + 1)
+      .map((element) => `${element.tagName.toLowerCase()}.${element.classList[0] ?? ''}`)
+      .slice(0, 5);
+  });
+}
+
 test('the owner: no runner, then an offline one, then a ready one, and Run now from the header queues a job', async ({
   page,
   stack,
@@ -182,6 +197,33 @@ test('D3: another owner’s subscription runner and the owner’s own one each g
   await expect(none).toHaveAttribute('data-none', 'd3-mine');
   await expect(none.getByRole('heading', { level: 4 })).toHaveText(ru('jobs.none.d3MineTitle'));
   await expect(none.getByTestId('jobs-none-runner')).toHaveText(ru('jobs.none.d3MineOpen', { runner: '⁨Mac⁩' }));
+});
+
+test('with much wider type the no-runner blocks wrap inside the runs column, beside the issues on a 1280 px screen', async ({
+  page,
+  stack,
+}) => {
+  test.skip(test.info().project.name !== 'desktop', 'the runs column sits beside the issues on a wide screen only');
+  await seed(stack, ['geeera/team-console']);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const none = page.getByTestId('runs').getByTestId('jobs-none');
+  const wideType = { content: 'html { letter-spacing: 0.2em; }' };
+
+  await page.goto(BOARD);
+  await expect(none).toHaveAttribute('data-none', 'owner');
+  await page.addStyleTag(wideType);
+  expect(await outsideRunsColumn(page), 'the owner’s block').toEqual([]);
+
+  await routeJobs(page, (list) => ({ ...list, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' }));
+  for (const enrolledByYou of [false, true]) {
+    await page.unroute('**/api/v1/accounts/*/runners');
+    await routeRunners(page, [d3Runner(enrolledByYou)]);
+    await page.reload();
+    await expect(none).toHaveAttribute('data-none', enrolledByYou ? 'd3-mine' : 'd3');
+    await page.addStyleTag(wideType);
+    expect(await outsideRunsColumn(page), `the ${enrolledByYou ? 'd3-mine' : 'd3'} block`).toEqual([]);
+  }
+  await expectAccessible(page, 'Board, the D3 block with wider type');
 });
 
 test('a kind the server refuses says so in clay and queues nothing', async ({ page, stack }) => {

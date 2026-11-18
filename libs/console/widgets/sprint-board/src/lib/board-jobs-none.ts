@@ -29,7 +29,7 @@ let nextNoneId = 0;
       </p>
       @switch (kind()) {
         @case ('owner') {
-          <a tc-button class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runners">
+          <a tc-button wrap class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runners">
             <tc-icon name="settings" size="sm" />
             {{ 'jobs.none.open' | transloco }}
           </a>
@@ -37,6 +37,7 @@ let nextNoneId = 0;
         @case ('d3') {
           <a
             tc-button
+            wrap
             variant="primary"
             class="jobs-none__action"
             routerLink="/settings/runners"
@@ -47,7 +48,7 @@ let nextNoneId = 0;
           </a>
         }
         @case ('d3-mine') {
-          <a tc-button class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runner">
+          <a tc-button wrap class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runner">
             <tc-icon name="settings" size="sm" />
             {{ 'jobs.none.d3MineOpen' | transloco: { runner: runnerName() } }}
           </a>
@@ -64,6 +65,7 @@ let nextNoneId = 0;
   styles: `
     .jobs-none {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       justify-items: start;
       gap: var(--space-2);
       padding: var(--space-4);
