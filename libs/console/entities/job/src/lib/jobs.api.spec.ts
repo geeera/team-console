@@ -29,8 +29,8 @@ describe('JobsApi', () => {
     const read = api.list('team-console');
     http
       .expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`)
-      .flush({ jobs: [jobFixture()], nextCursor: null });
-    expect(await read).toEqual({ ok: true, value: { jobs: [jobFixture()], nextCursor: null } });
+      .flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready' });
+    expect(await read).toEqual({ ok: true, value: { jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready' } });
 
     const malformed = api.list('team-console');
     http

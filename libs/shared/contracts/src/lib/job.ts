@@ -25,6 +25,23 @@ export const JOB_KINDS = [
 export type JobKind = (typeof JOB_KINDS)[number];
 export const isJobKind = (value: unknown): value is JobKind => (JOB_KINDS as readonly unknown[]).includes(value);
 
+/**
+ * The kinds a project still on GitHub Issues may enqueue (#775, SECURITY Q8): the ones that act on GitHub through the
+ * plugin and the job's role keys. An allow-list on purpose: a kind added to `JOB_KINDS` later is refused on such a
+ * project until someone adds it here. `import` and `kickoff` write the console tracker, so they wait for the cut-over.
+ */
+export const JOB_KINDS_BEFORE_CUTOVER: readonly JobKind[] = [
+  'digest',
+  'slot-pm',
+  'slot-dev',
+  'slot-qa',
+  'burn',
+  'audit',
+  'review',
+  'chat',
+];
+export const isJobKindBeforeCutover = (kind: JobKind): boolean => JOB_KINDS_BEFORE_CUTOVER.includes(kind);
+
 export const JOB_STATES = ['queued', 'claimed', 'running', 'finished', 'failed', 'lost', 'cancelled'] as const;
 export type JobState = (typeof JOB_STATES)[number];
 export const isJobState = (value: unknown): value is JobState => (JOB_STATES as readonly unknown[]).includes(value);
@@ -304,9 +321,34 @@ export interface JobDto {
   readonly result: Readonly<Record<string, unknown>> | null;
 }
 
+/**
+ * Whether a runner of the account could take a Run now of the project now (#775), judged with the claim's own terms:
+ * `ready` an eligible runner is online and not paused; `paused` every online eligible one is paused; `offline` eligible
+ * ones exist but none is online; `none` no runner may serve the project. An enum only: never which runner, its name,
+ * host or country (R-RUN), since members and the project's jobs read it too.
+ */
+export const RUNNER_AVAILABILITIES = ['ready', 'paused', 'offline', 'none'] as const;
+export type RunnerAvailability = (typeof RUNNER_AVAILABILITIES)[number];
+export const isRunnerAvailability = (value: unknown): value is RunnerAvailability =>
+  (RUNNER_AVAILABILITIES as readonly unknown[]).includes(value);
+
+/**
+ * Why `runnerAvailability` is `none`, for the account's owner only (SECURITY review of #804): `access-mismatch` a runner
+ * would serve the project but declares no access source that fits it; `other-owner-subscription` owner decision D3
+ * holds back a subscription runner under `all` from another owner's project; `no-runner` neither. A member or a job
+ * never gets the key, so it never learns that a runner signs in with a subscription or whose it is.
+ */
+export const RUNNER_UNAVAILABLE_REASONS = ['no-runner', 'access-mismatch', 'other-owner-subscription'] as const;
+export type RunnerUnavailableReason = (typeof RUNNER_UNAVAILABLE_REASONS)[number];
+export const isRunnerUnavailableReason = (value: unknown): value is RunnerUnavailableReason =>
+  (RUNNER_UNAVAILABLE_REASONS as readonly unknown[]).includes(value);
+
 export interface JobListDto {
   readonly jobs: readonly JobDto[];
   readonly nextCursor: string | null;
+  readonly runnerAvailability: RunnerAvailability;
+  /** Present only for the owner, and only with `runnerAvailability: 'none'`. */
+  readonly runnerUnavailableReason?: RunnerUnavailableReason;
 }
 
 export interface JobEventDto {
@@ -357,7 +399,10 @@ export function isJobListDto(value: unknown): value is JobListDto {
     isRecord(value) &&
     Array.isArray(value['jobs']) &&
     value['jobs'].every(isJobDto) &&
-    isNullable(value['nextCursor'], isUlid)
+    isNullable(value['nextCursor'], isUlid) &&
+    isRunnerAvailability(value['runnerAvailability']) &&
+    (value['runnerUnavailableReason'] === undefined ||
+      (value['runnerAvailability'] === 'none' && isRunnerUnavailableReason(value['runnerUnavailableReason'])))
   );
 }
 

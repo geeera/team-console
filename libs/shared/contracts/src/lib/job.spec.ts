@@ -1,5 +1,8 @@
 import {
   JOB_COST_USD_MAX,
+  JOB_KINDS,
+  JOB_KINDS_BEFORE_CUTOVER,
+  RUNNER_AVAILABILITIES,
   REVIEW_NOTE_MAX_LENGTH,
   checkFinishJobInput,
   finishCostOf,
@@ -7,9 +10,11 @@ import {
   isJobDto,
   isJobEventDto,
   isJobEventListDto,
+  isJobKindBeforeCutover,
   isJobListDto,
   type JobDto,
   type JobEventDto,
+  type JobKind,
 } from './job';
 
 const JOB: JobDto = {
@@ -76,11 +81,19 @@ describe('job guards', () => {
     expect(isJobDto({ ...JOB, ...change })).toBe(false);
   });
 
-  it('checks every job of a list and its cursor', () => {
-    expect(isJobListDto({ jobs: [JOB], nextCursor: null })).toBe(true);
-    expect(isJobListDto({ jobs: [JOB], nextCursor: JOB.id })).toBe(true);
-    expect(isJobListDto({ jobs: [{ ...JOB, dispatch: 'cron' }], nextCursor: null })).toBe(false);
-    expect(isJobListDto({ jobs: [] })).toBe(false);
+  it('checks every job of a list, its cursor and the runner availability', () => {
+    expect(isJobListDto({ jobs: [JOB], nextCursor: null, runnerAvailability: 'ready' })).toBe(true);
+    expect(isJobListDto({ jobs: [JOB], nextCursor: JOB.id, runnerAvailability: 'none' })).toBe(true);
+    expect(isJobListDto({ jobs: [{ ...JOB, dispatch: 'cron' }], nextCursor: null, runnerAvailability: 'ready' })).toBe(false);
+    expect(isJobListDto({ jobs: [], runnerAvailability: 'ready' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'busy' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', runnerUnavailableReason: 'access-mismatch' })).toBe(true);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', runnerUnavailableReason: 'no-runner' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', runnerUnavailableReason: 'stolen' })).toBe(false);
+    for (const availability of RUNNER_AVAILABILITIES) {
+      expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability })).toBe(true);
+    }
   });
 
   it('checks events: level, kind, a payload object and a numeric cursor', () => {
@@ -148,5 +161,37 @@ describe('checkFinishJobInput: the cost (#684)', () => {
     expect(finishCostOf({})).toBeNull();
     expect(finish({ total_cost_usd: JOB_COST_USD_MAX }).ok).toBe(true);
     expect(finish({ costUsd: null }).ok).toBe(true);
+  });
+});
+
+// #775 (SECURITY Q8): Run now on a project still on GitHub Issues is an allow-list, so a new kind starts refused.
+describe('JOB_KINDS_BEFORE_CUTOVER', () => {
+  // Every kind decided here on purpose: a kind added to JOB_KINDS fails this table until someone decides it.
+  const DECIDED: Readonly<Record<JobKind, boolean>> = {
+    digest: true,
+    'slot-pm': true,
+    'slot-dev': true,
+    'slot-qa': true,
+    burn: true,
+    audit: true,
+    review: true,
+    chat: true,
+    import: false,
+    kickoff: false,
+  };
+
+  it.each(JOB_KINDS.map((kind) => [kind]))('decides %s explicitly', (kind) => {
+    expect(Object.keys(DECIDED)).toContain(kind);
+    expect(isJobKindBeforeCutover(kind)).toBe(DECIDED[kind]);
+  });
+
+  it('is a subset of JOB_KINDS that leaves the console-tracker kinds out', () => {
+    expect(JOB_KINDS_BEFORE_CUTOVER.every((kind) => (JOB_KINDS as readonly string[]).includes(kind))).toBe(true);
+    expect(isJobKindBeforeCutover('import')).toBe(false);
+    expect(isJobKindBeforeCutover('kickoff')).toBe(false);
+  });
+
+  it('refuses a kind it does not list', () => {
+    expect(isJobKindBeforeCutover('smoke' as JobKind)).toBe(false);
   });
 });
