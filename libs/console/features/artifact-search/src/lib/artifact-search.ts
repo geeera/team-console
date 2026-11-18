@@ -19,7 +19,7 @@ interface TypeOption {
   selector: 'tc-artifact-search',
   imports: [Button, Field, FieldControl, TranslocoPipe],
   template: `
-    <tc-field [label]="'artifacts.search' | transloco">
+    <tc-field [label]="'artifacts.search' | transloco" [optionalHint]="false">
       <input
         tcInput
         type="search"

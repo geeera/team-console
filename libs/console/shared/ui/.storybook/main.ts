@@ -27,7 +27,11 @@ const config: StorybookConfig = {
     '../../../widgets/sprint-board/src/**/*.stories.ts',
   ],
   // One design render on the api's file route, so the preview and viewer stories show a real image (#277).
-  staticDirs: [{ from: './public', to: '/' }],
+  staticDirs: [
+    { from: './public', to: '/' },
+    // The app's own font files, so stories and screenshots render the faces that ship (#375).
+    { from: '../../../../../apps/console/public/fonts', to: '/fonts' },
+  ],
   addons: ['@storybook/addon-a11y'],
   framework: {
     name: '@analogjs/storybook-angular',

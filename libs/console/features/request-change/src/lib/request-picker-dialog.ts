@@ -38,7 +38,7 @@ export function matchesQuery(issue: RequestIssueDto, query: string): boolean {
   imports: [Button, Chip, Field, FieldControl, List, ListRow, SheetFooter, StateBlock, TranslocoPipe],
   template: `
     <div class="picker">
-      <tc-field [label]="'commands.pick.find' | transloco">
+      <tc-field [label]="'commands.pick.find' | transloco" [optionalHint]="false">
         <input
           tcInput
           type="search"

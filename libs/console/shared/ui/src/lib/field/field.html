@@ -1,5 +1,5 @@
 <label class="tc-field__label" [attr.for]="controlId">
-  {{ label() }} @if (!required()) {
+  {{ label() }} @if (showsOptional()) {
   <span class="tc-field__optional">({{ 'ui.field.optional' | transloco }})</span>
   }
 </label>
