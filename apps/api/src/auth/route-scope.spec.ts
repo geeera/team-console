@@ -293,8 +293,13 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       expect([401, 403]).not.toContain((await sendAsRunner(runner, method, path, body)).status);
     });
 
-    it('lists exactly the two identity-less calls of the runner door under the enrolment rule (#668)', () => {
-      expect(ofRule('enrolment')).toEqual(['POST /api/v1/runner/enrol', 'POST /api/v1/runner/oidc-exchange']);
+    it('lists exactly the identity-less calls of the runner door under the enrolment rule (#668, #634)', () => {
+      expect(ofRule('enrolment')).toEqual([
+        'POST /api/v1/runner/enrol',
+        'POST /api/v1/runner/oidc-exchange',
+        'POST /api/v1/runner/enrol/start',
+        'POST /api/v1/runner/enrol/poll',
+      ]);
     });
 
     it.each(ofRule('enrolment'))('%s is open to the enrolment identity only, judged by the code', async (route) => {

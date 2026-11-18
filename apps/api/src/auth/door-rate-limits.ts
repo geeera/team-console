@@ -31,15 +31,19 @@ export class DoorRateLimits {
     this.window = rateWindowOf(now, WINDOW_SECONDS);
   }
 
-  /** One hit for the caller's `CF-Connecting-IP`; a missing or malformed one counts in one shared `unknown` bucket. */
-  async hitAddress(header: string | undefined, limit: number, logger: Logger): Promise<boolean> {
+  /**
+   * One hit for the caller's `CF-Connecting-IP`; a missing or malformed one counts in one shared `unknown` bucket.
+   * `bucket` names a per-address count of its own beside the door's default (`ip`), for a call the same caller
+   * legitimately repeats more often (the enrolment poll, #634).
+   */
+  async hitAddress(header: string | undefined, limit: number, logger: Logger, bucket = 'ip'): Promise<boolean> {
     const address = rateLimitAddressOf(header);
     if (address.kind === 'unknown') {
       // The edge always sets it; without it the caller is not reaching us through Cloudflare (or the header is forged).
       logger.warn('runner door without a client address', { door: this.scope });
     }
     const unit = address.kind === 'unknown' ? 'unknown' : await sha256Hex(address.key);
-    return (await this.repo.hit(`${this.scope}:ip:${unit}`, this.window, limit)).allowed;
+    return (await this.repo.hit(`${this.scope}:${bucket}:${unit}`, this.window, limit)).allowed;
   }
 
   async hitUnverified(limit: number): Promise<boolean> {

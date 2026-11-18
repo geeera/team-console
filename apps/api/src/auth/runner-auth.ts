@@ -18,6 +18,10 @@ import type { Identity } from './auth.types';
 export const RUNNER_PATH_PREFIX = '/api/v1/runner/';
 export const ENROL_PATH = '/api/v1/runner/enrol';
 export const OIDC_EXCHANGE_PATH = '/api/v1/runner/oidc-exchange';
+/** The enrolment intent's two calls (#634): the runner binds its key, then polls for the owner's approval. */
+export const ENROL_START_PATH = '/api/v1/runner/enrol/start';
+export const ENROL_POLL_PATH = '/api/v1/runner/enrol/poll';
+const IDENTITY_LESS_PATHS: readonly string[] = [ENROL_PATH, OIDC_EXCHANGE_PATH, ENROL_START_PATH, ENROL_POLL_PATH];
 /** The header a job's proxied call carries the runner JWT in (2-A's job token middleware). */
 export const RUNNER_JWT_HEADER = 'X-Runner-Jwt';
 
@@ -31,9 +35,12 @@ export function isRunnerPath(path: string): boolean {
   return path.startsWith(RUNNER_PATH_PREFIX);
 }
 
-/** The runner door's two calls without an identity (#467, #668): the credential is in the body, judged by the route. */
+/**
+ * The runner door's calls without an identity (#467, #668, #634): what admits the caller is in the body — the
+ * one-time code, the Actions token, an intent's id or its poll token — and is judged by the route.
+ */
 export function isEnrolRequest(method: string, path: string): boolean {
-  return method === 'POST' && (path === ENROL_PATH || path === OIDC_EXCHANGE_PATH);
+  return method === 'POST' && IDENTITY_LESS_PATHS.includes(path);
 }
 
 export type RunnerIdentity = Extract<Identity, { kind: 'runner' }>;

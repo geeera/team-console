@@ -68,7 +68,7 @@ function newEnrolmentCode(): string {
  * The slugs that are not active projects of the account (ADR 0008 security re-review: an `allowed_projects` write
  * rejects another account's slugs — and an archived or unknown one — before anything is stored).
  */
-async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonly string[]): Promise<string[]> {
+export async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonly string[]): Promise<string[]> {
   const own = new Set((await new ProjectsRepo(c.env.DB).listActive([account.id])).map((row) => row.slug));
   return slugs.filter((slug) => !own.has(slug));
 }
@@ -136,7 +136,8 @@ function pendingEnrolmentDtoOf(enrolment: EnrolmentRecord): PendingEnrolmentDto 
   };
 }
 
-function auditOf(
+/** The audit row of an owner's action on the account's runners: who acted comes from the identity, never a body. */
+export function auditOf(
   c: Context,
   account: AccountRecord,
   at: string,

@@ -6,6 +6,7 @@ import { routeScopeMiddleware } from './auth/route-scope';
 import { jobScopeMiddleware } from './auth/tracker-access.middleware';
 import { createAccountRoutes } from './routes/accounts';
 import { createAccountRunnerRoutes } from './routes/account-runners';
+import { createAccountEnrolmentIntentRoutes, createRunnerEnrolmentIntentRoutes } from './routes/enrolment-intents';
 import { createRunnerRoutes } from './routes/runner';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';
@@ -153,6 +154,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/accounts', createAccountRunnerRoutes());
   // The runner's own door: enrolment by the one-time code, then the runner JWT alone (`auth/runner-auth.ts`).
   v1.route('/runner', createRunnerRoutes());
+  // Enrolment intents (#634): the owner's wizard makes and approves a request, the runner binds its key and polls.
+  v1.route('/accounts', createAccountEnrolmentIntentRoutes());
+  v1.route('/runner', createRunnerEnrolmentIntentRoutes());
   // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
   v1.route('/projects', createJobRoutes(github));
   // Pull or GitHub Actions per project (#670): the owner's switch; an Actions job is dispatched at enqueue.

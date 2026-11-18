@@ -69,6 +69,11 @@ export const AUDIT_EVENT_KINDS = [
   // The owner's runner management (#492): a suspect mark cleared, a pending code withdrawn.
   'runner.suspect-cleared',
   'enrolment-code.withdrawn',
+  // #634: an enrolment intent of the owner's wizard — made, bound by a runner's key (with the bind's country), withdrawn.
+  // The runner it becomes is `runner.enrolled` with `via: 'intent'`.
+  'enrolment-intent.created',
+  'enrolment-intent.bound',
+  'enrolment-intent.withdrawn',
   // The runner's pause on a usage or rate limit (#571), and its lifting.
   'runner.paused',
   'runner.resumed',

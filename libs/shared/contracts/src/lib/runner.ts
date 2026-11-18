@@ -305,7 +305,8 @@ function slugList(field: string, value: unknown): string[] {
   return [...new Set<string>(value as string[])];
 }
 
-function runnerName(value: unknown): string {
+/** A runner's name as the owner typed it, trimmed; module-internal to the contracts lib. */
+export function runnerName(value: unknown): string {
   const cleaned = text('name', value, RUNNER_NAME_MAX_LENGTH, 1).trim();
   if (cleaned.length === 0 || cleaned.length > RUNNER_NAME_MAX_LENGTH) {
     throw new InputError('name', `name must be 1 to ${String(RUNNER_NAME_MAX_LENGTH)} characters`);
@@ -326,8 +327,9 @@ export function runnerHostOf(value: unknown): RunnerHostDto {
 /**
  * The scope pair of a code or a PATCH. `projectScope` defaults to `all` and `allowedProjects` to `[]` when `optional`;
  * a PATCH names both. Under `all` a non-empty list is refused: the scope is the one truth (migration 0036's CHECK).
+ * Module-internal to the contracts lib.
  */
-function projectScopeOf(fields: Record<string, unknown>, optional: boolean): RunnerProjectScopeDto {
+export function projectScopeOf(fields: Record<string, unknown>, optional: boolean): RunnerProjectScopeDto {
   const scope = fields['projectScope'];
   const list = fields['allowedProjects'];
   const projectScope =
@@ -339,7 +341,8 @@ function projectScopeOf(fields: Record<string, unknown>, optional: boolean): Run
   return { projectScope, allowedProjects };
 }
 
-function capabilities(value: unknown): RunnerCapabilitiesDto {
+/** The `capabilities` member of an enrol or bind body; module-internal to the contracts lib. */
+export function capabilities(value: unknown): RunnerCapabilitiesDto {
   const fields = record(value, ['local', 'maxConcurrency', 'accessSources']);
   if (typeof fields['local'] !== 'boolean') {
     throw new InputError('capabilities.local', 'capabilities.local must be a boolean');

@@ -5,6 +5,7 @@ import {
   isRunnerVersion,
   runnerAudienceOf,
   type EnrolRunnerResponse,
+  type EnrolmentIsolation,
   type RunnerReleaseDto,
 } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX, OPAQUE_TOKEN_TAIL } from '@shared/redaction';
@@ -43,6 +44,24 @@ export function runnerReleaseOf(env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RU
     version: isRunnerVersion(env.RUNNER_RELEASE_VERSION) ? env.RUNNER_RELEASE_VERSION : null,
     minimumVersion: isRunnerVersion(env.RUNNER_MINIMUM_VERSION) ? env.RUNNER_MINIMUM_VERSION : null,
   };
+}
+
+/**
+ * ADR 0008 decision 8: `none` is for fixture environments; production never enrols one, by a code or by an intent
+ * (refused when the intent is made, bound and approved, R-INT-6). `null` when the backend may enrol here.
+ */
+export function isolationNoneRefusal(c: Context, isolation: EnrolmentIsolation): Response | null {
+  if (isolation !== 'none' || c.env.ENVIRONMENT !== 'production') {
+    return null;
+  }
+  c.get('logger').warn('enrolment refused', { reason: 'isolation-none' });
+  return problem(c, {
+    type: 'runner-isolation-none',
+    title: 'Unprocessable Content',
+    status: 422,
+    detail: 'A runner without isolation cannot serve production; choose container or user',
+    extensions: { field: 'isolation' },
+  });
 }
 
 function codeInvalid(c: Context, reason: string): Response {
@@ -120,16 +139,9 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         logger.warn('enrolment refused', { reason: 'account-suspended' });
         return problem(c, { type: 'account-suspended', title: 'Forbidden', status: 403 });
       }
-      // ADR 0008 decision 8: `none` is for fixture environments; production never enrols one.
-      if (value.isolation === 'none' && c.env.ENVIRONMENT === 'production') {
-        logger.warn('enrolment refused', { reason: 'isolation-none' });
-        return problem(c, {
-          type: 'runner-isolation-none',
-          title: 'Unprocessable Content',
-          status: 422,
-          detail: 'A runner without isolation cannot serve production; choose container or user',
-          extensions: { field: 'isolation' },
-        });
+      const isolationRefusal = isolationNoneRefusal(c, value.isolation);
+      if (isolationRefusal !== null) {
+        return isolationRefusal;
       }
 
       const runnerId = newUlid(now.getTime());
@@ -166,6 +178,7 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             allowedProjects: enrolment.allowedProjects,
             accessSources: value.capabilities.accessSources ?? null,
             createdBy: enrolment.createdBy,
+            via: 'code',
           },
           ipCountry: c.req.header('CF-IPCountry') ?? null,
         },

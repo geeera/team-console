@@ -59,6 +59,12 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/accounts/:id/runners/:runner/revoke': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/:runner/clear-suspect': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'no-owner-write',
+  // #634: enrolment intents are D1 only, owner-of-account and narrower (the creator alone, enrolment-intents.spec.ts).
+  'POST /api/v1/accounts/:id/runners/enrolment-intents': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/approve': 'no-owner-write',
+  'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/withdraw': 'no-owner-write',
+  'POST /api/v1/runner/enrol/start': 'runner-door',
+  'POST /api/v1/runner/enrol/poll': 'runner-door',
   'POST /api/v1/runner/enrol': 'runner-door',
   // #668: a GitHub Actions run's OIDC token in the body is the credential.
   'POST /api/v1/runner/oidc-exchange': 'runner-door',
@@ -328,7 +334,11 @@ describe('owner-write inventory (#62)', () => {
   it.each(runnerDoor)('%s never admits a forged identity of the Access seam', async (route) => {
     const forgedApp = await appWithForgedIdentity(forgedJob);
     const response = await sendAsServiceToken(route, [], forgedApp);
-    if (route === 'POST /api/v1/runner/enrol') {
+    if (
+      route === 'POST /api/v1/runner/enrol' ||
+      route === 'POST /api/v1/runner/enrol/start' ||
+      route === 'POST /api/v1/runner/enrol/poll'
+    ) {
       expect(response.status).toBe(422);
       expect(await slugOf(response)).toBe('enrol-invalid');
     } else if (route === 'POST /api/v1/runner/oidc-exchange') {

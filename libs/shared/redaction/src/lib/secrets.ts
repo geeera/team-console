@@ -31,6 +31,7 @@ export type SecretKind =
   | 'private-key'
   | 'job-token'
   | 'enrolment-code'
+  | 'enrolment-poll-token'
   | 'anthropic-key'
   | 'npm-token'
   | 'aws-access-key';
@@ -44,6 +45,11 @@ export type RedactionMode = 'strict' | 'loose';
 export const JOB_TOKEN_PREFIX = 'tcj_';
 /** A runner enrolment code (ADR 0006 "Enrolment", 2-A): the same shape under its own prefix. */
 export const ENROLMENT_CODE_PREFIX = 'tce_';
+/**
+ * The poll token of an enrolment intent (#634): the same shape under its own prefix. It only collects an enrolment
+ * answer that holds no secret, and it is masked all the same so it never survives in a log or an audit row.
+ */
+export const ENROLMENT_POLL_TOKEN_PREFIX = 'tcep_';
 /** The characters of the random part of a job token or an enrolment code, and how many: base64url of 32 bytes. */
 export const OPAQUE_TOKEN_TAIL = String.raw`[A-Za-z0-9_-]{43}`;
 /** The prefix of every Anthropic key shape (API key or OAuth login); not exported, so the pattern below and
@@ -116,6 +122,11 @@ const SECRET_PATTERNS: readonly SecretPattern[] = [
     kind: 'enrolment-code',
     strict: String.raw`${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}`,
     loose: String.raw`${ENROLMENT_CODE_PREFIX}${B64URL}{1,255}`,
+  },
+  {
+    kind: 'enrolment-poll-token',
+    strict: String.raw`${ENROLMENT_POLL_TOKEN_PREFIX}${OPAQUE_TOKEN_TAIL}`,
+    loose: String.raw`${ENROLMENT_POLL_TOKEN_PREFIX}${B64URL}{1,255}`,
   },
   // An Anthropic API key (ADR 0008 decision 7: the customer's own key in hosted mode); also the routine trigger
   // tokens of #114 (`sk-ant-oat01-…`), whole or cut off in a log.

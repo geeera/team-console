@@ -16,6 +16,7 @@ import {
   type SigningKey,
 } from '../testing/access-kit';
 import { localJobToken } from '../testing/local-job-kit';
+import { isEnrolRequest } from './runner-auth';
 
 // Tests per row of the threat model on #8 (rows 1–4, 6–9) and the PM grooming criteria. Row 5 (CSRF) is in
 // csrf.middleware.spec.ts, row 10 (ngsw) in apps/console/src/app/pwa.spec.ts.
@@ -628,7 +629,7 @@ describe('route inventory (row 6)', () => {
 
   // The runner's door (#467) is the one exception: there the runner JWT is the credential (401 `runner-jwt-missing`
   // without it, whatever Access says), and enrolment has no identity at all — the code in the body is judged by the
-  // route, so an empty request is refused as input (422), never admitted.
+  // route (as an intent's id and poll token are, #634), so an empty request is refused as input (422), never admitted.
   const runnerRoutes = apiRoutes.filter(([, path]) => path.startsWith('/api/v1/runner/'));
   const accessRoutes = apiRoutes.filter(([, path]) => !path.startsWith('/api/v1/runner/'));
 
@@ -638,7 +639,7 @@ describe('route inventory (row 6)', () => {
 
   it.each(runnerRoutes)('%s %s never admits an Access-less request as anyone', async (method, path) => {
     const response = await fetchApi(path, accessEnv(teamDomain), { method });
-    if (method === 'POST' && (path === '/api/v1/runner/enrol' || path === '/api/v1/runner/oidc-exchange')) {
+    if (isEnrolRequest(method, path)) {
       expect(response.status).toBe(422);
     } else {
       await expectProblem(response, 'runner-jwt-missing');
