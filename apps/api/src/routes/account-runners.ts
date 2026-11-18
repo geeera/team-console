@@ -92,6 +92,7 @@ export function runnerDtoOf(
   runner: RunnerRecord,
   now: Date,
   minimumVersion: string | null,
+  viewer: string,
   served: readonly ServedProjectRecord[] = [],
 ): RunnerDto {
   const online =
@@ -122,6 +123,8 @@ export function runnerDtoOf(
     belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
     // A revoked runner claims nothing anyway; its last pause is history, not a state.
     pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
+    // `enrolled_by` is the audit actor of the code's creator; compared, never sent (R-RUN).
+    enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === viewer,
   };
 }
 
@@ -279,7 +282,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
         runners: (await runners.listForAccount(account.id))
           .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, served)),
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, auditActorOf(c.get('identity')).actor, served)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),
@@ -343,7 +346,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runners.servedProjectsOf(account.id, runner.id)),
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
       );
     })
 
@@ -404,7 +407,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const updated = await runners.findInAccount(account.id, runner.id);
       return c.json(
-        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runners.servedProjectsOf(account.id, runner.id)),
+        runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor, await runners.servedProjectsOf(account.id, runner.id)),
       );
     })
 
@@ -443,6 +446,6 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       c.get('logger').info('runner revoked', { runnerId: runner.id });
       const updated = await runners.findInAccount(account.id, runner.id);
       // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor));
     });
 }

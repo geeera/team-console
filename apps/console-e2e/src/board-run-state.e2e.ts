@@ -116,7 +116,7 @@ test('the Run log tile and the last runs show icon and words; an edited run is u
   const lane = page.getByTestId('runs');
   await lane.scrollIntoViewIfNeeded();
   await expect(lane.getByRole('heading', { level: 2 })).toContainText(ru('board.runs.title'));
-  await expect(lane.getByRole('list', { name: ru('board.runs.title') })).toBeVisible();
+  await expect(lane.getByRole('list', { name: ru('board.runs.githubLog') })).toBeVisible();
   await expect(runsOf(page)).toHaveCount(EXPECTED.length);
   for (const [index, { slot, state }] of EXPECTED.entries()) {
     const row = runsOf(page).nth(index);
@@ -190,7 +190,8 @@ test.describe('a run log opened by someone outside the team', () => {
     await expect(block.locator('tc-icon')).toHaveAttribute('aria-hidden', 'true');
     await expect(lane.getByTestId('runs-empty')).toHaveCount(0);
     await expect(lane.getByTestId('run')).toHaveCount(0);
-    await expect(lane.getByRole('link')).toHaveCount(0);
+    // #775: the jobs block above may link to Settings › Runners; the run log itself links nowhere.
+    await expect(lane.getByTestId('github-run-log').getByRole('link')).toHaveCount(0);
 
     await expectAccessible(page, 'Project board with the run log unavailable');
   });

@@ -316,6 +316,31 @@ describe('runner list, allowed projects and revoke', () => {
     expect(dto?.servedProjects).toContainEqual({ slug: project.slug, accessSource: 'api_key', fit: false });
   });
 
+  // #775 (D3): the owner's client words the D3 state from a per-reader flag; nobody's id, login or e-mail is sent.
+  it('says enrolledByYou for the owner who enrolled the runner only, with an exact key set', async () => {
+    const account = await seedSessionUser('owner');
+    const secondId = await seedUser('second-owner');
+    await seedMembership(account.account.id, secondId, 'owner');
+    const second = { cookie: await seedSession(secondId) };
+    const mine = await enrolRunner(account.account.id, { as: account, name: 'enrolled-by-first' });
+    const asFirst = await sendAsSession(account, 'GET', runnersPath(account.account.id));
+    const firstText = await asFirst.text();
+    const firstDto = (JSON.parse(firstText) as RunnerListDto).runners.find((runner) => runner.id === mine.id);
+    expect(firstDto?.enrolledByYou).toBe(true);
+    expect(Object.keys(firstDto ?? {}).sort()).toEqual([
+      'allowedProjects', 'belowMinimum', 'capabilities', 'enrolledAt', 'enrolledByYou', 'host', 'hosted', 'id',
+      'isolation', 'lastSeenAt', 'lastSeenCountry', 'name', 'online', 'pause', 'pinnedVersion', 'projectScope',
+      'revokedAt', 'servedProjects', 'suspect', 'version',
+    ]);
+    const asSecond = await sendAsSession(second, 'GET', runnersPath(account.account.id));
+    const secondText = await asSecond.text();
+    expect((JSON.parse(secondText) as RunnerListDto).runners.find((runner) => runner.id === mine.id)?.enrolledByYou).toBe(false);
+    for (const text of [firstText, secondText]) {
+      expect(text).not.toContain(account.userId);
+      expect(text).not.toContain(secondId);
+    }
+  });
+
   it('revokes a runner once, inside the account, and its JWT is refused from then on', async () => {
     const mine = await enrolRunner(owner.account.id, { as: owner });
     const theirRunner = await enrolRunner(OWNER_ACCOUNT_ID);

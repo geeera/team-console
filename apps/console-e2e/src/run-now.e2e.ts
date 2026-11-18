@@ -1,7 +1,7 @@
 import type { ClaimResponse } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { asRunner, enrolRunner } from './support/runner';
+import { asRunner, claimStatus, enrolRunner } from './support/runner';
 import { apiClient, seed } from './support/stack';
 import { switchToConsoleTracker } from './support/tracker-seed';
 
@@ -28,6 +28,8 @@ test('Run now queues a job, a runner claims it, and the board shows it with the 
   const api = await apiClient(stack);
   try {
     const runner = await enrolRunner(api, SLUG);
+    // #775: one poll with nothing queued makes the runner ready, so Run now says «queued», not «waits for the runner».
+    expect(await claimStatus(api, runner)).toBe(204);
 
     await page.setViewportSize({ width: 1280, height: 1000 });
     await page.goto(`/p/${SLUG}/board`);
@@ -87,13 +89,4 @@ test('Run now queues a job, a runner claims it, and the board shows it with the 
   } finally {
     await api.dispose();
   }
-});
-
-test('a GitHub project keeps the run-log tile and offers no Run now', async ({ page, stack }) => {
-  // A fresh stack without the switch: the project is on GitHub, so the board reads the run log, not the jobs.
-  await seed(stack, ['geeera/team-console']);
-  await page.goto(`/p/${SLUG}/board`);
-  await expect(page.getByTestId('team-stat')).toHaveAttribute('data-team', /.+/);
-  await expect(page.getByTestId('team-stat')).not.toHaveAttribute('data-jobs', /.+/);
-  await expect(page.getByTestId('run-now')).toHaveCount(0);
 });

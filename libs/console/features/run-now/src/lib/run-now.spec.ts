@@ -11,10 +11,11 @@ const JOBS = '/api/v1/projects/team-console/jobs';
 
 @Component({
   imports: [RunNow],
-  template: `<tc-run-now [slug]="slug()" (enqueued)="queued.push($event)" />`,
+  template: `<tc-run-now [slug]="slug()" [waiting]="waiting()" (enqueued)="queued.push($event)" />`,
 })
 class Host {
   readonly slug = signal('team-console');
+  readonly waiting = signal(false);
   readonly queued: JobDto[] = [];
 }
 
@@ -78,7 +79,7 @@ describe('RunNow', () => {
     [403, 'owner-only', 'forbidden', 'Запускать задачи может только владелец аккаунта'],
     [404, 'project-not-found', 'not-found', 'Проект не найден'],
     [409, 'job-exists', 'exists', 'уже в очереди или выполняется'],
-    [409, 'tracker-not-cut-over', 'not-cut-over', 'ещё ведёт задачи в GitHub Issues'],
+    [409, 'tracker-not-cut-over', 'not-cut-over', 'Задачу этого вида отсюда не запустить, пока проект ведёт задачи в GitHub Issues'],
     [422, 'job-invalid', 'invalid', 'Консоль не приняла запрос'],
     [429, 'rate-limited', 'rate-limited', 'Слишком много запросов'],
     [500, 'internal', 'error', 'Что-то пошло не так'],
@@ -98,6 +99,35 @@ describe('RunNow', () => {
     expect(root.querySelector('[data-testid="run-now-queued"]')).toBeNull();
     expect(fixture.componentInstance.queued).toEqual([]);
     expect(submit.disabled).toBe(false);
+  });
+
+  // #775: review and chat start elsewhere; the hint describes the picker.
+  it('links the hint about review and PM chat to the picker', () => {
+    const { root, select } = setup();
+    const hintId = select.getAttribute('aria-describedby') ?? '';
+    expect(hintId).not.toBe('');
+    expect(root.querySelector(`[id="${hintId}"]`)?.textContent).toContain('Ревью и чат с PM запускаются со своих мест');
+  });
+
+  it('says the job waits for the runner when none can take it now, and never disables Run for that', async () => {
+    const { fixture, root, submit, http } = setup();
+    fixture.componentInstance.waiting.set(true);
+    fixture.detectChanges();
+    expect(submit.disabled).toBe(false);
+    submit.click();
+    http.expectOne(JOBS).flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
+    await settle(fixture);
+    expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent).toContain(
+      'Слот PM: в очереди. Начнётся, когда раннер вернётся.',
+    );
+  });
+
+  it('takes focus on the kind picker', () => {
+    const { fixture, root, select } = setup();
+    document.body.appendChild(root);
+    fixture.debugElement.query((node) => node.componentInstance instanceof RunNow).componentInstance.focus();
+    expect(document.activeElement).toBe(select);
+    root.remove();
   });
 
   it('says when there is no network', async () => {

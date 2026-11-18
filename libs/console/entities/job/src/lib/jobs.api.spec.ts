@@ -29,8 +29,8 @@ describe('JobsApi', () => {
     const read = api.list('team-console');
     http
       .expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`)
-      .flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready' });
-    expect(await read).toEqual({ ok: true, value: { jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready' } });
+      .flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+    expect(await read).toEqual({ ok: true, value: { jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true } });
 
     const malformed = api.list('team-console');
     http
@@ -63,7 +63,7 @@ describe('JobsApi', () => {
   it.each<[string, number, string, JobFailureKind, string]>([
     ['a member (Run now is the owner’s)', 403, 'owner-only', 'forbidden', 'jobs.err.forbidden'],
     ['another account’s or a missing project', 404, 'project-not-found', 'not-found', 'jobs.err.notFound'],
-    ['a project still on GitHub', 409, 'tracker-not-cut-over', 'not-cut-over', 'jobs.err.notCutOver'],
+    ['a project still on GitHub', 409, 'tracker-not-cut-over', 'not-cut-over', 'jobs.err.kindNotAllowed'],
     ['a slot job already live', 409, 'job-exists', 'exists', 'jobs.err.exists'],
     ['a malformed request', 422, 'job-invalid', 'invalid', 'jobs.err.invalid'],
     ['too many requests', 429, 'rate-limited', 'rate-limited', 'jobs.err.rateLimited'],
