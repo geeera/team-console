@@ -1,4 +1,4 @@
-import { Hono } from 'hono';
+import { Hono, type MiddlewareHandler } from 'hono';
 import { getCookie } from 'hono/cookie';
 import {
   GITHUB_AUTHORIZED_APPS_URL,
@@ -31,7 +31,6 @@ const STATE_PATTERN = /^[0-9a-f]{64}$/;
 // GitHub's codes are 20 hex characters today; anything code-shaped is passed on, anything else never leaves.
 const CODE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 const ERROR_CODE_PATTERN = /^[a-z_]{1,64}$/;
-const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 /**
  * `redirect_uri`, identical for connect and callback: the host Cloudflare routed this request on (every hostname
@@ -60,7 +59,6 @@ function backToSettings(outcome: GitHubConnectOutcome, login?: string): Response
       Location: `${GITHUB_SETTINGS_PATH}?${query.toString()}`,
       'Set-Cookie': CLEAR_ATTEMPT_COOKIE,
       'Referrer-Policy': 'no-referrer',
-      ...NO_STORE,
     },
   });
 }
@@ -78,25 +76,42 @@ async function refreshOwnerDisplayName(c: WorkerContext<ApiEnv>, user: GitHubUse
   }
 }
 
-/** Revokes a grant we will not keep; a failure is logged (the grant stays live at GitHub) but decides nothing. */
+/**
+ * What a callback that keeps nothing revokes (#86). `grant` only for a login that is known not to be the owner's: the
+ * grant is per user, so for the owner (or a login we never learnt) it is the stored connection's grant too, and
+ * only the fresh `token` goes.
+ */
+type UnwantedScope = 'grant' | 'token';
+
+/** Revokes what we will not keep; a failure is logged (it stays live at GitHub) but decides nothing. */
 async function revokeUnwanted(
   c: WorkerContext<ApiEnv>,
   oauth: GitHubOAuth,
   accessToken: string,
+  scope: UnwantedScope,
 ): Promise<boolean> {
   try {
-    return (await oauth.revokeGrant(accessToken)) === 'revoked';
+    const outcome =
+      scope === 'grant' ? await oauth.revokeGrant(accessToken) : await oauth.revokeToken(accessToken);
+    return outcome === 'revoked';
   } catch (error: unknown) {
     if (!(error instanceof GitHubError)) {
       throw error;
     }
-    c.get('logger').error('owner connect: could not revoke a grant that is not kept', {
+    c.get('logger').error('owner connect: could not revoke what is not kept', {
+      scope,
       problem: error.problem.type,
       githubStatus: error.githubStatus,
     });
     return false;
   }
 }
+
+/** Threat row 10 for every answer of these routes, errors and the callback redirect included (#86). */
+const noStoreMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c, next) => {
+  await next();
+  c.res.headers.set('Cache-Control', 'no-store');
+};
 
 /**
  * The owner connection (ADR 0003 decision 3, #59). All four routes sit behind the Access JWT middleware and refuse
@@ -106,6 +121,7 @@ async function revokeUnwanted(
  */
 export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
+    .use('*', noStoreMiddleware)
     .use('*', ownerOnlyMiddleware)
     .post('/connect', async (c) => {
       const oauth = github.oauth(c.env);
@@ -127,7 +143,7 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         }),
       };
       c.get('logger').info('owner connect started');
-      return c.json(body, 200, { 'Set-Cookie': cookie, ...NO_STORE });
+      return c.json(body, 200, { 'Set-Cookie': cookie });
     })
     .get('/callback', async (c) => {
       const logger = c.get('logger');
@@ -189,7 +205,9 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         }
         if (exchanged.kind === 'non-expiring') {
           const revoked =
-            exchanged.accessToken === null ? false : await revokeUnwanted(c, oauth, exchanged.accessToken);
+            exchanged.accessToken === null
+              ? false
+              : await revokeUnwanted(c, oauth, exchanged.accessToken, 'token');
           logger.error('owner connect refused: the app issues non-expiring user tokens', {
             fix: 'turn on "Expire user authorization tokens" in the GitHub App settings',
             revoked,
@@ -208,7 +226,7 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
       try {
         const user = await oauth.fetchUser(pair.accessToken);
         if (user.login.toLowerCase() !== ownerLogin.toLowerCase()) {
-          const revoked = await revokeUnwanted(c, oauth, pair.accessToken);
+          const revoked = await revokeUnwanted(c, oauth, pair.accessToken, 'grant');
           logger.warn('owner connect refused: GitHub login is not the owner', {
             securitySignal: 'owner-login-refused',
             login: user.login,
@@ -222,7 +240,8 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         await refreshOwnerDisplayName(c, user);
         return backToSettings('connected');
       } catch (error: unknown) {
-        const revoked = await revokeUnwanted(c, oauth, pair.accessToken);
+        // The login is the owner's or unknown here: the grant may hold the stored connection.
+        const revoked = await revokeUnwanted(c, oauth, pair.accessToken, 'token');
         if (error instanceof GitHubError) {
           return refuse('user-lookup-failed', {
             problem: error.problem.type,
@@ -244,7 +263,7 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         status.state === 'not-connected'
           ? { ...status, ownerLogin: github.ownerLogin(c.env), appName }
           : { ...status, appName };
-      return c.json(body, 200, NO_STORE);
+      return c.json(body, 200);
     })
     .delete('/connection', async (c) => {
       const connection = await github.ownerConnection(c.env, c.get('logger'));
@@ -257,8 +276,8 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
           reason: outcome.reason,
           manageUrl: GITHUB_AUTHORIZED_APPS_URL,
         };
-        return c.json(body, 200, NO_STORE);
+        return c.json(body, 200);
       }
-      return c.body(null, 204, NO_STORE);
+      return c.body(null, 204);
     });
 }

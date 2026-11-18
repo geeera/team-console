@@ -1,5 +1,5 @@
 import { githubUnavailableError, githubUnexpectedError, mapGitHubResponse } from './errors';
-import { githubPath } from './github-path';
+import { githubPath, type GitHubPath } from './github-path';
 import {
   GITHUB_DEADLINE_MS,
   discardBody,
@@ -11,7 +11,7 @@ import {
 
 /**
  * The GitHub App's OAuth web flow for the owner's user access token (ADR 0003 decision 3): the authorize URL,
- * the code and refresh exchanges at github.com, `GET /user` and grant revocation. Tokens pass through here and
+ * the code and refresh exchanges at github.com, `GET /user` and grant or token revocation. Tokens pass through here and
  * are never logged or put into an error; the outcome of the token endpoint is read from its JSON `error` field,
  * never from the HTTP status (GitHub answers 200 with `{"error": …}`).
  */
@@ -49,6 +49,8 @@ export type TokenEndpointResult =
   | { readonly kind: 'issued'; readonly pair: UserTokenPair }
   | { readonly kind: 'refused'; readonly error: string }
   | { readonly kind: 'non-expiring'; readonly accessToken: string | null };
+
+export type RevokeOutcome = 'revoked' | 'token-rejected';
 
 export interface GitHubUser {
   readonly login: string;
@@ -164,10 +166,23 @@ export class GitHubOAuth {
    * or never valid), which says nothing about whether the grant is still alive under another token. Anything else
    * throws.
    */
-  async revokeGrant(accessToken: string): Promise<'revoked' | 'token-rejected'> {
+  async revokeGrant(accessToken: string): Promise<RevokeOutcome> {
+    return this.revoke(githubPath`/applications/${this.credentials.clientId}/grant`, accessToken);
+  }
+
+  /**
+   * `DELETE /applications/{client_id}/token`: ends this one access token; the grant and its other tokens stay.
+   * GitHub's docs do not say that it also ends the paired refresh token (#86), so callers must not count on it.
+   * Outcomes as for `revokeGrant`.
+   */
+  async revokeToken(accessToken: string): Promise<RevokeOutcome> {
+    return this.revoke(githubPath`/applications/${this.credentials.clientId}/token`, accessToken);
+  }
+
+  private async revoke(path: GitHubPath, accessToken: string): Promise<RevokeOutcome> {
     const response = await githubRequest(this.fetcher, {
       method: 'DELETE',
-      path: githubPath`/applications/${this.credentials.clientId}/grant`,
+      path,
       basic: this.credentials,
       body: { access_token: accessToken },
     });

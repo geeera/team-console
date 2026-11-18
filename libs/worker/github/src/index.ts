@@ -90,6 +90,7 @@ export type {
   AuthorizeRequest,
   GitHubOAuthOptions,
   GitHubUser,
+  RevokeOutcome,
   TokenEndpointResult,
   UserTokenPair,
 } from './lib/oauth';

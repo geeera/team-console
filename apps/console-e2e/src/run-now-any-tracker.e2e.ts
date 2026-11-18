@@ -57,6 +57,7 @@ function d3Runner(enrolledByYou: boolean, enrolledByName: string | null = null):
     pause: null,
     enrolledByYou,
     enrolledByName,
+    enroller: 'recorded',
   };
 }
 

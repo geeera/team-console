@@ -21,6 +21,7 @@ import {
   ENVIRONMENT,
   OWNER,
   fakeGitHub,
+  ownerConnection,
   parsedLogs,
   resetOwnerConnections,
   seedConnection,
@@ -112,6 +113,31 @@ function expectBackToSettings(response: Response, location: string): void {
 async function problemSlug(response: Response): Promise<string | null> {
   const body: unknown = await response.json();
   return isProblemDetails(body) ? problemSlugOf(body.type) : null;
+}
+
+/** `DELETE /applications/{id}/{grant|token}` calls the fake saw, in order. */
+function revokeCalls(h: Harness): string[] {
+  return h.fake.calls
+    .filter((c) => c.method === 'DELETE' && new URL(c.url).pathname.startsWith('/applications/'))
+    .map((c) => `${c.method} ${new URL(c.url).pathname}`);
+}
+
+/** D1 that refuses to store an owner connection, as an outage between the exchange and the write would. */
+function failingOwnerInserts(db: D1Database): D1Database {
+  return new Proxy(db, {
+    get(target, property) {
+      if (property === 'prepare') {
+        return (sql: string) => {
+          if (sql.includes('INSERT INTO owner_connections')) {
+            throw new Error('D1 is unavailable');
+          }
+          return target.prepare(sql);
+        };
+      }
+      const value: unknown = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
 }
 
 beforeEach(async () => {
@@ -495,7 +521,8 @@ describe('GET /api/v1/github/callback', () => {
     );
   });
 
-  it('a non-expiring token (app setting off) → failed, the grant revoked, nothing stored (threat row 6)', async () => {
+  // #86: the login is unknown here, so only the fresh token goes — the grant may be the stored connection's.
+  it('a non-expiring token (app setting off) → failed, the fresh token revoked, nothing stored (threat row 6)', async () => {
     const h = harness();
     h.fake.fail('exchange-non-expiring');
 
@@ -503,10 +530,10 @@ describe('GET /api/v1/github/callback', () => {
 
     expectBackToSettings(response, '/settings?github=failed');
     expect(await storedRow()).toBeNull();
-    expect(h.fake.activeGrants()).toBe(0);
+    expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
   });
 
-  it('GET /user failing after the exchange → failed, the grant revoked, nothing stored', async () => {
+  it('GET /user failing after the exchange → failed, the fresh token revoked, nothing stored', async () => {
     const h = harness();
     h.fake.fail('user-unavailable');
 
@@ -514,7 +541,115 @@ describe('GET /api/v1/github/callback', () => {
 
     expectBackToSettings(response, '/settings?github=failed');
     expect(await storedRow()).toBeNull();
-    expect(h.fake.activeGrants()).toBe(0);
+    expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
+    expect(parsedLogs(h.logs)).toContainEqual(
+      expect.objectContaining({ reason: 'user-lookup-failed', revoked: true }),
+    );
+  });
+
+  // #86 item 2: GitHub keeps one grant per user, so a grant revoke here would end the stored connection too.
+  describe('a reconnect that fails after the exchange keeps the stored connection working', () => {
+    it('GET /user fails: only the fresh token is revoked; the stored row and its token still work', async () => {
+      const h = harness();
+      // Connected a minute ago, so the new attempt's cookie is not taken for a replay.
+      const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+      const before = await storedRow();
+      h.fake.fail('user-unavailable');
+
+      const { response } = await connectAs(h);
+
+      expectBackToSettings(response, '/settings?github=failed');
+      expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
+      expect(await storedRow()).toEqual(before);
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+      expect(h.fake.activeGrants()).toBe(1);
+    });
+
+    it('D1 fails while storing the owner pair: only the fresh token is revoked, the grant stays', async () => {
+      const h = harness();
+      const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+      const bindings = { ...localEnv(), DB: failingOwnerInserts(env.DB) };
+      const started = await startConnect(h);
+      const code = h.fake.authorize(started.authorizeUrl.href);
+      const state = started.authorizeUrl.searchParams.get('state') ?? '';
+
+      const response = await call(h, `/api/v1/github/callback?code=${code}&state=${state}`, {
+        bindings,
+        headers: { Cookie: started.cookie },
+      });
+
+      expectBackToSettings(response, '/settings?github=failed');
+      const revokes = revokeCalls(h);
+      // The previous token's revoke (item 1) and the fresh token's: never the grant.
+      expect(revokes.every((line) => line.endsWith('/token'))).toBe(true);
+      expect(revokes).toHaveLength(2);
+      expect(h.fake.activeGrants()).toBe(1);
+      expect(await storedRow()).not.toBeNull();
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({ message: 'owner connect failed after the exchange', revoked: true }),
+      );
+      // Item 1 revoked the stored access token before the failed write; the stored refresh token renews it, so
+      // the owner is not disconnected (the next owner write's 401 takes this path).
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
+      const connection = await ownerConnection(h.fake);
+      connection.invalidate(seeded.accessToken);
+      expect(h.fake.isAccessTokenLive(await connection.getToken())).toBe(true);
+    });
+
+    it('a GitHub 5xx on the fresh token revoke is logged and still ends in failed', async () => {
+      const h = harness();
+      await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+      h.fake.fail('user-unavailable');
+      h.fake.fail('token-revoke-unavailable');
+
+      const { response } = await connectAs(h);
+
+      expectBackToSettings(response, '/settings?github=failed');
+      expect(h.fake.activeGrants()).toBe(1);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({
+          message: 'owner connect: could not revoke what is not kept',
+          scope: 'token',
+          problem: 'github-unavailable',
+        }),
+      );
+    });
+  });
+
+  describe('a reconnect while connected (#86 item 1)', () => {
+    it('revokes the previous access token, then stores the new pair', async () => {
+      const h = harness();
+      const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+
+      const { response } = await connectAs(h);
+
+      expectBackToSettings(response, '/settings?github=connected');
+      expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
+      expect(h.fake.activeGrants()).toBe(1);
+      const connectedAt = Date.parse((await storedRow())?.connected_at ?? '');
+      expect(connectedAt).toBeGreaterThan(Date.now() - 30_000);
+      const status = await call(h, '/api/v1/github/connection');
+      expect(await status.json()).toMatchObject({ state: 'connected' });
+    });
+
+    it('a GitHub 5xx on that revoke is logged and the reconnect still succeeds', async () => {
+      const h = harness();
+      const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+      h.fake.fail('token-revoke-unavailable');
+
+      const { response } = await connectAs(h);
+
+      expectBackToSettings(response, '/settings?github=connected');
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+      expect(parsedLogs(h.logs)).toContainEqual(
+        expect.objectContaining({
+          message: 'owner reconnect: the previous access token was not revoked',
+          reason: 'revoke-failed',
+          problem: 'github-unavailable',
+        }),
+      );
+    });
   });
 
   it('redirects only to the fixed Settings URL, whatever else the query carries', async () => {
@@ -731,10 +866,84 @@ describe('DELETE /api/v1/github/connection', () => {
     });
   });
 
+  it('a row under another master key: no GitHub call, the row goes, the answer says the grant may be live', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    await env.DB.prepare("UPDATE owner_connections SET key_id = '00000000'").run();
+
+    const response = await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      revoked: false,
+      action: 'revoke-on-github',
+      reason: 'no-usable-token',
+    });
+    expect(h.fake.calls).toEqual([]);
+    expect(await storedRow()).toBeNull();
+    expect(h.fake.activeGrants()).toBe(1);
+  });
+
   it('not connected → 204 without a GitHub call', async () => {
     const h = harness();
     const response = await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN });
     expect(response.status).toBe(204);
     expect(h.fake.calls).toEqual([]);
+  });
+});
+
+// #86 item 5 (threat row 10): every answer of the connection routes, errors included, is never cached.
+describe('Cache-Control: no-store on every #59 answer', () => {
+  async function serviceBindings() {
+    const jwks = stubJwksServer();
+    const teamDomain = uniqueTeamDomain();
+    const key = await createSigningKey();
+    jwks.set(teamDomain, { keys: [key.publicJwk] });
+    return {
+      bindings: accessEnv(teamDomain, { ENVIRONMENT: 'dev' }),
+      token: await signAccessToken(key, teamDomain, {
+        claims: { email: undefined, common_name: SERVICE_TOKEN_ID },
+      }),
+    };
+  }
+
+  it.each([
+    ['connect misconfigured → 503', 'POST', '/api/v1/github/connect', { GITHUB_APP_CLIENT_SECRET: '' }, 503],
+    [
+      'connection without OWNER_GITHUB_LOGIN → 503',
+      'GET',
+      '/api/v1/github/connection',
+      { OWNER_GITHUB_LOGIN: '' },
+      503,
+    ],
+    ['disconnect, not connected → 204', 'DELETE', '/api/v1/github/connection', {}, 204],
+    ['callback without a cookie → 302', 'GET', '/api/v1/github/callback?code=abc&state=def', {}, 302],
+  ] as const)('%s', async (_label, method, path, overrides, status) => {
+    const response = await call(harness(), path, {
+      method,
+      headers: SAME_ORIGIN,
+      bindings: localEnv(overrides),
+    });
+    expect(response.status).toBe(status);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('disconnect with GitHub down → 502', async () => {
+    const h = harness();
+    await connectAs(h);
+    h.fake.fail('revoke-unavailable');
+    const response = await call(h, '/api/v1/github/connection', { method: 'DELETE', headers: SAME_ORIGIN });
+    expect(response.status).toBe(502);
+    expect(response.headers.get('cache-control')).toBe('no-store');
+  });
+
+  it('the service identity refused → 403', async () => {
+    const { bindings, token } = await serviceBindings();
+    const response = await call(harness(), '/api/v1/github/connection', {
+      bindings,
+      headers: { 'Cf-Access-Jwt-Assertion': token },
+    });
+    expect(response.status).toBe(403);
+    expect(response.headers.get('cache-control')).toBe('no-store');
   });
 });

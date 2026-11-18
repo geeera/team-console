@@ -1,7 +1,7 @@
 /**
  * Test and local-run only: a stateful stand-in for GitHub's side of the owner connection — the authorize step, the
  * token endpoint (code + PKCE, single-use rotating refresh tokens, errors in a 200's JSON `error`), `GET /user`,
- * grant revocation, and the owner's issue comments (#10: accepted only with a live owner access token). The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
+ * grant and token revocation, and the owner's issue comments (#10: accepted only with a live owner access token). The api specs use it through `fetch`; `nx run api:fake-github` serves it as a local Worker.
  *
  * Issue threads (#114): an issue seeded with `seedIssue` is served like a public repository's — `GET` of the issue,
  * its comments and the repository need no token — and takes labels (`POST …/labels`, `DELETE …/labels/{name}`) and
@@ -10,6 +10,10 @@
  * Milestones (#218): a repository seeded with `seedMilestones` lists them like a public repository's
  * (`GET …/milestones?state=`, sorted by due date as GitHub does) and takes `POST …/milestones` and
  * `PATCH …/milestones/{number}` from a live owner token; a title already taken is GitHub's 422 `already_exists`.
+ *
+ * Grants (#86): like GitHub, one grant per user — a second authorize by the same user adds tokens to the live grant,
+ * so a grant revoke ends the earlier pair too. `DELETE …/token` ends that access token only; its refresh token stays
+ * redeemable, because GitHub's docs do not promise more and the console must not count on it.
  */
 
 export interface FakeUser {
@@ -24,6 +28,7 @@ export type FakeFault =
   | 'refresh-unavailable'
   | 'refresh-bad-refresh-token'
   | 'revoke-unavailable'
+  | 'token-revoke-unavailable'
   | 'exchange-non-expiring'
   | 'user-unavailable'
   | 'authorize-denied'
@@ -325,9 +330,15 @@ export class FakeGitHubOAuth {
 
   /** Issues a pair without the web flow (to seed a connection in tests). */
   issuePair(user: FakeUser = this.user): { accessToken: string; refreshToken: string } {
-    const grant = this.nextGrant++;
-    this.grants.set(grant, { user, active: true });
-    return this.mint(grant);
+    return this.mint(this.grantFor(user));
+  }
+
+  /** Whether GitHub would accept this access token now (a live token of a live grant). */
+  isAccessTokenLive(accessToken: string): boolean {
+    const token = this.accessTokens.get(accessToken);
+    return (
+      token !== undefined && token.expiresAt > this.now() && this.grants.get(token.grant)?.active === true
+    );
   }
 
   async handle(request: Request): Promise<Response> {
@@ -370,7 +381,10 @@ export class FakeGitHubOAuth {
         return json(404, { message: 'Not Found' });
       }
       const state = url.searchParams.get('state') ?? 'open';
-      return json(200, seeded.filter((pull) => state === 'all' || (pull['state'] ?? 'open') === state));
+      return json(
+        200,
+        seeded.filter((pull) => state === 'all' || (pull['state'] ?? 'open') === state),
+      );
     }
     if (url.origin === 'https://api.github.com') {
       const thread = await this.threadEndpoint(request, url);
@@ -378,9 +392,13 @@ export class FakeGitHubOAuth {
         return thread;
       }
     }
-    const revoke = /^\/applications\/([^/]+)\/grant$/.exec(url.pathname);
+    const revoke = /^\/applications\/([^/]+)\/(grant|token)$/.exec(url.pathname);
     if (url.origin === 'https://api.github.com' && request.method === 'DELETE' && revoke !== null) {
-      return this.revokeEndpoint(request, decodeURIComponent(revoke[1] ?? ''));
+      return this.revokeEndpoint(
+        request,
+        decodeURIComponent(revoke[1] ?? ''),
+        revoke[2] === 'grant' ? 'grant' : 'token',
+      );
     }
     return json(404, { message: 'Not Found' });
   }
@@ -447,9 +465,7 @@ export class FakeGitHubOAuth {
     ) {
       return json(200, { error: 'bad_verification_code' });
     }
-    const grant = this.nextGrant++;
-    this.grants.set(grant, { user: pending.user, active: true });
-    const pair = this.mint(grant);
+    const pair = this.mint(this.grantFor(pending.user));
     if (this.takeFault('exchange-non-expiring')) {
       return json(200, { access_token: pair.accessToken, token_type: 'bearer', scope: '' });
     }
@@ -682,22 +698,45 @@ export class FakeGitHubOAuth {
       : json(200, { ...grant.user, type: 'User' });
   }
 
-  private async revokeEndpoint(request: Request, clientId: string): Promise<Response> {
+  private async revokeEndpoint(
+    request: Request,
+    clientId: string,
+    scope: 'grant' | 'token',
+  ): Promise<Response> {
     const expected = `Basic ${btoa(`${this.options.clientId}:${this.options.clientSecret}`)}`;
     if (clientId !== this.options.clientId || request.headers.get('authorization') !== expected) {
       return json(401, { message: 'Bad credentials' });
     }
-    if (this.takeFault('revoke-unavailable')) {
+    if (this.takeFault(scope === 'grant' ? 'revoke-unavailable' : 'token-revoke-unavailable')) {
       return json(502, { message: 'unavailable' });
     }
     const body = (await request.json()) as { access_token?: unknown };
-    const token = this.accessTokens.get(typeof body.access_token === 'string' ? body.access_token : '');
+    const accessToken = typeof body.access_token === 'string' ? body.access_token : '';
+    const token = this.accessTokens.get(accessToken);
     const grant = token === undefined ? undefined : this.grants.get(token.grant);
     if (token === undefined || grant === undefined || !grant.active) {
       return json(404, { message: 'Not Found' });
     }
-    grant.active = false;
+    if (scope === 'grant') {
+      grant.active = false;
+    } else {
+      this.accessTokens.delete(accessToken);
+    }
     return new Response(null, { status: 204 });
+  }
+
+  /** The user's live grant, or a new one: GitHub keeps one authorization per user and app. */
+  private grantFor(user: FakeUser): number {
+    for (const [id, grant] of this.grants) {
+      if (grant.active && grant.user.id === user.id) {
+        // A renamed account keeps its grant; `/user` answers the current login.
+        this.grants.set(id, { user, active: true });
+        return id;
+      }
+    }
+    const id = this.nextGrant++;
+    this.grants.set(id, { user, active: true });
+    return id;
   }
 
   private async commentEndpoint(request: Request, repo: string, issue: number): Promise<Response> {

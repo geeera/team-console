@@ -52,6 +52,28 @@ function scopeWriteAllowedSql(runner: string): string {
   )`;
 }
 
+/** What `claimEnroller` did (#827); everything but `claimed` wrote and audited nothing. */
+export type EnrollerClaim = 'claimed' | 'already-set' | 'not-sole-owner' | 'revoked' | 'fixed' | 'not-found';
+
+/**
+ * The claimer is the account's sole owner (#827, owner decision (a)), judged on the row aliased `runner` with the
+ * claimer's user id bound as `userId`: at most one owner row (D3's own one-owner term), and none of another user. A
+ * claimer with no user id (the Access owner before the link, the local bypass) owns the account by its door, so only
+ * the count applies to it.
+ */
+function claimerIsSoleOwnerSql(runner: string, userId: string): string {
+  return `(${runnerAccountHasOneOwnerSql(runner)}
+    AND (${userId} IS NULL OR NOT EXISTS (
+      SELECT 1 FROM account_members so WHERE so.account_id = ${runner}.account_id AND so.role = 'owner' AND so.user_id <> ${userId}
+    )))`;
+}
+
+/** A runner whose enroller can be claimed (#827): no enroller recorded, self-hosted, unrevoked. */
+function enrollerOpenSql(runner: string): string {
+  return `(${runner}.enrolled_by IS NULL AND ${runner}.hosted = 0 AND ${runner}.isolation <> 'actions-ephemeral'
+    AND ${runner}.revoked_at IS NULL)`;
+}
+
 export interface RunnerRecord {
   readonly id: string;
   readonly accountId: string;
@@ -594,6 +616,75 @@ export class RunnersRepo {
       return 'changed';
     }
     return refusal?.results[0]?.refused === 1 ? 'enroller-only' : 'unchanged';
+  }
+
+  /**
+   * The sole owner records themselves as the enroller of a runner from before `enrolled_by` (#827, owner decision (a)),
+   * so D3 and #795 treat it as theirs once a second owner joins. Only NULL→`by` (the 0036 trigger refuses any change of
+   * a recorded enroller). The sole-owner rule is a term of the UPDATE itself, so an owner joining between the route's
+   * read and this write leaves the row untouched; the read before it in the batch only words the refusal.
+   */
+  async claimEnroller(
+    accountId: string,
+    id: string,
+    by: string,
+    userId: string | null,
+    audit: NewAuditEvent,
+  ): Promise<EnrollerClaim> {
+    const soleOwner = claimerIsSoleOwnerSql('runners', '?4');
+    const [diagnosis, update] = await this.db.batch<{
+      id: string;
+      recorded?: number;
+      revoked?: number;
+      fixed?: number;
+      sole?: number;
+    }>([
+      this.db
+        .prepare(
+          `SELECT id, enrolled_by IS NOT NULL AS recorded, revoked_at IS NOT NULL AS revoked,
+             (hosted = 1 OR isolation = 'actions-ephemeral') AS fixed, ${soleOwner} AS sole
+           FROM runners WHERE id = ?1 AND account_id = ?2`,
+        )
+        .bind(id, accountId, by, userId),
+      ...auditedWrite(
+        this.db,
+        this.db
+          .prepare(
+            `UPDATE runners SET enrolled_by = ?3
+             WHERE id = ?1 AND account_id = ?2 AND ${enrollerOpenSql('runners')} AND ${soleOwner} RETURNING id`,
+          )
+          .bind(id, accountId, by, userId),
+        audit,
+      ),
+    ]);
+    if ((update?.results.length ?? 0) === 1) {
+      return 'claimed';
+    }
+    const row = diagnosis?.results[0];
+    if (row === undefined) {
+      return 'not-found';
+    }
+    if (row.recorded === 1) {
+      return 'already-set';
+    }
+    if (row.revoked === 1) {
+      return 'revoked';
+    }
+    if (row.fixed === 1) {
+      return 'fixed';
+    }
+    return 'not-sole-owner';
+  }
+
+  /** The account's runners whose enroller the claimer may claim now (#827), by the write's own terms. */
+  async enrollerClaimableIdsOf(accountId: string, userId: string | null): Promise<readonly string[]> {
+    const rows = await this.db
+      .prepare(
+        `SELECT id FROM runners WHERE account_id = ?1 AND ${enrollerOpenSql('runners')} AND ${claimerIsSoleOwnerSql('runners', '?2')}`,
+      )
+      .bind(accountId, userId)
+      .all<{ id: string }>();
+    return rows.results.map((row) => row.id);
   }
 
   /**

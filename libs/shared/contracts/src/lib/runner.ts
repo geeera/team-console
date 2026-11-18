@@ -33,6 +33,18 @@ export const RUNNER_PROJECT_SCOPES = ['all', 'selected'] as const;
 export type RunnerProjectScope = (typeof RUNNER_PROJECT_SCOPES)[number];
 export const isRunnerProjectScope = (value: unknown): value is RunnerProjectScope =>
   (RUNNER_PROJECT_SCOPES as readonly unknown[]).includes(value);
+
+/**
+ * Whether the console knows who enrolled a runner (#827; owner decision D3 and #795 judge by it):
+ * - `recorded` — it does;
+ * - `unrecorded` — a runner from before migration 0036; in an account with a second owner nobody may widen it;
+ * - `claimable` — the same, and the caller, as the account's sole owner, may record themselves as its enroller;
+ * - `not-applicable` — a hosted or GitHub Actions identity, or a revoked runner: no one's to claim.
+ */
+export const RUNNER_ENROLLER_STATES = ['recorded', 'unrecorded', 'claimable', 'not-applicable'] as const;
+export type RunnerEnrollerState = (typeof RUNNER_ENROLLER_STATES)[number];
+export const isRunnerEnrollerState = (value: unknown): value is RunnerEnrollerState =>
+  (RUNNER_ENROLLER_STATES as readonly unknown[]).includes(value);
 /** What a new runner gets when the owner does not choose (owner, 2026-11-17; SECURITY question 6). */
 export const DEFAULT_RUNNER_PROJECT_SCOPE: RunnerProjectScope = 'all';
 
@@ -273,6 +285,8 @@ export interface RunnerDto extends RunnerProjectScopeDto {
    * owner has none or is not an owner of the account any more. Never a login, e-mail or user id.
    */
   readonly enrolledByName: string | null;
+  /** #827: never who enrolled it, only whether the console knows and whether the caller may claim it. */
+  readonly enroller: RunnerEnrollerState;
 }
 
 /**
@@ -659,7 +673,8 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     typeof value['belowMinimum'] === 'boolean' &&
     isNullable(value['pause'], isRunnerPauseDto) &&
     typeof value['enrolledByYou'] === 'boolean' &&
-    isNullable(value['enrolledByName'], isDisplayName)
+    isNullable(value['enrolledByName'], isDisplayName) &&
+    isRunnerEnrollerState(value['enroller'])
   );
 }
 

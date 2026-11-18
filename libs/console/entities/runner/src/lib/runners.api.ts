@@ -95,6 +95,11 @@ export class RunnersApi {
     return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/revoke`, {}), isRunnerDto);
   }
 
+  /** #827: the sole owner records themselves as the enroller of a runner from before that was recorded. */
+  claimEnroller(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
+    return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/claim-enroller`, {}), isRunnerDto);
+  }
+
   clearSuspect(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
     return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/clear-suspect`, {}), isRunnerDto);
   }
