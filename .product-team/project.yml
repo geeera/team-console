@@ -50,10 +50,18 @@ review:
 
 # #788: changes to the Actions workflow template and its renderer always need SECURITY (plugin >= 0.11.1 reads this
 # from the PR's base branch). These run with the customer's repository token, so they are treated as auth code.
+# #833: the Actions setup API, dispatch and the runner's OIDC/ephemeral-credential code — rendering, dispatch and
+# trust inside customers' Actions jobs — that the built-in SENSITIVE rules don't already match.
 security_paths:
   - "apps/runner/templates/**"
   - "libs/shared/actions-workflow/**"
   - "apps/runner/src/actions-template.spec.ts"
+  - "apps/api/src/routes/actions-setup*.ts"
+  - "apps/api/src/actions/**"
+  - "apps/runner/src/backends/actions-ephemeral.ts"
+  - "apps/runner/src/cli/run-once-oidc.ts"
+  - "apps/runner/src/client/actions-oidc.ts"
+  - "libs/worker/github/src/lib/actions-setup*.ts"
 
 team:
   plugin_ref: stable
