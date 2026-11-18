@@ -411,7 +411,9 @@
       "empty": "No runs yet",
       "log": "Full run log",
       "unavailable": "Run log unavailable",
-      "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel."
+      "unavailableHint": "The run log couldn't be read, or someone outside the team opened it. Reload the board later, or check the run log in the Commands panel.",
+      "githubLog": "GitHub run log",
+      "githubLogHint": "Scheduled routine runs, as the plugin logged them. Jobs started from the console are above."
     },
     "opensGitHub": "(opens on GitHub)",
     "pulls": "Open PRs",
@@ -505,7 +507,8 @@
       "offline": "You’re offline",
       "offlineHint": "The section loads once you’re back online.",
       "showMore": "Show {{n}} more · {{left}} left"
-    }
+    },
+    "runNow": "Run now"
   },
   "find": {
     "title": "Find a task",
@@ -1730,7 +1733,8 @@
       "run": "Run",
       "offReason": "Not set up: this routine has no trigger token",
       "newTask": "New task",
-      "newTaskDraft": "New task, draft waiting"
+      "newTaskDraft": "New task, draft waiting",
+      "longLabel": "Open the runner settings of this account"
     },
     "card": {
       "kind": "Question",
@@ -2396,13 +2400,16 @@
       "forbiddenTitle": "You cannot see this project's jobs",
       "forbiddenHint": "The owner and the members of the project's account can.",
       "refresh": "Refresh",
-      "staleNote": "Could not refresh the list — showing the last one received."
+      "staleNote": "Could not refresh the list — showing the last one received.",
+      "emptyHintMember": "Jobs the account owner starts show here."
     },
     "runNow": {
       "title": "Run now",
       "kind": "What to run",
       "submit": "Run",
-      "queued": "{{kind}}: queued."
+      "queued": "{{kind}}: queued.",
+      "hint": "Review and PM chat start from their own places: a pull request and the team chat.",
+      "queuedWaiting": "{{kind}}: queued. It starts when the runner is back."
     },
     "tile": {
       "running": "Running: {{kind}}",
@@ -2420,14 +2427,45 @@
     "err": {
       "forbidden": "Only the account owner can start jobs. Nothing was started.",
       "notFound": "The project was not found. Reload the page.",
-      "notCutOver": "This project still keeps its tasks in GitHub Issues — Run now works here after the move to the console.",
       "exists": "A job of this kind is already queued or running. Wait for it to end.",
       "invalid": "The console refused the request. Reload the page and try again.",
       "rateLimited": "Too many requests. Wait a minute and try again.",
       "offline": "No network. Nothing was started — try again once you are back online.",
       "timeout": "The console did not answer in time. Refresh the list: the job may have been queued.",
       "sessionExpired": "Your session expired. Sign in again.",
-      "error": "Something went wrong. Try again."
+      "error": "Something went wrong. Try again.",
+      "kindNotAllowed": "This kind of job can’t be started here while the project keeps its tasks in GitHub Issues. Nothing was started."
+    },
+    "availability": {
+      "runners": "Runners",
+      "offlineLead": "The runner is offline.",
+      "offlineOwner": "A job waits in the queue and starts when the runner connects again.",
+      "offlineMember": "Jobs start when it connects again.",
+      "pausedUntil": {
+        "usage-limit": "The runner is paused until {{time}}, on a usage limit.",
+        "rate-limit": "The runner is paused until {{time}}, on a rate limit.",
+        "manual": "The runner is paused until {{time}}."
+      },
+      "pausedOwner": "A job waits in the queue until then.",
+      "pausedLead": "The runner is paused.",
+      "pausedMember": "Jobs start when the pause ends."
+    },
+    "none": {
+      "title": "No runner serves this project",
+      "owner": "None of the account’s runners serves {{project}}, so a job can’t start yet. Add the project to a runner’s list, or connect a new runner.",
+      "member": "None of the account’s runners serves this project yet. The account owner can connect one.",
+      "open": "Open Settings › Runners",
+      "d3Title": "This runner doesn’t serve your projects",
+      "d3": "The runner “{{runner}}” works on another account owner’s Claude subscription. Set to “All account projects”, such a runner serves only its owner’s projects, and you created this one. Connect your own runner, or ask the runner’s owner to add {{project}} to its list by hand.",
+      "d3Connect": "Connect a runner",
+      "d3MineTitle": "Your runner doesn’t serve this project",
+      "d3Mine": "Your runner “{{runner}}” works on your Claude subscription. Set to “All account projects”, it serves only your projects, and {{project}} was created by another account owner. To let it serve this project too, add the project to its list by hand.",
+      "d3MineOpen": "Open the runner “{{runner}}”",
+      "why": "Why",
+      "whyBody": "A Claude subscription is personal: its holder answers for the work it does. So a runner on a subscription takes another owner’s projects only when its owner adds them on purpose."
+    },
+    "member": {
+      "line": "Only the account owner can start jobs."
     }
   },
   "quickTask": {

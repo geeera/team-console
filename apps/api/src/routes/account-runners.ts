@@ -113,6 +113,7 @@ export function runnerDtoOf(
   runner: RunnerRecord,
   now: Date,
   minimumVersion: string | null,
+  viewer: string,
   served: readonly ServedProjectRecord[] = [],
   claimable: readonly string[] = [],
 ): RunnerDto {
@@ -144,6 +145,8 @@ export function runnerDtoOf(
     belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
     // A revoked runner claims nothing anyway; its last pause is history, not a state.
     pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
+    // `enrolled_by` is the audit actor of the code's creator; compared, never sent (R-RUN).
+    enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === viewer,
     enroller: enrollerStateOf(runner, claimable),
   };
 }
@@ -194,6 +197,7 @@ async function currentRunnerDtoOf(
     updated,
     now,
     runnerReleaseOf(c.env).minimumVersion,
+    auditActorOf(c.get('identity')).actor,
     await runners.servedProjectsOf(accountId, before.id),
     await runners.enrollerClaimableIdsOf(accountId, claimerUserIdOf(c)),
   );
@@ -316,12 +320,13 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       // One read for every runner's effective projects (#775), the claim's own term.
       const served = await runners.servedProjectsOf(account.id);
       const claimable = await runners.enrollerClaimableIdsOf(account.id, claimerUserIdOf(c));
+      const viewer = auditActorOf(c.get('identity')).actor;
       const body: RunnerListDto = {
         // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
         // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
         runners: (await runners.listForAccount(account.id))
           .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, served, claimable)),
+          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, viewer, served, claimable)),
         pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
           pendingEnrolmentDtoOf,
         ),
@@ -530,6 +535,6 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       c.get('logger').info('runner revoked', { runnerId: runner.id });
       const updated = await runners.findInAccount(account.id, runner.id);
       // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion));
+      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, auditActorOf(c.get('identity')).actor));
     });
 }

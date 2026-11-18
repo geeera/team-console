@@ -47,6 +47,24 @@ export function projectPauseOf(runners: readonly RunnerDto[], slug: string): Run
   return first;
 }
 
+/**
+ * The runner owner decision D3 holds back from `slug` (#775), for the owner's `other-owner-subscription` copy: a live
+ * machine runner under `all` that may sign in with a Claude subscription (it declares `subscription`, or nothing) yet
+ * does not serve the project. The caller's own such runner first, since that one the caller can fix by hand. `null`
+ * when no runner the caller reads fits, and the view falls back to the generic «no runner» copy.
+ */
+export function d3RunnerOf(runners: readonly RunnerDto[], slug: string): RunnerDto | null {
+  const held = liveRunnersOf(runners).filter(
+    (runner) =>
+      runner.projectScope === 'all' &&
+      !runner.hosted &&
+      runner.isolation !== 'actions-ephemeral' &&
+      (runner.capabilities.accessSources === undefined || runner.capabilities.accessSources.includes('subscription')) &&
+      !runner.servedProjects.some((project) => project.slug === slug),
+  );
+  return held.find((runner) => runner.enrolledByYou) ?? held[0] ?? null;
+}
+
 /** Live runners first, then revoked ones; inside each, the order the Worker listed them in (enrolment). */
 export function runnersInDisplayOrder(runners: readonly RunnerDto[]): readonly RunnerDto[] {
   return [...liveRunnersOf(runners), ...runners.filter((runner) => runner.revokedAt !== null)];

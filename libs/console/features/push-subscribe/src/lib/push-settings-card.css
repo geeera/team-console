@@ -57,10 +57,3 @@
   color: var(--danger-text);
   background: var(--danger-soft);
 }
-
-/* A long label (#761, «Как добавить — в разделе „Приложение“») wraps instead of widening the page at 375 px. */
-.push__go-to-app {
-  max-width: 100%;
-  white-space: normal;
-  text-align: center;
-}

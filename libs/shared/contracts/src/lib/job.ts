@@ -347,6 +347,11 @@ export interface JobListDto {
   readonly jobs: readonly JobDto[];
   readonly nextCursor: string | null;
   readonly runnerAvailability: RunnerAvailability;
+  /**
+   * Whether the caller may Run now on this project (#775): `true` for an owner of the project's account only, judged
+   * per project, so an owner of one account reading another account's project as a member gets `false`.
+   */
+  readonly canRunNow: boolean;
   /** Present only for the owner, and only with `runnerAvailability: 'none'`. */
   readonly runnerUnavailableReason?: RunnerUnavailableReason;
 }
@@ -401,6 +406,7 @@ export function isJobListDto(value: unknown): value is JobListDto {
     value['jobs'].every(isJobDto) &&
     isNullable(value['nextCursor'], isUlid) &&
     isRunnerAvailability(value['runnerAvailability']) &&
+    typeof value['canRunNow'] === 'boolean' &&
     (value['runnerUnavailableReason'] === undefined ||
       (value['runnerAvailability'] === 'none' && isRunnerUnavailableReason(value['runnerUnavailableReason'])))
   );

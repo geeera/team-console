@@ -1,6 +1,6 @@
 import { DOCUMENT } from '@angular/common';
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { JobDto, JobEventDto } from '@shared/contracts';
+import type { JobDto, JobEventDto, RunnerAvailability, RunnerUnavailableReason } from '@shared/contracts';
 import { currentJobsOf, isHeldJob, isLiveJob, jobsTileOf, recentJobsOf } from './job.model';
 import type { JobFailure } from './job-failure';
 import { JobsApi } from './jobs.api';
@@ -40,6 +40,12 @@ export class JobsStore {
   private readonly eventsByJob = signal<ReadonlyMap<string, readonly JobEventDto[]>>(new Map());
   /** Jobs whose last events read failed; the card says so instead of showing a log that stopped. */
   readonly eventFailures = signal<ReadonlySet<string>>(new Set());
+  /** Whether a runner could take a Run now (#775); `null` until the first read answered. */
+  readonly availability = signal<RunnerAvailability | null>(null);
+  /** Why no runner serves the project; the Worker sends it to an owner of the project's account only. */
+  readonly unavailableReason = signal<RunnerUnavailableReason | null>(null);
+  /** Whether the caller may Run now on this project, as the Worker judged it for the project's own account. */
+  readonly canRunNow = signal(false);
 
   readonly current = computed(() => currentJobsOf(this.jobs()));
   readonly recent = computed(() => recentJobsOf(this.jobs()));
@@ -119,6 +125,9 @@ export class JobsStore {
         return;
       }
       this.jobs.set(read.value.jobs);
+      this.availability.set(read.value.runnerAvailability);
+      this.unavailableReason.set(read.value.runnerUnavailableReason ?? null);
+      this.canRunNow.set(read.value.canRunNow);
       this.failure.set(null);
       this.status.set('ready');
       await this.readEvents(slug, ticket, read.value.jobs.filter(isHeldJob));
@@ -146,6 +155,9 @@ export class JobsStore {
     this.jobs.set([]);
     this.eventsByJob.set(new Map());
     this.eventFailures.set(new Set());
+    this.availability.set(null);
+    this.unavailableReason.set(null);
+    this.canRunNow.set(false);
     this.failure.set(null);
     this.refreshing.set(false);
     this.status.set('loading');

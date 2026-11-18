@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { JOB_KINDS, OWNER_ACCOUNT_ID, isJobKindBeforeCutover, type JobDto, type JobListDto, type RunnerPolicyDto } from '@shared/contracts';
-import { seedMembership, seedSession, seedUser, sendAsSession } from '../testing/session-kit';
+import { seedAccount, seedAccountProject, seedMembership, seedSession, seedSessionUser, seedUser, sendAsSession } from '../testing/session-kit';
 import { jobActor, seedGitHubProject, seedTrackerProject, send, sendAsService, slugOf } from '../testing/tracker-kit';
 import { localEnv } from '../testing/github-kit';
 
@@ -100,14 +100,15 @@ describe('GET /api/v1/projects/:slug/jobs runnerAvailability', () => {
       .run();
   }
 
-  it('answers exactly jobs, nextCursor and the availability enum: no runner id, name, host or country', async () => {
+  it('answers exactly jobs, nextCursor, the availability enum and canRunNow: no runner id, name, host or country', async () => {
     const project = await seedTrackerProject();
     await seedRunner(project.slug, new Date().toISOString());
     const response = await send('GET', `/api/v1/projects/${project.slug}/jobs`);
     expect(response.status).toBe(200);
     const body = (await response.json()) as JobListDto;
-    expect(Object.keys(body).sort()).toEqual(['jobs', 'nextCursor', 'runnerAvailability']);
+    expect(Object.keys(body).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
     expect(body.runnerAvailability).toBe('ready');
+    expect(body.canRunNow).toBe(true);
   });
 
   // SECURITY review of #804: the reason for `none` is the owner's; a member and a job get the bare enum.
@@ -115,16 +116,20 @@ describe('GET /api/v1/projects/:slug/jobs runnerAvailability', () => {
     const lonely = await seedTrackerProject();
     const path = `/api/v1/projects/${lonely.slug}/jobs`;
     const owner = (await (await send('GET', path)).json()) as JobListDto;
-    expect(Object.keys(owner).sort()).toEqual(['jobs', 'nextCursor', 'runnerAvailability', 'runnerUnavailableReason']);
-    expect(owner).toMatchObject({ runnerAvailability: 'none', runnerUnavailableReason: 'no-runner' });
+    expect(Object.keys(owner).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability', 'runnerUnavailableReason']);
+    expect(owner).toMatchObject({ runnerAvailability: 'none', runnerUnavailableReason: 'no-runner', canRunNow: true });
     const memberId = await seedUser('member-775b');
     await seedMembership(OWNER_ACCOUNT_ID, memberId, 'member');
     const member = await sendAsSession({ cookie: await seedSession(memberId) }, 'GET', path, undefined, {}, localEnv({ AUTH_MODE: undefined }));
     expect(member.status).toBe(200);
-    expect(Object.keys((await member.json()) as JobListDto).sort()).toEqual(['jobs', 'nextCursor', 'runnerAvailability']);
+    const memberBody = (await member.json()) as JobListDto;
+    expect(Object.keys(memberBody).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
+    expect(memberBody.canRunNow).toBe(false);
     const job = await send('GET', path, undefined, { job: jobActor('pm') });
     expect(job.status).toBe(200);
-    expect(Object.keys((await job.json()) as JobListDto).sort()).toEqual(['jobs', 'nextCursor', 'runnerAvailability']);
+    const jobBody = (await job.json()) as JobListDto;
+    expect(Object.keys(jobBody).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
+    expect(jobBody.canRunNow).toBe(false);
     const service = await sendAsService('GET', path);
     expect(service.status).toBe(403);
   });
@@ -157,6 +162,24 @@ describe('GET /api/v1/projects/:slug/jobs runnerAvailability', () => {
     expect(((await member.json()) as JobListDto).runnerAvailability).toBe('ready');
     const job = await send('GET', `/api/v1/projects/${github}/jobs`, undefined, { job: jobActor('pm') });
     expect(job.status).toBe(200);
-    expect(Object.keys((await job.json()) as JobListDto).sort()).toEqual(['jobs', 'nextCursor', 'runnerAvailability']);
+    expect(Object.keys((await job.json()) as JobListDto).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
+  });
+
+  // #775: the flag follows the role in the project's own account, not the first account the caller owns.
+  it('says canRunNow per project: an owner of one account reads another account’s project as a member', async () => {
+    const user = await seedSessionUser('owner');
+    const own = await seedAccountProject(user.account);
+    const other = await seedAccount('Other');
+    await seedMembership(other.id, user.userId, 'member');
+    const theirs = await seedAccountProject(other);
+    const bindings = localEnv({ AUTH_MODE: undefined });
+    const mine = await sendAsSession(user, 'GET', `/api/v1/projects/${own.slug}/jobs`, undefined, {}, bindings);
+    expect(mine.status).toBe(200);
+    expect(((await mine.json()) as JobListDto).canRunNow).toBe(true);
+    const visited = await sendAsSession(user, 'GET', `/api/v1/projects/${theirs.slug}/jobs`, undefined, {}, bindings);
+    expect(visited.status).toBe(200);
+    const body = (await visited.json()) as JobListDto;
+    expect(body.canRunNow).toBe(false);
+    expect('runnerUnavailableReason' in body).toBe(false);
   });
 });

@@ -91,3 +91,18 @@ export const DraftDot: Story = {
     `,
   }),
 };
+
+/** #775: `wrap` lets a long label take two lines inside a narrow column instead of pushing the page wider. */
+export const WrappedLabel: Story = {
+  render: () => ({
+    template: `
+      <div style="display: grid; gap: var(--space-2); justify-items: start; width: calc(var(--space-16) * 3)">
+        <a tc-button wrap href="#">
+          <tc-icon name="settings" size="sm" />
+          {{ 'stories.button.longLabel' | transloco }}
+        </a>
+        <button tc-button variant="primary" wrap type="button">{{ 'stories.button.longLabel' | transloco }}</button>
+      </div>
+    `,
+  }),
+};
