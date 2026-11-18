@@ -113,6 +113,7 @@ const manifest = {
     pull_requests: 'read',
     contents: 'read',
     actions: 'read',
+    checks: 'read',
   },
   default_events: ['issues', 'issue_comment', 'pull_request', 'workflow_run', 'release', 'push'],
 };

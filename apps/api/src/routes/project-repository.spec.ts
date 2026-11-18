@@ -83,6 +83,7 @@ describe('the app flow (ADR 0003 decision 6)', () => {
         pull_requests: 'read',
         contents: 'read',
         actions: 'read',
+        checks: 'read',
       },
     });
 
