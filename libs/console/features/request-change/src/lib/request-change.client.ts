@@ -64,7 +64,8 @@ export function isIssueRequestDto(value: unknown): value is IssueRequestDto {
     isSprintRefOrNull(value['current']) &&
     isSprintRefOrNull(value['next']) &&
     typeof value['freezeNow'] === 'boolean' &&
-    (value['request'] === null || isRequestStatus(value['request']))
+    (value['request'] === null || isRequestStatus(value['request'])) &&
+    isTextOrNull(value['htmlUrl'])
   );
 }
 

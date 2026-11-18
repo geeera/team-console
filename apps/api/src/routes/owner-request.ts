@@ -26,7 +26,7 @@ import {
   type GitHubClient,
   type RepoName,
 } from '@worker/github';
-import { handledRequestOf, sprintToday } from '@worker/read-models';
+import { githubUrlOrNull, handledRequestOf, sprintToday } from '@worker/read-models';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -62,6 +62,8 @@ interface LiveIssue {
   readonly isPullRequest: boolean;
   /** How many comments the issue has: the handled re-read pages from the end (`rereadPagesOf`). */
   readonly comments: number;
+  /** #273: the form's "Open the issue" link, next to the previous request; `null` when GitHub sent none. */
+  readonly htmlUrl: string | null;
 }
 
 interface GitHubComment {
@@ -98,12 +100,14 @@ function liveIssueOf(value: unknown): LiveIssue | null {
     return null;
   }
   const comments = value['comments'];
+  const htmlUrl = stringOrNull(value['html_url']);
   return {
     title: value['title'],
     state,
     milestone: isRecord(milestone) ? String(milestone['title']) : null,
     isPullRequest: value['pull_request'] !== undefined && value['pull_request'] !== null,
     comments: typeof comments === 'number' && Number.isSafeInteger(comments) && comments > 0 ? comments : 0,
+    htmlUrl: htmlUrl === null ? null : githubUrlOrNull(htmlUrl),
   };
 }
 
@@ -332,6 +336,7 @@ export function createOwnerRequestRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
         next: plan.next,
         freezeNow: plan.current !== null && isInFreeze(plan.today, freezeOfDue(plan, plan.current.due)),
         request: latest === null ? null : requestStatusOf(latest),
+        htmlUrl: issue.htmlUrl,
       };
       c.header('Cache-Control', 'no-store');
       return c.json(body);

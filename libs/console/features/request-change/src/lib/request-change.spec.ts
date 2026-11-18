@@ -46,6 +46,7 @@ const ISSUE: IssueRequestDto = {
   next: { number: 5, title: 'Sprint 05', due: '2026-10-28' },
   freezeNow: false,
   request: null,
+  htmlUrl: 'https://github.com/geeera/team-console/issues/7',
 };
 
 const RESPONSE: OwnerRequestResponse = {
@@ -228,6 +229,46 @@ describe('RequestChange', () => {
     );
     press('.tc-sheet__foot button[type=button]');
     await pending;
+  });
+
+  it('links "Open the issue" next to a declined previous request, to the issue on GitHub (#273)', async () => {
+    await openForm({
+      ...ISSUE,
+      htmlUrl: 'https://github.com/geeera/team-console/issues/7',
+      request: {
+        kind: 'sprint',
+        target: 'backlog',
+        state: 'declined',
+        requestedAt: '2026-10-06T08:00:00Z',
+        url: 'https://github.com/geeera/team-console/issues/7#issuecomment-1',
+        handledAt: '2026-10-06T08:30:00Z',
+      },
+    });
+
+    const link = dialog()?.querySelector<HTMLAnchorElement>('[data-testid="request-open-issue"]');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('https://github.com/geeera/team-console/issues/7');
+    expect(link?.getAttribute('target')).toBe('_blank');
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+    expect(text(link)).toContain('Открыть задачу');
+    // Comes right after the previous-request line that names the reason, not before it.
+    expect(link?.previousElementSibling?.getAttribute('data-testid')).toBe('request-previous');
+  });
+
+  it('shows no "Open the issue" link without a usable GitHub url', async () => {
+    await openForm({
+      ...ISSUE,
+      htmlUrl: null,
+      request: {
+        kind: 'sprint',
+        target: 'backlog',
+        state: 'declined',
+        requestedAt: '2026-10-06T08:00:00Z',
+        url: 'https://github.com/x',
+        handledAt: '2026-10-06T08:30:00Z',
+      },
+    });
+    expect(dialog()?.querySelector('[data-testid="request-open-issue"]')).toBeNull();
   });
 
   it('on issue-changed writes nothing more, re-reads the issue and shows the live sprint', async () => {

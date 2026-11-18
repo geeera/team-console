@@ -63,6 +63,15 @@ export interface ConfirmFailureLink {
   readonly route: readonly string[];
 }
 
+/**
+ * An external page to read before deciding (#370: an untrusted item's GitHub source), already translated; opens in
+ * a new tab, between the message and the buttons, so the dialog stays open while the owner reads it there.
+ */
+export interface ConfirmLink {
+  readonly label: string;
+  readonly href: string;
+}
+
 export interface ConfirmOptions {
   readonly title: string;
   readonly message: string;
@@ -72,6 +81,8 @@ export interface ConfirmOptions {
   readonly note?: string;
   /** Shown above the message in the danger tone: something to check before confirming. */
   readonly warning?: string;
+  /** Between the message and the buttons (#370); the one place to read more before deciding. */
+  readonly link?: ConfirmLink;
   readonly input?: ConfirmInput;
   /** Defaults to the kit's "Confirm" / "Cancel". */
   readonly confirmLabel?: string;
@@ -118,6 +129,17 @@ let nextFieldId = 0;
         </ul>
       }
     </div>
+    @if (options.link; as link) {
+      <a
+        class="tc-confirm__link"
+        data-testid="confirm-link"
+        [href]="link.href"
+        target="_blank"
+        rel="noopener noreferrer"
+        >{{ link.label }}<span class="tc-sr-only"> {{ 'ui.frame.newTab' | transloco }}</span
+        ><tc-icon name="external" size="sm"
+      /></a>
+    }
     @if (options.note) {
       <p class="tc-confirm__note">{{ options.note }}</p>
     }
