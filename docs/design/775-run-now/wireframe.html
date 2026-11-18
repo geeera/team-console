@@ -1,0 +1,1730 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #775 · Run now everywhere</title>
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+/* ===== tokens: Paper Desk (generated from docs/design/directions/src/d1.py) ===== */
+:root{
+  --font-display:"Source Serif 4",Georgia,"Times New Roman",serif;--font-body:"Source Sans 3",-apple-system,system-ui,"Segoe UI",sans-serif;--font-mono:"Source Code Pro",ui-monospace,Menlo,monospace;--fw-display:600;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;--fs-2xl:28px;--lh-body:1.55;--lh-tight:1.25;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;
+  --btn-h:34px;--sidebar-w:256px;--pane-w:392px;--log-max:680px;--pad-x:32px;--gap-log:20px;--pad-card:18px 20px;--card-indent:40px;
+  --dur-instant:0ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --bg:#F7F3EC;--bg-sunken:#EFE9DF;--surface:#FFFDF9;--surface-2:#FAF6EF;--text:#29251F;--text-2:#5B5449;--text-3:#6D6459;
+  --border:#E5DDD0;--border-strong:#CFC5B5;--accent:#3E6A48;--accent-contrast:#FFFFFF;--accent-soft:#E3ECE0;--accent-text:#2F5638;
+  --success-soft:#E1EEDF;--success-text:#2D6A3E;--warning-soft:#F5E8CD;--warning-text:#7A510E;--danger-soft:#F6E0DA;--danger-text:#9A3324;
+  --focus:#3E6A48;--owner-bubble:#EAE2D4;--owner-text:#29251F;
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+}
+:root[data-theme=dark]{
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){
+  --bg:#1C1A17;--bg-sunken:#161412;--surface:#25221E;--surface-2:#201E1A;--text:#EEE8DD;--text-2:#BDB4A5;--text-3:#999082;
+  --border:#35312B;--border-strong:#4A443B;--accent:#8FBC92;--accent-contrast:#10200F;--accent-soft:#263428;--accent-text:#A8D0AA;
+  --success-soft:#1F3122;--success-text:#9BCF9F;--warning-soft:#382D18;--warning-text:#E6BC6E;--danger-soft:#3D2420;--danger-text:#F0A091;
+  --focus:#A8D0AA;--owner-bubble:#322D27;--owner-text:#EEE8DD;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}}
+/* ===== shared structure; every colour, size and duration comes from the direction's tokens ===== */
+:root{
+  --hover:color-mix(in oklab,var(--text) 6%,transparent);
+  --hover-solid:color-mix(in oklab,var(--surface) 93%,var(--text) 7%);
+  --accent-hover:color-mix(in oklab,var(--accent) 88%,var(--text) 12%);
+  --page:color-mix(in oklab,var(--bg) 90%,var(--text) 10%);
+  --scrim:color-mix(in oklab,#000 36%,transparent);
+  --r-sheet:calc(var(--r-lg) + 10px);
+  --z-sheet:40;--z-toast:70;--z-chrome:60;
+}
+@media (prefers-reduced-motion:reduce){:root{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms}
+
+*,*::before,*::after{box-sizing:border-box}
+html{color-scheme:light;-webkit-text-size-adjust:100%}
+:root[data-theme=dark]{color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){color-scheme:dark}}
+body{margin:0;background:var(--page);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button,input,textarea{font:inherit;color:inherit;letter-spacing:inherit}
+button{cursor:pointer}
+button:disabled{cursor:default}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr-only{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.ico{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+kbd{font-family:var(--font-mono);font-size:10px;line-height:1;padding:3px 5px;border-radius:4px;border:1px solid var(--border-strong);color:var(--text-3);background:var(--surface)}
+code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-sunken);padding:1px 5px;border-radius:4px;word-break:break-word}
+[hidden]{display:none!important}
+
+/* ===== the note on top of the page ===== */
+.note{max-width:1720px;margin:0 auto;padding:20px 24px 4px;display:grid;gap:10px}
+.note__row{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between}
+.note__kicker{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.note h1{margin:2px 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);line-height:1.1;font-weight:var(--fw-display)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:999px;padding:2px;background:var(--surface)}
+.seg button,.seg-btn{border:0;background:none;padding:6px 12px;border-radius:999px;font-size:var(--fs-xs);color:var(--text-2);min-height:32px}
+.seg button[aria-pressed=true]{background:var(--text);color:var(--bg)}
+.seg-btn{border:1px solid var(--border);background:var(--surface)}
+.note details{font-size:var(--fs-sm);color:var(--text-2)}
+.note summary{cursor:pointer;color:var(--text-2);font-weight:600;width:max-content}
+.note__grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:8px 32px;margin-top:10px}
+@media (max-width:900px){.note__grid{grid-template-columns:1fr}}
+.note p{margin:0 0 6px;max-width:75ch;line-height:1.5}
+.tok{align-content:start;display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0;font-size:var(--fs-xs)}
+.tok dt{color:var(--text-3)}.tok dd{margin:0;color:var(--text-2)}
+.sw{display:inline-flex;align-items:center;gap:4px;margin-right:10px;white-space:nowrap}
+.sw i{width:12px;height:12px;border-radius:3px;border:1px solid var(--border-strong)}
+.try{font-size:var(--fs-xs);color:var(--text-3)}
+
+/* ===== stage and device frames ===== */
+.stage{display:flex;flex-wrap:wrap;gap:40px;justify-content:center;align-items:flex-start;padding:20px 24px 56px;max-width:1720px;margin:0 auto}
+.stage[data-layout=row]{flex-wrap:nowrap}
+.stage[data-view=phone] .device--mac,.stage[data-view=mac] .device--phone{display:none}
+.device{display:grid;gap:10px;justify-items:center}
+.device__label{font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)}
+.phone-frame{position:relative;width:414px;height:868px;padding:12px;border-radius:62px;background:#0d0d0f;box-shadow:0 0 0 1px #34343a,0 40px 80px -36px rgba(0,0,0,.5)}
+.phone-frame>.app{width:390px;height:844px;border-radius:50px}
+.mac-frame{width:1180px;height:760px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 1px var(--border-strong),0 30px 80px -34px rgba(0,0,0,.45)}
+.mac-frame>.app{height:100%}
+@media (max-width:520px){
+  .note{padding:14px 14px 0}.stage{padding:12px 0 0}
+  .phone-frame{width:100%;height:auto;padding:0;border-radius:0;background:none;box-shadow:none}
+  .phone-frame>.app{width:100%;height:100svh;border-radius:0}
+  .device--phone .device__label,.p-status,.home-ind{display:none!important}
+  .tabs{padding-bottom:max(8px,env(safe-area-inset-bottom))!important}
+}
+
+/* ===== app base ===== */
+.app{position:relative;overflow:hidden;isolation:isolate;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:var(--fs-md);line-height:var(--lh-body)}
+.app[data-app=phone]{display:flex;flex-direction:column}
+.app[data-app=mac]{display:flex;flex-direction:column}
+.app:not(.is-space) .composer{display:none}
+.avatar{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font-size:10px;font-weight:700;letter-spacing:.03em}
+.avatar--pm{background:var(--accent-soft);color:var(--accent-text)}
+.avatar--owner{background:var(--text);color:var(--bg)}
+.prod-mono{width:26px;height:26px;flex:none;border-radius:var(--r-sm);display:grid;place-items:center;font-weight:700;font-size:13px;text-transform:uppercase;background:var(--accent-soft);color:var(--accent-text);font-family:var(--font-display)}
+.prod-mono[data-status=paused]{background:var(--bg-sunken);color:var(--text-3)}
+.prod-mono[data-status=failing]{background:var(--danger-soft);color:var(--danger-text)}
+.prod-mono--all{background:var(--text);color:var(--bg)}
+.prod-mono--all .ico{width:15px;height:15px}
+.count{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:var(--accent-contrast);font-size:11px;font-weight:700;line-height:1;display:inline-grid;place-items:center;font-variant-numeric:tabular-nums;overflow:hidden;font-family:var(--font-body)}
+.count>span{grid-area:1/1}
+.status{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;border-radius:999px;font-size:var(--fs-xs);font-weight:600;background:var(--success-soft);color:var(--success-text);white-space:nowrap;text-transform:none;letter-spacing:0}
+.status i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.status--paused{background:var(--bg-sunken);color:var(--text-2)}
+.status--failing{background:var(--danger-soft);color:var(--danger-text)}
+.sdot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--success-text);margin-left:6px;vertical-align:1px}
+.sdot--paused{background:var(--text-3)}.sdot--failing{background:var(--danger-text)}
+.meter{display:block;height:3px;border-radius:2px;background:var(--bg-sunken);overflow:hidden}
+.meter i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.chip-btn{border:1px solid var(--border);background:var(--surface);color:var(--text-2);border-radius:999px;padding:0 10px;height:30px;font-size:var(--fs-xs);white-space:nowrap}
+.chip-btn[aria-pressed=true]{background:var(--text);color:var(--bg);border-color:transparent}
+.empty{color:var(--text-3);font-size:var(--fs-sm);padding:12px 4px}
+.empty--big{display:grid;justify-items:center;gap:8px;text-align:center;padding:48px 16px}
+.empty--big .ico{width:32px;height:32px;color:var(--success-text)}
+.search{display:flex;align-items:center;gap:8px;height:36px;padding:0 10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text-3)}
+.search:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.search input{flex:1;min-width:0;border:0;background:none;outline:none;color:var(--text);font-size:var(--fs-sm)}
+.app[data-app=phone] .search input{font-size:16px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:var(--btn-h);padding:0 14px;border-radius:var(--r-md);border:1px solid var(--border-strong);background:var(--surface);color:var(--text);font-weight:600;font-size:var(--fs-sm);white-space:nowrap;transition:background-color var(--dur-fast) var(--ease-standard),transform var(--dur-fast) var(--ease-standard)}
+.btn:hover{background:var(--hover-solid)}
+.btn:active{transform:scale(.97)}
+.btn--primary{background:var(--accent);border-color:transparent;color:var(--accent-contrast)}
+.btn--primary:hover{background:var(--accent-hover)}
+.btn--quiet{border-color:transparent;background:none;color:var(--text-2)}
+.btn--quiet[aria-expanded=true]{background:var(--hover);color:var(--text)}
+.btn--sm{min-height:30px;padding:0 10px;font-size:var(--fs-xs)}
+.btn:disabled{opacity:.65}
+.btn kbd{display:none}
+.app[data-app=phone] .btn{min-height:44px}
+.app[data-app=phone] .btn--sm{min-height:36px}
+.icon-btn{width:40px;height:40px;flex:none;display:grid;place-items:center;border:0;background:none;border-radius:var(--r-md);color:var(--text-2)}
+.icon-btn:hover{background:var(--hover)}
+.icon-btn .ico{width:20px;height:20px}
+
+/* ===== mac window ===== */
+.win{display:flex;flex-direction:column;height:100%}
+.win__bar{position:relative;height:38px;flex:none;display:flex;align-items:center;padding:0 14px;background:var(--bg-sunken);border-bottom:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.lights{display:flex;gap:8px}.lights i{width:12px;height:12px;border-radius:50%;background:#fe5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+.win__title{position:absolute;left:50%;translate:-50% 0;font-weight:600}
+.win__body{flex:1;display:flex;min-height:0}
+.sidebar{width:var(--sidebar-w);flex:none;display:flex;flex-direction:column;gap:2px;padding:12px 10px 10px;background:var(--bg-sunken);border-right:1px solid var(--border);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:8px;padding:2px 6px 12px;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-md)}
+.mark{width:22px;height:22px;color:var(--accent)}
+.search--side{height:32px;margin-bottom:8px;background:var(--bg)}
+.search--side kbd{margin-left:auto}
+.side-label{display:flex;align-items:center;gap:6px;font-size:var(--fs-xs);color:var(--text-3);padding:14px 8px 4px;font-weight:600;letter-spacing:.04em}
+.side-label .ico{width:13px;height:13px}
+.side-list{list-style:none;margin:0;padding:0;display:grid;gap:1px}
+.side-item{width:100%;display:flex;align-items:center;gap:10px;min-height:34px;padding:5px 8px;border:0;background:none;border-radius:var(--r-md);text-align:left;color:var(--text-2);font-size:var(--fs-sm)}
+.side-item:hover{background:var(--hover)}
+.side-item[aria-current=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.side-item>kbd{margin-left:auto}
+.side-item .count{margin-left:auto}
+.side-item>kbd+.count{margin-left:6px}
+.side-prod__name{display:grid;min-width:0;flex:1}
+.side-prod__label{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);font-weight:500}
+/* wraps to a second line rather than cutting the date: Russian status lines run longer */
+.side-prod small{font-size:var(--fs-xs);line-height:1.35;color:var(--text-3);overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow-wrap:anywhere}
+.side-prod .meter{display:none}
+.side-more{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:6px 8px;font-size:var(--fs-xs);color:var(--text-3);border-radius:var(--r-md);text-align:left}
+.side-more:hover{background:var(--hover)}
+.side-more .ico{width:14px;height:14px;transition:transform var(--dur-base) var(--ease-standard);transform:rotate(-90deg)}
+.side-more[aria-expanded=true] .ico{transform:none}
+.side-foot{margin-top:auto;display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:10px 6px 2px;font-size:var(--fs-xs);color:var(--text-2);border-top:1px solid var(--border)}
+.side-foot .avatar{width:24px;height:24px}
+.side-foot__sync{margin-left:auto;display:inline-flex;align-items:center;gap:5px;color:var(--text-3);white-space:nowrap}
+.side-foot__sync i{width:6px;height:6px;border-radius:50%;background:var(--success-text)}
+.convo{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
+.convo__head{height:52px;flex:none;display:flex;align-items:center;gap:6px;padding:0 14px 0 20px;border-bottom:1px solid var(--border)}
+.convo__title{display:flex;align-items:center;gap:10px;min-width:0;flex:1;overflow:hidden}
+.app:has(.pane.is-open) .convo__sub,.app:has(.pane.is-open) .convo__head .lbl,.app:has(.pane.is-open) .convo__head kbd{display:none}
+.convo__title h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);white-space:nowrap}
+.convo__sub{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.convo__head .btn kbd{display:inline-block}
+.pane{width:0;flex:none;overflow:hidden;background:var(--surface-2);border-left:1px solid transparent;transition:width var(--dur-slow) var(--ease-standard),border-color var(--dur-slow) var(--ease-standard)}
+.pane.is-open{width:var(--pane-w);border-left-color:var(--border)}
+.pane__inner{width:var(--pane-w);height:100%;display:flex;flex-direction:column}
+.pane__tabs{height:52px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 12px;border-bottom:1px solid var(--border)}
+.pane__tabs .icon-btn{margin-left:auto}
+.tab-btn{display:inline-flex;align-items:center;gap:6px;border:0;background:none;padding:6px 10px;border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.tab-btn[aria-selected=true]{background:var(--surface);color:var(--text);box-shadow:var(--shadow-1)}
+.pane__body{flex:1;overflow-y:auto}
+
+/* ===== phone ===== */
+.p-status{position:relative;height:50px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:6px 30px 0 40px;font:600 16px/1 -apple-system,"SF Pro Text",system-ui,sans-serif}
+.p-island{position:absolute;top:11px;left:50%;translate:-50% 0;width:124px;height:36px;border-radius:20px;background:#000}
+.p-status__icons{display:flex;gap:6px;align-items:center}
+.p-head{flex:none;display:flex;align-items:center;gap:4px;padding:2px 8px 8px 10px}
+.p-switch{flex:1;min-width:0;display:flex;align-items:center;gap:10px;border:0;background:none;padding:6px;border-radius:var(--r-md);text-align:left;min-height:48px}
+.p-switch .prod-mono{width:34px;height:34px;font-size:16px}
+.p-switch__txt{display:grid;min-width:0}
+.p-switch b{font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:1.15}
+.p-switch small{font-size:var(--fs-xs);color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.p-switch>.ico{color:var(--text-3)}
+.p-strip{display:none}
+.p-needs{display:none}
+.tabs{flex:none;display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border);background:var(--bg);padding:6px 4px 28px;position:relative;z-index:2}
+.tabs button{position:relative;border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;min-height:48px;padding:4px 0;font-size:11px;color:var(--text-3)}
+.tabs button .ico{width:24px;height:24px}
+.tabs button[aria-current=page]{color:var(--accent-text)}
+.tabs .count{position:absolute;top:0;left:calc(50% + 6px);height:18px;min-width:18px;font-size:10px;padding:0 5px}
+.home-ind{position:absolute;bottom:8px;left:50%;translate:-50% 0;width:136px;height:5px;border-radius:3px;background:var(--text);opacity:.9;z-index:var(--z-chrome);pointer-events:none}
+.scrim{position:absolute;inset:0;z-index:30;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--dur-base) var(--ease-standard)}
+.app.has-sheet .scrim{opacity:1;pointer-events:auto}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:var(--z-sheet);max-height:88%;display:flex;flex-direction:column;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);transform:translateY(102%);visibility:hidden;transition:transform var(--dur-slow) var(--ease-exit),visibility 0s linear var(--dur-slow)}
+.sheet.is-open{transform:none;visibility:visible;transition:transform var(--dur-slow) var(--ease-enter),visibility 0s}
+.sheet__grab{width:38px;height:5px;border-radius:3px;background:var(--border-strong);margin:8px auto 0;flex:none}
+.sheet__head{display:flex;align-items:center;justify-content:space-between;padding:6px 10px 6px 20px;flex:none}
+.sheet__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.sheet__body{overflow-y:auto;padding:0 0 36px;overscroll-behavior:contain}
+.sheet__pad{padding:0 16px 8px}
+.proj-list{padding:0 8px}
+.side-item--needs{background:var(--accent-soft);color:var(--accent-text);font-weight:600;min-height:48px}
+.side-item--needs .count{margin-left:auto}
+.side-prod--rich{min-height:56px}
+.side-prod--rich .prod-mono{width:34px;height:34px}
+.side-prod--rich .meter{display:block;margin-top:5px;width:70%}
+
+/* ===== conversation ===== */
+.log{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;outline:none}
+.log__inner{position:relative;max-width:var(--log-max);margin:0 auto;padding:24px var(--pad-x);display:flex;flex-direction:column;gap:var(--gap-log)}
+.app[data-app=phone] .log__inner{padding:12px 16px 20px}
+.day{display:flex;align-items:center;gap:12px;color:var(--text-3);font-size:var(--fs-xs);margin:6px 0}
+.day::before,.day::after{content:"";flex:1;height:1px;background:var(--border)}
+.msg{display:flex;gap:12px;align-items:flex-start}
+.msg__body{min-width:0;flex:1}
+.msg__meta{display:flex;gap:8px;align-items:baseline;font-size:var(--fs-xs);color:var(--text-3);margin-bottom:2px}
+.msg__meta b{color:var(--text);font-weight:600}
+.bubble{overflow-wrap:anywhere}
+.bubble p{margin:0 0 .45em}.bubble p:last-child{margin:0}
+.bubble ul{margin:.2em 0 .5em;padding-left:1.2em}
+.bubble li{margin:.15em 0}
+.brief__h{font-weight:700;margin-top:.7em!important}
+.brief__foot{color:var(--text-2)}
+.ref{font-family:var(--font-mono);font-size:.86em;color:var(--accent-text)}
+.msg--owner{justify-content:flex-end}
+.msg--owner .msg__body{flex:0 1 auto;max-width:82%;display:flex;flex-direction:column;align-items:flex-end}
+.msg--owner .bubble{background:var(--owner-bubble);color:var(--owner-text);padding:9px 14px;border-radius:var(--r-lg) var(--r-lg) var(--r-sm) var(--r-lg)}
+.msg--owner .msg__meta{margin:4px 4px 0}
+.sysnote{display:flex;align-items:center;justify-content:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3);text-align:center}
+.sysnote i{width:6px;height:6px;border-radius:50%;background:var(--text-3);flex:none}
+.typing{display:inline-flex;gap:4px;padding:10px 0}
+.typing i{width:6px;height:6px;border-radius:50%;background:var(--text-3);animation:blink 1.2s infinite both}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+@keyframes blink{0%,80%,100%{opacity:.25}40%{opacity:1}}
+@media (prefers-reduced-motion:reduce){.typing i{animation:none;opacity:.6}}
+:root[data-motion=reduce] .typing i{animation:none;opacity:.6}
+
+/* decision cards */
+.card{position:relative;overflow:hidden;display:flex;flex-direction:column;gap:12px;padding:var(--pad-card);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1);margin-left:var(--card-indent)}
+.card:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.card__head{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:var(--fs-xs);color:var(--text-2)}
+.card__kind{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+.card__kind .ico{width:15px;height:15px;color:var(--accent-text)}
+.card__num{font-family:var(--font-mono);color:var(--text-3)}
+.card__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);line-height:var(--lh-tight);font-weight:var(--fw-display)}
+.card__text{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.steps{margin:0;padding-left:1.3em;font-size:var(--fs-sm);color:var(--text-2);display:grid;gap:4px}
+.rec{display:grid;gap:2px;padding:10px 12px;border-radius:var(--r-md);background:var(--accent-soft);font-size:var(--fs-sm)}
+.rec__label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--accent-text)}
+.rec__choice{color:var(--text)}
+.rec p{margin:2px 0 0;color:var(--text-2)}
+.checks{list-style:none;margin:0;padding:0;display:grid;gap:6px;font-size:var(--fs-sm)}
+.check{display:flex;gap:8px;align-items:flex-start}
+.check .ico{margin-top:2px}
+.check--ok .ico{color:var(--success-text)}.check--warn .ico{color:var(--warning-text)}
+.card__foot{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;flex-wrap:wrap}
+.card__actions{display:flex;gap:8px;flex-wrap:wrap}
+.card__meta{font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .card{margin-left:0}
+.app[data-app=phone] .card__foot{flex-direction:column;align-items:stretch}
+/* equal halves when both labels fit; a label too long for half the row takes a full row (Russian runs ~30% longer) */
+.app[data-app=phone] .card__actions{display:flex;flex-wrap:wrap}
+.app[data-app=phone] .card__actions .btn{flex:1 1 0;min-width:max-content}
+.is-highlight{animation:hl 1.4s var(--ease-standard)}
+@keyframes hl{0%,40%{box-shadow:0 0 0 3px var(--focus)}100%{box-shadow:var(--shadow-1)}}
+@media (prefers-reduced-motion:reduce){.is-highlight{animation:none;box-shadow:0 0 0 3px var(--focus)}}
+
+/* design thumbnail: drawn from tokens, no image assets */
+.thumb{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:100%;padding:10px;border:1px solid var(--border);border-radius:var(--r-md);background:var(--bg-sunken);cursor:zoom-in}
+.thumb--big{margin:4px 0 6px}
+.tf{display:flex;flex-direction:column;gap:5px;aspect-ratio:9/15;padding:6px;border-radius:8px;background:var(--surface);border:1px solid var(--border);position:relative}
+.tf--dark{background:color-mix(in oklab,var(--text) 92%,var(--bg));border-color:transparent}
+.tf__bar{height:5px;width:55%;border-radius:3px;background:var(--border-strong)}
+.tf--dark .tf__bar,.tf--dark .tf__line{background:color-mix(in oklab,var(--bg) 35%,transparent)}
+.tf__center{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}
+.tf__icon{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--accent);background:var(--accent-soft)}
+.tf--error .tf__icon{border-color:var(--danger-text);background:var(--danger-soft)}
+.tf__line{height:3px;width:70%;border-radius:2px;background:var(--border-strong)}
+.tf__line--s{width:44%}
+.tf__btn{height:8px;width:48%;border-radius:4px;background:var(--accent);margin-top:3px}
+.tf__cap{position:absolute;left:0;right:0;bottom:-2px;translate:0 100%;font-size:10px;color:var(--text-3);text-align:center;padding-top:3px}
+.thumb{padding-bottom:26px}
+
+/* receipt: a resolved card, recorded as the owner's answer */
+.receipt{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;padding:9px 12px;border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2);margin-left:var(--card-indent);outline-offset:2px}
+.app[data-app=phone] .receipt{margin-left:0}
+.receipt__icon{width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:var(--success-soft);color:var(--success-text)}
+.receipt__icon .ico{width:14px;height:14px;stroke-width:2.4}
+.receipt--negative .receipt__icon{background:var(--danger-soft);color:var(--danger-text)}
+.receipt--neutral .receipt__icon{background:var(--surface);color:var(--text-2)}
+.receipt__body{flex:1 1 200px;min-width:0}
+.app[data-app=phone] .receipt__meta{flex-basis:100%;padding-left:var(--receipt-indent,34px)}
+.receipt__verb{font-weight:700;color:var(--text)}
+.receipt__meta{font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+
+/* banners */
+.banner-wrap{padding:0 var(--pad-x) 4px}
+.app[data-app=phone] .banner-wrap{padding:0 12px 4px}
+.paused{max-width:var(--log-max);margin:0 auto;display:flex;align-items:center;gap:10px;padding:8px 8px 8px 12px;border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.paused span{flex:1}.paused b{font-weight:700}
+.paused--bad{background:var(--danger-soft);color:var(--danger-text)}
+
+/* composer */
+.composer{flex:none;padding:10px var(--pad-x) 16px}
+.app[data-app=phone] .composer{padding:6px 12px 8px}
+.composer__box{max-width:var(--log-max);margin:0 auto;display:flex;align-items:flex-end;gap:8px;padding:7px 7px 7px 14px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.composer__box:focus-within{border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.composer textarea{flex:1;min-height:34px;max-height:120px;padding:6px 0;border:0;background:none;outline:none;resize:none;font-size:var(--fs-md);line-height:1.4}
+.app[data-app=phone] .composer textarea{font-size:16px}
+.composer textarea::placeholder{color:var(--text-3)}
+.composer__hint{align-self:center}
+.send{width:34px;height:34px;flex:none;display:grid;place-items:center;border:0;border-radius:var(--r-md);background:var(--accent);color:var(--accent-contrast)}
+.app[data-app=phone] .send{width:40px;height:40px}
+
+/* toast */
+.toast{position:absolute;left:50%;bottom:150px;translate:-50% 0;z-index:var(--z-toast);padding:8px 14px;border-radius:999px;background:var(--text);color:var(--bg);font-size:var(--fs-sm);box-shadow:var(--shadow-2);white-space:nowrap;pointer-events:none}
+.app[data-app=mac] .toast{bottom:96px}
+.app[data-app=phone] .toast{top:124px;bottom:auto}
+
+/* ===== board ===== */
+.board{display:flex;flex-direction:column;gap:14px;padding:16px 20px 24px}
+.board__head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.board__kicker{display:flex;align-items:center;gap:8px;font-size:var(--fs-xs);color:var(--text-3)}
+.board__head h3{margin:4px 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:1.1}
+.demo-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:999px;background:var(--accent-soft);color:var(--accent-text);font-size:var(--fs-xs);font-weight:600;white-space:nowrap}
+.demo-pill .ico{width:14px;height:14px}
+.progress{height:6px;border-radius:3px;background:var(--bg-sunken);overflow:hidden}
+.progress i{display:block;height:100%;width:var(--p);background:var(--accent);border-radius:inherit}
+.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:0}
+.metrics div{padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md)}
+.metrics dt{font-size:var(--fs-xs);color:var(--text-3)}
+.metrics dd{margin:0;font-weight:600;font-size:var(--fs-sm);font-family:var(--font-mono)}
+.metrics dd.metrics__word{font-family:var(--font-body)} /* words read badly in mono, Cyrillic especially */
+.metrics .ok{color:var(--success-text)}.metrics .bad{color:var(--danger-text)}
+.cols{display:grid;gap:16px}
+.col h4{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.col h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.col ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.item{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.item__num{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3)}
+.item__title{min-width:0}
+.item small{display:block;font-size:var(--fs-xs);color:var(--text-3)}
+.tier{font-size:11px;font-weight:600;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.tier--light{background:var(--bg-sunken);color:var(--text-2)}
+.tier--standard{background:var(--accent-soft);color:var(--accent-text)}
+.tier--heavy{background:var(--warning-soft);color:var(--warning-text)}
+.board__empty{display:flex;gap:10px;align-items:flex-start;padding:14px;border:1px dashed var(--border-strong);border-radius:var(--r-md);color:var(--text-2);font-size:var(--fs-sm)}
+.board__empty p{margin:0}
+.board__foot{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;padding-top:10px;border-top:1px solid var(--border);font-size:var(--fs-xs);color:var(--text-3)}
+.app[data-app=phone] .cols{grid-auto-flow:column;grid-auto-columns:82%;overflow-x:auto;scroll-snap-type:x mandatory;margin:0 -20px;padding:0 20px 6px;scroll-padding:0 20px}
+.app[data-app=phone] .col{scroll-snap-align:start}
+
+/* ===== artifacts ===== */
+.arts{display:flex;flex-direction:column;gap:12px;padding:16px 20px 24px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.art-group h4{display:flex;gap:8px;margin:6px 0 6px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.art-group h4 span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.art-group ul{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.art{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r-md);background:var(--surface);border:1px solid var(--border);font-size:var(--fs-sm)}
+.art>.ico{color:var(--text-3)}
+.art__icon{width:30px;height:30px;flex:none;display:grid;place-items:center;border-radius:var(--r-sm);background:var(--bg-sunken);color:var(--text-2)}
+.art__icon .ico{width:16px;height:16px}
+.art__title{flex:1;min-width:0;display:grid}
+.art__title small{font-size:var(--fs-xs);color:var(--text-3)}
+.art--awaiting{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.art--awaiting .art__icon{background:var(--accent-soft);color:var(--accent-text)}
+.art__thumb{list-style:none}
+
+/* ===== cross-project views ===== */
+.log__inner--view{gap:12px}
+.needs__lead{margin:0 0 4px;color:var(--text-2);font-size:var(--fs-sm)}
+.needs__list{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.need{width:100%;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;text-align:left;padding:12px 12px 12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.need:hover{border-color:var(--border-strong)}
+.need>.ico{grid-column:2;grid-row:1/span 3;color:var(--text-3)}
+.need__top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ptag{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 2px;border-radius:999px;background:var(--bg-sunken);font-size:var(--fs-xs);font-weight:600;color:var(--text)}
+.ptag .prod-mono{width:20px;height:20px;font-size:11px;border-radius:50%}
+.need__kind{font-size:var(--fs-xs);color:var(--text-3)}
+.need__title{font-weight:600;font-family:var(--font-display);line-height:var(--lh-tight)}
+.need__rec{font-size:var(--fs-xs);color:var(--text-2)}
+.ov-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.ov{width:100%;display:grid;gap:8px;text-align:left;padding:12px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-1)}
+.ov:hover{border-color:var(--border-strong)}
+.ov__top{display:flex;align-items:center;gap:8px}
+.ov__top b{flex:1;font-family:var(--font-display);font-weight:var(--fw-display)}
+.ov__line{font-size:var(--fs-xs);color:var(--text-2)}
+.ov__foot{display:flex;justify-content:space-between;align-items:center;font-size:var(--fs-xs);color:var(--text-3);font-family:var(--font-mono)}
+.meter--wide{height:4px}
+.ov-h{display:flex;gap:8px;margin:12px 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--text-2)}
+.ov-h span{font-family:var(--font-mono);color:var(--text-3);font-weight:400}
+.ov-grid--quiet .ov{box-shadow:none;background:transparent}
+.app[data-app=phone] .ov-grid{grid-template-columns:1fr}
+
+/* ===== language: bilingual static blocks in the page note ===== */
+:root:not([lang=ru]) [data-lang=ru],:root[lang=ru] [data-lang=en]{display:none}
+
+/* ===== character: Paper Desk ===== */
+
+/* Paper Desk: the PM writes like a letter; decisions are stamped and become margin notes */
+.msg--pm .bubble{font-family:var(--font-display);font-size:16px;line-height:1.62}
+.app[data-app=phone] .msg--pm .bubble{font-size:16px}
+.msg--pm .brief__h{font-family:var(--font-body);font-size:var(--fs-xs);letter-spacing:.08em;text-transform:uppercase;color:var(--text-2)}
+.avatar--pm{background:none;border:1px solid var(--border-strong);color:var(--text-2);font-family:var(--font-display);font-style:italic;font-weight:600}
+.card__kind{font-variant:small-caps;letter-spacing:.04em;font-size:13px}
+.card{background:var(--surface);background-image:linear-gradient(var(--surface),var(--surface-2))}
+.rec{background:none;border-left:2px solid var(--accent);border-radius:0;padding:2px 0 2px 12px}
+.rec__choice{font-family:var(--font-display);font-size:16px}
+.receipt{background:none;border-left:2px solid var(--accent);border-radius:0;padding:4px 0 4px 14px;font-family:var(--font-display);font-style:italic;font-size:15px}
+.receipt--negative{border-left-color:var(--danger-text)}.receipt--neutral{border-left-color:var(--text-3)}
+.receipt__icon{background:none!important;width:18px;height:18px}
+.receipt__icon .ico{width:18px;height:18px;stroke-width:2}
+.receipt__meta{font-style:normal}
+.receipt{--receipt-indent:28px}
+.receipt.is-new .receipt__icon path{stroke-dasharray:24;stroke-dashoffset:24;animation:ink var(--dur-slow) var(--ease-emph) var(--dur-fast) forwards}
+@keyframes ink{to{stroke-dashoffset:0}}
+.stamp{position:absolute;right:22px;top:calc(50% - 39px);width:78px;height:78px;color:var(--accent);pointer-events:none;opacity:0}
+.stamp svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+.stamp .stamp__inner{stroke-width:1;opacity:.6}
+.stamp--negative{color:var(--danger-text)}.stamp--neutral{color:var(--text-2)}
+.sidebar{background:var(--bg-sunken)}
+.side-item[aria-current=true]{box-shadow:none;background:var(--surface);border:1px solid var(--border)}
+.side-label{font-variant:small-caps;letter-spacing:.06em;font-size:13px}
+.tabs button[aria-current=page] .ico{stroke-width:2.2}
+.need__title,.ov__top b{font-weight:600}
+.day span{font-family:var(--font-display);font-style:italic;font-size:14px}
+.msg--owner .bubble{border-radius:var(--r-lg)}
+/* status lines are words, not ids: mono spaces Cyrillic words out, so only ids stay in Source Code Pro */
+.ov__foot,.receipt__meta{font-family:var(--font-body);font-variant-numeric:tabular-nums}
+
+/* ===== Feature design pages: parts shared by every page, on the Paper Desk tokens (ADR 0002) =====
+   Proposed token additions (the Paper Desk sketch names no spacing scale, target size or stagger):
+   spacing on a 4 px base, a 44 px target, a 16 px input size (stops iOS zoom), the checklist mark, the dialog
+   width, a stagger step and the 120 ms reduced-motion fade the prototype already uses. */
+:root{
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sp-10:40px;
+  --target:44px;--fs-input:16px;--mark:28px;--dialog-w:440px;--set-max:720px;--stamp-sm:64px;
+  --ls-caps:.06em;--stagger:70ms;--dur-fade:120ms;--dur-pulse:1600ms;--dur-toast:2400ms;
+}
+@media (prefers-reduced-motion:reduce){:root{--stagger:0ms}}
+:root[data-motion=reduce]{--stagger:0ms}
+
+/* ----- page chrome: the demo state bar ----- */
+.demo{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);font-size:var(--fs-xs);color:var(--text-2)}
+.demo label{display:inline-flex;align-items:center;gap:var(--sp-2)}
+.demo select{font:inherit;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);min-height:32px;padding:0 var(--sp-2)}
+.demo input[type=checkbox]{width:var(--sp-4);height:var(--sp-4);accent-color:var(--accent)}
+.demo__help{flex-basis:100%;margin:0;color:var(--text-3);max-width:110ch}
+.note ul{margin:0 0 var(--sp-2);padding-left:1.2em;max-width:75ch}
+.note li{margin:var(--sp-1) 0}
+
+/* ----- buttons (additions to the kit) ----- */
+.btn[aria-disabled=true]{cursor:default}
+.btn--primary[aria-disabled=true],.btn--primary[aria-disabled=true]:hover{background:var(--accent-soft);color:var(--accent-text)}
+.btn:not(.btn--primary)[aria-disabled=true]{color:var(--text-3)}
+.btn[aria-disabled=true]:active{transform:none}
+.btn--danger{background:var(--danger-soft);border-color:transparent;color:var(--danger-text)}
+.btn--danger:hover{background:color-mix(in oklab,var(--danger-soft) 86%,var(--danger-text))}
+.btn--danger-quiet{background:none;color:var(--danger-text)}
+.btn--danger-quiet:hover{background:var(--danger-soft)}
+.btn--tall{min-height:var(--target)}
+.btn .typing{padding:0}
+.ext{display:inline-flex;align-items:center;gap:var(--sp-1);color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;border-radius:var(--r-sm)}
+.ext .ico{width:14px;height:14px}
+.link-btn{border:0;background:none;padding:0;color:var(--accent-text);font-weight:600;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;min-height:var(--target)}
+
+/* skeleton rows */
+.skel-row{display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border-top:1px solid var(--border)}
+.skel-row:first-child{border-top:0}
+.skel{display:block;border-radius:var(--r-sm);background:var(--bg-sunken);height:var(--sp-3)}
+.skel--mono{width:34px;height:34px}
+.skel-stack{flex:1;display:grid;gap:var(--sp-2)}
+.skel--a{width:38%}.skel--b{width:56%;height:var(--sp-2)}
+.skel-row .skel{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.skel-row .skel{animation:none}}
+:root[data-motion=reduce] .skel-row .skel{animation:none}
+
+/* empty and error blocks */
+.block{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-6);border-radius:var(--r-lg);background:var(--surface);border:1px dashed var(--border-strong)}
+.block h2,.block h3{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight)}
+.block p{margin:0 0 var(--sp-2);color:var(--text-2);font-size:var(--fs-sm);max-width:52ch}
+.block--error{background:var(--danger-soft);border:0;color:var(--danger-text)}
+.block--error p{color:var(--danger-text)}
+.block--error .btn{border-color:transparent}
+.offline{max-width:none}
+
+/* ----- fields: label, hint, error, preview ----- */
+.field{display:grid;gap:var(--sp-1)}
+.field__label{font-weight:600;font-size:var(--fs-sm)}
+.field__hint{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__input{width:100%;height:var(--target);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font-family:var(--font-mono);font-size:var(--fs-md);transition:border-color var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard)}
+.app[data-app=phone] .field__input{font-size:var(--fs-input)}
+.field__input::placeholder{color:var(--text-3)}
+.field__input:focus{outline:none;border-color:var(--focus);box-shadow:0 0 0 1px var(--focus)}
+.field__input[aria-invalid=true]{border-color:var(--danger-text);box-shadow:0 0 0 1px var(--danger-text)}
+.field__err{display:flex;align-items:flex-start;gap:var(--sp-2);margin:var(--sp-1) 0 0;color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.field__err .ico{margin-top:2px}
+.field__preview{margin:var(--sp-1) 0 0;font-size:var(--fs-xs);color:var(--text-2)}
+.field__preview code{color:var(--accent-text)}
+.form-actions{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.app[data-app=phone] .form-actions .btn{flex:1 1 0;min-width:max-content}
+
+/* ----- the result note: a margin note, like the prototype's recorded answers ----- */
+.res{position:relative;display:grid;justify-items:start;gap:var(--sp-1);padding:var(--sp-1) 0 var(--sp-1) var(--sp-4);border-left:2px solid var(--accent)}
+.res h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);outline:none}
+.res p{margin:0;color:var(--text-2);font-size:var(--fs-sm);max-width:60ch}
+.res .btn,.res .link-btn{margin-top:var(--sp-2)}
+.res__time{font-size:var(--fs-xs);color:var(--text-3);font-variant-numeric:tabular-nums}
+.res--warn{border-left-color:var(--warning-text)}
+.res--bad{border-left-color:var(--danger-text)}
+.res--neutral{border-left-color:var(--text-3)}
+.res--ready{min-height:var(--stamp-sm);padding-right:calc(var(--stamp-sm) + var(--sp-4))}
+.res .stamp{right:0;top:calc(50% - var(--stamp-sm) / 2);width:var(--stamp-sm);height:var(--stamp-sm);opacity:1;transform:rotate(-9deg)}
+
+@keyframes mark-in{from{transform:scale(.6);opacity:0}}
+@keyframes fade{from{opacity:0}}
+
+/* ----- disclosure ("How to fix") and a code line with Copy ----- */
+.how-btn{margin-left:calc(-1 * var(--sp-2));color:var(--accent-text);min-height:var(--target)}
+.how-btn .ico{width:16px;height:16px;transition:transform var(--dur-base) var(--ease-standard)}
+.how-btn[aria-expanded=true]{background:none;color:var(--accent-text)}
+.how-btn[aria-expanded=true] .ico{transform:rotate(180deg)}
+.how{display:grid;gap:var(--sp-3);width:100%;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.how p{margin:0;overflow-wrap:anywhere}
+.how dl{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:var(--sp-2) var(--sp-4);margin:0}
+.how dt{color:var(--text-3)}
+.how dd{margin:0;min-width:0;color:var(--text)}
+.app[data-app=phone] .how{padding:var(--sp-3)}
+.app[data-app=phone] .how dl{grid-template-columns:minmax(0,1fr);gap:0}
+.app[data-app=phone] .how dd{margin-bottom:var(--sp-2)}
+.codeline{display:flex;align-items:flex-start;gap:var(--sp-2);width:100%}
+.codeline code{flex:1;min-width:0;padding:var(--sp-2) var(--sp-3);border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);color:var(--text);font-size:var(--fs-xs);line-height:1.5;overflow-wrap:anywhere}
+.codeline .btn{min-height:var(--target);flex:none}
+.codeline .btn[data-copied] {color:var(--success-text)}
+
+/* ----- confirmation dialog (alertdialog): archive, disconnect, team commands ----- */
+.modal{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-6)}
+.modal__scrim{position:absolute;inset:0;background:var(--scrim)}
+.adialog{position:relative;width:min(100%,var(--dialog-w));display:grid;gap:var(--sp-3);padding:var(--sp-6);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.adialog h2{margin:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-xl);line-height:var(--lh-tight);overflow-wrap:anywhere}
+.adialog p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.adialog .adialog__note{font-size:var(--fs-xs);color:var(--text-2);padding-left:var(--sp-3);border-left:2px solid var(--border-strong)}
+.adialog__err{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--danger-soft);color:var(--danger-text);font-size:var(--fs-sm);font-weight:600}
+.adialog__err .ico{margin-top:2px}
+.adialog__actions{display:flex;justify-content:flex-end;gap:var(--sp-2);margin-top:var(--sp-2)}
+.adialog__actions .btn{min-height:var(--target)}
+.app[data-app=phone] .modal{place-items:end stretch;padding:0}
+.app[data-app=phone] .adialog{width:100%;border-radius:var(--r-sheet) var(--r-sheet) 0 0;border-width:1px 0 0;padding:var(--sp-6) var(--sp-5) var(--sp-10);box-shadow:var(--shadow-3)}
+.app[data-app=phone] .adialog__actions .btn{flex:1 1 0}
+
+
+/* toast and live region */
+.toast[hidden]{display:none}
+.app[data-app=phone] .toast{top:auto;bottom:var(--sp-10)}
+
+/* page chrome sits on the darker --page backdrop, where tertiary text falls under AA: use secondary text there */
+.note__kicker,.device__label,.demo__help{color:var(--text-2)}
+
+/* on a real phone the frame fills the screen even when a state's content is narrow (skeleton, error) */
+@media (max-width:520px){.device--phone{width:100%;justify-items:stretch}}
+
+/* screenshot mode (?shot=1, set by a page runtime): only the device frame, no page chrome */
+:root[data-shot] .note{display:none}
+:root[data-shot] body{background:var(--bg)}
+:root[data-shot] .stage{padding:0;gap:0;max-width:none}
+:root[data-shot] .device__label{display:none}
+:root[data-shot] .mac-frame{border-radius:0;box-shadow:none;zoom:1!important}
+/* ===== #766 Wide-screen layout, on the Paper Desk tokens (ADR 0002) =====
+   The frame is a browser window of a chosen width. The prototype queries the frame (`win`) where the app queries the
+   viewport (`@media`), so a 1920 px window can be judged on a 1440 px screen; the thresholds are the same numbers.
+   Everything #766 adds sits in `.wd[data-layout=new]` and in a query wider than any tablet body, so the 375 and
+   768 px layouts are the same pixels in both layouts. */
+
+/* ----- tokens: group 4 (layout) and group 6 (container thresholds), as proposed for tokens.css ----- */
+:root{
+  --page-max:1664px;        /* the one cap of every project page and Needs you, padding included (1920 less the sidebar) */
+  --measure:72ch;           /* a paragraph of prose, from 900 px */
+  --cq-grid-min:880px;      /* body width: Artifacts turns from rows into cards (repeated in the queries below) */
+  --cq-wide-min:1360px;     /* body width: the board gets three columns (repeated in the queries below) */
+  --artifact-card-min:300px;
+  --artifact-cols-max:4;
+  --thumb-ratio:16 / 10;
+  --card-min-w:448px;       /* was 480: two decision cards fit at 1280 */
+  /* existing app tokens the prototype needs (unchanged by #766) */
+  --cards-max:1064px;--board-max:1184px;--board-side-w:320px;--task-pane-w:480px;--thumb-size:56px;
+  --top-bar-h:56px;--focus-offset:2px;--lift:-2px;--peek:-14%;
+}
+
+/* ----- the window: a frame of the picked width ----- */
+.mac-frame{container:frame/inline-size}
+.wd{container:win/inline-size;display:flex;flex-direction:column;height:100%;min-height:0;background:var(--bg)}
+.wd__row{flex:1;display:flex;min-height:0}
+.wd__main{flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain}
+.wd .sidebar{position:sticky;top:0}
+.wd .side-item{text-decoration:none}
+.side-item--new{color:var(--text-2)}
+.wd .side-foot{flex-direction:column;align-items:stretch;gap:2px}
+
+/* the tablet and phone top bar (the app's shell below 900 px) */
+.wd__top{display:none;align-items:center;gap:var(--sp-2);height:var(--top-bar-h);flex:none;padding:0 var(--sp-3);border-bottom:1px solid var(--border);background:var(--bg)}
+.wd__top-title{display:flex;align-items:center;gap:var(--sp-2);flex:1;min-width:0;font-family:var(--font-display);font-weight:var(--fw-display);font-size:var(--fs-lg)}
+.wd__top-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd__tabs{display:none}
+
+/* ----- the project space: header, banner, body and the panes beside it ----- */
+.space{flex:1 0 auto;display:flex;flex-direction:column}
+.space__head{padding:var(--sp-5) var(--pad-x) var(--sp-3);border-bottom:1px solid var(--border)}
+.space__head-in{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3)}
+.space__title{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.space__tabs{display:flex;gap:var(--sp-1)}
+.space__tab{display:inline-flex;align-items:center;min-height:var(--btn-h);padding:0 var(--sp-3);border:0;border-radius:var(--r-md);background:none;color:var(--text-2);font-size:var(--fs-sm);font-weight:600;text-decoration:none}
+.space__tab:hover{background:var(--hover)}
+.space__tab[aria-current=page]{background:var(--surface);color:var(--text);box-shadow:inset 0 0 0 1px var(--border)}
+.space__find{margin-left:auto}
+.space__head .btn kbd{display:inline-block;margin-left:var(--sp-1)}
+.space__banner{max-width:var(--log-max);width:100%;margin:0 auto;padding:var(--sp-3) var(--pad-x) 0}
+.space__main{flex:1;display:flex;min-height:0}
+.space__body{container:body/inline-size;flex:1;min-width:0;max-width:var(--log-max);width:100%;margin:0 auto;padding:var(--sp-4) var(--pad-x) var(--sp-8)}
+.wd[data-page=questions] .space__body,.wd[data-page=demo] .space__body{max-width:var(--cards-max)}
+.wd[data-page=board] .space__body{max-width:var(--board-max)}
+.paused{max-width:none}
+.paused .btn{background:var(--surface);border-color:transparent}
+
+/* Needs you is not a project space: today the centred 1064 px page of cards */
+.npage{width:100%;max-width:var(--cards-max);margin:0 auto;padding:var(--sp-6) var(--pad-x) var(--sp-8);display:grid;gap:var(--sp-4);align-content:start}
+.npage__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.npage__head h1{margin:0 auto 0 0;font-family:var(--font-display);font-size:var(--fs-2xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.npage .space__body{max-width:none;padding:0;margin:0}
+.nudge{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.nudge p{margin:0;flex:1 1 16rem}
+.nudge b{color:var(--text)}
+
+/* ----- panes: Commands (392) and the task (480), unchanged by #766 ----- */
+.wpane{flex:none;width:var(--pane-w);display:flex;flex-direction:column;border-left:1px solid var(--border);background:var(--surface-2)}
+.wpane--task{width:var(--task-pane-w);margin-left:var(--sp-4)}
+.wpane__head{display:flex;align-items:center;gap:var(--sp-2);min-height:52px;padding:var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4);border-bottom:1px solid var(--border)}
+.wpane__head h2{flex:1;margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);outline:none}
+.wpane__body{display:grid;gap:var(--sp-3);align-content:start;padding:var(--sp-4)}
+.wpane__card{display:grid;gap:var(--sp-1);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface)}
+.wpane__card b{font-family:var(--font-display)}
+.wpane__card span{font-size:var(--fs-xs);color:var(--text-2)}
+.wpane__body .btn{justify-content:flex-start}
+.ledger{display:grid;grid-template-columns:max-content 1fr;gap:var(--sp-2) var(--sp-4);margin:0;font-size:var(--fs-sm)}
+.ledger dt{color:var(--text-3)}.ledger dd{margin:0}
+.wpane__h{margin:var(--sp-2) 0 0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.wpane__p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.hist{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+
+/* ===== Артефакты ===== */
+.arts{display:grid;gap:var(--sp-4);min-width:0}
+.arts__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.arts__title{margin:0 auto 0 0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.arts__loaded{margin:0;font-size:var(--fs-xs);color:var(--text-2)}
+.arts__tools{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.arts__tools .search{flex:1 1 100%;height:var(--target)}
+.arts__chips{display:flex;flex-wrap:wrap;gap:var(--sp-1)}
+.arts__chips .chip-btn{height:var(--btn-h);padding:0 var(--sp-3)}
+.arts__chips .chip-btn span{font-family:var(--font-mono);margin-left:var(--sp-1);opacity:.75}
+.arts__shown{margin:0 0 0 auto;font-size:var(--fs-xs);color:var(--text-2)}
+.callout{display:flex;gap:var(--sp-2);align-items:flex-start;padding:var(--sp-3) var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm)}
+.callout .ico{margin-top:2px}
+.callout p{margin:0}
+.callout b{display:block}
+
+/* the list: rows below 880 px of body (today's list, unchanged) */
+.alist{list-style:none;margin:0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+.alist>li+li{border-top:1px solid var(--border)}
+.alist__group{display:none}
+.acard{width:100%;display:flex;align-items:center;gap:var(--sp-3);min-height:calc(var(--target) + var(--sp-5));padding:var(--sp-3) var(--sp-4);border:0;background:none;color:inherit;text-align:left;text-decoration:none;font-size:var(--fs-sm)}
+.acard:hover{background:var(--hover)}
+.acard:focus-visible{outline:2px solid var(--focus);outline-offset:calc(-1 * var(--focus-offset))}
+.acard__text{flex:1;min-width:0;display:grid;gap:2px}
+.acard__title{font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.acard__sub{font-size:var(--fs-xs);color:var(--text-2)}
+.acard__await{font-size:var(--fs-xs);font-weight:600;color:var(--warning-text)}
+.acard__kicker{display:none}
+.acard__chip{flex:none;display:inline-flex;align-items:center;height:22px;padding:0 var(--sp-2);border-radius:999px;background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.acard>.ico{flex:none;width:16px;height:16px;color:var(--text-3)}
+
+/* a design's thumbnail: a 56 px square in rows, a 16:10 crop of the first screen in cards. Drawn from tokens. */
+.shot{position:relative;flex:none;width:var(--thumb-size);height:var(--thumb-size);overflow:hidden;border-radius:var(--r-sm);border:1px solid var(--border);background:var(--bg-sunken)}
+.shot__page{position:absolute;inset:0 0 auto;height:160%;--s-bg:var(--bg);--s-sf:var(--surface);--s-ln:var(--border-strong);--s-side:var(--bg-sunken);background:var(--s-bg);transition:transform var(--dur-sig) var(--ease-standard)}
+.shot__page[data-tone=dark]{--s-bg:color-mix(in oklab,var(--text) 90%,var(--bg));--s-sf:color-mix(in oklab,var(--text) 80%,var(--bg));--s-ln:color-mix(in oklab,var(--bg) 40%,transparent);--s-side:color-mix(in oklab,var(--text) 94%,var(--bg))}
+.shot i{position:absolute;display:block;border-radius:2px;background:var(--s-ln)}
+.shot .s-side{left:0;top:0;bottom:0;width:22%;border-radius:0;background:var(--s-side)}
+.shot .s-card{background:var(--s-sf);border:1px solid var(--s-ln);border-radius:4px}
+.shot .s-acc{background:var(--accent);border-radius:3px}
+.shot .s-phone{background:var(--s-sf);border:1px solid var(--s-ln);border-radius:8px}
+.shot .s-scrim{inset:0;border-radius:0;background:var(--scrim)}
+.shot__tile{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:var(--sp-1);padding:var(--sp-2);text-align:center;color:var(--text-2);background:var(--bg-sunken)}
+.shot__tile .ico{width:18px;height:18px;color:var(--text-3)}
+.shot__tile span{display:none;font-size:var(--fs-xs);font-weight:600}
+.shot--fail .shot__tile .ico{color:var(--danger-text)}
+.shot--skel{border-color:transparent}
+.skel-pulse{animation:pulse var(--dur-pulse) var(--ease-standard) infinite}
+@media (prefers-reduced-motion:reduce){.skel-pulse{animation:none}}
+:root[data-motion=reduce] .skel-pulse{animation:none}
+
+/* loading */
+.skelc{display:flex;align-items:center;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4)}
+.skelc+.skelc{border-top:1px solid var(--border)}
+.skelc .shot{background:var(--bg-sunken)}
+.skelc:nth-child(n+4){display:none}
+.skelc__lines{flex:1;display:grid;gap:var(--sp-2)}
+.arts__status{margin:0;padding:0 var(--sp-1);font-size:var(--fs-xs);color:var(--text-2)}
+.state-block{display:grid;justify-items:center;gap:var(--sp-2);max-width:var(--log-max);margin:0 auto;padding:var(--sp-8) var(--sp-4);text-align:center;color:var(--text-2);font-size:var(--fs-sm)}
+.state-block h3{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);color:var(--text)}
+.state-block p{margin:0}
+
+/* ===== Вопросы, Демо, Ждут вас: the #276 grid of decision cards ===== */
+.qpage{display:grid;gap:var(--sp-4);min-width:0}
+.qlead{margin:0;color:var(--text-2);font-size:var(--fs-sm)}
+.attn{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.attn a{display:flex;align-items:center;gap:var(--sp-2);min-height:var(--target);padding:0 var(--sp-4);border-radius:var(--r-md);background:var(--warning-soft);color:var(--warning-text);font-size:var(--fs-sm);font-weight:600;text-decoration:none}
+.attn a .ico:last-child{margin-left:auto}
+.qlist{list-style:none;margin:0;padding:0;display:grid;gap:var(--gap-log);grid-template-columns:repeat(auto-fill,minmax(min(100%,var(--card-min-w)),1fr));align-items:start}
+.wd[data-layout=today]{--card-min-w:480px}
+.qlist .card{margin-left:0}
+.qlist .receipt{margin-left:0}
+.card__kind .ico{width:15px;height:15px}
+.outc{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--sp-2)}
+.outc div{display:grid;gap:2px;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);font-size:var(--fs-sm);color:var(--text-2)}
+.outc b{font-size:var(--fs-xs);letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-3)}
+.qthumbs{position:relative}
+.qthumbs .thumb{padding-bottom:10px}
+.qthumbs__more{position:absolute;right:var(--sp-2);bottom:var(--sp-2);padding:0 var(--sp-2);border-radius:999px;background:var(--surface);border:1px solid var(--border);font-size:var(--fs-xs);font-weight:600;color:var(--text-2)}
+.qopts{display:flex;flex-wrap:wrap;gap:var(--sp-2)}
+.card .ptag{align-self:flex-start}
+.card a.btn{text-decoration:none}
+
+/* ===== Доска ===== */
+.bd{container:board/inline-size;display:grid;gap:var(--sp-4);min-width:0}
+.bd__head{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-3)}
+.bd__head h2{margin:0;font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);line-height:var(--lh-tight)}
+.bd__open{font-size:var(--fs-sm);color:var(--text-2)}
+.bd__actions{display:flex;gap:var(--sp-2);margin-left:auto}
+.bd__secs{display:grid;gap:var(--sp-6)}
+.bd__sec{display:grid;gap:var(--sp-3);align-content:start;min-width:0}
+.bd__sec h3{display:flex;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+.bd__sec h3 span{font-family:var(--font-mono);font-weight:400;color:var(--text-3)}
+.lane{display:grid;gap:var(--sp-2)}
+.lane h4{margin:0;font-size:var(--fs-xs);font-weight:600;color:var(--text-3)}
+.lane ul,.bd__sec>ul{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-1)}
+.bd .item{width:100%;border-radius:var(--r-md);text-align:left;color:inherit}
+.bd .item{text-decoration:none}
+button.item:hover,a.item:hover{border-color:var(--border-strong)}
+.item[aria-expanded=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.rdot{width:8px;height:8px;border-radius:50%;background:var(--success-text)}
+.rdot--fail{background:var(--danger-text)}.rdot--going{background:var(--warning-text)}
+.bd__ptabs{display:none}
+@container board (min-width:560px){
+  .bd__secs{grid-template-areas:'tasks pulls' 'tasks runs';grid-template-columns:minmax(0,2fr) minmax(var(--board-side-w),1fr);grid-template-rows:auto 1fr;align-items:start}
+  .bd__sec--tasks{grid-area:tasks}.bd__sec--pulls{grid-area:pulls}.bd__sec--runs{grid-area:runs}
+}
+
+/* ===== below 900 px of window: the tablet and phone shells (unchanged by #766) ===== */
+@container win (max-width:899.98px){
+  .wd .sidebar{display:none}
+  .wd__top{display:flex}
+  .bd__actions{flex-basis:100%;margin-left:0}
+  .wpane{position:absolute;inset:var(--top-bar-h) 0 0 auto;z-index:var(--z-sheet);width:min(100%,var(--pane-w));box-shadow:var(--shadow-2)}
+  .wpane--task{width:min(100%,var(--task-pane-w));margin:0}
+}
+@container win (max-width:519.98px){
+  .space__head{display:none}
+  .space__banner{padding:var(--sp-2) var(--sp-4) 0}
+  .space__body{padding:var(--sp-3) var(--sp-4) var(--sp-6)}
+  .npage{padding:var(--sp-4)}
+  .npage__head h1{font-size:var(--fs-xl)}
+  .wd__tabs{display:grid;grid-template-columns:repeat(4,1fr);flex:none;border-top:1px solid var(--border);background:var(--bg);padding:var(--sp-1) var(--sp-1) var(--sp-2)}
+  .wd__tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;min-height:var(--target);padding:var(--sp-1) 0;font-size:11px;color:var(--text-3);text-decoration:none}
+  .wd__tabs a .ico{width:22px;height:22px}
+  .wd__tabs a[aria-current=page]{color:var(--accent-text)}
+  .wd .btn{min-height:var(--target)}
+  .arts__tools .search input{font-size:var(--fs-input)}
+  .outc{grid-template-columns:1fr}
+  .card__foot{flex-direction:column;align-items:stretch}
+  .card__actions .btn{flex:1 1 0;min-width:max-content}
+  .bd__ptabs{display:flex;gap:var(--sp-1)}
+  .bd__sec--pulls,.bd__sec--runs{display:none}
+  .wpane{inset:var(--top-bar-h) 0 0 0;width:100%}
+  .wpane--task{width:100%}
+}
+
+/* ===== #766, from 900 px of window: one cap for every page, prose at the measure ===== */
+@container win (min-width:900px){
+  .wd[data-layout=new] .space__head-in{max-width:calc(var(--page-max) - 2 * var(--pad-x));margin-inline:auto}
+  .wd[data-layout=new] .space__banner,
+  .wd[data-layout=new] .space__body,
+  .wd[data-layout=new][data-page] .space__body{max-width:var(--page-max)}
+  .wd[data-layout=new] .npage{max-width:var(--page-max)}
+  .wd[data-layout=new] :is(.paused span,.qlead,.callout p,.nudge p,.card__text,.state-block p){max-width:var(--measure)}
+  .wd[data-layout=new] .arts__tools .search{flex:1 1 24rem}
+}
+
+/* ===== #766, from 880 px of body (--cq-grid-min): Artifacts as a grid of cards, 2 to 4 per row ===== */
+@container body (min-width:880px){
+  .wd[data-layout=new] .alist{display:grid;gap:var(--gap-log);border:0;border-radius:0;background:none;overflow:visible;
+    grid-template-columns:repeat(auto-fill,minmax(max(var(--artifact-card-min),calc((100% - (var(--artifact-cols-max) - 1) * var(--gap-log)) / var(--artifact-cols-max))),1fr))}
+  .wd[data-layout=new] .alist>li+li{border-top:0}
+  .wd[data-layout=new] .alist>li{display:flex;min-width:0}
+  .wd[data-layout=new] .alist__group{grid-column:1/-1;display:block!important;margin-top:var(--sp-3)}
+  .wd[data-layout=new] .alist__group:first-child{margin-top:0}
+  .wd[data-layout=new] .alist__group h3{display:flex;align-items:baseline;gap:var(--sp-2);margin:0;font-size:var(--fs-xs);font-weight:700;letter-spacing:var(--ls-caps);text-transform:uppercase;color:var(--text-2)}
+  .wd[data-layout=new] .alist__group h3 span{font-family:var(--font-mono);font-weight:400;color:var(--text-3)}
+  .wd[data-layout=new] .acard{flex-direction:column;align-items:stretch;gap:0;padding:0;border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-1);transition:transform var(--dur-fast) var(--ease-standard),box-shadow var(--dur-fast) var(--ease-standard),border-color var(--dur-fast) var(--ease-standard)}
+  .wd[data-layout=new] .acard:hover{background:var(--surface);border-color:var(--border-strong);box-shadow:var(--shadow-2);transform:translateY(var(--lift))}
+  .wd[data-layout=new] .acard:focus-visible{outline-offset:var(--focus-offset)}
+  .wd[data-layout=new] .acard>.ico,.wd[data-layout=new] .acard__chip{display:none}
+  .wd[data-layout=new] .acard .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio);border:0;border-bottom:1px solid var(--border);border-radius:var(--r-lg) var(--r-lg) 0 0}
+  .wd[data-layout=new] .acard:is(:hover,:focus-visible) .shot__page{transform:translateY(var(--peek))}
+  .wd[data-layout=new] .shot__tile span{display:block}
+  .wd[data-layout=new] .acard__text{flex:1;align-content:start;gap:var(--sp-1);padding:var(--sp-3) var(--sp-4) var(--sp-4)}
+  .wd[data-layout=new] .acard__title{font-family:var(--font-display);font-size:var(--fs-md);line-height:var(--lh-tight);display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+  .wd[data-layout=new] .acard--design .acard__title{-webkit-line-clamp:2}
+  .wd[data-layout=new] .acard__kicker{display:flex;align-items:center;gap:var(--sp-1);font-size:var(--fs-xs);font-weight:600;color:var(--text-2);font-variant:small-caps;letter-spacing:.04em}
+  .wd[data-layout=new] .acard__kicker .ico{width:15px;height:15px;color:var(--accent-text)}
+  .wd[data-layout=new] .acard__kicker .ico:last-child{margin-left:auto;color:var(--text-3)}
+  .wd[data-layout=new] .acard:not(.acard--design) .acard__text{padding-top:var(--sp-4)}
+  .wd[data-layout=new] .acard__await{justify-self:start;margin-top:var(--sp-1);padding:2px var(--sp-2);border-radius:999px;background:var(--warning-soft)}
+  /* loading: six skeleton cards instead of three rows */
+  .wd[data-layout=new] .skel-list{display:grid;gap:var(--gap-log);border:0;background:none;
+    grid-template-columns:repeat(auto-fill,minmax(max(var(--artifact-card-min),calc((100% - (var(--artifact-cols-max) - 1) * var(--gap-log)) / var(--artifact-cols-max))),1fr))}
+  .wd[data-layout=new] .alist>li.skelc{display:grid;align-content:start;gap:var(--sp-3);padding:0 0 var(--sp-4);border:1px solid var(--border)!important;border-radius:var(--r-lg);background:var(--surface);overflow:hidden}
+  .wd[data-layout=new] .skelc .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio);border:0;border-radius:0}
+  .wd[data-layout=new] .skelc__lines{padding:0 var(--sp-4)}
+}
+@media (prefers-reduced-motion:reduce){.wd .acard,.wd .shot__page{transition:none!important;transform:none!important}}
+:root[data-motion=reduce] .wd .acard,:root[data-motion=reduce] .wd .shot__page{transition:none!important;transform:none!important}
+
+/* ===== #766, from 1360 px of body (--cq-wide-min): the board in three columns ===== */
+@container body (min-width:1360px){
+  .wd[data-layout=new] .bd__secs{grid-template-areas:'tasks pulls runs';grid-template-columns:minmax(0,2fr) minmax(0,1fr) minmax(0,1fr);grid-template-rows:auto}
+}
+
+/* ----- the #277 viewer, opened from a design card (a stand-in: the viewer itself is unchanged) ----- */
+.viewer{position:absolute;inset:0;z-index:var(--z-sheet);display:grid;place-items:center;padding:var(--sp-8)}
+.viewer__box{position:relative;width:min(100%,960px);display:grid;gap:var(--sp-3);padding:var(--sp-5);background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);box-shadow:var(--shadow-2)}
+.viewer__box h2{margin:0;padding-right:var(--target);font-family:var(--font-display);font-size:var(--fs-xl);font-weight:var(--fw-display);outline:none}
+.viewer__box .icon-btn{position:absolute;top:var(--sp-3);right:var(--sp-3)}
+.viewer__box .shot{width:100%;height:auto;aspect-ratio:var(--thumb-ratio)}
+.viewer__box p{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+
+/* ----- page chrome: the window label carries the width and what the body does at it ----- */
+.device__label b{font-weight:600;letter-spacing:0;text-transform:none}
+/* screenshots: headless Chrome keeps a minimum window width, so the frame starts at the left edge and is cropped there */
+:root[data-shot] .stage{justify-content:flex-start}
+:root[data-shot] .device{justify-items:start}
+/* tablet: the space header carries Find, Commands and New task, so the top bar keeps only the menu */
+@container win (min-width:520px){.wd__top>.icon-btn:not(:first-child){display:none}}
+/* ===== #775 Run now on every project, on the Paper Desk tokens (ADR 0002) =====
+   The shell and board are #766's (wide.css). What is drawn here mirrors existing app parts: `.rn` is `tc-run-now`,
+   `.jc` is `tc-job-card` on `tc-status-card`, `.jx-empty` is the compact `tc-state-block`, `.rlog` is
+   `tc-sprint-run-list`. The one new part is `.jx-none`, the «no eligible runner» block (the compact state block with an
+   action and a disclosure). No new tokens. */
+
+/* the frames: the board fills the window; the phone opens on the Runs tab */
+.app .wd{height:100%}
+@container win (max-width:519.98px){
+  .bd[data-ptab=tasks] .bd__sec--tasks{display:grid}
+  .bd[data-ptab] .bd__sec{display:none}
+  .bd[data-ptab=tasks] .bd__sec--tasks,.bd[data-ptab=pulls] .bd__sec--pulls,.bd[data-ptab=runs] .bd__sec--runs{display:grid}
+  .bd__sec--runs>h3{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .rn__submit{flex:1 1 100%;justify-content:center}
+  .rn__select{min-height:var(--target);font-size:var(--fs-input)}
+  .jx-none__actions .btn{flex:1 1 100%;justify-content:center}
+}
+.ptab-n{font-family:var(--font-mono);opacity:.75}
+
+/* ----- the jobs section (`tc-board-jobs`) ----- */
+.jx,.rlog{display:grid;gap:var(--sp-3);align-content:start;min-width:0}
+.rlog{margin-top:var(--sp-5);padding-top:var(--sp-4);border-top:1px solid var(--border)}
+.jx__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none}
+.jx__head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-2)}
+.jx__sub{margin:0;font-size:var(--fs-md);font-weight:600}
+.jx__list,.rlog__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--sp-2)}
+.jx__note{margin:0;font-size:var(--fs-sm);color:var(--text-2)}
+.jx__av:empty{display:none}
+.jx__av .ext{white-space:nowrap}
+.jx__member{display:flex;gap:var(--sp-2);align-items:flex-start;margin:0;padding:var(--sp-2) var(--sp-3);border-radius:var(--r-md);background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-sm)}
+.jx__member .ico{flex:none;width:16px;height:16px;margin-top:2px}
+.jx__state{padding:var(--sp-5) var(--sp-3)}
+.jx__err{padding:var(--sp-4)}
+.jx__err h5{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display)}
+.jx-empty{display:grid;gap:var(--sp-1);padding:var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-md);text-align:center;font-size:var(--fs-sm)}
+.jx-empty p{margin:0}
+.jx-empty__t{font-weight:600}
+.jx-empty__h{color:var(--text-2)}
+
+/* Run now (`tc-run-now`) */
+.rn{display:grid;gap:var(--sp-2);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface)}
+.rn__title{margin:0;font-size:var(--fs-md);font-weight:600}
+.rn__row{display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--sp-2)}
+.rn__kind{flex:1 1 12rem;min-width:0}
+.rn__select{width:100%;min-height:var(--btn-h);margin-top:var(--sp-1);padding:0 var(--sp-3);border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--surface);color:var(--text);font:inherit}
+.rn__select:focus-visible{outline:2px solid var(--focus);outline-offset:var(--focus-offset)}
+.rn__outcome{margin:0;font-size:var(--fs-sm)}
+.rn__outcome:empty{display:none}
+.rn__err{color:var(--danger-text)}
+
+/* a job (`tc-job-card` on `tc-status-card`) */
+.jc{display:grid;gap:var(--sp-3);padding:var(--sp-3) var(--sp-4);border:1px solid var(--border);border-radius:var(--r-lg);background:var(--surface);box-shadow:var(--shadow-1)}
+.jc--warning{border-color:var(--warning-text)}.jc--danger{border-color:var(--danger-text)}
+.jc__row{display:flex;align-items:center;gap:var(--sp-3)}
+.jc__mark{flex:none;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-sunken);color:var(--text-2)}
+.jc__mark .ico{width:16px;height:16px}
+.jc--success .jc__mark{background:var(--success-soft);color:var(--success-text)}
+.jc--warning .jc__mark{background:var(--warning-soft);color:var(--warning-text)}
+.jc--danger .jc__mark{background:var(--danger-soft);color:var(--danger-text)}
+.jc__who{display:grid;gap:2px;min-width:0}
+.jc__title{margin:0;font-family:var(--font-display);font-size:var(--fs-md);font-weight:var(--fw-display)}
+.jc__meta{margin:0}
+.jchip{display:inline-flex;align-items:center;min-height:22px;padding:0 var(--sp-2);border-radius:999px;background:var(--bg-sunken);color:var(--text-2);font-size:var(--fs-xs);font-weight:600}
+.jchip--success{background:var(--success-soft);color:var(--success-text)}
+.jchip--warning{background:var(--warning-soft);color:var(--warning-text)}
+.jchip--danger{background:var(--danger-soft);color:var(--danger-text)}
+.jc__facts{font-size:var(--fs-xs)}
+.jc-new .jc{animation:jc-in var(--dur-base) var(--ease-enter)}
+@keyframes jc-in{from{opacity:0;transform:translateY(-6px)}}
+@media (prefers-reduced-motion:reduce){.jc-new .jc{animation-duration:120ms;animation-name:jc-fade}}
+:root[data-motion=reduce] .jc-new .jc{animation-duration:120ms;animation-name:jc-fade}
+@keyframes jc-fade{from{opacity:0}}
+
+/* the «no eligible runner» block: a compact state block that names the cause and the one way out */
+.jx-none{display:grid;justify-items:start;gap:var(--sp-2);padding:var(--sp-4);border:1px dashed var(--border-strong);border-radius:var(--r-lg);background:var(--surface)}
+.jx-none__mark{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;background:var(--bg-sunken);color:var(--text-2)}
+.jx-none__mark .ico{width:16px;height:16px}
+.jx-none__title{margin:0;font-family:var(--font-display);font-size:var(--fs-lg);font-weight:var(--fw-display);line-height:var(--lh-tight);outline:none}
+.jx-none__body{margin:0;font-size:var(--fs-sm);color:var(--text-2);max-width:var(--measure)}
+.jx-none__actions{display:flex;flex-wrap:wrap;gap:var(--sp-2);width:100%}
+.jx-none .btn{text-decoration:none}
+.jx__why{font-size:var(--fs-sm);color:var(--text-2)}
+.jx__why summary{min-height:var(--target);display:flex;align-items:center;color:var(--accent-text);font-weight:600;cursor:pointer}
+.jx__why p{margin:0;max-width:var(--measure)}
+
+/* the GitHub run log under the jobs */
+.rlog .ext{justify-self:start;min-height:var(--target)}
+
+/* screenshots: headless Chrome lays out at least 500 px, so the phone app is pinned to 375 px at the left edge */
+:root[data-shot] .phone-frame>.app{width:375px}
+
+</style>
+</head>
+<body>
+<header class="note">
+  <div class="note__row">
+    <div><div class="note__kicker" data-i18n="page.kicker">Team Console · #775 · design for approval</div><h1 data-i18n="page.title">Run now on every project with a runner</h1></div>
+    <div class="controls">
+      <div class="seg" data-control="view" role="group" aria-label="Layout" data-i18n-aria="page.layout"><button type="button" data-value="phone">iPhone</button><button type="button" data-value="mac">Mac</button><button type="button" data-value="both" data-i18n="page.both">Both</button></div>
+      <div class="seg" data-control="theme" role="group" aria-label="Theme" data-i18n-aria="page.theme"><button type="button" data-value="auto" data-i18n="page.auto">Auto</button><button type="button" data-value="light" data-i18n="page.light">Light</button><button type="button" data-value="dark" data-i18n="page.dark">Dark</button></div>
+      <div class="seg" data-control="lang" role="group" aria-label="Language" data-i18n-aria="page.lang"><button type="button" data-value="ru" lang="ru" aria-label="Русский">RU</button><button type="button" data-value="en" lang="en" aria-label="English">EN</button></div>
+      <div class="seg" data-control="motion" role="group" aria-label="Motion" data-i18n-aria="page.motion"><button type="button" data-value="system" data-i18n="page.motionSystem">Motion: system</button><button type="button" data-value="reduce" data-i18n="page.motionReduce">Reduced</button></div>
+      <button type="button" class="seg-btn" data-reset data-i18n="page.reset">Reset demo</button>
+    </div>
+  </div>
+  <div class="demo" role="group" aria-label="Demo states" data-i18n-aria="demo.aria">
+    <label><span data-i18n="demo.state">State</span><select id="d-state"><option value="ready" data-i18n="demo.s.ready">ready</option><option value="readyEmpty" data-i18n="demo.s.readyEmpty">readyEmpty</option><option value="offline" data-i18n="demo.s.offline">offline</option><option value="paused" data-i18n="demo.s.paused">paused</option><option value="none" data-i18n="demo.s.none">none</option><option value="d3" data-i18n="demo.s.d3">d3</option><option value="d3mine" data-i18n="demo.s.d3mine">d3mine</option><option value="loading" data-i18n="demo.s.loading">loading</option><option value="error" data-i18n="demo.s.error">error</option><option value="refused" data-i18n="demo.s.refused">refused</option></select></label>
+    <label><span data-i18n="demo.role">You are</span><select id="d-role"><option value="owner" data-i18n="demo.r.owner">owner</option><option value="member" data-i18n="demo.r.member">member</option></select></label>
+    <label><span data-i18n="demo.tracker">Tracker</span><select id="d-tracker"><option value="github" data-i18n="demo.t.github">github</option><option value="console" data-i18n="demo.t.console">console</option></select></label>
+    <label><span data-i18n="demo.owners">Account owners</span><select id="d-owners"><option value="one" data-i18n="demo.o.one">one</option><option value="two" data-i18n="demo.o.two">two</option></select></label>
+    <p class="demo__help" data-i18n="demo.help"></p>
+  </div>
+  <details><summary data-i18n="page.summary">What you are approving</summary><div data-lang="en" lang="en">
+<div class="note__grid"><div>
+<p><b>What you are approving.</b> How “Team jobs” and Run now look on a project that still keeps its tasks in GitHub Issues (#775, PR 3b), once a runner can serve it: iPhone at 375 px first, then the Mac, light and dark, ru and en. Flow, states and copy follow the UX spec on #775 with the architect’s §8 and the security note (R-RUN, Q8). The board is #766’s; nothing new is invented where the app has a part.</p>
+<ul>
+<li><b>Where it sits.</b> The board’s Runs section (the side column on the Mac, the Runs tab on the iPhone) now holds two blocks: “Team jobs” (<code>tc-board-jobs</code>: Run now, Now and queued, Recent jobs, with <code>tc-job-card</code>) and under it “GitHub run log” (<code>tc-sprint-run-list</code>, unchanged, with Full run log). A console-tracker project shows only the first. The Runs tile in the stats keeps the run log on a GitHub-tracker project (owner question 2).</li>
+<li><b>Run now offers six kinds</b>: PM, dev and QA slots, Burn-down, Security audit, Digest. Review and PM chat are allowed by the API and start from their own places; Import and Kickoff are never offered. If the server still refuses a kind, the line under Run says so in clay and nothing is queued.</li>
+<li><b>Availability, from the tile DTO</b> (<code>runnerAvailability</code>, the same answer the claim filter gives, so members see it too): <b>ready</b> adds no line; <b>offline</b> and <b>paused</b> are an ochre line above the form (Run still works, the job waits; the owner sees until when and a Runners link); <b>none</b> replaces the form with a block that names the cause and one way out.</li>
+<li><b>None.</b> Owner: “No runner serves this project” with Open Settings › Runners. Member: the same title, and who can connect one (the owners, by name). <b>D3</b> on a two-owner account, if the owner answers “no”: the other owner sees “This runner doesn’t serve your projects” with Connect a runner; the runner’s owner sees “Your runner doesn’t serve this project” with Open the runner. Both carry “Why” (a subscription is personal).</li>
+<li><b>Members</b> get no form and no header Run: one quiet line “Only the account owner can start jobs — Anna.” The jobs list stays readable; runner names show as the id tail, as today.</li>
+<li><b>Motion.</b> Only the queued card slides in (240 ms); reduced motion: a 120 ms fade.</li>
+</ul>
+<p class="try">Try: press Run in the Runs section (or the header Run, which takes you there). Switch the state to offline and press Run again. Pick “none”, then “member”. Pick a D3 state: the page sets two owners.</p>
+</div><dl class="tok">
+<dt>Colour</dt><dd>Paper Desk tokens only. Ochre: offline, paused, a running job. Moss: a finished job. Clay: a failed job, a refused Run. Grey: queued, none, the member line.</dd>
+<dt>Type</dt><dd>Source Serif 4 for section and card titles; Source Sans 3 for the interface; Source Code Pro for numbers.</dd>
+<dt>New tokens</dt><dd>None.</dd>
+<dt>New kit parts</dt><dd>One: the “no eligible runner” block (a compact state block with a cause, one action and a Why disclosure). Reused: <code>tc-run-now</code>, <code>tc-job-card</code>/<code>tc-status-card</code>, <code>tc-state-block</code>, the callout, <code>tc-sprint-run-list</code>, #766’s board and phone tabs.</dd>
+</dl></div></div><div data-lang="ru" lang="ru">
+<div class="note__grid"><div>
+<p><b>Что вы утверждаете.</b> Как «Задачи команды» и «Запустить» выглядят на проекте, который ещё ведёт задачи в GitHub Issues (#775, PR 3b), когда его может обслужить раннер: сначала iPhone 375 px, потом Mac, светлая и тёмная тема, русский и английский. Сценарий, состояния и тексты — по UX-спеке на #775 с §8 архитектора и заметкой безопасности (R-RUN, Q8). Доска — из #766; где в приложении уже есть деталь, нового не придумано.</p>
+<ul>
+<li><b>Где это.</b> В разделе «Прогоны» доски (правая колонка на Mac, вкладка «Прогоны» на iPhone) теперь два блока: «Задачи команды» (<code>tc-board-jobs</code>: «Запустить сейчас», «Сейчас и в очереди», «Последние задачи» с <code>tc-job-card</code>) и под ним «Журнал прогонов GitHub» (<code>tc-sprint-run-list</code> без изменений, со ссылкой «Весь журнал прогонов»). На проекте с трекером консоли — только первый. Плитка «Прогоны» в статистике на GitHub-проекте по-прежнему читает журнал (вопрос владельцу 2).</li>
+<li><b>«Запустить» предлагает шесть видов</b>: слоты PM, разработки и QA, «Добор задач», «Аудит безопасности», «Сводка». Ревью и чат с PM API разрешает, но запускаются они со своих мест; «Импорт» и «Старт проекта» не предлагаются никогда. Если сервер всё же отклонил вид, строка под кнопкой скажет это цветом глины, и ничего не встанет в очередь.</li>
+<li><b>Доступность — из DTO плитки</b> (<code>runnerAvailability</code>, тот же ответ, что даст фильтр claim, поэтому её видят и участники): <b>готов</b> — без строки; <b>не в сети</b> и <b>на паузе</b> — охристая строка над формой («Запустить» работает, задача ждёт; владелец видит, до какого времени, и ссылку «Раннеры»); <b>нет</b> — вместо формы блок, который называет причину и один выход.</li>
+<li><b>Нет раннера.</b> Владелец: «Нет раннера для этого проекта» и «Открыть Настройки › Раннеры». Участник: тот же заголовок и кто может подключить раннер (владельцы по имени). <b>D3</b> на аккаунте с двумя владельцами, если ответ «нет»: другой владелец видит «Этот раннер не обслуживает ваши проекты» и «Подключить раннер», владелец раннера — «Ваш раннер не обслуживает этот проект» и «Открыть раннер». У обоих — «Почему так» (подписка личная).</li>
+<li><b>Участники</b> не видят формы и «Запустить» в шапке: одна спокойная строка «Запускать задачи может владелец аккаунта — Анна.» Список задач читается; имя раннера — хвост id, как сейчас.</li>
+<li><b>Движение.</b> Только новая карточка в очереди выезжает (240 мс); при «Меньше движения» — затухание 120 мс.</li>
+</ul>
+<p class="try">Попробуйте: нажмите «Запустить» в разделе «Прогоны» (или «Запустить» в шапке — она переведёт туда). Переключите состояние на «не в сети» и запустите ещё раз. Выберите «нет подходящего раннера», затем «участник». Выберите состояние D3 — страница поставит двух владельцев.</p>
+</div><dl class="tok">
+<dt>Цвет</dt><dd>Только токены Paper Desk. Охра — не в сети, пауза, задача выполняется. Мох — задача завершена. Глина — сбой, отклонённый запуск. Серый — в очереди, нет раннера, строка участника.</dd>
+<dt>Шрифты</dt><dd>Source Serif 4 — заголовки разделов и карточек; Source Sans 3 — интерфейс; Source Code Pro — числа.</dd>
+<dt>Новые токены</dt><dd>Нет.</dd>
+<dt>Новое в ките</dt><dd>Одно: блок «нет подходящего раннера» (компактный state-block с причиной, одним действием и раскрытием «Почему так»). Переиспользуются: <code>tc-run-now</code>, <code>tc-job-card</code>/<code>tc-status-card</code>, <code>tc-state-block</code>, выноска, <code>tc-sprint-run-list</code>, доска и вкладки iPhone из #766.</dd>
+</dl></div></div></details>
+</header>
+<main class="stage">
+  <section class="device device--phone" aria-label="iPhone layout" data-i18n-aria="page.phoneAria"><div class="device__label">iPhone · 390 pt</div><div class="phone-frame"><div class="app" data-app="phone"></div></div></section>
+  <section class="device device--mac" aria-label="Mac layout" data-i18n-aria="page.macAria"><div class="device__label" data-i18n="page.macLabel">Mac · window</div><div class="mac-frame"><div class="app" data-app="mac"></div></div></section>
+</main>
+<script>
+/* UI strings for #766 Wide-screen layout. New keys are the UX spec's §4 table on #766 (`artifacts.typeOne.*`,
+   `artifacts.group.count`, `designs.tile.*`, the changed `artifacts.loading`); everything else mirrors keys the app
+   already has (`artifacts.*`, `designs.row.*`, `space.*`, `nav.*`) so the page reads like dev. `page.*`, `demo.*` and
+   the mock content belong to this page only. Russian is the reference and uses the polite «вы»; English second. */
+const I18N = {
+  en: {
+    'page.kicker': 'Team Console · #766 · design for approval',
+    'page.title': 'Wide screens: the project pages use the width',
+    'page.layout': 'Layout', 'page.both': 'Both',
+    'page.theme': 'Theme', 'page.auto': 'Auto', 'page.light': 'Light', 'page.dark': 'Dark',
+    'page.motion': 'Motion', 'page.motionSystem': 'Motion: system', 'page.motionReduce': 'Reduced',
+    'page.lang': 'Language', 'page.reset': 'Reset demo',
+    'page.summary': 'What you are approving, and the tokens it uses',
+    'page.phoneAria': 'iPhone layout', 'page.macAria': 'Browser window', 'page.macLabel': 'Window',
+
+    'demo.aria': 'Demo states', 'demo.page': 'Page', 'demo.win': 'Window', 'demo.pane': 'Pane', 'demo.state': 'State',
+    'demo.layout': 'Layout',
+    'demo.pg.artifacts': 'Artifacts (all)', 'demo.pg.designs': 'Artifacts (Design filter)', 'demo.pg.questions': 'Questions',
+    'demo.pg.demo': 'Demo', 'demo.pg.board': 'Board', 'demo.pg.needs': 'Needs you',
+    'demo.pn.none': 'none', 'demo.pn.commands': 'Commands (K)', 'demo.pn.task': 'a task (Board)',
+    'demo.st.ready': 'ready', 'demo.st.loading': 'loading', 'demo.st.partial': 'partial answer', 'demo.st.refreshing': 'Check again pressed',
+    'demo.st.thumbFail': 'a thumbnail failed', 'demo.st.noMatch': 'no match',
+    'demo.ly.new': 'proposed', 'demo.ly.today': 'today on dev',
+    'demo.w': (v) => `${v.w} px · body ${v.b} px · ${v.m}`,
+    'demo.m.phone': 'phone layout', 'demo.m.tablet': 'tablet layout', 'demo.m.list': 'rows', 'demo.m.grid': 'cards',
+    'demo.help': 'The frame is a browser window of the width you pick; at a small screen it scales down to fit. Every switch follows the width of the page body, not of the window: open Commands at 1440 and Artifacts goes back to rows. “Today on dev” shows the same content with today’s caps, for comparison. At 375 and 768 the two are the same pixels.',
+
+    'nav.aria': 'Navigation', 'nav.needs': 'Needs you', 'nav.overview': 'Overview', 'nav.projects': 'Projects',
+    'nav.newProject': 'New project', 'nav.settings': 'Settings', 'nav.menu': 'Projects and settings',
+    'space.sections': 'Sections', 'space.questions': 'Questions', 'space.board': 'Board', 'space.artifacts': 'Artifacts',
+    'space.demo': 'Demo', 'space.find': 'Find', 'space.commands': 'Commands', 'space.newTask': 'New task',
+    'space.paused': '<b>The team is paused</b> — you paused it on 16 Nov. Runs, reviews and the nightly sweep wait until you resume; questions still come in.',
+    'space.resume': 'Resume',
+
+    'artifacts.title': 'Artifacts', 'artifacts.updated': 'Updated at {t}', 'artifacts.refresh': 'Check again',
+    'artifacts.refreshing': 'Checking…',
+    'artifacts.search': 'Search by title', 'artifacts.searchAria': 'Search artifacts',
+    'artifacts.filterAria': 'Type', 'artifacts.all': 'All',
+    'artifacts.type.decision': 'Decisions', 'artifacts.type.design': 'Design', 'artifacts.type.demo': 'Demo',
+    'artifacts.typeOne.decision': 'Decision', 'artifacts.typeOne.design': 'Design', 'artifacts.typeOne.demo': 'Demo',
+    'artifacts.group.count': (v, pl) => `${v.n} ${pl(v.n, ['artifact', 'artifacts'])}`,
+    'artifacts.shown': 'Showing {n} of {m}', 'artifacts.listLabel': 'Artifacts of the project',
+    'artifacts.opensGitHub': 'opens on GitHub', 'artifacts.loading': 'Loading artifacts…',
+    'artifacts.source.file': 'File', 'artifacts.source.issue': 'Issue', 'artifacts.source.release': 'Release',
+    'artifacts.state.accepted': 'accepted', 'artifacts.state.proposed': 'proposed', 'artifacts.state.open': 'open', 'artifacts.state.closed': 'closed',
+    'artifacts.partial.title': 'Not everything is shown',
+    'artifacts.partial.body': 'GitHub answered only part of the request: not every folder of docs/design is listed. The rest will show after Check again.',
+    'artifacts.noMatch.title': 'Nothing matches', 'artifacts.noMatch.body': 'No artifact has “{q}” in its title.',
+    'artifacts.noMatch.reset': 'Reset the filter',
+    'designs.loading': 'Loading designs…',
+    'designs.row.open': 'Open the design', 'designs.row.awaiting': 'Awaiting your approval',
+    'designs.row.screens': (v, pl) => `${v.n} ${pl(v.n, ['screen', 'screens'])}`, 'designs.row.devices.both': 'iPhone and Mac',
+    'designs.row.devices.phone': 'iPhone', 'designs.row.none': 'no pictures', 'designs.row.html': 'interactive version only',
+    'designs.row.failed': 'the picture didn’t load',
+    'designs.tile.none': 'No pictures', 'designs.tile.html': 'Interactive version only', 'designs.tile.failed': 'The picture didn’t load',
+
+    'q.lead': (v, pl) => `${v.n} ${pl(v.n, ['question waits', 'questions wait'])} for you.`,
+    'q.attn.setup': 'Needs setup: Team Console', 'q.attn.budget': 'Budget used up: storify',
+    'q.kind.decision': 'Decision', 'q.kind.design': 'Design', 'q.kind.question': 'Question',
+    'q.ifApprove': 'If you approve', 'q.ifReject': 'If you reject',
+    'q.approve': 'Approve', 'q.reject': 'Reject…', 'q.openDesign': 'Open the design', 'q.answer': 'Answer',
+    'q.more': '+{n}', 'q.by': 'PM · {t}',
+    'q.receipt': '<span class="receipt__verb">Approved</span> · #702 Weekly digest as one email',
+    'needs.title': 'Needs you', 'needs.approveRecs': 'Approve the team’s recommendations',
+    'needs.lead': (v, pl) => `${v.n} ${pl(v.n, ['question', 'questions'])} in ${v.p} projects.`,
+    'needs.nudge': '<b>Notifications are off on this device.</b> Turn them on to hear about a new question as it arrives.',
+    'needs.nudgeOn': 'Turn on',
+    'dp.lead': 'The design that awaits your approval, and the sprint’s open demo.',
+    'dp.sprint': 'Demo · sprint 12', 'dp.open': 'Open the demo', 'dp.sprintBody': 'Shipped this sprint: the artifacts viewer, the Commands pane, Find. The demo page lists one wow per feature.',
+
+    'b.title': 'Sprint 12', 'b.demoPill': 'demo 21 Nov', 'b.open': '{n} open', 'b.run': 'Run now', 'b.newTask': 'New task',
+    'b.tasks': 'Tasks', 'b.pulls': 'Pull requests', 'b.runs': 'Runs',
+    'b.lane.doing': 'In progress', 'b.lane.review': 'In review', 'b.lane.todo': 'Planned', 'b.lane.done': 'Done',
+    'b.pr.review': 'review requested', 'b.pr.changes': 'changes requested', 'b.pr.green': 'checks green',
+    'b.run.ok': 'done', 'b.run.fail': 'failed', 'b.run.going': 'running',
+    'b.phoneTabs': 'Board sections',
+    'pane.commands': 'Commands', 'pane.close': 'Close', 'pane.status': 'The team works', 'pane.statusLine': 'Sprint 12 · demo 21 Nov · next run at 15:00',
+    'pane.pause': 'Pause the team', 'pane.runNow': 'Run now', 'pane.moveDemo': 'Move the demo', 'pane.ask': 'Ask the PM about an issue',
+    'task.status': 'Status', 'task.kind': 'Kind', 'task.sprint': 'Sprint', 'task.statusV': 'In progress', 'task.kindV': 'Feature',
+    'task.details': 'Details', 'task.history': 'History',
+    'task.body': 'Responsive wide-screen layout for the console, starting with Artifacts and checking every project tab and Needs you. Phone and tablet stay as they are.',
+    'task.h1': 'PR #772 opened by dev', 'task.h2': 'Moved to In progress',
+  },
+  ru: {
+    'page.kicker': 'Team Console · #766 · дизайн на утверждение',
+    'page.title': 'Широкие экраны: страницы проекта используют ширину',
+    'page.layout': 'Раскладка', 'page.both': 'Оба',
+    'page.theme': 'Тема', 'page.auto': 'Авто', 'page.light': 'Светлая', 'page.dark': 'Тёмная',
+    'page.motion': 'Анимация', 'page.motionSystem': 'Анимация: как в системе', 'page.motionReduce': 'Меньше движения',
+    'page.lang': 'Язык', 'page.reset': 'Сбросить демо',
+    'page.summary': 'Что вы утверждаете и какие токены используются',
+    'page.phoneAria': 'Раскладка iPhone', 'page.macAria': 'Окно браузера', 'page.macLabel': 'Окно',
+
+    'demo.aria': 'Состояния демо', 'demo.page': 'Страница', 'demo.win': 'Окно', 'demo.pane': 'Панель', 'demo.state': 'Состояние',
+    'demo.layout': 'Раскладка',
+    'demo.pg.artifacts': 'Артефакты (все)', 'demo.pg.designs': 'Артефакты (фильтр «Дизайн»)', 'demo.pg.questions': 'Вопросы',
+    'demo.pg.demo': 'Демо', 'demo.pg.board': 'Доска', 'demo.pg.needs': 'Ждут вас',
+    'demo.pn.none': 'нет', 'demo.pn.commands': 'Команды (K)', 'demo.pn.task': 'задача (Доска)',
+    'demo.st.ready': 'готово', 'demo.st.loading': 'загрузка', 'demo.st.partial': 'неполный ответ', 'demo.st.refreshing': 'нажато «Проверить снова»',
+    'demo.st.thumbFail': 'картинка не загрузилась', 'demo.st.noMatch': 'ничего не найдено',
+    'demo.ly.new': 'предлагаемая', 'demo.ly.today': 'как сейчас на dev',
+    'demo.w': (v) => `${v.w} px · тело ${v.b} px · ${v.m}`,
+    'demo.m.phone': 'раскладка телефона', 'demo.m.tablet': 'раскладка планшета', 'demo.m.list': 'строки', 'demo.m.grid': 'карточки',
+    'demo.help': 'Рамка — окно браузера выбранной ширины; на маленьком экране она уменьшается, чтобы поместиться. Каждое переключение следует ширине тела страницы, а не окна: откройте «Команды» при 1440 — и «Артефакты» снова станут строками. «Как сейчас на dev» показывает то же содержимое с сегодняшними ограничениями, для сравнения. При 375 и 768 обе раскладки совпадают до пикселя.',
+
+    'nav.aria': 'Навигация', 'nav.needs': 'Ждут вас', 'nav.overview': 'Сводка', 'nav.projects': 'Проекты',
+    'nav.newProject': 'Новый проект', 'nav.settings': 'Настройки', 'nav.menu': 'Проекты и настройки',
+    'space.sections': 'Разделы', 'space.questions': 'Вопросы', 'space.board': 'Доска', 'space.artifacts': 'Артефакты',
+    'space.demo': 'Демо', 'space.find': 'Найти', 'space.commands': 'Команды', 'space.newTask': 'Новая задача',
+    'space.paused': '<b>Команда на паузе</b> — вы поставили её 16 нояб. Запуски, ревью и ночной обход ждут, пока вы не продолжите; вопросы по-прежнему приходят.',
+    'space.resume': 'Продолжить',
+
+    'artifacts.title': 'Артефакты', 'artifacts.updated': 'Обновлено в {t}', 'artifacts.refresh': 'Проверить снова',
+    'artifacts.refreshing': 'Проверяем…',
+    'artifacts.search': 'Поиск по названию', 'artifacts.searchAria': 'Поиск по артефактам',
+    'artifacts.filterAria': 'Тип', 'artifacts.all': 'Все',
+    'artifacts.type.decision': 'Решения', 'artifacts.type.design': 'Дизайн', 'artifacts.type.demo': 'Демо',
+    'artifacts.typeOne.decision': 'Решение', 'artifacts.typeOne.design': 'Дизайн', 'artifacts.typeOne.demo': 'Демо',
+    'artifacts.group.count': (v, pl) => `${v.n} ${pl(v.n, ['артефакт', 'артефакта', 'артефактов'])}`,
+    'artifacts.shown': 'Показано {n} из {m}', 'artifacts.listLabel': 'Артефакты проекта',
+    'artifacts.opensGitHub': 'откроется на GitHub', 'artifacts.loading': 'Загружаем артефакты…',
+    'artifacts.source.file': 'Файл', 'artifacts.source.issue': 'Задача', 'artifacts.source.release': 'Релиз',
+    'artifacts.state.accepted': 'принято', 'artifacts.state.proposed': 'предложено', 'artifacts.state.open': 'открыто', 'artifacts.state.closed': 'закрыто',
+    'artifacts.partial.title': 'Показано не всё',
+    'artifacts.partial.body': 'GitHub ответил только на часть запроса: показаны не все папки docs/design. Остальное появится после «Проверить снова».',
+    'artifacts.noMatch.title': 'Ничего не нашлось', 'artifacts.noMatch.body': 'Ни в одном названии нет «{q}».',
+    'artifacts.noMatch.reset': 'Сбросить фильтр',
+    'designs.loading': 'Загружаем дизайны…',
+    'designs.row.open': 'Открыть дизайн', 'designs.row.awaiting': 'Ждёт вашего согласования',
+    'designs.row.screens': (v, pl) => `${v.n} ${pl(v.n, ['экран', 'экрана', 'экранов'])}`, 'designs.row.devices.both': 'iPhone и Mac',
+    'designs.row.devices.phone': 'iPhone', 'designs.row.none': 'без картинок', 'designs.row.html': 'только интерактивная версия',
+    'designs.row.failed': 'картинка не загрузилась',
+    'designs.tile.none': 'Без картинок', 'designs.tile.html': 'Только интерактивная версия', 'designs.tile.failed': 'Картинка не загрузилась',
+
+    'q.lead': (v, pl) => `${v.n} ${pl(v.n, ['вопрос ждёт', 'вопроса ждут', 'вопросов ждут'])} вас.`,
+    'q.attn.setup': 'Нужна настройка: Team Console', 'q.attn.budget': 'Бюджет исчерпан: storify',
+    'q.kind.decision': 'Решение', 'q.kind.design': 'Дизайн', 'q.kind.question': 'Вопрос',
+    'q.ifApprove': 'Если одобрить', 'q.ifReject': 'Если отклонить',
+    'q.approve': 'Одобрить', 'q.reject': 'Отклонить…', 'q.openDesign': 'Открыть дизайн', 'q.answer': 'Ответить',
+    'q.more': '+{n}', 'q.by': 'PM · {t}',
+    'q.receipt': '<span class="receipt__verb">Одобрено</span> · #702 Еженедельная сводка одним письмом',
+    'needs.title': 'Ждут вас', 'needs.approveRecs': 'Одобрить рекомендации команды',
+    'needs.lead': (v, pl) => `${v.n} ${pl(v.n, ['вопрос', 'вопроса', 'вопросов'])} в ${v.p} проектах.`,
+    'needs.nudge': '<b>Уведомления на этом устройстве выключены.</b> Включите их, чтобы узнавать о новом вопросе сразу.',
+    'needs.nudgeOn': 'Включить',
+    'dp.lead': 'Дизайн, который ждёт вашего согласования, и открытое демо спринта.',
+    'dp.sprint': 'Демо · спринт 12', 'dp.open': 'Открыть демо', 'dp.sprintBody': 'В спринте сделано: просмотр артефактов, панель «Команды», «Найти». На странице демо — по одному «вау» на функцию.',
+
+    'b.title': 'Спринт 12', 'b.demoPill': 'демо 21 нояб.', 'b.open': '{n} открыто', 'b.run': 'Запустить', 'b.newTask': 'Новая задача',
+    'b.tasks': 'Задачи', 'b.pulls': 'Pull requests', 'b.runs': 'Запуски',
+    'b.lane.doing': 'В работе', 'b.lane.review': 'На ревью', 'b.lane.todo': 'Запланировано', 'b.lane.done': 'Готово',
+    'b.pr.review': 'ждёт ревью', 'b.pr.changes': 'просят доработать', 'b.pr.green': 'проверки зелёные',
+    'b.run.ok': 'готово', 'b.run.fail': 'упал', 'b.run.going': 'идёт',
+    'b.phoneTabs': 'Разделы доски',
+    'pane.commands': 'Команды', 'pane.close': 'Закрыть', 'pane.status': 'Команда работает', 'pane.statusLine': 'Спринт 12 · демо 21 нояб. · следующий запуск в 15:00',
+    'pane.pause': 'Поставить на паузу', 'pane.runNow': 'Запустить сейчас', 'pane.moveDemo': 'Перенести демо', 'pane.ask': 'Спросить PM о задаче',
+    'task.status': 'Статус', 'task.kind': 'Тип', 'task.sprint': 'Спринт', 'task.statusV': 'В работе', 'task.kindV': 'Функция',
+    'task.details': 'Описание', 'task.history': 'История',
+    'task.body': 'Адаптивная раскладка консоли для широких экранов: сначала «Артефакты», затем каждая вкладка проекта и «Ждут вас». Телефон и планшет остаются как есть.',
+    'task.h1': 'dev открыл PR #772', 'task.h2': 'Перенесено в «В работе»',
+  },
+};
+
+/* UI strings for #775 Run now on every project. Extends #766's table (the shell, the board and the space keys stay as
+   #766 drew them). `jobs.*` mirror the keys dev already has; the new ones are the UX spec's copy table on #775
+   (`jobs.availability.*`, `jobs.none.*`, `jobs.member.*`, `jobs.runNow.hint`, `jobs.runNow.queuedWaiting`,
+   `jobs.err.kindNotAllowed`, `board.runs.githubLog*`). `page.*`, `demo.*` and the mock content belong to this page.
+   Russian is the reference and uses the polite «вы»; English second. */
+Object.assign(I18N.en, {
+  'page.kicker': 'Team Console · #775 · design for approval',
+  'page.title': 'Run now on every project with a runner',
+  'page.summary': 'What you are approving, and what it reuses',
+  'page.macAria': 'Mac layout', 'page.macLabel': 'Mac · window',
+
+  'demo.aria': 'Demo states', 'demo.state': 'State', 'demo.role': 'You are', 'demo.tracker': 'Tracker', 'demo.owners': 'Account owners',
+  'demo.s.ready': 'ready', 'demo.s.readyEmpty': 'ready, nothing run yet', 'demo.s.offline': 'offline', 'demo.s.paused': 'paused',
+  'demo.s.none': 'none (no eligible runner)', 'demo.s.d3': 'none: another owner’s subscription runner (D3)',
+  'demo.s.d3mine': 'none: your subscription runner, another owner’s project (D3)',
+  'demo.s.loading': 'loading', 'demo.s.error': 'jobs could not be read', 'demo.s.refused': 'Run refused (kind not allowed)',
+  'demo.r.owner': 'owner', 'demo.r.member': 'member',
+  'demo.t.github': 'GitHub Issues', 'demo.t.console': 'console tracker',
+  'demo.o.one': 'one', 'demo.o.two': 'two',
+  'demo.help': 'Pick a state; both frames follow. On the iPhone the board opens on Runs. Press Run to queue a job: it appears at the top of “Now and queued”. The D3 states need two owners and assume the owner answers D3 with “no”; with “yes” they never appear.',
+
+  'b.runs': 'Runs', 'b.run': 'Run now',
+  'b.pulls': 'Pull requests',
+
+  'jobs.view.title': 'Team jobs', 'jobs.view.current': 'Now and queued', 'jobs.view.recent': 'Recent jobs',
+  'jobs.view.loading': 'Loading jobs…', 'jobs.view.empty': 'Nothing is running right now',
+  'jobs.view.emptyHint': 'Start a job with Run — a runner picks it up on its next poll.',
+  'jobs.view.emptyHintMember': 'Jobs the account owner starts show here.',
+  'jobs.view.recentEmpty': 'No finished jobs yet', 'jobs.view.errorTitle': 'Could not load the jobs',
+  'jobs.view.errorBody': 'Something went wrong. Try again.', 'jobs.view.refresh': 'Refresh', 'jobs.view.retry': 'Try again',
+  'jobs.runNow.title': 'Run now', 'jobs.runNow.kind': 'What to run', 'jobs.runNow.submit': 'Run',
+  'jobs.runNow.hint': 'Review and PM chat start from their own places: a pull request and the team chat.',
+  'jobs.runNow.queued': '{kind}: queued.',
+  'jobs.runNow.queuedWaiting': '{kind}: queued. It starts when the runner is back.',
+  'jobs.err.kindNotAllowed': 'This kind of job can’t be started here while the project keeps its tasks in GitHub Issues. Nothing was started.',
+  'jobs.availability.offline': '<b>The runner is offline.</b> A job waits in the queue and starts when the runner connects again.',
+  'jobs.availability.offlineMember': '<b>The runner is offline.</b> Jobs start when it connects again.',
+  'jobs.availability.paused': '<b>The runner is paused until {time}</b>, on a usage limit. A job waits in the queue until then.',
+  'jobs.availability.pausedMember': '<b>The runner is paused.</b> Jobs start when the pause ends.',
+  'jobs.availability.runners': 'Runners',
+  'jobs.none.title': 'No runner serves this project',
+  'jobs.none.owner': 'None of the account’s runners serves {project}, so a job can’t start yet. Add the project to a runner’s list, or connect a new runner.',
+  'jobs.none.member': 'None of the account’s runners serves this project yet. The account owner can connect one — {owners}.',
+  'jobs.none.open': 'Open Settings › Runners',
+  'jobs.none.d3Title': 'This runner doesn’t serve your projects',
+  'jobs.none.d3': 'The runner “{runner}” works on a Claude subscription that belongs to {owner}. Set to “All account projects”, such a runner serves only its owner’s projects, and you created this one. Connect your own runner, or ask the runner’s owner to add {project} to its list by hand.',
+  'jobs.none.d3Connect': 'Connect a runner',
+  'jobs.none.d3MineTitle': 'Your runner doesn’t serve this project',
+  'jobs.none.d3Mine': 'Your runner “{runner}” works on your Claude subscription. Set to “All account projects”, it serves only your projects, and {project} was created by another owner — {owner}. To let it serve this project too, add the project to its list by hand.',
+  'jobs.none.d3MineOpen': 'Open the runner “{runner}”',
+  'jobs.none.why': 'Why',
+  'jobs.none.whyBody': 'A Claude subscription is personal: its holder answers for the work it does. So a runner on a subscription takes another owner’s projects only when its owner adds them on purpose.',
+  'jobs.member.line': 'Only the account owner can start jobs — {owners}.',
+  'jobs.card.runner': 'Runner', 'jobs.card.waitingForRunner': 'Waiting for a free runner', 'jobs.card.queuedAt': 'Queued',
+  'jobs.card.startedAt': 'Started', 'jobs.card.finishedAt': 'Ended', 'jobs.card.summary': 'Summary',
+  'jobs.kind.slot-pm': 'PM slot', 'jobs.kind.slot-dev': 'Dev slot', 'jobs.kind.slot-qa': 'QA slot', 'jobs.kind.burn': 'Burn-down',
+  'jobs.kind.audit': 'Security audit', 'jobs.kind.digest': 'Digest',
+  'jobs.state.queued': 'Queued', 'jobs.state.running': 'Running', 'jobs.state.finished': 'Finished', 'jobs.state.failed': 'Failed',
+  'board.runs.githubLog': 'GitHub run log',
+  'board.runs.githubLogHint': 'Scheduled routine runs, as the plugin logged them. Jobs started from the console are above.',
+  'board.runs.log': 'Full run log', 'board.runs.opensGitHub': 'opens GitHub',
+  'mock.today': 'today',
+});
+
+Object.assign(I18N.ru, {
+  'page.kicker': 'Team Console · #775 · дизайн на утверждение',
+  'page.title': '«Запустить» на любом проекте, где есть раннер',
+  'page.summary': 'Что вы утверждаете и что переиспользуется',
+  'page.macAria': 'Раскладка Mac', 'page.macLabel': 'Mac · окно',
+
+  'demo.aria': 'Состояния демо', 'demo.state': 'Состояние', 'demo.role': 'Вы', 'demo.tracker': 'Трекер', 'demo.owners': 'Владельцев аккаунта',
+  'demo.s.ready': 'готов', 'demo.s.readyEmpty': 'готов, запусков ещё не было', 'demo.s.offline': 'не в сети', 'demo.s.paused': 'на паузе',
+  'demo.s.none': 'нет подходящего раннера', 'demo.s.d3': 'нет: раннер по подписке другого владельца (D3)',
+  'demo.s.d3mine': 'нет: ваш раннер по подписке, проект другого владельца (D3)',
+  'demo.s.loading': 'загрузка', 'demo.s.error': 'задачи не прочитались', 'demo.s.refused': 'запуск отклонён (вид не разрешён)',
+  'demo.r.owner': 'владелец', 'demo.r.member': 'участник',
+  'demo.t.github': 'GitHub Issues', 'demo.t.console': 'трекер консоли',
+  'demo.o.one': 'один', 'demo.o.two': 'два',
+  'demo.help': 'Выберите состояние — оба окна покажут его. На iPhone доска открыта на «Прогонах». Нажмите «Запустить» — задача встанет первой в «Сейчас и в очереди». Состояния D3 требуют двух владельцев и рисуют ответ «нет» на D3; при ответе «да» их не бывает.',
+
+  'b.runs': 'Прогоны', 'b.run': 'Запустить',
+  'b.pulls': 'Pull requests',
+
+  'jobs.view.title': 'Задачи команды', 'jobs.view.current': 'Сейчас и в очереди', 'jobs.view.recent': 'Последние задачи',
+  'jobs.view.loading': 'Загружаем задачи…', 'jobs.view.empty': 'Сейчас ничего не выполняется',
+  'jobs.view.emptyHint': 'Запустите задачу кнопкой «Запустить» — раннер возьмёт её при следующем опросе.',
+  'jobs.view.emptyHintMember': 'Здесь появятся задачи, которые запустит владелец аккаунта.',
+  'jobs.view.recentEmpty': 'Завершённых задач пока нет', 'jobs.view.errorTitle': 'Не удалось загрузить задачи',
+  'jobs.view.errorBody': 'Что-то пошло не так. Попробуйте ещё раз.', 'jobs.view.refresh': 'Обновить', 'jobs.view.retry': 'Повторить',
+  'jobs.runNow.title': 'Запустить сейчас', 'jobs.runNow.kind': 'Что запустить', 'jobs.runNow.submit': 'Запустить',
+  'jobs.runNow.hint': 'Ревью и чат с PM запускаются со своих мест: из pull request и из чата команды.',
+  'jobs.runNow.queued': '{kind}: поставлено в очередь.',
+  'jobs.runNow.queuedWaiting': '{kind}: в очереди. Начнётся, когда раннер вернётся.',
+  'jobs.err.kindNotAllowed': 'Задачу этого вида отсюда не запустить, пока проект ведёт задачи в GitHub Issues. Ничего не запущено.',
+  'jobs.availability.offline': '<b>Раннер не в сети.</b> Задача встанет в очередь и начнётся, когда раннер снова подключится.',
+  'jobs.availability.offlineMember': '<b>Раннер не в сети.</b> Задачи начнутся, когда он снова подключится.',
+  'jobs.availability.paused': '<b>Раннер на паузе до {time}</b> — лимит использования. До этого времени задача подождёт в очереди.',
+  'jobs.availability.pausedMember': '<b>Раннер на паузе.</b> Задачи начнутся, когда пауза закончится.',
+  'jobs.availability.runners': 'Раннеры',
+  'jobs.none.title': 'Нет раннера для этого проекта',
+  'jobs.none.owner': 'Ни один раннер аккаунта не обслуживает {project}, поэтому задачу пока не запустить. Добавьте проект в список раннера или подключите новый раннер.',
+  'jobs.none.member': 'Ни один раннер аккаунта пока не обслуживает этот проект. Подключить раннер может владелец аккаунта — {owners}.',
+  'jobs.none.open': 'Открыть Настройки › Раннеры',
+  'jobs.none.d3Title': 'Этот раннер не обслуживает ваши проекты',
+  'jobs.none.d3': 'Раннер «{runner}» работает по подписке Claude, владелец подписки — {owner}. В режиме «Все проекты аккаунта» такой раннер обслуживает только проекты своего владельца, а этот проект создали вы. Подключите свой раннер или попросите владельца раннера добавить {project} в его список вручную.',
+  'jobs.none.d3Connect': 'Подключить раннер',
+  'jobs.none.d3MineTitle': 'Ваш раннер не обслуживает этот проект',
+  'jobs.none.d3Mine': 'Ваш раннер «{runner}» работает по вашей подписке Claude. В режиме «Все проекты аккаунта» он обслуживает только ваши проекты, а {project} создал другой владелец — {owner}. Чтобы раннер обслуживал и его, добавьте проект в список раннера вручную.',
+  'jobs.none.d3MineOpen': 'Открыть раннер «{runner}»',
+  'jobs.none.why': 'Почему так',
+  'jobs.none.whyBody': 'Подписка Claude личная: за работу, которую она выполняет, отвечает её владелец. Поэтому раннер с подпиской берёт проекты другого владельца, только если его владелец добавил их сам.',
+  'jobs.member.line': 'Запускать задачи может владелец аккаунта — {owners}.',
+  'jobs.card.runner': 'Раннер', 'jobs.card.waitingForRunner': 'Ждёт свободного раннера', 'jobs.card.queuedAt': 'В очереди с',
+  'jobs.card.startedAt': 'Начат', 'jobs.card.finishedAt': 'Закончен', 'jobs.card.summary': 'Итог',
+  'jobs.kind.slot-pm': 'Слот PM', 'jobs.kind.slot-dev': 'Слот разработки', 'jobs.kind.slot-qa': 'Слот QA', 'jobs.kind.burn': 'Добор задач',
+  'jobs.kind.audit': 'Аудит безопасности', 'jobs.kind.digest': 'Сводка',
+  'jobs.state.queued': 'В очереди', 'jobs.state.running': 'Выполняется', 'jobs.state.finished': 'Завершён', 'jobs.state.failed': 'Сбой',
+  'board.runs.githubLog': 'Журнал прогонов GitHub',
+  'board.runs.githubLogHint': 'Прогоны рутин по расписанию, как их записал плагин. Задачи, запущенные из консоли, — выше.',
+  'board.runs.log': 'Весь журнал прогонов', 'board.runs.opensGitHub': 'откроется GitHub',
+  'mock.today': 'сегодня',
+});
+
+/* Shared runtime of the feature design pages: motion and escaping helpers, the inline icon set, the i18n lookup
+   and the page chrome (layout, theme, language, motion). Each page passes its own I18N table and demo wiring.
+   Design prototypes only: mock data, no network. */
+const Proto = (() => {
+  'use strict';
+  const root = document.documentElement;
+  const mqReduce = matchMedia('(prefers-reduced-motion: reduce)');
+  const isReduced = () => root.dataset.motion === 'reduce' || mqReduce.matches;
+  const cssVar = (n) => getComputedStyle(root).getPropertyValue(n).trim();
+  const ms = (n) => { const v = cssVar(n); const x = parseFloat(v) || 0; return v.endsWith('ms') ? x : v.endsWith('s') ? x * 1000 : x; };
+  const wait = (t) => new Promise((r) => setTimeout(r, t));
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  async function play(el, frames, opts) {
+    if (!el || !el.animate) return;
+    try { await el.animate(frames, opts).finished; } catch (err) { if (!err || err.name !== 'AbortError') throw err; }
+  }
+  const plain = (html) => { const d = document.createElement('template'); d.innerHTML = html; return d.content.textContent; };
+
+  /* ---------- language (same preference key as the Paper Desk prototype) ---------- */
+  const LANG_KEY = 'team-console.lang';
+  function i18n(table) {
+    const L = { lang: 'ru', fmt: null };
+    try { const v = localStorage.getItem(LANG_KEY); L.lang = v === 'en' || v === 'ru' ? v : /^en\b/i.test(navigator.language || '') ? 'en' : 'ru'; }
+    catch (err) { console.warn('Language preference unavailable, using Russian', err); }
+    L.apply = (v) => {
+      L.lang = v; root.lang = v;
+      const loc = v === 'ru' ? 'ru-RU' : 'en-GB';
+      L.fmt = { time: new Intl.DateTimeFormat(loc, { hour: '2-digit', minute: '2-digit' }), plural: new Intl.PluralRules(loc) };
+    };
+    L.save = (v) => { try { localStorage.setItem(LANG_KEY, v); } catch (err) { console.warn('Language preference not saved', err); } };
+    L.pl = (n, forms) => { const c = L.fmt.plural.select(n); if (forms.length === 2) return c === 'one' ? forms[0] : forms[1]; return c === 'one' ? forms[0] : c === 'few' ? forms[1] : forms[2]; };
+    L.t = (key, vars = {}) => {
+      const v = table[L.lang][key] ?? table.en[key];
+      if (v == null) { console.warn(`Missing UI string: ${key}`); return key; }
+      if (typeof v === 'function') return v(vars, L.pl, { esc });
+      return v.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? esc(vars[k]) : m));
+    };
+    L.hhmm = (d) => L.fmt.time.format(d);
+    L.apply(L.lang);
+    return L;
+  }
+
+  /* ---------- icons: inline strokes, as in the prototype ---------- */
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const I = {
+    check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'), x: svg('<path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/>'),
+    bang: svg('<path d="M12 6.5v7M12 17.3v.2"/>'), q: svg('<path d="M9.3 9a2.8 2.8 0 015.4 1c0 2-2.7 2.3-2.7 4M12 17.3v.2"/>'),
+    warn: svg('<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17.3v.2"/>'),
+    chev: svg('<path d="M9.5 6l6 6-6 6"/>'), back: svg('<path d="M14.5 6l-6 6 6 6"/>'), down: svg('<path d="M6 9.5l6 6 6-6"/>'),
+    plus: svg('<path d="M12 5.5v13M5.5 12h13"/>'), minus: svg('<path d="M6 12h12"/>'),
+    gear: svg('<circle cx="12" cy="12" r="3"/><path d="M12 3.5v2.2M12 18.3v2.2M20.5 12h-2.2M5.7 12H3.5M18 6l-1.6 1.6M7.6 16.4L6 18M18 18l-1.6-1.6M7.6 7.6L6 6"/>'),
+    ext: svg('<path d="M14 4.5h5.5V10M19.5 4.5L11 13M17 13.5v5a1 1 0 01-1 1H5.5a1 1 0 01-1-1V8a1 1 0 011-1h5"/>'),
+    copy: svg('<rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V5.5a1 1 0 00-1-1h-9a1 1 0 00-1 1v9a1 1 0 001 1h3"/>'),
+    inbox: svg('<path d="M4 13.5L6.5 5h11l2.5 8.5V19H4z"/><path d="M4 13.5h5l1 2h4l1-2h5"/>'),
+    grid: svg('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'),
+    search: svg('<circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/>'),
+    chat: svg('<path d="M4.5 5.5h15v10h-9l-6 4z"/>'),
+    board: svg('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M9.5 4.5v15M15 4.5v15"/>'),
+    stack: svg('<path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4M4 16l8 4 8-4"/>'),
+    archive: svg('<rect x="3.5" y="4.5" width="17" height="4.5" rx="1"/><path d="M5 9v10.5h14V9M10 13h4"/>'),
+    link: svg('<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/>'),
+    lock: svg('<rect x="5" y="10.5" width="14" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 017 0v2.5"/>'),
+    wifi: svg('<path d="M3.5 9.5a12 12 0 0117 0M6.5 12.8a7.5 7.5 0 0111 0M9.5 16a3 3 0 015 0"/><path d="M4 4l16 16"/>'),
+    pause: svg('<path d="M9 6v12M15 6v12"/>'),
+    play: svg('<path d="M8 5.5v13l10.5-6.5z"/>'),
+    refresh: svg('<path d="M19.5 12a7.5 7.5 0 11-2.2-5.3"/><path d="M19.5 4.5v4.5H15"/>'),
+    sliders: svg('<path d="M5 7h8M17 7h2M5 17h2M11 17h8"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>'),
+    clock: svg('<circle cx="12" cy="12" r="8"/><path d="M12 7.5V12l3 2"/>'),
+    key: svg('<circle cx="8" cy="15" r="3.5"/><path d="M10.5 12.5l8-8M16 7l2.5 2.5M14 9l2 2"/>'),
+    bell: svg('<path d="M6 16.5V11a6 6 0 0112 0v5.5l1.5 2h-15zM10 20.5a2 2 0 004 0"/>'),
+    bellOff: svg('<path d="M8.2 6.2A6 6 0 0118 11v3.5M6 11v5.5l-1.5 2h12M10 20.5a2 2 0 004 0M4 4l16 16"/>'),
+    share: svg('<path d="M12 3.5v11M8 7.5l4-4 4 4M8.5 10.5h-2a1 1 0 00-1 1v8a1 1 0 001 1h11a1 1 0 001-1v-8a1 1 0 00-1-1h-2"/>'),
+    more: svg('<path class="ico-dots" d="M6.5 12h.01M12 12h.01M17.5 12h.01"/>'),
+    moreV: svg('<path class="ico-dots" d="M12 6.5v.01M12 12v.01M12 17.5v.01"/>'),
+    addSquare: svg('<rect x="4.5" y="4.5" width="15" height="15" rx="3.5"/><path d="M12 8.5v7M8.5 12h7"/>'),
+    install: svg('<path d="M12 4.5v10M8 10.5l4 4 4-4"/><path d="M5 15.5v3a1 1 0 001 1h12a1 1 0 001-1v-3"/>'),
+    mark: '<svg class="mark" viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="2.5" width="19" height="19" rx="6" fill="currentColor"/><path d="M7.5 9.5h9M7.5 14.5h5.5" stroke="var(--accent-contrast)" stroke-width="2.2" stroke-linecap="round"/></svg>',
+    bars: '<svg viewBox="0 0 18 12" width="18" height="12" aria-hidden="true"><rect x="0" y="8" width="3" height="4" rx="1" fill="currentColor"/><rect x="5" y="5" width="3" height="7" rx="1" fill="currentColor"/><rect x="10" y="2.5" width="3" height="9.5" rx="1" fill="currentColor"/><rect x="15" y="0" width="3" height="12" rx="1" fill="currentColor"/></svg>',
+    battery: '<svg viewBox="0 0 27 13" width="27" height="13" aria-hidden="true"><rect x=".5" y=".5" width="23" height="12" rx="3.5" fill="none" stroke="currentColor" opacity=".4"/><rect x="2" y="2" width="18" height="9" rx="2" fill="currentColor"/><rect x="24.5" y="4.5" width="2" height="4" rx="1" fill="currentColor" opacity=".4"/></svg>',
+  };
+  const dots = '<span class="typing" aria-hidden="true"><i></i><i></i><i></i></span>';
+
+  /* ---------- page chrome: layout, theme, motion and language controls ---------- */
+  // `onLang(value)` re-renders the page's apps; `title` is the document title prefix ("Team Console · #24").
+  function page({ L, title, onLang }) {
+    const stage = document.querySelector('.stage');
+    const macFrame = document.querySelector('.mac-frame');
+    function fit() {
+      const W = stage.clientWidth - 48; const view = stage.dataset.view; let z = 1;
+      if (view === 'mac') { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      else if (view === 'both') {
+        const room = W - 414 - 40;
+        if (room / 1182 >= 0.62) { z = Math.min(1, room / 1182); stage.dataset.layout = 'row'; } else { z = Math.min(1, W / 1182); stage.dataset.layout = 'stack'; }
+      }
+      macFrame.style.zoom = String(Math.max(z, 0.3));
+    }
+    function translatePage() {
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.innerHTML = L.t(el.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-aria]').forEach((el) => el.setAttribute('aria-label', plain(L.t(el.dataset.i18nAria))));
+      document.title = `${title} · ${plain(L.t('page.title'))}`;
+    }
+    function setControl(ctrl, val) {
+      if (ctrl === 'view') { stage.dataset.view = val; fit(); }
+      if (ctrl === 'theme') { if (val === 'auto') delete root.dataset.theme; else root.dataset.theme = val; }
+      if (ctrl === 'motion') { if (val === 'system') delete root.dataset.motion; else root.dataset.motion = val; }
+      if (ctrl === 'lang' && val !== L.lang) { L.save(val); L.apply(val); translatePage(); onLang(val); }
+      document.querySelectorAll(`[data-control="${ctrl}"] button`).forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === val)));
+    }
+    document.querySelectorAll('[data-control]').forEach((g) => g.addEventListener('click', (e) => { const b = e.target.closest('button[data-value]'); if (b) setControl(g.dataset.control, b.dataset.value); }));
+    const small = matchMedia('(max-width: 520px)').matches;
+    translatePage();
+    setControl('view', small ? 'phone' : 'both');
+    setControl('theme', 'auto');
+    setControl('motion', 'system');
+    setControl('lang', L.lang);
+    document.querySelectorAll('[data-control=lang] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.value === L.lang)));
+    addEventListener('resize', fit);
+    return { fit, setControl };
+  }
+
+  return { root, isReduced, cssVar, ms, wait, esc, play, plain, i18n, I, dots, page };
+})();
+
+/* #775 Run now on every project. Design prototype runtime with mock data only (no network).
+   The shell and the board are #766's (`wide.css`); the runs section is the app's `tc-board-jobs` (Run now form,
+   `tc-job-card` lists) shown on a GitHub-tracker project too, with the `runnerAvailability` line or the «no eligible
+   runner» block above it, and the existing `tc-sprint-run-list` (GitHub run log) under it. Text is rendered through
+   esc() only, as the app interpolates it. */
+(() => {
+  'use strict';
+  const { esc, plain, I } = Proto;
+  const L = Proto.i18n(I18N);
+  const { t } = L;
+  const svg = (d) => `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  const IX = { ...I, menu: svg('<path d="M4.5 7h15M4.5 12h15M4.5 17h15"/>'), sum: svg('<path d="M5 19.5V11M10 19.5V5M15 19.5v-6M20 19.5V8"/>'),
+    plug: svg('<path d="M9 3.5v5M15 3.5v5M6.5 8.5h11v3a5.5 5.5 0 01-11 0zM12 17v3.5"/>') };
+  const loc = (v) => (typeof v === 'string' ? v : v[L.lang] || v.en);
+
+  /* ---------- demo state, shared by both frames ---------- */
+  const PROJECT = 'team-console';
+  const OWNERS = { one: ['Анна'], two: ['Анна', 'Борис'] };
+  const OWNERS_EN = { one: ['Anna'], two: ['Anna', 'Boris'] };
+  const fresh0 = () => ({ s: 'ready', role: 'owner', tracker: 'github', owners: 'one', added: [], outcome: null });
+  const D = fresh0();
+  const ownersOf = () => (L.lang === 'ru' ? OWNERS : OWNERS_EN)[D.owners];
+  // The D3 states only exist on a multi-owner account.
+  const isD3 = () => D.s === 'd3' || D.s === 'd3mine';
+  const av = () => ({ ready: 'ready', readyEmpty: 'ready', offline: 'offline', paused: 'paused', none: 'none', d3: 'none', d3mine: 'none', refused: 'ready' }[D.s] || 'unknown');
+
+  /* ---------- mock content ---------- */
+  const KINDS = ['slot-pm', 'slot-dev', 'slot-qa', 'burn', 'audit', 'digest'];
+  const RUNNER = 'Mac';
+  const CURRENT = [
+    { id: 'a', kind: 'digest', state: 'running', runner: RUNNER, queued: '14:02', started: '14:02' },
+    { id: 'b', kind: 'slot-qa', state: 'queued', runner: null, queued: '14:05' },
+  ];
+  const RECENT = [
+    { id: 'c', kind: 'slot-dev', state: 'finished', runner: RUNNER, queued: '12:31', started: '12:31', ended: '12:58',
+      summary: { ru: 'Открыт PR #772, проверки идут.', en: 'Opened PR #772, checks are running.' } },
+    { id: 'd', kind: 'audit', state: 'failed', runner: RUNNER, queued: '09:30', started: '09:31', ended: '09:44',
+      summary: { ru: 'Раннер не нашёл git в PATH.', en: 'The runner could not find git in PATH.' } },
+  ];
+  const BOARD = {
+    doing: [['771', { ru: 'Широкие экраны: раскладка страниц проекта', en: 'Wide screens: project page layout' }, 'heavy'], ['768', { ru: 'Баннер «Показано не всё» сразу после обновления', en: '“Not everything is shown” right after a refresh' }, 'light']],
+    review: [['764', { ru: 'Онбординг Actions: что нужно команде от GitHub', en: 'Actions onboarding: what the team needs from GitHub' }, 'standard']],
+    todo: [['775', { ru: 'Раннер для всех проектов и «Запустить» везде', en: 'Runner for all projects, Run now everywhere' }, 'heavy'], ['773', { ru: 'Индекс разделов в Настройках', en: 'A section index in Settings' }, 'standard']],
+    done: [['761', { ru: 'Установка приложения', en: 'Install the app' }, 'standard'], ['750', { ru: 'Окружение проекта', en: 'Project environment' }, 'standard']],
+  };
+  const PRS = [['772', 'feat(console): wide-screen layout tokens', 'review'], ['769', 'fix(artifacts): list every docs/design folder', 'changes']];
+  const RUNS = [['dev', '14:00', 'going'], ['qa', '13:40', 'ok'], ['pm', '12:00', 'ok'], ['dev', '11:15', 'fail']];
+
+  /* ---------- the jobs section ---------- */
+  const TONE = { queued: 'neutral', running: 'warning', finished: 'success', failed: 'danger' };
+  const MARK = { queued: IX.clock, running: IX.play, finished: IX.check, failed: IX.x };
+  function cardHTML(j, uid) {
+    const id = `${uid}-job-${j.id}`;
+    // A member reads no runners, so the card shows the id's tail, as runnerLabelOf() does today.
+    const runner = j.runner ? (D.role === 'owner' ? j.runner : '…7f3a9c') : t('jobs.card.waitingForRunner');
+    const rows = [[t('jobs.card.runner'), `<span dir="auto">${esc(runner)}</span>`], [t('jobs.card.queuedAt'), `<time>${t('mock.today')}, ${j.queued}</time>`]];
+    if (j.started) rows.push([t('jobs.card.startedAt'), `<time>${j.started}</time>`]);
+    if (j.ended) rows.push([t('jobs.card.finishedAt'), `<time>${j.ended}</time>`]);
+    if (j.summary) rows.push([t('jobs.card.summary'), `<span dir="auto">${esc(loc(j.summary))}</span>`]);
+    return `<li${j.fresh ? ' class="jc-new"' : ''}><article class="jc jc--${TONE[j.state]}" aria-labelledby="${id}" data-state="${j.state}">
+      <div class="jc__row"><span class="jc__mark" aria-hidden="true">${MARK[j.state]}</span><div class="jc__who"><h6 class="jc__title" id="${id}">${t(`jobs.kind.${j.kind}`)}</h6>
+        <p class="jc__meta"><span class="jchip jchip--${TONE[j.state]}">${t(`jobs.state.${j.state}`)}</span></p></div></div>
+      <dl class="ledger jc__facts">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></article></li>`;
+  }
+  const settingsLink = (label) => `<a class="btn" href="#settings-runners" data-act="noop">${IX.gear}${label}</a>`;
+  function availabilityHTML() {
+    const a = av();
+    if (a === 'offline') {
+      return `<div class="callout jx__av" role="status" data-av="offline">${IX.wifi}<p>${t(D.role === 'owner' ? 'jobs.availability.offline' : 'jobs.availability.offlineMember')}${D.role === 'owner' ? ` <a class="ext" href="#settings-runners" data-act="noop">${t('jobs.availability.runners')}</a>` : ''}</p></div>`;
+    }
+    if (a === 'paused') {
+      const text = D.role === 'owner' ? t('jobs.availability.paused', { time: '18:40' }) : t('jobs.availability.pausedMember');
+      return `<div class="callout jx__av" role="status" data-av="paused">${IX.pause}<p>${text}</p></div>`;
+    }
+    // ready: no line — the empty hint and the job cards already say what happens.
+    return '<div class="jx__av" role="status" data-av="ready"></div>';
+  }
+  function noneHTML(uid) {
+    const hid = `${uid}-none-h`;
+    const owners = ownersOf();
+    let title = t('jobs.none.title'); let body; let action; let why = false;
+    if (D.role === 'member') {
+      body = t('jobs.none.member', { owners: owners.join(', ') });
+      action = '';
+    } else if (D.s === 'd3') {
+      title = t('jobs.none.d3Title');
+      body = t('jobs.none.d3', { runner: RUNNER, owner: owners[0], project: PROJECT });
+      action = `<a class="btn btn--primary" href="#add-runner" data-act="noop">${IX.plus}${t('jobs.none.d3Connect')}</a>`;
+      why = true;
+    } else if (D.s === 'd3mine') {
+      title = t('jobs.none.d3MineTitle');
+      body = t('jobs.none.d3Mine', { runner: RUNNER, owner: owners[1], project: PROJECT });
+      action = settingsLink(t('jobs.none.d3MineOpen', { runner: RUNNER }));
+      why = true;
+    } else {
+      body = t('jobs.none.owner', { project: PROJECT });
+      action = settingsLink(t('jobs.none.open'));
+    }
+    const whyHTML = why ? `<details class="jx__why"><summary>${t('jobs.none.why')}</summary><p>${t('jobs.none.whyBody')}</p></details>` : '';
+    return `<section class="jx-none" aria-labelledby="${hid}" data-fk="none" data-none="${D.role === 'member' ? 'member' : D.s}">
+      <span class="jx-none__mark" aria-hidden="true">${IX.plug}</span>
+      <h5 class="jx-none__title" id="${hid}" tabindex="-1">${title}</h5><p class="jx-none__body" dir="auto">${body}</p>
+      ${action ? `<div class="jx-none__actions">${action}</div>` : ''}${whyHTML}</section>`;
+  }
+  function runNowHTML(uid) {
+    const hid = `${uid}-rn-h`;
+    const opts = KINDS.map((k) => `<option value="${k}"${k === 'digest' ? ' selected' : ''}>${t(`jobs.kind.${k}`)}</option>`).join('');
+    let outcome = '';
+    if (D.outcome === 'refused' || D.s === 'refused') outcome = `<span class="rn__err">${t('jobs.err.kindNotAllowed')}</span>`;
+    else if (D.outcome) outcome = `<span>${t(av() === 'ready' ? 'jobs.runNow.queued' : 'jobs.runNow.queuedWaiting', { kind: t(`jobs.kind.${D.outcome}`) })}</span>`;
+    return `<form class="rn" aria-labelledby="${hid}" data-act-form="run">
+      <h5 class="rn__title" id="${hid}">${t('jobs.runNow.title')}</h5>
+      <div class="rn__row"><label class="field rn__kind"><span class="field__label">${t('jobs.runNow.kind')}</span>
+        <select class="rn__select" id="${uid}-kind" aria-describedby="${uid}-kind-hint" data-fk="kind">${opts}</select></label>
+        <button type="submit" class="btn btn--primary rn__submit" data-fk="run">${IX.play}${t('jobs.runNow.submit')}</button></div>
+      <p class="field__hint" id="${uid}-kind-hint">${t('jobs.runNow.hint')}</p>
+      <p class="rn__outcome" role="status">${outcome}</p></form>`;
+  }
+  function jobsHTML(uid) {
+    const hid = `${uid}-jobs-h`;
+    const a = av();
+    const s = D.s;
+    let top = '';
+    if (s === 'loading') {
+      top = `<div class="state-block jx__state" role="status">${Proto.dots}<p>${t('jobs.view.loading')}</p></div>`;
+    } else if (a === 'none') {
+      top = noneHTML(uid);
+    } else {
+      top = availabilityHTML();
+      top += D.role === 'owner' ? runNowHTML(uid) : `<p class="jx__member">${IX.lock}<span>${t('jobs.member.line', { owners: ownersOf().join(', ') })}</span></p>`;
+    }
+    let lists = '';
+    if (s === 'error') {
+      lists = `<div class="block block--error jx__err"><h5>${t('jobs.view.errorTitle')}</h5><p>${t('jobs.view.errorBody')}</p><button type="button" class="btn" data-act="noop">${t('jobs.view.retry')}</button></div>`;
+    } else if (s !== 'loading') {
+      const empty = s === 'readyEmpty' || a === 'none';
+      let cur = empty ? [] : [...CURRENT];
+      if (a === 'offline' || a === 'paused') cur = cur.map((j) => ({ ...j, state: 'queued', runner: null, started: null }));
+      cur = [...D.added, ...cur];
+      const rec = empty ? [] : RECENT;
+      const emptyCur = `<div class="jx-empty"><p class="jx-empty__t">${t('jobs.view.empty')}</p><p class="jx-empty__h">${t(D.role === 'owner' && a !== 'none' ? 'jobs.view.emptyHint' : 'jobs.view.emptyHintMember')}</p></div>`;
+      lists = `<div class="jx__head"><h5 class="jx__sub">${t('jobs.view.current')}</h5><button type="button" class="btn btn--sm btn--quiet" data-act="noop">${IX.refresh}${t('jobs.view.refresh')}</button></div>
+        ${cur.length ? `<ul class="jx__list" data-slot="current">${cur.map((j) => cardHTML(j, uid)).join('')}</ul>` : emptyCur}
+        <h5 class="jx__sub">${t('jobs.view.recent')}</h5>
+        ${rec.length ? `<ul class="jx__list">${rec.map((j) => cardHTML(j, uid)).join('')}</ul>` : `<p class="jx__note">${t('jobs.view.recentEmpty')}</p>`}`;
+    }
+    return `<section class="jx" aria-labelledby="${hid}" data-fk="jobs"><h4 class="jx__title" id="${hid}" tabindex="-1">${t('jobs.view.title')}</h4>${top}${lists}</section>`;
+  }
+  function githubLogHTML(uid) {
+    if (D.tracker !== 'github') return '';
+    const hid = `${uid}-log-h`;
+    const runs = RUNS.map(([slot, tm, st]) => `<li><div class="item"><span class="rdot${st === 'ok' ? '' : ` rdot--${st}`}" aria-hidden="true"></span><span class="item__title">${slot}<small>${t(`b.run.${st}`)}</small></span><span class="item__num">${tm}</span></div></li>`).join('');
+    return `<section class="rlog" data-fk="log" aria-labelledby="${hid}"><h4 class="jx__title" id="${hid}">${t('board.runs.githubLog')}</h4>
+      <p class="jx__note">${t('board.runs.githubLogHint')}</p><ul class="rlog__list">${runs}</ul>
+      <a class="ext" href="https://github.com/" target="_blank" rel="noopener noreferrer" data-act="gh">${t('board.runs.log')}${IX.ext}<span class="sr-only">, ${t('board.runs.opensGitHub')}</span></a></section>`;
+  }
+
+  /* ---------- the board and the shell (#766) ---------- */
+  function boardPage(host, uid) {
+    const lanes = ['doing', 'review', 'todo', 'done'].map((k) => `<div class="lane"><h4>${t(`b.lane.${k}`)} · ${BOARD[k].length}</h4><ul>${BOARD[k].map(([n, title, tier]) => `<li><button type="button" class="item" data-act="noop"><span class="item__num">#${n}</span><span class="item__title">${esc(loc(title))}</span><span class="tier tier--${tier}">${tier}</span></button></li>`).join('')}</ul></div>`).join('');
+    const prs = PRS.map(([n, title, st]) => `<li><a class="item" href="https://github.com/" target="_blank" rel="noopener noreferrer" data-act="gh"><span class="item__num">#${n}</span><span class="item__title">${esc(title)}<small>${t(`b.pr.${st}`)}</small></span>${IX.ext}</a></li>`).join('');
+    const open = Object.values(BOARD).slice(0, 3).reduce((s, l) => s + l.length, 0);
+    const cur = D.added.length + (D.s === 'readyEmpty' || av() === 'none' || D.s === 'loading' || D.s === 'error' ? 0 : CURRENT.length + RECENT.length);
+    const runsCount = cur + (D.tracker === 'github' ? RUNS.length : 0);
+    const tab = host.S.ptab;
+    const ptab = (k, label) => `<button type="button" class="chip-btn" role="tab" data-act="ptab" data-tab="${k}" aria-selected="${tab === k}" aria-pressed="${tab === k}" tabindex="${tab === k ? 0 : -1}">${label}</button>`;
+    // Members can't start jobs, so the header's Run (a jump to the form) is the owner's only.
+    const run = D.role === 'owner' ? `<button type="button" class="btn" data-act="jump">${IX.play}${t('b.run')}</button>` : '';
+    return `<section class="bd" aria-labelledby="${uid}-bd-h" data-ptab="${tab}"><div class="bd__head"><h2 id="${uid}-bd-h">${t('b.title')}</h2><span class="demo-pill">${IX.clock}${t('b.demoPill')}</span><span class="bd__open">${t('b.open', { n: open })}</span>
+      <div class="bd__actions">${run}<button type="button" class="btn btn--primary" data-act="noop">${IX.plus}${t('b.newTask')}</button></div></div>
+      <div class="bd__ptabs" role="tablist" aria-label="${t('b.phoneTabs')}">${ptab('tasks', t('b.tasks'))}${ptab('pulls', t('b.pulls'))}${ptab('runs', `${t('b.runs')} <span class="ptab-n">${runsCount}</span>`)}</div>
+      <div class="bd__secs">
+        <section class="bd__sec bd__sec--tasks" aria-labelledby="${uid}-bs-t"><h3 id="${uid}-bs-t">${t('b.tasks')} <span>${open + BOARD.done.length}</span></h3>${lanes}</section>
+        <section class="bd__sec bd__sec--pulls" aria-labelledby="${uid}-bs-p"><h3 id="${uid}-bs-p">${t('b.pulls')} <span>${PRS.length}</span></h3><ul>${prs}</ul></section>
+        <section class="bd__sec bd__sec--runs" aria-labelledby="${uid}-bs-r"><h3 id="${uid}-bs-r">${t('b.runs')} <span>${runsCount}</span></h3>${jobsHTML(uid)}${githubLogHTML(uid)}</section>
+      </div></section>`;
+  }
+  const TABS = [['questions', IX.chat], ['board', IX.board], ['artifacts', IX.stack], ['demo', IX.play]];
+  function shell(host) {
+    const uid = host.dataset.app;
+    const tabs = TABS.map(([k]) => `<a class="space__tab" href="#" data-act="noop"${k === 'board' ? ' aria-current="page"' : ''}>${t(`space.${k}`)}</a>`).join('');
+    const sidebar = `<nav class="sidebar" aria-label="${t('nav.aria')}">
+      <div class="brand">${IX.mark}<span>Team Console</span></div>
+      <ul class="side-list side-list--top"><li><a class="side-item" href="#" data-act="noop">${IX.inbox}<span>${t('nav.needs')}</span><span class="count"><span>3</span></span></a></li>
+        <li><a class="side-item" href="#" data-act="noop">${IX.sum}<span>${t('nav.overview')}</span></a></li></ul>
+      <div class="side-label">${t('nav.projects')}</div>
+      <ul class="side-list">${[PROJECT, 'storify', 'docs-site'].map((p, k) => `<li><a class="side-item" href="#" data-act="noop"${!k ? ' aria-current="true"' : ''}><span class="prod-mono" aria-hidden="true">${p[0]}</span><span class="side-prod__label">${p}</span></a></li>`).join('')}</ul>
+      <div class="side-foot"><a class="side-item side-item--new" href="#" data-act="noop">${IX.plus}<span>${t('nav.newProject')}</span></a><a class="side-item" href="#" data-act="noop">${IX.gear}<span>${t('nav.settings')}</span></a></div></nav>`;
+    const top = `<header class="wd__top"><button type="button" class="icon-btn" aria-label="${t('nav.menu')}">${IX.menu}</button>
+      <span class="wd__top-title"><span class="prod-mono" aria-hidden="true">t</span><span>Team Console</span></span>
+      <button type="button" class="icon-btn" aria-label="${t('space.find')}">${IX.search}</button><button type="button" class="icon-btn" aria-label="${t('space.commands')}">${IX.sliders}</button><button type="button" class="icon-btn" aria-label="${t('space.newTask')}">${IX.plus}</button></header>`;
+    const space = `<div class="space"><header class="space__head"><div class="space__head-in"><h1 class="space__title">Team Console</h1>
+        <nav class="space__tabs" aria-label="${t('space.sections')}">${tabs}</nav>
+        <button type="button" class="btn space__find">${IX.search}${t('space.find')}<kbd>/</kbd></button>
+        <button type="button" class="btn">${IX.sliders}${t('space.commands')}<kbd>K</kbd></button></div></header>
+      <div class="space__main"><main class="space__body" id="main-${uid}">${boardPage(host, uid)}</main></div></div>`;
+    const phoneTabs = `<nav class="wd__tabs" aria-label="${t('space.sections')}">${TABS.map(([k, ico]) => `<a href="#" data-act="noop"${k === 'board' ? ' aria-current="page"' : ''}>${ico}<span>${t(`space.${k}`)}</span></a>`).join('')}</nav>`;
+    return `<div class="wd" data-layout="new" data-page="board"><div class="wd__row">${sidebar}<div class="wd__main">${top}${space}</div></div>${phoneTabs}</div>`;
+  }
+
+  /* ---------- rendering and behaviour ---------- */
+  const hosts = [...document.querySelectorAll('.app[data-app]')];
+  hosts.forEach((h) => { h.S = { ptab: h.dataset.app === 'phone' ? 'runs' : 'tasks' }; });
+  function render(focus) {
+    hosts.forEach((h) => {
+      h.innerHTML = shell(h);
+      if (focus && focus.host === h) { const el = h.querySelector(focus.sel); if (el) el.focus(); }
+    });
+  }
+  let seq = 0;
+  function jumpToRun(host) {
+    host.S.ptab = 'runs';
+    render();
+    const target = host.querySelector('[data-fk=kind]') || host.querySelector('.jx-none__title') || host.querySelector('.jx__title');
+    if (target) { target.scrollIntoView({ block: 'center' }); target.focus(); }
+  }
+  hosts.forEach((host) => {
+    host.addEventListener('click', (e) => {
+      const el = e.target.closest('[data-act]'); if (!el) return;
+      const act = el.dataset.act;
+      if (act === 'noop' || act === 'gh') { e.preventDefault(); return; }
+      if (act === 'ptab') { host.S.ptab = el.dataset.tab; render({ host, sel: `[data-act=ptab][data-tab=${el.dataset.tab}]` }); return; }
+      if (act === 'jump') jumpToRun(host);
+    });
+    host.addEventListener('keydown', (e) => {
+      const tabEl = e.target.closest('[data-act=ptab]');
+      if (!tabEl || !['ArrowLeft', 'ArrowRight'].includes(e.key)) return;
+      const order = ['tasks', 'pulls', 'runs'];
+      const i = order.indexOf(tabEl.dataset.tab) + (e.key === 'ArrowRight' ? 1 : -1);
+      host.S.ptab = order[(i + order.length) % order.length];
+      render({ host, sel: `[data-act=ptab][data-tab=${host.S.ptab}]` });
+    });
+    host.addEventListener('submit', async (e) => {
+      if (!e.target.matches('[data-act-form=run]')) return;
+      e.preventDefault();
+      const kind = e.target.querySelector('select').value;
+      const btn = e.target.querySelector('[data-fk=run]');
+      btn.setAttribute('aria-disabled', 'true'); btn.innerHTML = `${Proto.dots}${plain(t('jobs.runNow.submit'))}`;
+      await Proto.wait(700);
+      if (D.s === 'refused') { D.outcome = 'refused'; render({ host, sel: '[data-fk=run]' }); return; }
+      D.added = [{ id: `n${seq += 1}`, kind, state: 'queued', runner: null, queued: L.hhmm(new Date()), fresh: true }, ...D.added];
+      D.outcome = kind;
+      // Focus stays on Run; the outcome line is the polite announcement.
+      render({ host, sel: '[data-fk=run]' });
+      hosts.forEach((h) => { const s = h.querySelector('[data-fk=kind]'); if (s) s.value = kind; });
+    });
+  });
+
+  /* ---------- page controls ---------- */
+  const sel = (id) => document.getElementById(id);
+  const pageChrome = Proto.page({ L, title: 'Team Console · #775', onLang: () => render() });
+  function apply() {
+    if (isD3()) { D.owners = 'two'; sel('d-owners').value = 'two'; if (D.role === 'member' && D.s === 'd3mine') D.s = 'd3'; }
+    D.added = []; D.outcome = null;
+    render();
+  }
+  sel('d-state').addEventListener('change', (e) => { D.s = e.target.value; apply(); });
+  sel('d-role').addEventListener('change', (e) => { D.role = e.target.value; apply(); });
+  sel('d-tracker').addEventListener('change', (e) => { D.tracker = e.target.value; apply(); });
+  sel('d-owners').addEventListener('change', (e) => { D.owners = e.target.value; if (D.owners === 'one' && isD3()) { D.s = 'none'; sel('d-state').value = 'none'; } apply(); });
+  document.querySelector('[data-reset]').addEventListener('click', () => {
+    Object.assign(D, fresh0());
+    hosts.forEach((h) => { h.S.ptab = h.dataset.app === 'phone' ? 'runs' : 'tasks'; });
+    ['state', 'role', 'tracker', 'owners'].forEach((k) => { sel(`d-${k}`).value = D[k === 'state' ? 's' : k]; });
+    render();
+  });
+
+  // ?s=…&role=…&tracker=…&owners=…&ptab=…&scroll=jobs|none&view=…&theme=…&lang=…&shot=1 opens a view directly (screenshots).
+  const q = new URLSearchParams(location.search);
+  if (q.has('shot')) Proto.root.dataset.shot = '';
+  if (q.get('lang') === 'en' || q.get('lang') === 'ru') { L.save(q.get('lang')); pageChrome.setControl('lang', q.get('lang')); }
+  ['view', 'theme', 'motion'].forEach((k) => { if (q.get(k)) pageChrome.setControl(k, q.get(k)); });
+  if (q.get('s')) D.s = q.get('s');
+  ['role', 'tracker', 'owners'].forEach((k) => { if (q.get(k)) D[k] = q.get(k); });
+  if (q.get('ptab')) hosts.forEach((h) => { h.S.ptab = q.get('ptab'); });
+  ['state', 'role', 'tracker', 'owners'].forEach((k) => { sel(`d-${k}`).value = D[k === 'state' ? 's' : k]; });
+  apply();
+  if (q.get('queued')) { D.added = [{ id: 'q1', kind: q.get('queued'), state: 'queued', runner: null, queued: '14:10', fresh: true }]; D.outcome = q.get('queued'); render(); }
+  if (q.get('why')) document.querySelectorAll('.jx__why').forEach((d) => { d.open = true; });
+  if (q.get('scroll')) hosts.forEach((h) => { const el = h.querySelector(`[data-fk=${q.get('scroll')}]`); if (el) { const main = h.querySelector('.wd__main'); main.scrollTop = Math.max(0, el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8); } });
+  pageChrome.fit();
+})();
+
+</script>
+</body>
+</html>
