@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TeamCommands } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -83,6 +83,8 @@ export class PausedBanner {
   private readonly language = inject(ConsoleLanguage);
 
   readonly project = input.required<CommandsProject>();
+  /** The project was resumed and the banner is going away; the page puts focus somewhere that stays (#144). */
+  readonly resumed = output<void>();
 
   protected readonly id = `tc-paused-banner-why-${nextBannerId++}`;
   protected readonly status = computed(() =>
@@ -106,6 +108,7 @@ export class PausedBanner {
     const outcome = await this.commands.resume({ slug: this.project().slug, name: this.project().name });
     if (outcome !== null) {
       this.toaster.show(outcome.verb);
+      this.resumed.emit();
     }
   }
 }
