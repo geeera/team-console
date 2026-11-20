@@ -3,7 +3,7 @@ import type { DesignManifestDto } from '@shared/contracts';
 import { animationsSettled } from './support/axe';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { clearFakePulls, fakePost, seed } from './support/stack';
+import { seed } from './support/stack';
 
 /**
  * The design viewer (#277) on the fixture repository: design issue #90004 carries phone and Mac renders under
@@ -41,11 +41,6 @@ async function openViewer(page: Page): Promise<void> {
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
-});
-
-// The pull request list the recovery test seeds outlives a stack reset; later files must not see it.
-test.afterAll(async ({ stack }) => {
-  await clearFakePulls(stack, 'geeera/team-console');
 });
 
 test('the api lists the raster screens at the pull request head, never the SVG, and serves them safely', async ({
@@ -243,22 +238,27 @@ test('recovers when the design moved to another commit after the list was loaded
   await expect(first).toHaveAttribute('src', /17600176001760017600176001760017600176aa/);
 
   const movedSha = 'b'.repeat(40);
-  await fakePost(stack, '/_fake/pulls', {
-    repo: 'geeera/team-console',
-    pulls: [
-      {
-        number: 176,
-        title: 'design(#90004): demo screen wireframe and renders',
-        body: `Closes #${ISSUE}`,
-        html_url: 'https://github.com/geeera/team-console/pull/176',
-        draft: false,
-        author_association: 'OWNER',
-        user: { login: 'geeera', type: 'User' },
-        state: 'open',
-        head: { sha: movedSha, ref: 'design/90004-demo-screen', repo: { full_name: 'geeera/team-console' } },
-      },
-    ],
+  const seeded = await fetch(`${stack.fakeURL}/_fake/pulls`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      repo: 'geeera/team-console',
+      pulls: [
+        {
+          number: 176,
+          title: 'design(#90004): demo screen wireframe and renders',
+          body: `Closes #${ISSUE}`,
+          html_url: 'https://github.com/geeera/team-console/pull/176',
+          draft: false,
+          author_association: 'OWNER',
+          user: { login: 'geeera', type: 'User' },
+          state: 'open',
+          head: { sha: movedSha, ref: 'design/90004-demo-screen', repo: { full_name: 'geeera/team-console' } },
+        },
+      ],
+    }),
   });
+  expect(seeded.ok).toBe(true);
   await seed(stack, ['geeera/team-console']);
 
   // The next screen's image is asked for at the old commit: 404, one list refetch, and the new commit renders.

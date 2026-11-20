@@ -21,8 +21,7 @@ import {
  * api's mock answers again (#382), milestone writes are in the state), POST /_fake/issue-update
  * {repo, number, milestone?, state?} (#219: the PM moved or closed the issue meanwhile), POST /_fake/pulls
  * {repo, pulls: [GitHub pull request JSON]} (#277: the design's head commit moves after the console loaded its
- * list; DELETE /_fake/pulls?repo= drops the seed so the api's mock list answers again, #858). Every value here is
- * fake.
+ * list). Every value here is fake.
  */
 
 interface FakeEnv {
@@ -165,10 +164,6 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
   }
   if (path === '/_fake/milestones' && request.method === 'DELETE') {
     server.clearMilestones(new URL(request.url).searchParams.get('repo') ?? '');
-    return json(200, { cleared: true });
-  }
-  if (path === '/_fake/pulls' && request.method === 'DELETE') {
-    server.clearPulls(new URL(request.url).searchParams.get('repo') ?? '');
     return json(200, { cleared: true });
   }
   if (path === '/_fake/token') {

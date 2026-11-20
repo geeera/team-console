@@ -57,14 +57,6 @@ export async function clearFakeMilestones(stack: Stack, repo: string): Promise<v
   }
 }
 
-/** Drops the pull requests a spec seeded on the fake GitHub (#858), so the api's mock list answers again. */
-export async function clearFakePulls(stack: Stack, repo: string): Promise<void> {
-  const response = await fetch(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, { method: 'DELETE' });
-  if (!response.ok) {
-    throw new Error(`fake GitHub pulls: ${response.status}`);
-  }
-}
-
 /** A JSON POST to one of the fake GitHub's `/_fake/*` seeding endpoints; throws unless it answers 2xx. */
 export async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
   const response = await fetch(`${fakeOf(stack)}${path}`, {

@@ -31,9 +31,9 @@ import {
   type DeploymentBranchPolicies,
   type RepoName,
 } from '@worker/github';
-import { repoUrlOf } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { repositoryUrlOf } from './github-links';
 
 /**
  * The Actions setup's readiness check (#759 PR 3; architect note §4, security note rows "Readiness over-reads or
@@ -110,11 +110,11 @@ function refPath(ref: string): string {
 /** The Environment's settings page: GitHub's UI addresses it by id (`…/settings/environments/{id}/edit`). */
 function environmentLink(repo: RepoName, environment: ActionsEnvironment | null): string {
   if (environment === null) {
-    return `${repoUrlOf(repo)}/settings/environments/new`;
+    return `${repositoryUrlOf(repo)}/settings/environments/new`;
   }
   return environment.id === null
-    ? `${repoUrlOf(repo)}/settings/environments`
-    : `${repoUrlOf(repo)}/settings/environments/${String(environment.id)}/edit`;
+    ? `${repositoryUrlOf(repo)}/settings/environments`
+    : `${repositoryUrlOf(repo)}/settings/environments/${String(environment.id)}/edit`;
 }
 
 /** Exactly one deployment-branch rule, of ref type Branch, naming the default branch: only `main` reads the key. */
@@ -236,9 +236,9 @@ async function workflowItem(
           url: pull.htmlUrl,
           provenance: judgePullProvenance(pull, { ...expectation, rendering: bytes }),
         };
-  const fileUrl = `${repoUrlOf(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
+  const fileUrl = `${repositoryUrlOf(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
   if (file.kind === 'missing') {
-    return item('workflow', 'missing', `${repoUrlOf(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`, pr);
+    return item('workflow', 'missing', `${repositoryUrlOf(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`, pr);
   }
   // No earlier release's rendering is kept yet, so a file that differs is `modified`, never `outdated`.
   const status: ActionsSetupStatus =

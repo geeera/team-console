@@ -47,9 +47,9 @@ import {
   type ScopedInstallationToken,
   type ScopedMintEvent,
 } from '@worker/github';
-import { repoUrlOf } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import { setupWriteOf, type ApiGitHub } from '../github';
+import { repositoryUrlOf } from './github-links';
 import { workflowCommitMessageOf, workflowPrBodyOf, workflowPrTitleOf } from './workflow-pr-text';
 
 /**
@@ -270,7 +270,7 @@ export async function openWorkflowPr(
       defaultBranch: repository.defaultBranch,
     });
     if (made.kind === 'exists') {
-      throw new AttemptRefused({ kind: 'branch-exists', link: `${repoUrlOf(repo)}/branches` });
+      throw new AttemptRefused({ kind: 'branch-exists', link: `${repositoryUrlOf(repo)}/branches` });
     }
     const blobSha = await readSetupBlobSha(connection.fetch, token, repo, made.branch);
     const commitSha = await putRunnerWorkflow(connection.fetch, token, repo, made.branch, {
