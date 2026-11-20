@@ -293,6 +293,18 @@ describe('QuestionList design previews (#290)', () => {
     // http.verify() in afterEach: no manifest was asked for.
   });
 
+  it('with no screens and no pull request, shows the short note and no link (#852)', async () => {
+    const { fixture, card } = await render([item(DESIGN)]);
+    http.expectOne(MANIFEST_URL).flush({ ...MANIFEST, screens: [], pullRequestUrl: null });
+    await settle();
+    await fixture.whenStable();
+
+    const none = card(DESIGN).querySelector('[data-testid="question-previews-none"]');
+    expect(textOf(none)).toBe('Команда не приложила экраны к этому дизайну.');
+    expect(card(DESIGN).querySelector('[data-testid="question-previews-pr"]')).toBeNull();
+    expect(card(DESIGN).querySelector('[data-command="approve"]')).not.toBeNull();
+  });
+
   it('says so when the team attached no screens, and offers Retry when the list failed', async () => {
     const { fixture, card } = await render([item(DESIGN), item(DESIGN + 1)]);
     http.expectOne(MANIFEST_URL).flush({ ...MANIFEST, screens: [] });

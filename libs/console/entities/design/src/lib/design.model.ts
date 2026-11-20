@@ -49,9 +49,7 @@ function isInteractive(value: unknown): value is DesignInteractiveDto {
   return (
     isRecord(value) &&
     isRepoPath(value['path']) &&
-    typeof value['url'] === 'string' &&
-    URL.canParse(value['url']) &&
-    new URL(value['url']).protocol === 'https:'
+    isHttpsUrl(value['url'])
   );
 }
 

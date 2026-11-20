@@ -102,7 +102,11 @@ describe('designFilesOf', () => {
   });
 
   it('refuses paths with empty, . or .. segments', () => {
-    const tree = listing(['docs/design/277-a/../x.png', 'docs/design/277-a//x.png', 'docs/design/277-a/./x.png']);
+    const tree = listing([
+      'docs/design/277-a/../x.png',
+      'docs/design/277-a//x.png',
+      'docs/design/277-a/./x.png',
+    ]);
     expect(designFilesOf(tree, 277).files).toEqual([]);
   });
 
@@ -257,10 +261,23 @@ describe('designManifestOf', () => {
   });
 
   it('is partial when the files were cut or GitHub truncated the tree', () => {
-    const base = { issue: 1, sha: SHA, ref: 'default-branch' as const, pullRequestUrl: null, captions: new Map(), repo: REPO };
-    expect(designManifestOf({ ...base, files: { files: [], partial: true }, truncated: false }).partial).toBe(true);
-    expect(designManifestOf({ ...base, files: { files: [], partial: false }, truncated: true }).partial).toBe(true);
-    expect(designManifestOf({ ...base, files: { files: [], partial: false }, truncated: false }).partial).toBe(false);
+    const base = {
+      issue: 1,
+      sha: SHA,
+      ref: 'default-branch' as const,
+      pullRequestUrl: null,
+      captions: new Map(),
+      repo: REPO,
+    };
+    expect(designManifestOf({ ...base, files: { files: [], partial: true }, truncated: false }).partial).toBe(
+      true,
+    );
+    expect(designManifestOf({ ...base, files: { files: [], partial: false }, truncated: true }).partial).toBe(
+      true,
+    );
+    expect(
+      designManifestOf({ ...base, files: { files: [], partial: false }, truncated: false }).partial,
+    ).toBe(false);
   });
 
   it('builds the Pages URL from the owner, the repository and the path under docs/design', () => {
@@ -294,7 +311,9 @@ describe('linkingPullRequestOf', () => {
   });
 
   it('skips a pull request without a usable head sha', () => {
-    expect(find([pull(7, { body: 'Closes #277', head: { sha: 'short', repo: { full_name: OWN_REPO } } })], 277)).toBeNull();
+    expect(
+      find([pull(7, { body: 'Closes #277', head: { sha: 'short', repo: { full_name: OWN_REPO } } })], 277),
+    ).toBeNull();
   });
 
   it("skips an outsider's pull request, whatever it says, and takes the team's one behind it", () => {
@@ -320,7 +339,10 @@ describe('linkingPullRequestOf', () => {
 
   it('skips a pull request whose branch lives in a fork or in no repository, even from a trusted author', () => {
     const fork = pull(12, { body: 'Closes #277', head: head('design/277-viewer', 'someone/team-console') });
-    const deletedFork = pull(13, { body: 'Closes #277', head: { sha: SHA, ref: 'design/277-viewer', repo: null } });
+    const deletedFork = pull(13, {
+      body: 'Closes #277',
+      head: { sha: SHA, ref: 'design/277-viewer', repo: null },
+    });
     const own = pull(14, { body: 'Closes #277', head: head('design/277-viewer', 'Geeera/Team-Console') });
     expect(find([fork, deletedFork, own], 277)?.number).toBe(14);
     expect(find([fork, deletedFork], 277)).toBeNull();
