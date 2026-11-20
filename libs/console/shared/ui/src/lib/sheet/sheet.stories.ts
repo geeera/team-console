@@ -340,6 +340,9 @@ function openLongForm(sheet: Sheet, transloco: TranslocoService): void {
       <button tc-button type="button" (click)="runNotConfigured()">
         {{ 'stories.sheet.runOpen' | transloco }}
       </button>
+      <button tc-button type="button" (click)="confirmWithLink()">
+        {{ 'stories.sheet.linkOpen' | transloco }}
+      </button>
       <button tc-button type="button" (click)="moveDate()">
         {{ 'stories.sheet.dateEllipsis' | transloco }}
       </button>
@@ -421,6 +424,17 @@ class SheetHost {
           throw new ConfirmFailure(t('stories.sheet.rateLimited'));
         }
       },
+    });
+    this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
+  }
+
+  /** #370: the optional `link` between the message and the buttons — the one place to read more before deciding. */
+  protected async confirmWithLink(): Promise<void> {
+    const t = (key: string): string => this.transloco.translate(key);
+    const confirmed = await this.sheet.confirm({
+      title: t('stories.sheet.linkTitle'),
+      message: t('stories.sheet.linkMessage'),
+      link: { label: t('stories.sheet.linkLabel'), href: 'https://github.com/geeera/storify/pull/1' },
     });
     this.result.set(t(confirmed ? 'stories.sheet.paused' : 'stories.sheet.confirmedKept'));
   }
