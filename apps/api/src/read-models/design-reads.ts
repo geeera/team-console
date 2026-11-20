@@ -34,8 +34,8 @@ interface DesignRef {
 }
 
 /**
- * What one commit holds for one issue: the manifest (without the ref kind and pull request, which are the caller's knowledge) and the
- * blob sha of each file, which the DTO does not carry.
+ * What one commit holds for one issue: the manifest (without the ref kind and pull request, which are the caller's
+ * knowledge) and the blob sha of each file, which the DTO does not carry.
  */
 interface DiscoveredDesign {
   readonly manifest: Omit<DesignManifestDto, 'ref' | 'pullRequestUrl'>;
@@ -43,7 +43,12 @@ interface DiscoveredDesign {
 }
 
 export type DesignFileResult =
-  | { readonly kind: 'bytes'; readonly bytes: Uint8Array; readonly type: DesignImageType; readonly file: string }
+  | {
+      readonly kind: 'bytes';
+      readonly bytes: Uint8Array;
+      readonly type: DesignImageType;
+      readonly file: string;
+    }
   | { readonly kind: 'not-found' }
   | { readonly kind: 'too-large' }
   | { readonly kind: 'type-mismatch' };
@@ -70,7 +75,11 @@ export class DesignReads {
   /** The manifest at the issue's current commit: the linking open pull request's head, else the default branch. */
   async manifest(issue: number): Promise<DesignManifestDto> {
     const ref = await this.refOf(issue);
-    return { ...(await this.discover(issue, ref.sha)).manifest, ref: ref.kind, pullRequestUrl: ref.pullRequestUrl };
+    return {
+      ...(await this.discover(issue, ref.sha)).manifest,
+      ref: ref.kind,
+      pullRequestUrl: ref.pullRequestUrl,
+    };
   }
 
   /**
@@ -123,7 +132,11 @@ export class DesignReads {
       const listing = await this.tree(sha);
       const files = designFilesOf(listing, issue);
       const captions = await this.captionsOf(files.files);
-      const { ref: _ref, pullRequestUrl: _pullRequestUrl, ...manifest } = designManifestOf({
+      const {
+        ref: _ref,
+        pullRequestUrl: _pullRequestUrl,
+        ...manifest
+      } = designManifestOf({
         issue,
         sha,
         ref: 'pull-request',
