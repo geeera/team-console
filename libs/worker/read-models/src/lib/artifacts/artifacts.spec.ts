@@ -40,6 +40,7 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
     issues: issuesOf(Object.values(snapshot.designIssues).flat()),
     files: designFiles,
     storybookUrl: null,
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
   });
   const demos = demoArtifactsOf(issuesOf(snapshot.demoIssues));
 
@@ -88,6 +89,7 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
       issues: [],
       files: contentsEntriesOf(manyFolders),
       storybookUrl: null,
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
     }).filter((item) => item.source === 'file');
     // Seven extra folders is well past the old DESIGN_SUBFOLDER_READS cap of 5; every one of them is listed.
     expect(files.filter((item) => item.title.startsWith('extra-'))).toHaveLength(7);
@@ -112,7 +114,8 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
         },
       ]),
       storybookUrl: null,
-    });
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
+    }).filter((item) => item.source === 'file');
     expect(files.map((item) => item.title)).toEqual(['277-viewer/index.html']);
   });
 
@@ -217,6 +220,7 @@ describe('design and demo issues', () => {
       issues,
       files: [],
       storybookUrl: 'https://github.com/o/r/tree/main/storybook',
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
     });
     expect(designs.map((item) => [item.source, item.url])).toEqual([
       ['issue', 'https://github.com/o/r/issues/1'],
@@ -238,7 +242,7 @@ describe('design and demo issues', () => {
       files: [
         file('docs/design/688-agent-picker/a.html'),
         file('docs/design/688-agent-picker/b.html'),
-        file('docs/design/features/24-settings.html'),
+        file('docs/design/features/24-settings/index.html'),
         file('docs/design/1-labelled/x.html'),
         file('docs/design/directions/01-paper-desk.html'),
         file('docs/design/277-viewer/src/3-build.js'),
@@ -253,6 +257,51 @@ describe('design and demo issues', () => {
       [688, 'agent picker', 'https://github.com/o/r/issues/688', null],
       [24, 'settings', 'https://github.com/o/r/issues/24', null],
     ]);
+  });
+
+  describe('folder rows (#855)', () => {
+    const file = (path: string) => ({
+      name: path.split('/').pop() ?? path,
+      path,
+      kind: 'file' as const,
+      htmlUrl: `https://github.com/o/r/blob/sha/${path}`,
+    });
+    const rowsOf = (paths: string[], issues = issuesOf([]), issuesBaseUrl = 'https://github.com/o/r/issues/') =>
+      designArtifactsOf({ issues, files: paths.map(file), storybookUrl: null, issuesBaseUrl })
+        .filter((item) => item.source === 'issue')
+        .map((item) => item.number);
+
+    it('names an issue by a directory only, never by a file name', () => {
+      expect(rowsOf(['docs/design/directions/3-col-layout.html', 'docs/design/7-note.md'])).toEqual([]);
+    });
+
+    it('skips a year-like or over-long number', () => {
+      expect(
+        rowsOf(['docs/design/2024-roadmap/a.html', 'docs/design/20240101-export/a.html', 'docs/design/12-ok/a.html']),
+      ).toEqual([12]);
+    });
+
+    it('gives a folder of assets only no row', () => {
+      expect(rowsOf(['docs/design/55-assets/phone.png', 'docs/design/55-assets/screens.json'])).toEqual([]);
+      expect(rowsOf(['docs/design/55-assets/phone.png', 'docs/design/55-assets/wireframe.html'])).toEqual([55]);
+    });
+
+    it('builds the row link from the given base, however it looks', () => {
+      const [row] = designArtifactsOf({
+        issues: issuesOf([]),
+        files: [file('docs/design/9-x/a.md')],
+        storybookUrl: null,
+        issuesBaseUrl: 'https://ghe.example/o/r/issues/',
+      });
+      expect(row?.url).toBe('https://ghe.example/o/r/issues/9');
+    });
+
+    it('lists a labelled issue once, not again from its folder', () => {
+      const issues = issuesOf([
+        { ...base, number: 9, labels: [{ name: 'ux-spec' }], html_url: 'https://github.com/o/r/issues/9' },
+      ]);
+      expect(rowsOf(['docs/design/9-x/a.html', 'docs/design/10-y/a.html'], issues)).toEqual([9, 10]);
+    });
   });
 
   it('orders demos by the latest update', () => {

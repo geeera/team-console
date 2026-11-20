@@ -217,6 +217,11 @@ export function blobBaseUrlOf(repo: DesignManifestInput['repo'], sha: string): s
   return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/blob/${sha}/`;
 }
 
+/** `https://github.com/<owner>/<repo>/issues/`, the one place an issue URL's base is built. */
+export function issuesBaseUrlOf(repo: DesignManifestInput['repo']): string {
+  return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/issues/`;
+}
+
 export function designManifestOf(input: DesignManifestInput): DesignManifestDto {
   const blobBase = blobBaseUrlOf(input.repo, input.sha);
   const screens: DesignScreenDto[] = [];

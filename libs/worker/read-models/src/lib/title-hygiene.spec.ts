@@ -188,6 +188,7 @@ describe('title hygiene (#287)', () => {
     const designs = designArtifactsOf({
       issues: [issue(901, { labels: ['design:approved'] })],
       files: [],
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
       storybookUrl: null,
     });
     expectCleanTitles(designs, 1);

@@ -22,6 +22,7 @@ import {
   isGitHubContentsListing,
   isGitHubIssue,
   isGitHubTree,
+  issuesBaseUrlOf,
   issueRecordOf,
   treeListingOf,
   type ContentsEntry,
@@ -167,7 +168,7 @@ export class ArtifactReads {
         issues,
         files: files.entries,
         storybookUrl,
-        issuesBaseUrl: `https://github.com/${encodeURIComponent(this.repo.owner)}/${encodeURIComponent(this.repo.name)}/issues/`,
+        issuesBaseUrl: issuesBaseUrlOf(this.repo),
       }),
       partial: files.truncated ? ['design-files'] : [],
     };
