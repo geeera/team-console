@@ -18,12 +18,17 @@ export interface DesignInput {
   readonly files: readonly ContentsEntry[];
   /** project.yml's `design.storybook_url`, already limited to github.com. */
   readonly storybookUrl: string | null;
-  /** `https://github.com/owner/name/issues/`: links the rows built from a design folder alone; `null` skips them. */
-  readonly issuesBaseUrl?: string | null;
+  /** `https://github.com/owner/name/issues/` (`issuesBaseUrlOf`): links the rows built from a design folder alone. */
+  readonly issuesBaseUrl: string;
 }
 
-/** The issue number a path under docs/design names by a segment `N-…` (no leading zero: `01-paper.html` is not #1). */
-const DESIGN_SEGMENT = /^([1-9]\d*)-(.+?)(?:\.[a-z0-9]+)?$/i;
+/** A directory `N-slug` (no leading zero: `01-paper-desk` is not #1; at most 4 digits: `20240101-export` is a date). */
+const DESIGN_SEGMENT = /^([1-9]\d{0,3})-(.+)$/;
+
+/** `2024-roadmap` names a year, not an issue; a real issue in this range is still counted when it is labelled. */
+function isYearLike(number: number): boolean {
+  return number >= 1900 && number <= 2100;
+}
 
 /**
  * #771: an issue with a design folder but no design label still counts, from the tree that is already read (no
@@ -37,13 +42,19 @@ function folderDesignsOf(
   const prefix = `${DESIGN_DIR}/`;
   const slugs = new Map<number, string>();
   for (const entry of files) {
-    if (entry.kind !== 'file' || !entry.path.startsWith(prefix) || isGeneratorSource(entry.path, prefix)) {
+    if (
+      entry.kind !== 'file' ||
+      !entry.path.startsWith(prefix) ||
+      !DESIGN_FILE.test(entry.name) ||
+      isGeneratorSource(entry.path, prefix)
+    ) {
       continue;
     }
-    for (const segment of entry.path.slice(prefix.length).split('/')) {
+    // Directories only: the last segment is the file, so `directions/3-col-layout.html` names no issue.
+    for (const segment of entry.path.slice(prefix.length).split('/').slice(0, -1)) {
       const match = DESIGN_SEGMENT.exec(segment);
       const number = match === null ? NaN : Number(match[1]);
-      if (match !== null && Number.isSafeInteger(number) && !labelled.has(number) && !slugs.has(number)) {
+      if (match !== null && !isYearLike(number) && !labelled.has(number) && !slugs.has(number)) {
         slugs.set(number, (match[2] ?? '').replace(/-/g, ' '));
       }
     }
@@ -97,10 +108,7 @@ export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
       ];
     });
 
-  const fromFolders =
-    input.issuesBaseUrl === undefined || input.issuesBaseUrl === null
-      ? []
-      : folderDesignsOf(input.files, seen, input.issuesBaseUrl);
+  const fromFolders = folderDesignsOf(input.files, seen, input.issuesBaseUrl);
 
   const prefix = `${DESIGN_DIR}/`;
   const files = input.files

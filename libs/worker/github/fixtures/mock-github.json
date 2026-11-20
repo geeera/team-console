@@ -45,6 +45,7 @@
         "docs/design/features/README.md": "<!-- mock wireframe stub (#19) -->\n",
         "docs/design/features/src/build.py": "# generator source, not an artifact\n",
         "docs/design/references.md": "# References\n",
+        "docs/design/9010-unlabelled-folder/wireframe.html": "<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\"><title>Папка без метки</title></head><body></body></html>\n",
         "docs/design/90004-demo-screen/wireframe.html": "<!doctype html>\n<html lang=\"ru\"><head><meta charset=\"utf-8\"><title>Демо-экран (вайрфрейм)</title></head>\n<body><h1>Демо-экран</h1><p>Интерактивный вайрфрейм дизайна #90004.</p></body></html>\n",
         "docs/design/90004-demo-screen/logo.svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"10\" height=\"10\"><script>top.location=\"https://evil.example\"</script></svg>\n",
         "docs/design/90004-demo-screen/screens.json": "[\n  {\n    \"file\": \"phone-01-list.png\",\n    \"title\": \"Список дизайнов\"\n  },\n  {\n    \"file\": \"mac-01-list.png\",\n    \"title\": \"Список дизайнов (Mac)\"\n  }\n]"

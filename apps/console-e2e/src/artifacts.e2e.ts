@@ -126,6 +126,23 @@ test.describe('the Artifacts section', () => {
     await expect(empty).toHaveCount(0);
   });
 
+  /** #855: the fixture repository has docs/design/9010-unlabelled-folder/ and no design label on #9010. */
+  test('an unlabelled issue with a docs/design N-folder is a Design row linking to the issue', async ({
+    page,
+    request,
+  }) => {
+    const body = (await (await request.get(ARTIFACTS)).json()) as ArtifactsResponse;
+    const folderRow = body.items.find((item) => item.type === 'design' && item.number === 9010);
+    expect(folderRow?.title).toBe('unlabelled folder');
+    expect(folderRow?.url).toBe('https://github.com/geeera/team-console/issues/9010');
+
+    await page.goto('/p/team-console/artifacts?type=design');
+    const row = page.locator('[data-testid="artifact"][data-issue="9010"]');
+    await expect(row).toBeVisible();
+    await expect(row).toContainText('unlabelled folder');
+    await expectAccessible(page, 'Artifacts → Design, folder row');
+  });
+
   test('"Check again" asks the Worker for a fresh read', async ({ page }) => {
     await page.goto('/p/team-console/artifacts');
     await expect(page.getByTestId('artifact').first()).toBeVisible();

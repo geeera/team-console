@@ -58,6 +58,7 @@ export {
   encodedPath,
   fileNameOf,
   imageTypeOf,
+  issuesBaseUrlOf,
   isGitHubTree,
   isHtmlFile,
   linkingPullRequestOf,
