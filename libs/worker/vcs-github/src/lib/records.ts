@@ -1,4 +1,5 @@
 import { instantOf, isRepoFullName } from '@shared/contracts';
+import { repoUrlOf } from '@worker/read-models';
 import type { Branch, ChangedFile, ChangedFileStatus, PullRequest, Repository } from '@worker/vcs';
 
 /**
@@ -86,7 +87,7 @@ function isAuthorLogin(value: string | null): value is string {
 /** The pull request's page, built from the repository and number (a payload's `html_url` is never stored). */
 export function pullRequestUrlOf(fullName: string, number: number): string {
   const [owner = '', name = ''] = fullName.split('/');
-  return `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/pull/${String(number)}`;
+  return `${repoUrlOf({ owner, name })}/pull/${String(number)}`;
 }
 
 /**
@@ -170,7 +171,7 @@ export function repositoryOf(raw: unknown): Repository | null {
     fullName,
     defaultBranch,
     visibility: isPrivate ? 'private' : 'public',
-    htmlUrl: `https://github.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}`,
+    htmlUrl: repoUrlOf({ owner, name }),
   };
 }
 

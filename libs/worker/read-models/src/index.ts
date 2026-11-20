@@ -92,3 +92,4 @@ export { TRUSTED_BOT_LOGINS, githubUrlOrNull, isTrustedAuthor } from './lib/untr
 export type { IssueAuthor } from './lib/untrusted-text';
 export { handledRequestOf } from './lib/request-handled';
 export type { HandledCandidate, HandledRequest } from './lib/request-handled';
+export { repoUrlOf } from './lib/repo-url';

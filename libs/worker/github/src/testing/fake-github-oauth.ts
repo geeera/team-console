@@ -316,6 +316,11 @@ export class FakeGitHubOAuth {
     this.pulls.set(repo.toLowerCase(), pulls);
   }
 
+  /** Drops the seeded pull requests, so the repository answers 404 again and the api's mock list returns. */
+  clearPulls(repo: string): void {
+    this.pulls.delete(repo.toLowerCase());
+  }
+
   /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
   milestonesOf(repo: string): readonly FakeMilestone[] {
     return this.milestones.get(repo.toLowerCase()) ?? [];
