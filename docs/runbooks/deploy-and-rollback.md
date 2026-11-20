@@ -135,6 +135,42 @@ overwrites a dashboard edit.
 level, once per further attempt (Workers Logs, filter `message = "actions setup write volume"`). Treat it as a reason
 to look at the audit rows below; if they do not explain it, stop the path first and investigate after.
 
+**Getting notified (#843).** The log line alone tells nobody; the notification is a Cloudflare alert, which can
+only be created in the dashboard (wrangler does not configure alerts, and no classic Cloudflare notification type
+matches a log message on the free plan). No code in this repository emits it: a web push from the write path would
+need a change in `apps/api/src/routes/actions-setup-problems.ts`, a security path.
+
+The logs come from config, not from a dashboard toggle: `"observability": { "enabled": true }` in
+`apps/api/wrangler.jsonc`, inherited by `dev`, `stage` and `production` and applied by the next deploy. Do not
+switch Workers Logs on or off in the dashboard; the next deploy overwrites it. Free plan: 200,000 log events a day,
+3 days of retention; every line the Worker logs is stored at Cloudflare (the logger redacts credentials first).
+
+Owner steps, once per environment where `ALLOW_ACTIONS_SETUP_WRITE` is `true` (today: dev; add stage and production
+in the PR that turns the switch on), after that environment has deployed with the config above:
+
+1. Primary, available to every Workers account: Cloudflare dashboard → Workers & Pages → the environment's Worker
+   (`team-console-dev`) → Issues (open beta, free) → create an automation that sends issues to a webhook, chat
+   service or incident tool you read on your phone. The line is logged at error level, so it surfaces as an issue.
+   Issues may **group repeated errors**: a burst of 31+ attempts can arrive as one notification, not one per line;
+   open the issue and the Logs view for the count.
+2. If your plan has Monitors: create one on the log query `message = "actions setup write volume"`, threshold at
+   least 1 match in 1 hour, with the same kind of destination. This one notifies per hour window rather than per
+   group. Menu names move; the query and the threshold are what matter.
+3. Untested end to end until the owner does it: the real trigger is 31 write attempts in an hour (each account is capped at 20 an hour, so it takes at least two accounts), which is not practical to produce on
+   dev. After creating the alert, confirm what you can: the Logs view shows the query working on any past
+   `console` line, and the destination received the automation's test message. Treat the first real firing as the
+   test, and fix the runbook if it differs.
+
+**When it fires.** In order, stopping at the first step that settles it:
+
+1. List the `project.actions-workflow-pr-attempted|opened|failed` audit rows for the last hour (below). One account
+   or project hammering the button, or a script, is the common cause.
+2. If they do not explain it, or you cannot tell within a few minutes, **stop the path now with the D1 stop above**
+   (`INSERT INTO operator_stops ...`). It needs no deploy and takes effect on the next request. This is the
+   kill switch for `ALLOW_ACTIONS_SETUP_WRITE` without a deploy; the var itself is changed only by a reviewed PR.
+3. Investigate with the path off; if the app key may be exposed, follow the incident steps below.
+4. Lift the stop (`DELETE FROM operator_stops ...` above) once the cause is fixed and recorded on the issue.
+
 **If the app's private key or the api Worker may be compromised.** The app's write permissions make this a High
 incident (threat model C11): whoever holds the key mints their own tokens, so the stop above does not contain it.
 

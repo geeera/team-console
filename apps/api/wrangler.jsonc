@@ -24,6 +24,9 @@
   // The queue's sweep (#670, src/actions/sweep.ts): lapsed leases and Actions no-shows. One of the five free Cron
   // Triggers (ADR 0006 budgets one every 5 minutes); inherited by every env below.
   "triggers": { "crons": ["*/5 * * * *"] },
+  // Workers Logs (#843): stored for every env below, which inherit it (`observability` is an inheritable key). The api
+  // Worker's alert on `actions setup write volume` and Workers Issues read from it. Free plan: 200k events a day, 3 days.
+  "observability": { "enabled": true },
   "env": {
     "dev": {
       "name": "team-console-dev",
