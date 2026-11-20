@@ -170,6 +170,7 @@ describe('GET /api/v1/projects/:slug/designs/:issue', () => {
     const body = (await response.json()) as DesignManifestDto;
     expect(body.sha).toBe(PR_SHA);
     expect(body.ref).toBe('pull-request');
+    expect(body.pullRequestUrl).toMatch(/^https:\/\/github\.com\//);
     expect(body.partial).toBe(false);
     expect(body.screens.map((screen) => screen.file)).toEqual([
       'mac-01-list.jpg',
@@ -210,6 +211,7 @@ describe('GET /api/v1/projects/:slug/designs/:issue', () => {
 
     expect(body.sha).toBe(DEV_SHA);
     expect(body.ref).toBe('default-branch');
+    expect(body.pullRequestUrl).toBeNull();
     expect(body.screens).toHaveLength(6);
     expect(stub.reads().map((call) => call.url.pathname)).toEqual([
       `/repos/${REPO}/pulls`,

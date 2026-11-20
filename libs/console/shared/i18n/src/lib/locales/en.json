@@ -234,7 +234,9 @@
       "label": "Design screens, {{n}}",
       "thumbAria": "Screen {{i}} of {{n}}: {{caption}}. Open",
       "all": "All screens ({{n}})",
-      "none": "The team attached no screens to this design. Ask the PM to add them, or open the PR on GitHub.",
+      "none": "The team attached no screens to this design. See what changed in the PR on GitHub.",
+      "noneNoPr": "The team attached no screens to this design.",
+      "openPr": "Open the PR on GitHub",
       "failed": "Couldn't load the screens."
     },
     "opensGitHub": "(opens in a new tab)",

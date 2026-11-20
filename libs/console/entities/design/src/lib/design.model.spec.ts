@@ -30,6 +30,7 @@ export const MANIFEST: DesignManifest = {
   issue: 277,
   sha: SHA,
   ref: 'pull-request',
+  pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
   screens: [screen('mac-01-list.png'), screen('phone-01-list.png'), screen('phone-02-grid.png')],
   interactive: {
     path: 'docs/design/277-viewer/wireframe.html',
@@ -39,6 +40,13 @@ export const MANIFEST: DesignManifest = {
 };
 
 describe('designManifestOf', () => {
+  it('reads a missing pull request link as null and rejects a non-https one', () => {
+    const { pullRequestUrl: _omitted, ...legacy } = MANIFEST;
+    expect(designManifestOf(legacy)?.pullRequestUrl).toBeNull();
+    expect(designManifestOf({ ...MANIFEST, pullRequestUrl: 'javascript:alert(1)' })).toBeNull();
+    expect(designManifestOf({ ...MANIFEST, pullRequestUrl: null })?.pullRequestUrl).toBeNull();
+  });
+
   it('accepts the manifest shape and drops a screen outside docs/design or of an unserved type', () => {
     const checked = designManifestOf({
       ...MANIFEST,

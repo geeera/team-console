@@ -41,6 +41,10 @@ function isScreen(value: unknown): value is DesignScreenDto {
   );
 }
 
+function isHttpsUrl(value: unknown): value is string {
+  return typeof value === 'string' && URL.canParse(value) && new URL(value).protocol === 'https:';
+}
+
 function isInteractive(value: unknown): value is DesignInteractiveDto {
   return (
     isRecord(value) &&
@@ -56,6 +60,8 @@ function isInteractive(value: unknown): value is DesignInteractiveDto {
  * outside docs/design, a type this build does not serve) is left out rather than failing the whole manifest.
  */
 export function designManifestOf(body: unknown): DesignManifest | null {
+  // A response from before #301 has no field: read it as no pull request rather than failing the manifest.
+  const pullRequestUrl = isRecord(body) ? (body['pullRequestUrl'] ?? null) : null;
   if (
     !isRecord(body) ||
     typeof body['issue'] !== 'number' ||
@@ -63,6 +69,7 @@ export function designManifestOf(body: unknown): DesignManifest | null {
     (body['ref'] !== 'pull-request' && body['ref'] !== 'default-branch') ||
     !Array.isArray(body['screens']) ||
     typeof body['partial'] !== 'boolean' ||
+    (pullRequestUrl !== null && !isHttpsUrl(pullRequestUrl)) ||
     (body['interactive'] !== null && !isInteractive(body['interactive']))
   ) {
     return null;
@@ -71,6 +78,7 @@ export function designManifestOf(body: unknown): DesignManifest | null {
     issue: body['issue'],
     sha: body['sha'],
     ref: body['ref'],
+    pullRequestUrl,
     screens: body['screens'].filter(isScreen),
     interactive: body['interactive'],
     partial: body['partial'],

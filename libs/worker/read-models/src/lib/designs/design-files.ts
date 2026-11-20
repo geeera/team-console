@@ -194,6 +194,7 @@ export interface DesignManifestInput {
   readonly issue: number;
   readonly sha: string;
   readonly ref: DesignRefKind;
+  readonly pullRequestUrl: string | null;
   readonly files: DesignFiles;
   readonly truncated: boolean;
   readonly captions: ReadonlyMap<string, string>;
@@ -242,6 +243,7 @@ export function designManifestOf(input: DesignManifestInput): DesignManifestDto 
     issue: input.issue,
     sha: input.sha,
     ref: input.ref,
+    pullRequestUrl: input.pullRequestUrl,
     screens,
     interactive,
     partial: input.files.partial || input.truncated,

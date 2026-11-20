@@ -41,6 +41,7 @@ const MANIFEST: DesignManifestDto = {
   issue: DESIGN,
   sha: SHA,
   ref: 'pull-request',
+  pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
   screens: [
     screen('mac-01-list.png'),
     screen('mac-02-detail.png'),
@@ -304,6 +305,11 @@ describe('QuestionList design previews (#290)', () => {
     expect(textOf(card(DESIGN).querySelector('[data-testid="question-previews-none"]'))).toContain(
       'Команда не приложила экраны к этому дизайну',
     );
+    const prLink = card(DESIGN).querySelector('[data-testid="question-previews-pr"]') as HTMLAnchorElement;
+    expect(prLink.href).toBe('https://github.com/geeera/team-console/pull/278');
+    expect(prLink.target).toBe('_blank');
+    expect(prLink.rel).toContain('noopener');
+    expect(textOf(prLink)).toContain('Открыть PR на GitHub');
     expect(card(DESIGN).querySelector('[data-testid="question-previews-all"]')).toBeNull();
     // The answer buttons stay usable in either state.
     expect(card(DESIGN).querySelector('[data-command="approve"]')).not.toBeNull();

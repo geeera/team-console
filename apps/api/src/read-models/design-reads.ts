@@ -30,14 +30,15 @@ const RAW_MEDIA_TYPE = 'application/vnd.github.raw+json';
 interface DesignRef {
   readonly sha: string;
   readonly kind: DesignRefKind;
+  readonly pullRequestUrl: string | null;
 }
 
 /**
- * What one commit holds for one issue: the manifest (without the ref kind, which is the caller's knowledge) and the
+ * What one commit holds for one issue: the manifest (without the ref kind and pull request, which are the caller's knowledge) and the
  * blob sha of each file, which the DTO does not carry.
  */
 interface DiscoveredDesign {
-  readonly manifest: Omit<DesignManifestDto, 'ref'>;
+  readonly manifest: Omit<DesignManifestDto, 'ref' | 'pullRequestUrl'>;
   readonly blobs: Readonly<Record<string, string>>;
 }
 
@@ -69,7 +70,7 @@ export class DesignReads {
   /** The manifest at the issue's current commit: the linking open pull request's head, else the default branch. */
   async manifest(issue: number): Promise<DesignManifestDto> {
     const ref = await this.refOf(issue);
-    return { ...(await this.discover(issue, ref.sha)).manifest, ref: ref.kind };
+    return { ...(await this.discover(issue, ref.sha)).manifest, ref: ref.kind, pullRequestUrl: ref.pullRequestUrl };
   }
 
   /**
@@ -111,9 +112,9 @@ export class DesignReads {
     const pulls = await this.reads.openPullRequests();
     const linking = linkingPullRequestOf(pulls, issue, this.repo.fullName);
     if (linking?.headSha !== null && linking?.headSha !== undefined) {
-      return { sha: linking.headSha, kind: 'pull-request' };
+      return { sha: linking.headSha, kind: 'pull-request', pullRequestUrl: linking.htmlUrl };
     }
-    return { sha: await this.reads.defaultBranchHeadSha(), kind: 'default-branch' };
+    return { sha: await this.reads.defaultBranchHeadSha(), kind: 'default-branch', pullRequestUrl: null };
   }
 
   /** Keyed by issue and commit: a client holding a manifest's sha gets the same set the manifest listed. */
@@ -122,10 +123,11 @@ export class DesignReads {
       const listing = await this.tree(sha);
       const files = designFilesOf(listing, issue);
       const captions = await this.captionsOf(files.files);
-      const { ref: _ref, ...manifest } = designManifestOf({
+      const { ref: _ref, pullRequestUrl: _pullRequestUrl, ...manifest } = designManifestOf({
         issue,
         sha,
         ref: 'pull-request',
+        pullRequestUrl: null,
         files,
         truncated: listing.truncated,
         captions,

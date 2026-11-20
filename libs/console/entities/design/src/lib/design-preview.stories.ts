@@ -22,6 +22,7 @@ const MANIFEST: DesignManifestDto = {
   issue: 277,
   sha: SHA,
   ref: 'pull-request',
+  pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
   screens: [screen('phone-01-list.png'), screen('phone-02-images.png'), screen('mac-01-list.png')],
   interactive: {
     path: 'docs/design/277-design-viewer/wireframe.html',
