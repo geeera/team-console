@@ -135,22 +135,31 @@ overwrites a dashboard edit.
 level, once per further attempt (Workers Logs, filter `message = "actions setup write volume"`). Treat it as a reason
 to look at the audit rows below; if they do not explain it, stop the path first and investigate after.
 
-**Getting notified (#843).** The log line alone tells nobody; the notification is a Cloudflare Workers Observability
-alert, which can only be created in the dashboard (wrangler does not configure alerts and no Cloudflare notification
-type matches a log message on the free plan). No code in this repository emits it: a web push from the write path
-would need a change in `apps/api/src/routes/actions-setup-problems.ts`, a security path. Owner steps, once per
-environment where `ALLOW_ACTIONS_SETUP_WRITE` is `true` (today: dev only; add stage and production in the PR that
-turns the switch on):
+**Getting notified (#843).** The log line alone tells nobody; the notification is a Cloudflare alert, which can
+only be created in the dashboard (wrangler does not configure alerts, and no classic Cloudflare notification type
+matches a log message on the free plan). No code in this repository emits it: a web push from the write path would
+need a change in `apps/api/src/routes/actions-setup-problems.ts`, a security path.
 
-1. Cloudflare dashboard → Workers & Pages → the environment's Worker (`team-console-dev`) → Observability. Make
-   sure Workers Logs is on for it (free plan: 200,000 events a day, 3 days of retention).
-2. Create a Monitor (or, if your dashboard offers only Issues, an Issues automation) on a log query
-   `message = "actions setup write volume"`, threshold: at least 1 match in 1 hour, destination: a webhook or chat
-   service you read on your phone, or e-mail where offered. Names and menus move; the query and the threshold are
-   what matter. Error-level logs also surface as Workers Issues, so an automation on Issues for this Worker is an
-   acceptable substitute.
-3. Test it once on dev: 31 attempts in an hour is the real trigger, so instead check the query in the Logs view
-   against a past hour and that the destination receives a test message.
+The logs come from config, not from a dashboard toggle: `"observability": { "enabled": true }` in
+`apps/api/wrangler.jsonc`, inherited by `dev`, `stage` and `production` and applied by the next deploy. Do not
+switch Workers Logs on or off in the dashboard; the next deploy overwrites it. Free plan: 200,000 log events a day,
+3 days of retention; every line the Worker logs is stored at Cloudflare (the logger redacts credentials first).
+
+Owner steps, once per environment where `ALLOW_ACTIONS_SETUP_WRITE` is `true` (today: dev; add stage and production
+in the PR that turns the switch on), after that environment has deployed with the config above:
+
+1. Primary, available to every Workers account: Cloudflare dashboard → Workers & Pages → the environment's Worker
+   (`team-console-dev`) → Issues (open beta, free) → create an automation that sends issues to a webhook, chat
+   service or incident tool you read on your phone. The line is logged at error level, so it surfaces as an issue.
+   Issues may **group repeated errors**: a burst of 31+ attempts can arrive as one notification, not one per line;
+   open the issue and the Logs view for the count.
+2. If your plan has Monitors: create one on the log query `message = "actions setup write volume"`, threshold at
+   least 1 match in 1 hour, with the same kind of destination. This one notifies per hour window rather than per
+   group. Menu names move; the query and the threshold are what matter.
+3. Untested end to end until the owner does it: the real trigger is 31 write attempts in an hour (each account is capped at 20 an hour, so it takes at least two accounts), which is not practical to produce on
+   dev. After creating the alert, confirm what you can: the Logs view shows the query working on any past
+   `console` line, and the destination received the automation's test message. Treat the first real firing as the
+   test, and fix the runbook if it differs.
 
 **When it fires.** In order, stopping at the first step that settles it:
 
