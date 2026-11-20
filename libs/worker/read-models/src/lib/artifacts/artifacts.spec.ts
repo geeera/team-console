@@ -224,6 +224,37 @@ describe('design and demo issues', () => {
     ]);
   });
 
+  it('counts an unlabelled issue with a docs/design N-* folder, once, without a per-issue read (#771)', () => {
+    const file = (path: string) => ({
+      name: path.split('/').pop() ?? path,
+      path,
+      kind: 'file' as const,
+      htmlUrl: `https://github.com/o/r/blob/sha/${path}`,
+    });
+    const designs = designArtifactsOf({
+      issues: issuesOf([
+        { ...base, number: 1, labels: [{ name: 'ux-spec' }], html_url: 'https://github.com/o/r/issues/1' },
+      ]),
+      files: [
+        file('docs/design/688-agent-picker/a.html'),
+        file('docs/design/688-agent-picker/b.html'),
+        file('docs/design/features/24-settings.html'),
+        file('docs/design/1-labelled/x.html'),
+        file('docs/design/directions/01-paper-desk.html'),
+        file('docs/design/277-viewer/src/3-build.js'),
+      ],
+      storybookUrl: null,
+      issuesBaseUrl: 'https://github.com/o/r/issues/',
+    });
+    expect(
+      designs.filter((item) => item.source === 'issue').map((item) => [item.number, item.title, item.url, item.state]),
+    ).toEqual([
+      [1, 'T', 'https://github.com/o/r/issues/1', 'open'],
+      [688, 'agent picker', 'https://github.com/o/r/issues/688', null],
+      [24, 'settings', 'https://github.com/o/r/issues/24', null],
+    ]);
+  });
+
   it('orders demos by the latest update', () => {
     const demos = demoArtifactsOf(
       issuesOf([

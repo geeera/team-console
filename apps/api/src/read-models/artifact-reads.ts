@@ -163,7 +163,12 @@ export class ArtifactReads {
       this.storybookUrl(),
     ]);
     return {
-      items: designArtifactsOf({ issues, files: files.entries, storybookUrl }),
+      items: designArtifactsOf({
+        issues,
+        files: files.entries,
+        storybookUrl,
+        issuesBaseUrl: `https://github.com/${encodeURIComponent(this.repo.owner)}/${encodeURIComponent(this.repo.name)}/issues/`,
+      }),
       partial: files.truncated ? ['design-files'] : [],
     };
   }
