@@ -22,6 +22,7 @@ const FOCUS_AFTER_RETRY = [
   '[data-testid="question-preview"]',
   '[data-testid="question-previews-all"]',
   '[data-testid="question-previews-failed"] button',
+  '[data-testid="question-previews-pr"]',
   '[data-testid="question-previews-open"]',
   '[data-testid="question-previews-none"]',
 ].join(', ');
@@ -68,8 +69,21 @@ export interface DesignOpenRequest {
           compact
           icon="grid"
           data-testid="question-previews-none"
-          [title]="'questions.previews.none' | transloco"
+          [title]="(pullRequestUrl() === null ? 'questions.previews.noneNoPr' : 'questions.previews.none') | transloco"
         >
+          @if (pullRequestUrl(); as url) {
+            <a
+              tc-button
+              tc-state-action
+              size="sm"
+              data-testid="question-previews-pr"
+              target="_blank"
+              rel="noopener noreferrer"
+              [href]="url"
+              >{{ 'questions.previews.openPr' | transloco
+              }}<span class="tc-sr-only"> {{ 'questions.opensGitHub' | transloco }}</span></a
+            >
+          }
           @if (hasInteractive()) {
             <button
               tc-button
@@ -163,6 +177,7 @@ export class QuestionDesignPreviews {
   });
   protected readonly total = computed(() => this.manifest()?.screens.length ?? 0);
   protected readonly more = computed(() => this.total() - this.shown().length);
+  protected readonly pullRequestUrl = computed(() => this.manifest()?.pullRequestUrl ?? null);
   protected readonly hasInteractive = computed(() => (this.manifest()?.interactive ?? null) !== null);
 
   /**

@@ -29,6 +29,7 @@ const MANIFEST: DesignManifestDto = {
   issue: 277,
   sha: SHA,
   ref: 'pull-request',
+  pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
   screens: [
     screen('mac-01-list.png'),
     screen('phone-01-list.png'),

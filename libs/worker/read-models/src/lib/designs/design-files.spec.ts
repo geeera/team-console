@@ -203,6 +203,7 @@ describe('designManifestOf', () => {
       issue: 277,
       sha: SHA,
       ref: 'pull-request',
+      pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
       files,
       truncated: false,
       captions: new Map([['phone-02-grid.png', 'Все экраны']]),
@@ -212,6 +213,7 @@ describe('designManifestOf', () => {
       issue: 277,
       sha: SHA,
       ref: 'pull-request',
+      pullRequestUrl: 'https://github.com/geeera/team-console/pull/278',
       partial: false,
       interactive: {
         path: 'docs/design/277-a/wireframe.html',
@@ -255,7 +257,7 @@ describe('designManifestOf', () => {
   });
 
   it('is partial when the files were cut or GitHub truncated the tree', () => {
-    const base = { issue: 1, sha: SHA, ref: 'default-branch' as const, captions: new Map(), repo: REPO };
+    const base = { issue: 1, sha: SHA, ref: 'default-branch' as const, pullRequestUrl: null, captions: new Map(), repo: REPO };
     expect(designManifestOf({ ...base, files: { files: [], partial: true }, truncated: false }).partial).toBe(true);
     expect(designManifestOf({ ...base, files: { files: [], partial: false }, truncated: true }).partial).toBe(true);
     expect(designManifestOf({ ...base, files: { files: [], partial: false }, truncated: false }).partial).toBe(false);

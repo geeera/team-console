@@ -53,6 +53,8 @@ export interface DesignManifestDto {
   /** The commit every path is pinned to (the file route takes it back). */
   readonly sha: string;
   readonly ref: DesignRefKind;
+  /** The linking pull request's page when `ref` is `pull-request`; `null` on the default branch (#301). */
+  readonly pullRequestUrl: string | null;
   /** Image screens in file-name order. */
   readonly screens: readonly DesignScreenDto[];
   readonly interactive: DesignInteractiveDto | null;
