@@ -34,11 +34,11 @@ interface DesignRef {
 }
 
 /**
- * What one commit holds for one issue: the manifest (without the ref kind, which is the caller's knowledge) and the
+ * What one commit holds for one issue: the manifest (without the ref kind and pull request, which are the caller's knowledge) and the
  * blob sha of each file, which the DTO does not carry.
  */
 interface DiscoveredDesign {
-  readonly manifest: Omit<DesignManifestDto, 'ref'>;
+  readonly manifest: Omit<DesignManifestDto, 'ref' | 'pullRequestUrl'>;
   readonly blobs: Readonly<Record<string, string>>;
 }
 

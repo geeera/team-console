@@ -48,6 +48,7 @@ test('the api lists the raster screens at the pull request head, never the SVG, 
 }) => {
   const manifest = (await (await request.get(MANIFEST)).json()) as DesignManifestDto;
   expect(manifest.ref).toBe('pull-request');
+  expect(manifest.pullRequestUrl).toMatch(/\/pull\/\d+$/);
   expect(manifest.sha).toBe('17600176001760017600176001760017600176aa');
   expect(manifest.screens.map((screen) => screen.file)).toEqual([
     'mac-01-list.png',
