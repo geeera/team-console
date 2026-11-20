@@ -43,4 +43,17 @@ describe('SrOnlyOnPhone', () => {
     await fixture.whenStable();
     expect(heading.classList.contains('tc-sr-only')).toBe(true);
   });
+
+  it('shows the hidden heading while it has focus and hides it again on blur', async () => {
+    const { fixture, heading } = await render(true);
+    document.body.appendChild(fixture.nativeElement);
+
+    heading.focus();
+    await fixture.whenStable();
+    expect(heading.classList.contains('tc-sr-only')).toBe(false);
+
+    heading.blur();
+    await fixture.whenStable();
+    expect(heading.classList.contains('tc-sr-only')).toBe(true);
+  });
 });

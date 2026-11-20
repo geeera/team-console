@@ -27,6 +27,7 @@ import { InstallCard } from '@console/features/install-app';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   Button,
+  focusAfterRender,
   Icon,
   IconButton,
   IconName,
@@ -166,6 +167,18 @@ export class ProjectSpacePage {
   /** The install card went away by the owner's choice: keyboard users continue from the space's heading. */
   protected focusHeading(): void {
     this.query('.space__title')?.focus();
+  }
+
+  /** The paused banner left with its Resume button: its Commands button is the next stop, visible on every width. */
+  protected focusCommandsButton(): void {
+    // On the phone the button sits in the shell's top bar, outside this page's host.
+    focusAfterRender(
+      () => {
+        const button = document.querySelector<HTMLElement>('[data-testid="commands-open"]');
+        return button === null ? null : new ElementRef(button);
+      },
+      { injector: this.injector, onlyIfFocusLost: true },
+    );
   }
 
   protected closePane(): void {

@@ -74,7 +74,7 @@
   }
 </header>
 
-<tc-paused-banner class="space__banner" [project]="commandsProject()" />
+<tc-paused-banner class="space__banner" [project]="commandsProject()" (resumed)="focusCommandsButton()" />
 <!-- In the flow above the section (#761): it scrolls away and never covers the bottom bar (#368). -->
 <tc-install-card class="space__banner" [ready]="project() !== undefined" (dismissed)="focusHeading()" />
 

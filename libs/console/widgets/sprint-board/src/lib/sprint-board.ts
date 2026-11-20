@@ -705,6 +705,17 @@ export class SprintBoard {
   /** Retry: the owner's action, so it may earn one more automatic retry. */
   async reload(): Promise<void> {
     await this.retry(true);
+    // The Retry button was replaced by the loading block, so focus fell to <body> (#135): back to the new Retry
+    // button, or to the board's heading once it loaded.
+    const root = this.host.nativeElement;
+    focusAfterRender(
+      () =>
+        elementRefOf(
+          root.querySelector<HTMLElement>('[data-testid="load-error"] button') ??
+            root.querySelector<HTMLElement>('.board__title'),
+        ),
+      { injector: this.injector, onlyIfFocusLost: true },
+    );
   }
 
   protected laneName(status: string): string {
