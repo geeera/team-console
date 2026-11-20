@@ -135,6 +135,33 @@ overwrites a dashboard edit.
 level, once per further attempt (Workers Logs, filter `message = "actions setup write volume"`). Treat it as a reason
 to look at the audit rows below; if they do not explain it, stop the path first and investigate after.
 
+**Getting notified (#843).** The log line alone tells nobody; the notification is a Cloudflare Workers Observability
+alert, which can only be created in the dashboard (wrangler does not configure alerts and no Cloudflare notification
+type matches a log message on the free plan). No code in this repository emits it: a web push from the write path
+would need a change in `apps/api/src/routes/actions-setup-problems.ts`, a security path. Owner steps, once per
+environment where `ALLOW_ACTIONS_SETUP_WRITE` is `true` (today: dev only; add stage and production in the PR that
+turns the switch on):
+
+1. Cloudflare dashboard → Workers & Pages → the environment's Worker (`team-console-dev`) → Observability. Make
+   sure Workers Logs is on for it (free plan: 200,000 events a day, 3 days of retention).
+2. Create a Monitor (or, if your dashboard offers only Issues, an Issues automation) on a log query
+   `message = "actions setup write volume"`, threshold: at least 1 match in 1 hour, destination: a webhook or chat
+   service you read on your phone, or e-mail where offered. Names and menus move; the query and the threshold are
+   what matter. Error-level logs also surface as Workers Issues, so an automation on Issues for this Worker is an
+   acceptable substitute.
+3. Test it once on dev: 31 attempts in an hour is the real trigger, so instead check the query in the Logs view
+   against a past hour and that the destination receives a test message.
+
+**When it fires.** In order, stopping at the first step that settles it:
+
+1. List the `project.actions-workflow-pr-attempted|opened|failed` audit rows for the last hour (below). One account
+   or project hammering the button, or a script, is the common cause.
+2. If they do not explain it, or you cannot tell within a few minutes, **stop the path now with the D1 stop above**
+   (`INSERT INTO operator_stops ...`). It needs no deploy and takes effect on the next request. This is the
+   kill switch for `ALLOW_ACTIONS_SETUP_WRITE` without a deploy; the var itself is changed only by a reviewed PR.
+3. Investigate with the path off; if the app key may be exposed, follow the incident steps below.
+4. Lift the stop (`DELETE FROM operator_stops ...` above) once the cause is fixed and recorded on the issue.
+
 **If the app's private key or the api Worker may be compromised.** The app's write permissions make this a High
 incident (threat model C11): whoever holds the key mints their own tokens, so the stop above does not contain it.
 
