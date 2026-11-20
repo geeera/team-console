@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
-import { DISPLAY_NAME_MAX_LENGTH, displayNameOf, UsersRepo } from './users.repo';
+import { DISPLAY_NAME_MAX } from '@shared/contracts';
+import { displayNameOf, UsersRepo } from './users.repo';
 
 const T0 = '2026-11-18T10:00:00.000Z';
 
@@ -33,8 +34,8 @@ describe('displayNameOf', () => {
   });
 
   it('cuts a long name to the column’s bound, by code points', () => {
-    const name = displayNameOf('😀'.repeat(DISPLAY_NAME_MAX_LENGTH + 10));
-    expect([...(name ?? '')]).toHaveLength(DISPLAY_NAME_MAX_LENGTH);
+    const name = displayNameOf('😀'.repeat(DISPLAY_NAME_MAX + 10));
+    expect([...(name ?? '')]).toHaveLength(DISPLAY_NAME_MAX);
   });
 });
 

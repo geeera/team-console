@@ -1,4 +1,4 @@
-import type { IdentityProvider } from '@shared/contracts';
+import { DISPLAY_NAME_MAX, type IdentityProvider } from '@shared/contracts';
 
 /** One `users` row (migration 0018). The provider's id is the identity; `login` is display only. */
 export interface UserRecord {
@@ -32,15 +32,12 @@ interface UserRow {
 const COLUMNS =
   'id, provider, provider_user_id, login, email, avatar_url, display_name, access_subject, created_at, last_seen_at';
 
-/** The longest name kept, as migration 0038's CHECK allows. */
-export const DISPLAY_NAME_MAX_LENGTH = 255;
-
 /** Control, format (bidi overrides and isolates among them) and line/paragraph separators, as R-INT-7 refuses them. */
 const UNSHOWN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
 
 /**
  * A provider's profile name as the console may show it (#775): those characters stripped, whitespace collapsed and
- * trimmed, cut to `DISPLAY_NAME_MAX_LENGTH` code points; `null` for anything that is not a string or is empty after.
+ * trimmed, cut to `DISPLAY_NAME_MAX` code points; `null` for anything that is not a string or is empty after.
  * The name is still plain text for interpolation only, never markup.
  */
 export function displayNameOf(raw: unknown): string | null {
@@ -48,7 +45,7 @@ export function displayNameOf(raw: unknown): string | null {
     return null;
   }
   const cleaned = raw.replace(UNSHOWN, '').replace(/\s+/gu, ' ').trim();
-  const kept = [...cleaned].slice(0, DISPLAY_NAME_MAX_LENGTH).join('').trim();
+  const kept = [...cleaned].slice(0, DISPLAY_NAME_MAX).join('').trim();
   return kept === '' ? null : kept;
 }
 

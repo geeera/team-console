@@ -89,7 +89,7 @@ export type {
   NewAccount,
   PlacementWriteOutcome,
 } from './lib/accounts/accounts.repo';
-export { DISPLAY_NAME_MAX_LENGTH, displayNameOf, UsersRepo } from './lib/accounts/users.repo';
+export { displayNameOf, UsersRepo } from './lib/accounts/users.repo';
 export type { UserRecord } from './lib/accounts/users.repo';
 export { InstallationsRepo } from './lib/accounts/installations.repo';
 export type {
