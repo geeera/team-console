@@ -9,6 +9,7 @@ import {
   type DesignScreenDto,
 } from '@shared/contracts';
 import type { PullRequestRecord } from '../github-records';
+import { repoUrlOf } from '../repo-url';
 import { isTrustedAuthor } from '../untrusted-text';
 
 /**
@@ -214,12 +215,12 @@ export function pagesUrlOf(repo: DesignManifestInput['repo'], path: string): str
 
 /** `https://github.com/<owner>/<repo>/blob/<sha>/`, the one place a blob URL's base is built. */
 export function blobBaseUrlOf(repo: DesignManifestInput['repo'], sha: string): string {
-  return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/blob/${sha}/`;
+  return `${repoUrlOf(repo)}/blob/${sha}/`;
 }
 
 /** `https://github.com/<owner>/<repo>/issues/`, the one place an issue URL's base is built. */
 export function issuesBaseUrlOf(repo: DesignManifestInput['repo']): string {
-  return `https://github.com/${encodeURIComponent(repo.owner)}/${encodeURIComponent(repo.name)}/issues/`;
+  return `${repoUrlOf(repo)}/issues/`;
 }
 
 export function designManifestOf(input: DesignManifestInput): DesignManifestDto {

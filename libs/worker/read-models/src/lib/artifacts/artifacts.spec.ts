@@ -40,7 +40,7 @@ describe('the artifacts of geeera/team-console (snapshot)', () => {
     issues: issuesOf(Object.values(snapshot.designIssues).flat()),
     files: designFiles,
     storybookUrl: null,
-      issuesBaseUrl: 'https://github.com/o/r/issues/',
+    issuesBaseUrl: 'https://github.com/o/r/issues/',
   });
   const demos = demoArtifactsOf(issuesOf(snapshot.demoIssues));
 
@@ -279,6 +279,17 @@ describe('design and demo issues', () => {
       expect(
         rowsOf(['docs/design/2024-roadmap/a.html', 'docs/design/20240101-export/a.html', 'docs/design/12-ok/a.html']),
       ).toEqual([12]);
+    });
+
+    it.each([
+      [1899, true],
+      [1900, false],
+      [2100, false],
+      [2101, true],
+      [9999, true],
+      [10000, false],
+    ])('folder %i-x is %s as an issue row (year range 1900-2100, at most 4 digits)', (number, isRow) => {
+      expect(rowsOf([`docs/design/${String(number)}-x/a.html`])).toEqual(isRow ? [number] : []);
     });
 
     it('gives a folder of assets only no row', () => {
