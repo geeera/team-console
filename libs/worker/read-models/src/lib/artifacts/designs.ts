@@ -18,6 +18,48 @@ export interface DesignInput {
   readonly files: readonly ContentsEntry[];
   /** project.yml's `design.storybook_url`, already limited to github.com. */
   readonly storybookUrl: string | null;
+  /** `https://github.com/owner/name/issues/`: links the rows built from a design folder alone; `null` skips them. */
+  readonly issuesBaseUrl?: string | null;
+}
+
+/** The issue number a path under docs/design names by a segment `N-…` (no leading zero: `01-paper.html` is not #1). */
+const DESIGN_SEGMENT = /^([1-9]\d*)-(.+?)(?:\.[a-z0-9]+)?$/i;
+
+/**
+ * #771: an issue with a design folder but no design label still counts, from the tree that is already read (no
+ * per-issue call), so it has no title or state: the folder's slug stands in and the row links to the issue.
+ */
+function folderDesignsOf(
+  files: readonly ContentsEntry[],
+  labelled: ReadonlySet<number>,
+  issuesBaseUrl: string,
+): ArtifactDto[] {
+  const prefix = `${DESIGN_DIR}/`;
+  const slugs = new Map<number, string>();
+  for (const entry of files) {
+    if (entry.kind !== 'file' || !entry.path.startsWith(prefix) || isGeneratorSource(entry.path, prefix)) {
+      continue;
+    }
+    for (const segment of entry.path.slice(prefix.length).split('/')) {
+      const match = DESIGN_SEGMENT.exec(segment);
+      const number = match === null ? NaN : Number(match[1]);
+      if (match !== null && Number.isSafeInteger(number) && !labelled.has(number) && !slugs.has(number)) {
+        slugs.set(number, (match[2] ?? '').replace(/-/g, ' '));
+      }
+    }
+  }
+  return [...slugs.entries()]
+    .sort(([a], [b]) => b - a)
+    .map(([number, slug]): ArtifactDto => ({
+      type: 'design',
+      title: slug,
+      url: `${issuesBaseUrl}${number}`,
+      updatedAt: null,
+      source: 'issue',
+      state: null,
+      number,
+      awaitingApproval: false,
+    }));
 }
 
 /**
@@ -55,6 +97,11 @@ export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
       ];
     });
 
+  const fromFolders =
+    input.issuesBaseUrl === undefined || input.issuesBaseUrl === null
+      ? []
+      : folderDesignsOf(input.files, seen, input.issuesBaseUrl);
+
   const prefix = `${DESIGN_DIR}/`;
   const files = input.files
     .filter(
@@ -87,5 +134,5 @@ export function designArtifactsOf(input: DesignInput): ArtifactDto[] {
             state: null,
           },
         ];
-  return [...issues, ...files, ...storybook];
+  return [...issues, ...fromFolders, ...files, ...storybook];
 }
