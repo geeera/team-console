@@ -10,7 +10,16 @@ export interface UserRecord {
   readonly avatarUrl: string | null;
   /** The profile name (#775, migration 0038): display only, already cleaned at write; `null` when there is none. */
   readonly displayName: string | null;
-  /** The linked Access identity (decision 3), written once by the explicit link. */
+  /**
+   * The linked Access identity (decision 3), written once by the explicit link (0018 refuses a second write).
+   *
+   * The link has a side effect in the database (#838, migration 0042): writing `access_subject` (an UPDATE of a row, or
+   * the INSERT of a row already linked) fires a trigger that, while exactly one user is linked, hands the owner account's
+   * `runners.enrolled_by` and `projects.created_by` = `access-owner` to that user in the same statement, and writes the
+   * one `auth.access-actor-adopted` audit row. The 0036 rule that an enroller is never changed has one exception for it
+   * (`access-owner` -> the linked user). A future link route therefore writes the link first, in one statement, and must
+   * not write its own `auth.access-actor-adopted` row or move those columns itself; with two linked users nothing moves.
+   */
   readonly accessSubject: string | null;
   readonly createdAt: string;
   readonly lastSeenAt: string;
@@ -85,7 +94,10 @@ export class UsersRepo {
     return row === null ? null : toRecord(row);
   }
 
-  /** The user an Access identity was explicitly linked to; `null` when it was never linked. */
+  /**
+   * The user an Access identity was explicitly linked to; `null` when it was never linked. A read only: whatever the
+   * link handed over (migration 0042, see `UserRecord.accessSubject`) is already that user's by the time this finds it.
+   */
   async findByAccessSubject(accessSubject: string): Promise<UserRecord | null> {
     const row = await this.db
       .prepare(`SELECT ${COLUMNS} FROM users WHERE access_subject = ?1`)

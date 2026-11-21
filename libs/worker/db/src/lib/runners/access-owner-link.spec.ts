@@ -13,7 +13,7 @@ const KEY = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) });
 let runners = 0;
 async function runner(enrolledBy: string | null, accountId: string = OWNER_ACCOUNT_ID): Promise<string> {
   runners += 1;
-  const id = `01M6YSNJ0000000000000838R${String(runners)}`;
+  const id = `01M6YSNJ000000000000838R${String(runners).padStart(2, '0')}`;
   // `all`, declaring no access source: the subscription-capable kind D3 holds back in a two-owner account.
   await env.DB.prepare(
     `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, project_scope, enrolled_by)
@@ -50,6 +50,66 @@ const adoptions = () =>
   env.DB.prepare(`SELECT actor_kind, actor, target, details FROM audit_events WHERE kind = 'auth.access-actor-adopted'`)
     .all<{ actor_kind: string; actor: string; target: string; details: string }>()
     .then((rows) => rows.results);
+const adoptionsOf = async (target: string) => (await adoptions()).filter((row) => row.target === target);
+const linkedUsers = () =>
+  env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE access_subject IS NOT NULL`).first<number>('n');
+// These users hold no membership, so a case can drop its row again: the count-of-one rule then holds for the next.
+const dropUser = (id: string) => env.DB.prepare(`DELETE FROM users WHERE id = ?1`).bind(id).run();
+
+// Run first: both need no other user linked yet.
+describe('the other ways a link is written (#838)', () => {
+  const INSERTED = '01M6YSNJ0000000000000838E4';
+  const HAND_LINKED = '01M6YSNJ0000000000000838E5';
+
+  it('adopts the rows when a user row is inserted already linked', async () => {
+    expect(await linkedUsers()).toBe(0);
+    const mine = await runner('access-owner');
+    await project('p838-insert', 'access-owner');
+    await user(INSERTED, '838004', 'access-sub-838-insert');
+
+    expect(await enrollerOf(mine)).toBe(INSERTED);
+    expect(await creatorOf('p838-insert')).toBe(INSERTED);
+    expect(await adoptionsOf(INSERTED)).toEqual([
+      { actor_kind: 'system', actor: 'access-link', target: INSERTED, details: JSON.stringify({ runners: 1, projects: 1 }) },
+    ]);
+    await dropUser(INSERTED);
+  });
+
+  it('backfills a link made by hand before the migration, once', async () => {
+    expect(await linkedUsers()).toBe(0);
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith('0042_'));
+    if (migration === undefined) {
+      throw new Error('migration 0042 is missing');
+    }
+    // The schema as 0041 left it: none of 0042's triggers, and 0036's enroller rule without the exception.
+    await env.DB.batch([
+      env.DB.prepare(`DROP TRIGGER users_access_link_adopts_owner_actor`),
+      env.DB.prepare(`DROP TRIGGER users_access_insert_adopts_owner_actor`),
+      env.DB.prepare(`DROP TRIGGER runners_access_owner_adopted`),
+      env.DB.prepare(`DROP TRIGGER runners_enrolled_by_kept`),
+      env.DB.prepare(
+        `CREATE TRIGGER runners_enrolled_by_kept BEFORE UPDATE OF enrolled_by ON runners WHEN OLD.enrolled_by IS NOT NULL
+         BEGIN SELECT RAISE(ABORT, 'runners keep their identity'); END`,
+      ),
+    ]);
+    const mine = await runner('access-owner');
+    await project('p838-hand', 'access-owner');
+    await user(HAND_LINKED, '838005', 'access-sub-838-hand');
+    // Nothing moved at the link itself: no trigger yet.
+    expect(await enrollerOf(mine)).toBe('access-owner');
+
+    for (const query of migration.queries) {
+      await env.DB.prepare(query).run();
+    }
+
+    expect(await enrollerOf(mine)).toBe(HAND_LINKED);
+    expect(await creatorOf('p838-hand')).toBe(HAND_LINKED);
+    expect(await adoptionsOf(HAND_LINKED)).toEqual([
+      { actor_kind: 'system', actor: 'access-link', target: HAND_LINKED, details: JSON.stringify({ runners: 1, projects: 1 }) },
+    ]);
+    await dropUser(HAND_LINKED);
+  });
+});
 
 describe('the Access–GitHub link adopts the access-owner actor (#838)', () => {
   const repo = new RunnersRepo(env.DB);
@@ -89,7 +149,7 @@ describe('the Access–GitHub link adopts the access-owner actor (#838)', () => 
     expect(await enrollerOf(other)).toBe(SECOND_OWNER);
     expect(await enrollerOf(elsewhere)).toBe('access-owner');
     expect(await creatorOf('p838-elsewhere')).toBe('access-owner');
-    expect(await adoptions()).toEqual([
+    expect(await adoptionsOf(ACCESS_OWNER)).toEqual([
       { actor_kind: 'system', actor: 'access-link', target: ACCESS_OWNER, details: JSON.stringify({ runners: 1, projects: 1 }) },
     ]);
 
