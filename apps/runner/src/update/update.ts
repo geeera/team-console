@@ -24,6 +24,7 @@ import {
   BIN_FILES,
   BUNDLE_LINK,
   CURRENT_LINK,
+  NODE_LINK,
   RELEASES_DIR,
   SUMS_LINK,
   binLinkTargetOf,
@@ -121,8 +122,6 @@ export interface ApplyDeps {
   readonly prefix: string;
   readonly platform: string;
   readonly arch: string;
-  /** The Node that runs the runner; it reads the new bundle's version before the swap. */
-  readonly node: string;
   readonly exec: Exec;
   /** `gh`'s environment: PATH and its own auth/config variables only, never the runner's whole env. */
   readonly ghEnv: Readonly<Record<string, string>>;
@@ -283,10 +282,14 @@ async function linkBin(prefix: string): Promise<void> {
   }
 }
 
-/** Sums, then `bin/`, then the bundle: a crash anywhere leaves a runnable prefix and the next `update` finishes it. */
+/**
+ * Sums, then `bin/`, then `node`, then the bundle: a crash anywhere leaves a runnable prefix and the next `update`
+ * finishes it. Once converted, every entry resolves through `current`, so later switches move them all at once.
+ */
 async function linkEntries(prefix: string): Promise<void> {
   await replaceWithLink(join(prefix, SUMS_LINK[0]), SUMS_LINK[1]);
   await linkBin(prefix);
+  await replaceWithLink(join(prefix, NODE_LINK[0]), NODE_LINK[1]);
   await replaceWithLink(join(prefix, BUNDLE_LINK[0]), BUNDLE_LINK[1]);
 }
 
@@ -296,7 +299,7 @@ async function isFullyLinked(prefix: string): Promise<boolean> {
     const stats = await lstatOrNull(path);
     return stats?.isSymbolicLink() === true && (await readlink(path)) === target;
   };
-  for (const [name, target] of [SUMS_LINK, BUNDLE_LINK]) {
+  for (const [name, target] of [SUMS_LINK, NODE_LINK, BUNDLE_LINK]) {
     if (!(await linksTo(join(prefix, name), target))) {
       return false;
     }
@@ -359,7 +362,8 @@ async function swapInto(tree: string, prefix: string, target: string): Promise<v
 
 /**
  * Unpacks a tarball whose bytes were already verified into `staging/tree`, checks the tree and its sums, confirms the
- * bundle reports `target`, then switches `prefix` to it. Shared by `update` (after `gh attestation verify`) and by
+ * bundle reports `target` when run by the release's own `node` (so a node that does not run on this host is refused
+ * before the switch), then switches `prefix` to it. Shared by `update` (after `gh attestation verify`) and by
  * `setup --release` (after the root-owned copy matched the sum the console named, R-ONE-1).
  */
 export async function installTarball(
@@ -367,7 +371,7 @@ export async function installTarball(
   staging: string,
   prefix: string,
   target: string,
-  deps: Pick<ApplyDeps, 'exec' | 'node'>,
+  deps: Pick<ApplyDeps, 'exec'>,
 ): Promise<void> {
   const tree = join(staging, 'tree');
   await mkdir(tree, { mode: 0o700 });
@@ -377,7 +381,7 @@ export async function installTarball(
   }
   await assertReleaseTree(tree);
   await assertSums(tree);
-  const reported = await deps.exec(deps.node, [join(tree, BUNDLE_FILE), 'version']);
+  const reported = await deps.exec(join(tree, NODE_FILE), ['--disable-sigusr1', join(tree, BUNDLE_FILE), 'version']);
   if (reported.code !== 0 || reported.stdout.trim() !== target) {
     throw new UpdateError('verification-failed', `the downloaded bundle does not report version ${target}`);
   }

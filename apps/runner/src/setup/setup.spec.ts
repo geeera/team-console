@@ -427,10 +427,10 @@ describe('setup (#634 PR 2)', () => {
     it('installs from a root-owned copy whose sum matches, and skips a release already live', async () => {
       const prefix = join(root, 'prefix');
       const out: string[] = [];
-      await installRelease(await release(), deps(out), process.execPath, prefix);
+      await installRelease(await release(), deps(out), prefix);
       expect(await readFile(join(prefix, 'team-console-runner.mjs'), 'utf8')).toContain(RUNNER_VERSION);
       expect((await lstat(join(prefix, 'current'))).isSymbolicLink()).toBe(true);
-      await installRelease(await release(), deps(out), process.execPath, prefix);
+      await installRelease(await release(), deps(out), prefix);
       expect(out.at(-1)).toBe(`install: release ${RUNNER_VERSION} is already in ${prefix}`);
       expect(await readdir(tmpRoot)).toEqual([]);
     });
@@ -438,11 +438,11 @@ describe('setup (#634 PR 2)', () => {
     it('refuses a tarball that does not match the sum, installing nothing', async () => {
       const prefix = join(root, 'prefix');
       const { tarball } = await release();
-      await expect(installRelease({ tarball, sha256: 'a'.repeat(64) }, deps([]), process.execPath, prefix)).rejects.toThrow(
+      await expect(installRelease({ tarball, sha256: 'a'.repeat(64) }, deps([]), prefix)).rejects.toThrow(
         /does not match the sum the console named/,
       );
       await expect(stat(prefix)).rejects.toThrow();
-      await expect(installRelease({ tarball, sha256: 'nope' }, deps([]), process.execPath, prefix)).rejects.toThrow(/64 hex/);
+      await expect(installRelease({ tarball, sha256: 'nope' }, deps([]), prefix)).rejects.toThrow(/64 hex/);
       expect(await readdir(tmpRoot)).toEqual([]);
     });
   });
