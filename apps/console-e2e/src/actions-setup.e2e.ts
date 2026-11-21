@@ -321,3 +321,29 @@ test('phone: no horizontal scroll with the file open', async ({ page }) => {
   await expect(page.getByTestId('workflow-file')).toBeVisible();
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 });
+
+test('copy failed: a refused clipboard says so, and the file stays selectable text', async ({ page }) => {
+  // The component reads `navigator.clipboard` once, so the refusal is installed before the page loads.
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: () => Promise.reject(new Error('denied')) },
+      configurable: true,
+    });
+  });
+  await answerReadiness(page, () => readiness({ workflow: { status: 'missing' } }));
+  await openPage(page);
+  const step = page.getByTestId('workflow-step');
+  await step.getByTestId('copy-code-button').first().click();
+  await expect(step.getByRole('status').filter({ hasText: ru('settings.common.copyFailed') })).toBeVisible();
+  await expect(step.getByTestId('copy-code-text').first()).toHaveText('.github/workflows/team-console-runner.yml');
+  await expectAccessible(page, 'GitHub Actions setup, copy failed');
+});
+
+test('404: an unknown project reads as not found, with no steps and a way back', async ({ page }) => {
+  await answerReadiness(page, () => problem(404, 'project-not-found'));
+  await openPage(page);
+  await expect(page.getByTestId('actions-not-found')).toBeVisible();
+  await expect(page.getByTestId('actions-ledger')).toHaveCount(0);
+  await expect(page.getByRole('link', { name: ru('overview.title') }).last()).toHaveAttribute('href', '/overview');
+  await expectAccessible(page, 'GitHub Actions setup, not found');
+});

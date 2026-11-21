@@ -1,4 +1,4 @@
-import { signal, type Provider } from '@angular/core';
+import { signal, type EnvironmentProviders, type Provider } from '@angular/core';
 import { provideRouter } from '@angular/router';
 import { ActionsSetupApi } from '@console/entities/actions-setup';
 import { RunnersApi } from '@console/entities/runner';
@@ -12,7 +12,7 @@ export const STORY_WORKFLOW = {
 };
 
 /** Offline-free stand-ins for the slices' API calls, shared by the Actions setup stories; `workflow` overrides the file read. */
-export function actionsStoryProviders(options: { workflow?: ActionsSetupApi['workflow'] } = {}): Provider[] {
+export function actionsStoryProviders(options: { workflow?: ActionsSetupApi['workflow'] } = {}): (EnvironmentProviders | Provider)[] {
   return [
     provideRouter([]),
     { provide: NetworkStatus, useValue: { online: signal(true) } },
