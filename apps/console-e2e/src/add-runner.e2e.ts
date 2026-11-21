@@ -55,7 +55,7 @@ async function bindAsRunner(stack: Stack, intentId: string): Promise<Bound> {
         version: '0.3.0',
       },
     });
-    expect(response.status(), await response.text()).toBe(201);
+    expect(response.status(), await response.text()).toBe(200);
     return { fingerprint: ((await response.json()) as { fingerprint: string }).fingerprint, key: privateKey };
   } finally {
     await api.dispose();
