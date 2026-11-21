@@ -160,8 +160,11 @@ describe('ActionsSetupLedger (#759)', () => {
     const on = () => actionsSetupFixture({ dispatch: 'actions' });
     const ok = (): RunnerResult<ProjectDispatchDto> => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } });
 
-    it('stays out until the project runs on Actions and the jobs were read', async () => {
+    it('stays out until the project runs on Actions', async () => {
       expect((await render(actionsSetupFixture(), ok, { kind: 'waiting' })).find('[data-step="first-job"]')).toBeNull();
+    });
+
+    it('stays out until the jobs were read', async () => {
       expect((await render(on(), ok, null)).find('[data-step="first-job"]')).toBeNull();
     });
 
