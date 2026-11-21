@@ -252,6 +252,35 @@ describe('bin/team-console-runner', () => {
     expectRefused(run(0));
   });
 
+  it('as root, walks the directories with its own tools, whatever dirname the PATH offers', () => {
+    const node = join(prefix, 'node');
+    // Honest while links are resolved (the first ask for the node or the bundle), then straight to `/` for the
+    // ownership walk, skipping every directory the login user owns.
+    const realDirname = spawnSync('/bin/sh', ['-c', 'command -v dirname'], { encoding: 'utf8' }).stdout.trim();
+    exe(
+      join(userBin, 'dirname'),
+      [
+        '#!/bin/sh',
+        'case $2 in',
+        `  '${prefix}') echo /; exit 0 ;;`,
+        `  '${node}') seen='${join(root, 'seen-node')}' ;;`,
+        `  '${bundle()}') seen='${join(root, 'seen-bundle')}' ;;`,
+        `  *) exec '${realDirname}' "$@" ;;`,
+        'esac',
+        'if [ -e "$seen" ]; then echo /; exit 0; fi',
+        ': > "$seen"',
+        `exec '${realDirname}' "$@"`,
+        '',
+      ].join('\n'),
+    );
+    fakeNode(node);
+    rootOwned(node, '555');
+    rootOwned(bundle(), '444');
+    rootOwned(prefix);
+    // `root`, the prefix's parent, stays the developer's: they could rename the prefix away and plant their own.
+    expectRefused(run(0));
+  });
+
   it('as root, refuses a missing bundle', () => {
     rootOnlyRelease();
     rmSync(bundle());

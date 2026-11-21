@@ -9,19 +9,23 @@
 # and the prefix (#884), on macOS no ACL entry may let anyone but root write any of them, and every NODE_* variable is
 # dropped before the exec, so the caller's environment cannot load code into root's node.
 set -eu
-prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
+# Absolute, like id, stat, uname and ls below: under sudo the caller's PATH must not decide which directories get checked.
+dirname=/usr/bin/dirname
+basename=/usr/bin/basename
+readlink=/usr/bin/readlink
+prefix=$(CDPATH='' cd -- "$("$dirname" -- "$0")/.." && pwd -P)
 
 # The physical path of $1 (every link resolved, at most 40 hops), or nothing when it does not lead to a file.
 physical() {
   p=$1
   hops=0
   while :; do
-    dir=$(CDPATH='' cd -P -- "$(dirname -- "$p")" 2>/dev/null && pwd -P) || return 1
-    p="${dir%/}/$(basename -- "$p")"
+    dir=$(CDPATH='' cd -P -- "$("$dirname" -- "$p")" 2>/dev/null && pwd -P) || return 1
+    p="${dir%/}/$("$basename" -- "$p")"
     [ -L "$p" ] || break
     hops=$((hops + 1))
     [ "$hops" -le 40 ] || return 1
-    link=$(readlink -- "$p") || return 1
+    link=$("$readlink" -- "$p") || return 1
     case $link in
       /*) p=$link ;;
       *) p="$dir/$link" ;;
@@ -54,7 +58,7 @@ root_only() {
       acl_root_only "$p" || return 1
     fi
     [ "$p" = / ] && return 0
-    p=$(dirname -- "$p")
+    p=$("$dirname" -- "$p")
   done
 }
 
