@@ -1,12 +1,26 @@
-import { actionsSetupBranchOf, renderRunnerWorkflow, type RunnerWorkflowRendering } from '@shared/actions-workflow';
+import {
+  actionsSetupBranchOf,
+  compareVersions,
+  differsOnlyInReleaseValues,
+  loweredPinsOf,
+  readRunnerWorkflowPins,
+  renderRunnerWorkflow,
+  RUNNER_WORKFLOW_PINS,
+  type RunnerWorkflowRendering,
+} from '@shared/actions-workflow';
 import {
   blockingItemsOf,
   isGitHubUiUrl,
+  isRunnerVersionBelow,
+  type ActionsRunnerSupport,
   type ActionsSetupDto,
   type ActionsSetupItemDto,
   type ActionsSetupItemId,
   type ActionsSetupPrDto,
+  type ActionsSetupPrProvenance,
   type ActionsSetupStatus,
+  type ActionsSetupVersionsDto,
+  type ActionsWorkflowReadPinsDto,
 } from '@shared/contracts';
 import type { Logger } from '@worker/core';
 import { ProjectDispatchRepo, type ActionsReadinessTarget, type ProjectRow } from '@worker/db';
@@ -26,14 +40,20 @@ import {
   readDeploymentBranchPolicies,
   readRegisteredRepository,
   readRunnerWorkflowFile,
+  readSetupBranches,
   sameWorkflowBytes,
   type ActionsEnvironment,
+  type ActionsSetupPull,
   type DeploymentBranchPolicies,
+  type PullProvenanceExpectation,
   type RepoName,
+  type RunnerWorkflowFile,
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { repositoryUrlOf } from './github-links';
+import { runnerReleaseOf } from '../routes/runner';
+import { isSetupWriteAllowed } from './workflow-pr';
 
 /**
  * The Actions setup's readiness check (#759 PR 3; architect note §4, security note rows "Readiness over-reads or
@@ -48,6 +68,10 @@ import { repositoryUrlOf } from './github-links';
  * id, one `environment-read` token for the Environment, its branch policies and its one secret (revoked in `finally`),
  * and the workflow file and the setup PR with the cached read token. A GitHub 5xx stops the check as a thrown
  * `GitHubError` (502 `github-unavailable`); no partial items are answered.
+ *
+ * #870 adds what the page needs to word the workflow step without a second call: the default branch, whether the PR
+ * path is on (the same `isSetupWriteAllowed` the write route judges), the pins of the file against the rendering's
+ * and the environment's `RUNNER_MINIMUM_VERSION`, and a PR left open from an earlier rendering's branch (`stale`).
  */
 
 export interface ReadinessDeps {
@@ -218,17 +242,109 @@ async function environmentItems(
   }
 }
 
+/** At most this many earlier setup branches are asked for an open PR: each costs up to four reads. */
+export const STALE_BRANCHES_CHECKED = 3;
+
+export interface WorkflowFileJudgement {
+  readonly status: ActionsSetupStatus;
+  /** The file's pins; `null` when there is no file or it was too large to read. */
+  readonly current: ActionsWorkflowReadPinsDto | null;
+}
+
+/**
+ * The file on the default branch against the rendering. `outdated` only when the file is the rendering at an earlier
+ * release (`differsOnlyInReleaseValues`), raising some pin and lowering none; `unsupported` when that file's runner is
+ * below the environment's `RUNNER_MINIMUM_VERSION`. Anything else that differs is `modified`: the console vouches for its own bytes only.
+ */
+export function judgeWorkflowFile(
+  file: RunnerWorkflowFile,
+  rendering: RunnerWorkflowRendering,
+  minimum: string | null,
+): WorkflowFileJudgement {
+  if (file.kind === 'missing') {
+    return { status: 'missing', current: null };
+  }
+  if (file.kind === 'too-large') {
+    return { status: 'modified', current: null };
+  }
+  if (sameWorkflowBytes(file.bytes, new TextEncoder().encode(rendering.text))) {
+    return { status: 'ok', current: rendering.pins };
+  }
+  const text = new TextDecoder().decode(file.bytes);
+  const current = readRunnerWorkflowPins(text);
+  const isEarlierRelease =
+    differsOnlyInReleaseValues(text, rendering.text) &&
+    loweredPinsOf(current, rendering.pins).length === 0 &&
+    RUNNER_WORKFLOW_PINS.some((pin) => {
+      const now = current[pin];
+      return now !== null && compareVersions(now, rendering.pins[pin]) < 0;
+    });
+  if (!isEarlierRelease) {
+    return { status: 'modified', current };
+  }
+  return { status: runnerSupportOf(current, minimum) === 'unsupported' ? 'unsupported' : 'outdated', current };
+}
+
+export function runnerSupportOf(current: ActionsWorkflowReadPinsDto | null, minimum: string | null): ActionsRunnerSupport {
+  const runner = current?.runner ?? null;
+  if (runner === null) {
+    return 'unknown';
+  }
+  return isRunnerVersionBelow(runner, minimum) ? 'unsupported' : 'supported';
+}
+
+/**
+ * A PR from an earlier rendering's branch is the console's only when it passes every provenance check against its own
+ * head file and that file is the console's template at another release; otherwise it is `changed` (or `foreign`).
+ */
+function staleProvenanceOf(
+  pull: ActionsSetupPull,
+  expectation: Omit<PullProvenanceExpectation, 'rendering'>,
+  rendering: RunnerWorkflowRendering,
+): ActionsSetupPrProvenance {
+  const own = pull.headFile?.kind === 'file' ? pull.headFile.bytes : new Uint8Array();
+  const provenance = judgePullProvenance(pull, { ...expectation, rendering: own });
+  if (provenance !== 'console') {
+    return provenance;
+  }
+  return differsOnlyInReleaseValues(new TextDecoder().decode(own), rendering.text) ? 'console' : 'changed';
+}
+
+async function stalePullOf(
+  client: GitHubClient,
+  repo: RepoName,
+  rendering: RunnerWorkflowRendering,
+  expectation: Omit<PullProvenanceExpectation, 'rendering'>,
+): Promise<ActionsSetupPrDto | undefined> {
+  const current = actionsSetupBranchOf(rendering.sha256);
+  const earlier = (await readSetupBranches(client, repo)).filter((branch) => branch !== current);
+  for (const branch of earlier.slice(0, STALE_BRANCHES_CHECKED)) {
+    const pull = await readActionsSetupPull(client, repo, branch);
+    if (pull !== null && pull.htmlUrl !== null) {
+      return { number: pull.number, url: pull.htmlUrl, provenance: staleProvenanceOf(pull, expectation, rendering), stale: true };
+    }
+  }
+  return undefined;
+}
+
+interface WorkflowCheck {
+  readonly item: ActionsSetupItemDto;
+  readonly current: ActionsWorkflowReadPinsDto | null;
+}
+
 async function workflowItem(
   client: GitHubClient,
   repo: RepoName,
   defaultBranch: string,
   rendering: RunnerWorkflowRendering,
-  expectation: { readonly repositoryId: number; readonly botLogin: string | null },
-): Promise<ActionsSetupItemDto> {
+  minimum: string | null,
+  expectation: Omit<PullProvenanceExpectation, 'rendering'>,
+): Promise<WorkflowCheck> {
   const bytes = new TextEncoder().encode(rendering.text);
   const file = await readRunnerWorkflowFile(client, repo, defaultBranch);
+  const judged = judgeWorkflowFile(file, rendering, minimum);
   const pull = await readActionsSetupPull(client, repo, actionsSetupBranchOf(rendering.sha256));
-  const pr: ActionsSetupPrDto | undefined =
+  let pr: ActionsSetupPrDto | undefined =
     pull === null || pull.htmlUrl === null
       ? undefined
       : {
@@ -236,24 +352,47 @@ async function workflowItem(
           url: pull.htmlUrl,
           provenance: judgePullProvenance(pull, { ...expectation, rendering: bytes }),
         };
-  const fileUrl = `${repositoryUrlOf(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
-  if (file.kind === 'missing') {
-    return item('workflow', 'missing', `${repositoryUrlOf(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`, pr);
+  // A file already right needs no PR, so an earlier one left open is not looked for.
+  if (pr === undefined && judged.status !== 'ok') {
+    pr = await stalePullOf(client, repo, rendering, expectation);
   }
-  // No earlier release's rendering is kept yet, so a file that differs is `modified`, never `outdated`.
-  const status: ActionsSetupStatus =
-    file.kind === 'file' && sameWorkflowBytes(file.bytes, bytes) ? 'ok' : 'modified';
-  return item('workflow', status, fileUrl, pr);
+  const fileUrl = `${repositoryUrlOf(repo)}/blob/${refPath(defaultBranch)}/${RUNNER_WORKFLOW_PATH}`;
+  const link =
+    file.kind === 'missing'
+      ? `${repositoryUrlOf(repo)}/new/${refPath(defaultBranch)}?filename=${RUNNER_WORKFLOW_PATH}`
+      : fileUrl;
+  return { item: item('workflow', judged.status, link, pr), current: judged.current };
 }
 
-function answer(
-  dispatch: ActionsSetupDto['dispatch'],
-  accessSource: ActionsSetupDto['accessSource'],
-  items: Items,
-  checkedAt: string,
-): ActionsSetupDto {
+interface AnswerFacts {
+  readonly dispatch: ActionsSetupDto['dispatch'];
+  readonly accessSource: ActionsSetupDto['accessSource'];
+  readonly checkedAt: string;
+  readonly defaultBranch: string | null;
+  readonly workflowPr: ActionsSetupDto['workflowPr'];
+  readonly expected: RunnerWorkflowRendering['pins'];
+  readonly current: ActionsWorkflowReadPinsDto | null;
+  readonly minimum: string | null;
+}
+
+function answer(facts: AnswerFacts, items: Items): ActionsSetupDto {
   const ordered = ORDER.map((id) => items[id]);
-  return { dispatch, accessSource, ready: blockingItemsOf(ordered).length === 0, checkedAt, items: ordered };
+  const versions: ActionsSetupVersionsDto = {
+    expected: { ...facts.expected },
+    current: facts.current === null ? null : { ...facts.current },
+    minRunner: facts.minimum,
+    runnerSupport: runnerSupportOf(facts.current, facts.minimum),
+  };
+  return {
+    dispatch: facts.dispatch,
+    accessSource: facts.accessSource,
+    ready: blockingItemsOf(ordered).length === 0,
+    checkedAt: facts.checkedAt,
+    items: ordered,
+    defaultBranch: facts.defaultBranch,
+    workflowPr: facts.workflowPr,
+    versions,
+  };
 }
 
 /** The project's readiness inputs, in one D1 read; `null` when the row is gone. */
@@ -295,14 +434,22 @@ export async function checkActionsReadiness(
   }
   const checkedAt = (deps.now?.() ?? new Date()).toISOString();
   const accessSource = item('access-source', target.accessSource === 'api_key' ? 'ok' : 'missing');
+  const workflowPr = (await isSetupWriteAllowed(deps.env)) ? 'enabled' : 'disabled';
+  const facts = {
+    dispatch: target.dispatch,
+    accessSource: target.accessSource,
+    checkedAt,
+    workflowPr,
+    expected: rendered.rendering.pins,
+    minimum: runnerReleaseOf(deps.env).minimumVersion,
+  } as const;
   const nothingRead = (appPermissions: ActionsSetupItemDto): ReadinessOutcome => {
     const env = unknownEnvironment();
     return {
       kind: 'checked',
       defaultBranch: null,
       setup: answer(
-        target.dispatch,
-        target.accessSource,
+        { ...facts, defaultBranch: null, current: null },
         {
           'access-source': accessSource,
           'app-permissions': appPermissions,
@@ -312,7 +459,6 @@ export async function checkActionsReadiness(
           secret: env.secret,
           workflow: item('workflow', 'unknown'),
         },
-        checkedAt,
       ),
     };
   };
@@ -341,13 +487,12 @@ export async function checkActionsReadiness(
         repository.defaultBranch,
       )
     : unknownEnvironment();
-  const workflow = await workflowItem(client, repository.current, repository.defaultBranch, rendered.rendering, {
+  const workflow = await workflowItem(client, repository.current, repository.defaultBranch, rendered.rendering, facts.minimum, {
     repositoryId: target.repoId,
     botLogin: installation.botLogin,
   });
   const setup = answer(
-    target.dispatch,
-    target.accessSource,
+    { ...facts, defaultBranch: repository.defaultBranch, current: workflow.current },
     {
       'access-source': accessSource,
       'app-permissions': item(
@@ -359,9 +504,8 @@ export async function checkActionsReadiness(
       'branch-policy': environment.branchPolicy,
       'protection-rules': environment.protectionRules,
       secret: environment.secret,
-      workflow,
+      workflow: workflow.item,
     },
-    checkedAt,
   );
   deps.logger.info('actions readiness checked', {
     slug: row.slug,

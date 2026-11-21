@@ -229,7 +229,7 @@ export const isActionsSetupItemId = (value: unknown): value is ActionsSetupItemI
  * `unknown`: the console could not look (the app has not been granted the permission yet); it never counts as ok.
  * `outdated` (#870): the file is this console's rendering with older version pins (and their checksums) and nothing
  * else changed; jobs still run on it, so it does not hold the switch back. `unsupported`: the same, but its runner is
- * below `MIN_RUNNER_VERSION`, so it does.
+ * below the environment's `RUNNER_MINIMUM_VERSION`, so it does.
  */
 export const ACTIONS_SETUP_STATUSES = ['ok', 'missing', 'wrong', 'outdated', 'unsupported', 'modified', 'unknown'] as const;
 export type ActionsSetupStatus = (typeof ACTIONS_SETUP_STATUSES)[number];
@@ -244,13 +244,6 @@ export const ACTIONS_SETUP_ADVISORY_ITEMS: readonly ActionsSetupItemId[] = Objec
 
 /** Statuses that never hold the switch back, whatever the item: an older but supported rendering still runs. */
 export const ACTIONS_SETUP_PASSING_STATUSES: readonly ActionsSetupStatus[] = Object.freeze(['ok', 'outdated']);
-
-/**
- * The oldest runner release a customer's workflow may pin (#870; security note row "RUNNER_VERSION bump"): a file
- * below it reads `unsupported` and holds the switch back, so a known-bad runner stops being offered. Raised by a
- * reviewed change only, never above the template's own `RUNNER_VERSION`.
- */
-export const MIN_RUNNER_VERSION = '0.1.0';
 
 /**
  * The console's pull request on its own head branch. `foreign`: someone else opened a PR from that branch (or in
@@ -291,7 +284,10 @@ export interface ActionsWorkflowPinsDto {
 /** The pins read from the file on the default branch: `null` for a pin not found exactly once as `NAME: x.y.z`. */
 export type ActionsWorkflowReadPinsDto = { readonly [K in keyof ActionsWorkflowPinsDto]: string | null };
 
-/** `unknown`: no file was read, or it names no runner version the console could read. */
+/**
+ * The file's `RUNNER_VERSION` against the environment's `RUNNER_MINIMUM_VERSION` (#464, judged by
+ * `isRunnerVersionBelow`). `unknown`: no file was read, or it names no runner version the console could read.
+ */
 export const ACTIONS_RUNNER_SUPPORTS = ['supported', 'unsupported', 'unknown'] as const;
 export type ActionsRunnerSupport = (typeof ACTIONS_RUNNER_SUPPORTS)[number];
 
@@ -300,8 +296,8 @@ export interface ActionsSetupVersionsDto {
   readonly expected: ActionsWorkflowPinsDto;
   /** The file on the default branch; `null` when there is none or it was not read. */
   readonly current: ActionsWorkflowReadPinsDto | null;
-  /** `MIN_RUNNER_VERSION`. */
-  readonly minRunner: string;
+  /** The environment's `RUNNER_MINIMUM_VERSION`; `null` when it is unset (then no version is below it). */
+  readonly minRunner: string | null;
   /** The file's runner against `minRunner`. */
   readonly runnerSupport: ActionsRunnerSupport;
 }
@@ -428,7 +424,7 @@ function isActionsSetupVersionsDto(value: unknown): value is ActionsSetupVersion
     hasExactKeys(value, ['expected', 'current', 'minRunner', 'runnerSupport']) &&
     isPins(value['expected'], false) &&
     (value['current'] === null || isPins(value['current'], true)) &&
-    isVersion(value['minRunner']) &&
+    (value['minRunner'] === null || isRunnerVersion(value['minRunner'])) &&
     (ACTIONS_RUNNER_SUPPORTS as readonly unknown[]).includes(value['runnerSupport'])
   );
 }

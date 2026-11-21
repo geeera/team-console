@@ -1,7 +1,6 @@
 import {
   ACTIONS_SETUP_DTO_KEYS,
   ACTIONS_SETUP_ITEMS,
-  MIN_RUNNER_VERSION,
   actionsRunIdOf,
   actionsRunnerNameOf,
   blockingItemsOf,
@@ -99,7 +98,7 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     versions: {
       expected: { runner: '0.2.0', node: '22.23.5', claudeCode: '2.1.325' },
       current: { runner: '0.2.0', node: '22.23.5', claudeCode: '2.1.325' },
-      minRunner: MIN_RUNNER_VERSION,
+      minRunner: '0.1.0',
       runnerSupport: 'supported',
     },
   };
@@ -144,7 +143,9 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: null } }))).toBe(false);
     expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: '1.2.3-rc.1' } }))).toBe(false);
     expect(isActionsSetupDto(withVersions({ current: { ...versions.current, sha: 'x' } }))).toBe(false);
-    expect(isActionsSetupDto(withVersions({ minRunner: 'latest' }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ minRunner: null }))).toBe(true);
+    expect(isActionsSetupDto(withVersions({ minRunner: '0.2.0-rc.1' }))).toBe(true);
+    expect(isActionsSetupDto(withVersions({ minRunner: '0.1 <beta>' }))).toBe(false);
     expect(isActionsSetupDto(withVersions({ runnerSupport: 'maybe' }))).toBe(false);
     expect(isActionsSetupDto(withVersions({ fileText: 'name: x' }))).toBe(false);
   });

@@ -1,6 +1,8 @@
 import { env } from 'cloudflare:test';
 import type { RunnerWorkflowRendering } from '@shared/actions-workflow';
+import { actionsSetupBranchOf } from '@shared/actions-workflow';
 import {
+  ACTIONS_SETUP_DTO_KEYS,
   ACTIONS_SETUP_ITEMS,
   OWNER_ACCOUNT_ID,
   isActionsSetupDto,
@@ -19,6 +21,7 @@ import {
   SETUP_PR_NUMBER,
   answerSetupRead,
   consolePull,
+  earlierRelease,
   isAllowedSetupPath,
   readyWorld,
   renderingFor,
@@ -96,16 +99,23 @@ async function seedReadyProject(options: { installationId?: number; source?: 'ap
   return { slug, repo: row.repo, world, stub };
 }
 
-async function check(fixture: Fixture, options: { origin?: string; logs?: string[] } = {}): Promise<Response> {
-  return fetchApi(`/api/v1/projects/${fixture.slug}/actions-setup`, localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }), {
+interface CheckOptions {
+  readonly origin?: string;
+  readonly logs?: string[];
+  readonly bindings?: Readonly<Record<string, string | undefined>>;
+}
+
+async function check(fixture: Fixture, options: CheckOptions = {}): Promise<Response> {
+  const bindings = localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN, ...options.bindings });
+  return fetchApi(`/api/v1/projects/${fixture.slug}/actions-setup`, bindings, {
     origin: options.origin ?? SETUP_ORIGIN,
     github: new ApiGitHub({ fetch: fixture.stub.fetch }),
     ...(options.logs === undefined ? {} : { logSink: (line: string) => options.logs?.push(line) }),
   });
 }
 
-async function setupOf(fixture: Fixture, logs?: string[]): Promise<ActionsSetupDto> {
-  const response = await check(fixture, logs === undefined ? {} : { logs });
+async function setupOf(fixture: Fixture, logs?: string[], bindings?: CheckOptions['bindings']): Promise<ActionsSetupDto> {
+  const response = await check(fixture, { ...(logs === undefined ? {} : { logs }), ...(bindings === undefined ? {} : { bindings }) });
   expect(response.status, await response.clone().text()).toBe(200);
   const body: unknown = await response.json();
   expect(isActionsSetupDto(body)).toBe(true);
@@ -142,7 +152,24 @@ describe('GET /api/v1/projects/:slug/actions-setup: a ready repository', () => {
     expect(setup.accessSource).toBe('api_key');
     expect(setup.items.map((entry) => entry.id)).toEqual([...ACTIONS_SETUP_ITEMS]);
     expect(setup.items.every((entry) => entry.status === 'ok')).toBe(true);
-    expect(Object.keys(setup).sort()).toEqual(['accessSource', 'checkedAt', 'dispatch', 'items', 'ready']);
+    expect(Object.keys(setup).sort()).toEqual([...ACTIONS_SETUP_DTO_KEYS].sort());
+    expect(Object.keys(setup).sort()).toEqual([
+      'accessSource',
+      'checkedAt',
+      'defaultBranch',
+      'dispatch',
+      'items',
+      'ready',
+      'versions',
+      'workflowPr',
+    ]);
+    expect(setup.defaultBranch).toBe('main');
+    expect(setup.versions).toEqual({
+      expected: rendering.pins,
+      current: rendering.pins,
+      minRunner: null,
+      runnerSupport: 'supported',
+    });
     // An ok item carries no link and no PR: nothing to fix, nothing to merge.
     expect(setup.items.every((entry) => Object.keys(entry).sort().join(',') === 'id,status')).toBe(true);
   });
@@ -472,5 +499,181 @@ describe('two accounts and members (security note row "Cross-tenant or member tr
     expect(itemOf(setup, 'app-permissions')).toEqual({ id: 'app-permissions', status: 'missing' });
     expect(setup.ready).toBe(false);
     expect(fixture.stub.calls).toEqual([]);
+  });
+});
+
+describe('the default branch, the PR path and the versions (#870)', () => {
+  beforeEach(async () => {
+    await env.DB.prepare(`DELETE FROM operator_stops`).run();
+  });
+
+  it('names the default branch GitHub reads, even before any switch recorded it', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.defaultBranch = 'trunk';
+    fixture.world.branchPolicies = [{ id: 2, name: 'trunk', type: 'branch' }];
+    const setup = await setupOf(fixture);
+    expect(setup.defaultBranch).toBe('trunk');
+    expect(setup.ready).toBe(true);
+  });
+
+  it('answers a null default branch and no current pins when the repository was not read', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.suspended = true;
+    const setup = await setupOf(fixture);
+    expect(setup.defaultBranch).toBeNull();
+    expect(setup.versions.current).toBeNull();
+    expect(setup.versions.runnerSupport).toBe('unknown');
+    expect(setup.versions.expected).toEqual(rendering.pins);
+  });
+
+  it.each([
+    ['the var on', { ALLOW_ACTIONS_SETUP_WRITE: 'true' }, 'enabled'],
+    ['the var off', { ALLOW_ACTIONS_SETUP_WRITE: 'false' }, 'disabled'],
+    ['the var unset', { ALLOW_ACTIONS_SETUP_WRITE: undefined }, 'disabled'],
+    ['the var not exactly true', { ALLOW_ACTIONS_SETUP_WRITE: 'TRUE' }, 'disabled'],
+  ])('says the PR path is %s → %s', async (_case, bindings, expected) => {
+    const fixture = await seedReadyProject();
+    expect((await setupOf(fixture, undefined, bindings)).workflowPr).toBe(expected);
+  });
+
+  it('says the PR path is disabled under an operator stop, with the var on', async () => {
+    const fixture = await seedReadyProject();
+    await env.DB.prepare(
+      `INSERT INTO operator_stops (name, stopped_at, reason) VALUES ('actions-setup-write', '2026-11-21T10:00:00Z', 'drill')`,
+    ).run();
+    expect((await setupOf(fixture, undefined, { ALLOW_ACTIONS_SETUP_WRITE: 'true' })).workflowPr).toBe('disabled');
+  });
+
+  it('names the environment’s minimum runner version, or null when it is unset or malformed', async () => {
+    const fixture = await seedReadyProject();
+    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1.0' })).versions.minRunner).toBe('0.1.0');
+    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '' })).versions.minRunner).toBeNull();
+    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1 beta' })).versions.minRunner).toBeNull();
+  });
+});
+
+describe('an earlier rendering on the default branch (#870)', () => {
+  it('is outdated, does not hold the switch back, and names the file’s pins', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = earlierRelease(rendering.text);
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').status).toBe('outdated');
+    expect(itemOf(setup, 'workflow').link).toBe(`https://github.com/${fixture.repo}/blob/main/.github/workflows/team-console-runner.yml`);
+    expect(setup.ready).toBe(true);
+    expect(setup.versions.current).toEqual({ runner: '0.0.9', node: '22.1.0', claudeCode: '2.0.0' });
+    expect(setup.versions.runnerSupport).toBe('supported');
+  });
+
+  it('is unsupported, and holds the switch back, when its runner is below the environment’s minimum', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = earlierRelease(rendering.text);
+    const setup = await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: rendering.pins.runner });
+    expect(itemOf(setup, 'workflow').status).toBe('unsupported');
+    expect(setup.ready).toBe(false);
+    expect(setup.versions.runnerSupport).toBe('unsupported');
+    expect(setup.versions.minRunner).toBe(rendering.pins.runner);
+  });
+
+  it('is modified when it pins a higher version than the rendering: the console never vouches for a downgrade', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = earlierRelease(rendering.text, '99.0.0');
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').status).toBe('modified');
+    expect(setup.ready).toBe(false);
+    expect(setup.versions.current?.runner).toBe('99.0.0');
+  });
+
+  it('is modified when anything beyond the pins and checksums differs', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = `${earlierRelease(rendering.text)}# appended\n`;
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').status).toBe('modified');
+    expect(setup.ready).toBe(false);
+  });
+
+  it('a modified file below the minimum stays modified, and says its runner is unsupported', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = `${earlierRelease(rendering.text)}# appended\n`;
+    const setup = await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: rendering.pins.runner });
+    expect(itemOf(setup, 'workflow').status).toBe('modified');
+    expect(setup.versions.runnerSupport).toBe('unsupported');
+  });
+});
+
+describe('a PR left open for an earlier rendering (#870)', () => {
+  const EARLIER_BRANCH = 'team-console/runner-000000000000';
+
+  function withStalePull(fixture: Fixture, file: string, overrides: Record<string, unknown> = {}): void {
+    const pull = consolePull(fixture.world, fixture.repo, rendering, overrides);
+    fixture.world.workflow = earlierRelease(rendering.text, '0.0.8');
+    fixture.world.setupBranches = [actionsSetupBranchOf(rendering.sha256), EARLIER_BRANCH];
+    fixture.world.pullBranch = EARLIER_BRANCH;
+    fixture.world.pull = { ...pull, head: { ...(pull['head'] as Record<string, unknown>), ref: EARLIER_BRANCH } };
+    fixture.world.pullFiles = ['.github/workflows/team-console-runner.yml'];
+    fixture.world.pullWorkflow = file;
+  }
+
+  it('is shown as stale, and the console’s when its file is an earlier rendering', async () => {
+    const fixture = await seedReadyProject();
+    withStalePull(fixture, earlierRelease(rendering.text));
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').pr).toEqual({
+      number: SETUP_PR_NUMBER,
+      url: `https://github.com/${fixture.repo}/pull/${String(SETUP_PR_NUMBER)}`,
+      provenance: 'console',
+      stale: true,
+    });
+    expect(fixture.stub.calls.filter((call) => !isAllowedSetupPath(fixture.repo, call)).map((call) => call.url.pathname)).toEqual([]);
+  });
+
+  it('is changed when its file differs beyond the release values', async () => {
+    const fixture = await seedReadyProject();
+    withStalePull(fixture, `${earlierRelease(rendering.text)}# appended\n`);
+    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({ provenance: 'changed', stale: true });
+  });
+
+  it('is foreign when someone else opened it', async () => {
+    const fixture = await seedReadyProject();
+    withStalePull(fixture, earlierRelease(rendering.text), { user: { login: 'someone', type: 'User' } });
+    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({ provenance: 'foreign', stale: true });
+  });
+
+  it('is not looked for when the file on the default branch is already the rendering', async () => {
+    const fixture = await seedReadyProject();
+    withStalePull(fixture, earlierRelease(rendering.text));
+    fixture.world.workflow = rendering.text;
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow')).toEqual({ id: 'workflow', status: 'ok' });
+    expect(fixture.stub.calls.some((call) => call.url.pathname.includes('/git/matching-refs/'))).toBe(false);
+  });
+
+  it('gives way to an open PR of the current rendering, which is never stale', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = null;
+    fixture.world.setupBranches = [EARLIER_BRANCH];
+    fixture.world.pull = consolePull(fixture.world, fixture.repo, rendering);
+    fixture.world.pullFiles = ['.github/workflows/team-console-runner.yml'];
+    fixture.world.pullWorkflow = rendering.text;
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').pr).toEqual(expect.objectContaining({ provenance: 'console' }));
+    expect(itemOf(setup, 'workflow').pr?.stale).toBeUndefined();
+    expect(fixture.stub.calls.some((call) => call.url.pathname.includes('/git/matching-refs/'))).toBe(false);
+  });
+
+  it('no earlier branch, no PR: nothing more is asked', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = null;
+    const setup = await setupOf(fixture);
+    expect(itemOf(setup, 'workflow').pr).toBeUndefined();
+    expect(fixture.stub.calls.filter((call) => call.url.pathname === `/repos/${fixture.repo}/pulls`)).toHaveLength(1);
+  });
+
+  it('answers 502 github-unavailable when the branch listing fails, with no partial items', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = null;
+    fixture.world.unavailable = '/git/matching-refs/heads/team-console/runner-';
+    const response = await check(fixture);
+    expect(response.status).toBe(502);
+    expect(await slugOf(response)).toBe('github-unavailable');
   });
 });
