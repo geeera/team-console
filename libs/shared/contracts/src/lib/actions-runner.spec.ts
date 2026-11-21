@@ -8,6 +8,8 @@ import {
   isActionsSetupDto,
   isActionsWorkflowDto,
   isGitHubUiUrl,
+  isNeedsYouActionsDriftDto,
+  NEEDS_YOU_ACTIONS_DRIFTS,
   type ActionsSetupDto,
   type ActionsSetupItemDto,
   isOidcExchangeResponse,
@@ -275,5 +277,30 @@ describe('isOidcExchangeResponse', () => {
     expect(isOidcExchangeResponse({ ...answer, teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } } })).toBe(true);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: undefined })).toBe(false);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 1.5 })).toBe(false);
+  });
+});
+
+describe('the Needs-you Actions drift (#874)', () => {
+  const drift = { drift: 'modified', checkedAt: '2026-11-20T09:00:00.000Z' };
+
+  it('accepts exactly the drift word and when it was checked', () => {
+    expect(Object.keys(drift).sort()).toEqual(['checkedAt', 'drift']);
+    expect(isNeedsYouActionsDriftDto(drift)).toBe(true);
+    for (const word of NEEDS_YOU_ACTIONS_DRIFTS) {
+      expect(isNeedsYouActionsDriftDto({ ...drift, drift: word })).toBe(true);
+    }
+  });
+
+  it('refuses an added or a missing key, so nothing else of the stored row leaks', () => {
+    expect(isNeedsYouActionsDriftDto({ ...drift, sha256: 'a'.repeat(64) })).toBe(false);
+    expect(isNeedsYouActionsDriftDto({ drift: 'modified' })).toBe(false);
+    expect(isNeedsYouActionsDriftDto({ checkedAt: drift.checkedAt })).toBe(false);
+  });
+
+  it('refuses a status that is no drift, and a time that is none', () => {
+    expect(isNeedsYouActionsDriftDto({ ...drift, drift: 'ok' })).toBe(false);
+    expect(isNeedsYouActionsDriftDto({ ...drift, drift: 'unknown' })).toBe(false);
+    expect(isNeedsYouActionsDriftDto({ ...drift, checkedAt: 'yesterday' })).toBe(false);
+    expect(isNeedsYouActionsDriftDto(null)).toBe(false);
   });
 });

@@ -146,3 +146,23 @@ describe('buildNeedsYou: the concurrency stop (#746)', () => {
     expect(Object.hasOwn(result.projects[1] ?? {}, 'concurrencyStop')).toBe(false);
   });
 });
+
+describe('buildNeedsYou: the Actions workflow drift (#874)', () => {
+  const drift = { drift: 'outdated', checkedAt: '2026-11-20T09:00:00.000Z' } as const;
+  const projects = [
+    { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
+    { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
+    { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+  ];
+
+  it('carries the drift of a project read or not, and nothing on the others', () => {
+    const result = buildNeedsYou(projects, [], new Map(), new Map(), new Map(), new Map([['alpha', drift], ['gamma', drift]]));
+    expect(result.projects.map((project) => project.actionsDrift)).toEqual([drift, undefined, drift]);
+    expect(Object.hasOwn(result.projects[1] ?? {}, 'actionsDrift')).toBe(false);
+  });
+
+  it('leaves it out for a caller who may not manage the project: the setup page is the owner’s alone', () => {
+    const result = buildNeedsYou(projects, [], new Map(), new Map([['alpha', false]]), new Map(), new Map([['alpha', drift]]));
+    expect(Object.hasOwn(result.projects[0] ?? {}, 'actionsDrift')).toBe(false);
+  });
+});

@@ -1,6 +1,7 @@
 import type { AnswerCommand, Section } from './answer';
 import type { OwnerCategory, TeamRecommendation } from './batch-answer';
 import type { TeamRunDto } from './team';
+import type { NeedsYouActionsDriftDto } from './actions-runner';
 import type { OwnerRequestStatusDto } from './owner-request';
 
 /**
@@ -231,6 +232,11 @@ export interface NeedsYouProjectDto extends NeedsYouProjectRef {
   readonly budgetStop?: NeedsYouBudgetStopDto;
   /** Present while the project has queued jobs and its account is entitled to no concurrent job at all (#746). */
   readonly concurrencyStop?: NeedsYouConcurrencyStopDto;
+  /**
+   * Present while the project dispatches to GitHub Actions and its workflow file drifted (#874), as last stored; only
+   * to a caller who may manage the project, since the setup page it links to is theirs alone.
+   */
+  readonly actionsDrift?: NeedsYouActionsDriftDto;
   /**
    * Whether this identity may make the project's owner-grade writes (#735; the same check `projectOwnerRefusal`
    * enforces at write time, read here for a hint only — the write routes refuse on their own regardless of this

@@ -1,6 +1,7 @@
 import type {
   AnswerCommand,
   InboxDto,
+  NeedsYouActionsDriftDto,
   NeedsYouBudgetStopDto,
   NeedsYouConcurrencyStopDto,
   NeedsYouDto,
@@ -31,7 +32,8 @@ export type ProjectInboxResult =
  * own standing on the project (`projectOwnerRefusal` at the route), read once here for every row read or not; a
  * slug missing from the map (a result that predates #735, in a test) reads as `true`, today's behaviour. A project
  * whose queued jobs its account's entitlement (`maxConcurrency: 0`) keeps from starting carries its stop (#746), read
- * or not, as the budget stop.
+ * or not, as the budget stop. An Actions project whose workflow drifted carries its drift (#874), read or not, but only
+ * for a caller who may manage it: the setup page it leads to is the owner's alone.
  */
 export function buildNeedsYou(
   results: readonly ProjectInboxResult[],
@@ -39,17 +41,20 @@ export function buildNeedsYou(
   budgetStops: ReadonlyMap<string, NeedsYouBudgetStopDto> = new Map(),
   canManageOf: ReadonlyMap<string, boolean> = new Map(),
   concurrencyStops: ReadonlyMap<string, NeedsYouConcurrencyStopDto> = new Map(),
+  actionsDrifts: ReadonlyMap<string, NeedsYouActionsDriftDto> = new Map(),
 ): NeedsYouDto {
   const items: { item: NeedsYouItemDto; projectIndex: number }[] = [];
   const projects = results.map((result, projectIndex): NeedsYouProjectDto => {
     const ref = { slug: result.project.slug, name: result.project.name };
     const stop = budgetStops.get(ref.slug);
     const concurrency = concurrencyStops.get(ref.slug);
+    const canManage = canManageOf.get(ref.slug) ?? true;
+    const drift = canManage ? actionsDrifts.get(ref.slug) : undefined;
     const stops = {
       ...(stop === undefined ? {} : { budgetStop: stop }),
       ...(concurrency === undefined ? {} : { concurrencyStop: concurrency }),
+      ...(drift === undefined ? {} : { actionsDrift: drift }),
     };
-    const canManage = canManageOf.get(ref.slug) ?? true;
     if ('problem' in result) {
       return {
         ...ref,
