@@ -36,7 +36,18 @@ function readiness(
   dispatch: ActionsSetupDto['dispatch'] = 'pull',
 ): ActionsSetupDto {
   const rows = ACTIONS_SETUP_ITEMS.map((id): ActionsSetupItemDto => ({ id, ...(items[id] ?? { status: 'ok' }) }));
-  return { dispatch, accessSource: 'api_key', ready: blockingItemsOf(rows).length === 0, checkedAt: new Date().toISOString(), items: rows };
+  const pins = { runner: '0.42.0', node: '22.23.5', claudeCode: '2.1.325' };
+  return {
+    dispatch,
+    accessSource: 'api_key',
+    ready: blockingItemsOf(rows).length === 0,
+    checkedAt: new Date().toISOString(),
+    items: rows,
+    // #870: no branch read, so the page falls back to `GET …/dispatch` (null here: «по умолчанию»).
+    defaultBranch: null,
+    workflowPr: 'enabled',
+    versions: { expected: pins, current: pins, minRunner: null, runnerSupport: 'supported' },
+  };
 }
 
 function problem(status: number, slug: string, extensions: Record<string, unknown> = {}) {
