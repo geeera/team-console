@@ -51,8 +51,8 @@ import {
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
-import { repositoryUrlOf } from './github-links';
 import { runnerReleaseOf } from '../routes/runner';
+import { repositoryUrlOf } from './github-links';
 import { isSetupWriteAllowed } from './workflow-pr';
 
 /**
@@ -254,7 +254,8 @@ export interface WorkflowFileJudgement {
 /**
  * The file on the default branch against the rendering. `outdated` only when the file is the rendering at an earlier
  * release (`differsOnlyInReleaseValues`), raising some pin and lowering none; `unsupported` when that file's runner is
- * below the environment's `RUNNER_MINIMUM_VERSION`. Anything else that differs is `modified`: the console vouches for its own bytes only.
+ * below the environment's `RUNNER_MINIMUM_VERSION`. Anything else that differs is `modified`: the console vouches
+ * for its own bytes only.
  */
 export function judgeWorkflowFile(
   file: RunnerWorkflowFile,
