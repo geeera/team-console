@@ -348,7 +348,7 @@ it('the launcher in the release starts node with SIGUSR1 off as well, whatever N
   const launcher = readFileSync(join(app, 'bin', 'team-console-runner'), 'utf8');
   const execs = launcher.split('\n').filter((line) => /^\s*exec /.test(line));
   // One exec, whichever node the launcher picked (launcher.spec.ts covers the choice).
-  expect(execs).toEqual(['exec "$node" --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"']);
+  expect(execs).toEqual(['exec "$node" --disable-sigusr1 "$bundle" "$@"']);
   expect(launcher).not.toMatch(/--inspect/);
 });
 
