@@ -3121,7 +3121,8 @@
       "title": "The workflow file on the {{branch}} branch",
       "missing": "{{branch}} has no team-console-runner.yml.",
       "ok": "The file matches the console's version.",
-      "outdated": "A new runner version is out: update the file so jobs start.",
+      "outdated": "A new runner version is out: {{old}} → {{new}}. Jobs still run on the old one.",
+      "unsupported": "Runner {{old}} is no longer supported. Update the file, or jobs won't start.",
       "modified": "The file on {{branch}} differs from the console's version. The console can't vouch for a changed file.",
       "unknown": "The file on {{branch}} couldn't be checked.",
       "noPermission": "The console can open the PR once the app has its permissions (step 2). Or add the file yourself.",
@@ -3138,6 +3139,7 @@
       "view": "Open PR #{{n}} on GitHub",
       "foreign": "PR #{{n}} on the console's branch wasn't opened by the console, or has other commits. Don't merge it until you've checked it.",
       "leftover": "PR #{{n}} isn't needed any more; you can close it.",
+      "stale": "PR #{{n}} is for an earlier version of the file. Close it and open a new one.",
       "err": {
         "permission": "The app is missing permissions: {{permissions}}. Accept the new permissions and try again.",
         "permissionBare": "The app is missing permissions. Accept the new permissions and try again.",

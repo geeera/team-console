@@ -88,14 +88,21 @@ export function managedAccountOf(accounts: readonly AccountMembershipDto[]): Man
 }
 
 /**
- * The caller's role in a project's own account, from `GET /accounts` alone. Every project the caller sees belongs to
- * one of its accounts, but `ProjectDto` does not say which, so the role is known only when every account gives the
- * same one (in particular with a single account); with owner and member roles mixed it is `unknown`, and owner-only
- * surfaces stay hidden rather than show a member a door that answers 403.
+ * The caller's role in a project's own account. With the project's `accountId` (#870, `ProjectDto`) it is that
+ * account's role in `GET /accounts`, or `unknown` when the caller is not listed there. Without one (a DTO built
+ * elsewhere) the role is known only when every account gives the same one; with owner and member roles mixed it is
+ * `unknown`, and owner-only surfaces stay hidden rather than show a member a door that answers 403.
  */
 export type ProjectAccountRole = 'owner' | 'member' | 'unknown';
 
-export function projectAccountRoleOf(accounts: readonly AccountMembershipDto[]): ProjectAccountRole {
+export function projectAccountRoleOf(
+  accounts: readonly AccountMembershipDto[],
+  accountId?: string,
+): ProjectAccountRole {
+  if (accountId !== undefined) {
+    const role = accounts.find((account) => account.id === accountId)?.role;
+    return role === undefined ? 'unknown' : role === 'owner' ? 'owner' : 'member';
+  }
   const [first] = accounts;
   if (first === undefined) {
     return 'unknown';

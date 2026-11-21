@@ -145,4 +145,47 @@ describe('WorkflowStep (#759 step 4)', () => {
     expect(find('workflow-copy-reason')?.textContent).toContain('когда приложение получит права');
     expect(find('workflow-show-file')?.className).toContain('primary');
   });
+
+  describe('the states the check names since #870', () => {
+    const OLD = { runner: '0.1.0', node: '22.1.0', claudeCode: '2.0.0' } as const;
+
+    it('words an outdated file with both runner versions and offers the bump PR', async () => {
+      const { find } = await render(actionsSetupFixture({ items: { workflow: { status: 'outdated' } }, versions: { current: OLD } }));
+      expect(find('workflow-step')?.dataset['state']).toBe('outdated');
+      expect(find('workflow-fix')?.textContent).toContain('Вышла новая версия раннера: 0.1.0 → 0.2.0. Задания идут и на старой.');
+      expect(find('workflow-open-pr')?.textContent?.trim()).toBe('Открыть PR с обновлением');
+    });
+
+    it('words an unsupported runner and offers the bump PR', async () => {
+      const { find } = await render(
+        actionsSetupFixture({
+          items: { workflow: { status: 'unsupported' } },
+          versions: { current: OLD, minRunner: '0.2.0', runnerSupport: 'unsupported' },
+        }),
+      );
+      expect(find('workflow-fix')?.textContent).toContain('Версия раннера 0.1.0 больше не поддерживается.');
+      expect(find('workflow-open-pr')?.textContent?.trim()).toBe('Открыть PR с обновлением');
+    });
+
+    it('calls a PR for an earlier version stale, links it, and still offers a new one', async () => {
+      const { find } = await render(
+        actionsSetupFixture({
+          items: { workflow: { status: 'outdated', pr: { number: 9, url: PR_URL, provenance: 'console', stale: true } } },
+          versions: { current: OLD },
+        }),
+      );
+      expect(find('workflow-fix')?.textContent).toContain('PR #9 открыт для прежней версии файла. Закройте его и откройте новый.');
+      expect(find<HTMLAnchorElement>('workflow-link-pr')?.getAttribute('href')).toBe(PR_URL);
+      expect(find('workflow-link-pr')?.className).not.toContain('primary');
+      expect(find('workflow-open-pr')).not.toBeNull();
+    });
+
+    it('leads with the Copy path when the check says the PR path is off, before any click', async () => {
+      const { find, calls } = await render(actionsSetupFixture({ items: { workflow: { status: 'missing' } }, workflowPr: 'disabled' }));
+      expect(find('workflow-open-pr')).toBeNull();
+      expect(find('workflow-copy-reason')?.textContent).toContain('Сейчас консоль не открывает PR. Добавьте файл сами');
+      expect(find('workflow-show-file')?.className).toContain('primary');
+      expect(calls).toEqual([]);
+    });
+  });
 });

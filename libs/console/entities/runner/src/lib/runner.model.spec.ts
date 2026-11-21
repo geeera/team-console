@@ -54,4 +54,16 @@ describe('projectAccountRoleOf (#759, #848)', () => {
     expect(projectAccountRoleOf([])).toBe('unknown');
     expect(projectAccountRoleOf([account('a', 'owner'), account('b', 'member')])).toBe('unknown');
   });
+
+  it('reads the project’s own account when the project names it, roles mixed or not (#870)', () => {
+    const mixed = [account('a', 'owner'), account('b', 'member')];
+    expect(projectAccountRoleOf(mixed, 'a')).toBe('owner');
+    expect(projectAccountRoleOf(mixed, 'b')).toBe('member');
+    expect(projectAccountRoleOf([account('a', 'owner')], 'a')).toBe('owner');
+  });
+
+  it('cannot tell when the project’s account is not among the caller’s, even if every account is owned (#870)', () => {
+    expect(projectAccountRoleOf([account('a', 'owner'), account('b', 'owner')], 'c')).toBe('unknown');
+    expect(projectAccountRoleOf([], 'a')).toBe('unknown');
+  });
 });

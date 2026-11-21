@@ -12,16 +12,18 @@
       @case ('ok') { {{ 'actions.wf.ok' | transloco }} }
       @case ('leftover') { {{ 'actions.wf.ok' | transloco }} {{ 'actions.pr.leftover' | transloco: { n: pr()?.number } }} }
       @case ('missing') { {{ 'actions.wf.missing' | transloco: { branch: branchLabel() } }} }
-      @case ('outdated') { {{ 'actions.wf.outdated' | transloco }} }
+      @case ('outdated') { {{ 'actions.wf.outdated' | transloco: { old: versions().old, new: versions().new } }} }
+      @case ('unsupported') { {{ 'actions.wf.unsupported' | transloco: { old: versions().old } }} }
       @case ('modified') { {{ 'actions.wf.modified' | transloco: { branch: branchLabel() } }} }
       @case ('pr-open') { {{ 'actions.pr.opened' | transloco: { n: pr()?.number } }} }
+      @case ('pr-stale') { {{ 'actions.pr.stale' | transloco: { n: pr()?.number } }} }
       @case ('pr-foreign') { {{ 'actions.pr.foreign' | transloco: { n: pr()?.number } }} }
       @default { {{ 'actions.wf.unknown' | transloco: { branch: branchLabel() } }} }
     }
   </p>
   @if (action() !== null && !canOpenPr()) {
     <p class="wf__fix" data-testid="workflow-copy-reason">
-      {{ (isPrPathOff() ? 'actions.wf.prOff' : 'actions.wf.noPermission') | transloco }}
+      {{ copyReasonKey() | transloco }}
     </p>
   }
 
@@ -47,7 +49,7 @@
 
   <div class="wf__actions">
     @if (pr(); as pr) {
-      @if (shown() === 'pr-open' || shown() === 'pr-foreign' || shown() === 'leftover') {
+      @if (shown() === 'pr-open' || shown() === 'pr-stale' || shown() === 'pr-foreign' || shown() === 'leftover') {
         <a
           #prLink
           tc-button

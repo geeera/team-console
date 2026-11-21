@@ -107,11 +107,19 @@ export class BoardSectionPage {
       const found = slug === null ? undefined : this.projects.bySlug(slug);
       return found === undefined
         ? null
-        : { slug: found.slug, name: found.displayName, isOnConsoleTracker: isOnConsoleTracker(found) };
+        : {
+            slug: found.slug,
+            name: found.displayName,
+            isOnConsoleTracker: isOnConsoleTracker(found),
+            ...(found.accountId === undefined ? {} : { accountId: found.accountId }),
+          };
     },
     {
       equal: (a, b) =>
-        a?.slug === b?.slug && a?.name === b?.name && a?.isOnConsoleTracker === b?.isOnConsoleTracker,
+        a?.slug === b?.slug &&
+        a?.name === b?.name &&
+        a?.isOnConsoleTracker === b?.isOnConsoleTracker &&
+        a?.accountId === b?.accountId,
     },
   );
 }
