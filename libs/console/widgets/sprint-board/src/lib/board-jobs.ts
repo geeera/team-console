@@ -9,6 +9,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { JobCard, jobFailureKeyOf, JobsStore, runnerLabelOf, type JobFailure } from '@console/entities/job';
+import { projectActionsRouteOf } from '@console/entities/project';
 import { RunNow } from '@console/features/run-now';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, Callout, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
@@ -180,6 +181,7 @@ export function isolatedName(name: string): string {
                     [runnerName]="runnerOf(job)"
                     [events]="store.eventsOf(job.id)"
                     [eventsFailed]="store.eventFailures().has(job.id)"
+                    [actionsSetupLink]="actionsSetupLink()"
                   />
                 </li>
               }
@@ -201,7 +203,12 @@ export function isolatedName(name: string): string {
             <ul class="board-jobs__list" data-testid="jobs-recent">
               @for (job of store.recent(); track job.id) {
                 <li>
-                  <tc-job-card [job]="job" [runnerName]="runnerOf(job)" [events]="store.eventsOf(job.id)" />
+                  <tc-job-card
+                    [job]="job"
+                    [runnerName]="runnerOf(job)"
+                    [events]="store.eventsOf(job.id)"
+                    [actionsSetupLink]="actionsSetupLink()"
+                  />
                 </li>
               }
             </ul>
@@ -310,6 +317,7 @@ export class BoardJobs {
   protected readonly store = inject(JobsStore);
 
   readonly slug = input.required<string>();
+  protected readonly actionsSetupLink = computed(() => projectActionsRouteOf(this.slug()));
   /** The project's display name, for the owner's «no runner» copy. */
   readonly projectName = input('');
   /** Runner id → name, for the runners the caller could list (none for a member of the account). */

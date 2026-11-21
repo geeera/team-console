@@ -1234,7 +1234,24 @@
       "archive": "Archive project",
       "checkedAt": "Checked at {{time}}",
       "repoLink": "{{repo}} on GitHub",
-      "doneLive": "Check finished: {{done}} of 5 done.",
+      "run": {
+      "title": "First job on GitHub Actions",
+      "waiting": "Waiting for the first job. Start one in the project, or wait for the next.",
+      "done": "The first job finished at {{time}}.",
+      "failed": "The first job failed: {{reason}}.",
+      "reason": {
+        "dispatch-failed": "GitHub did not accept the run",
+        "actions-no-show": "the run did not start on GitHub within 15 minutes",
+        "other": "the job ended with an error"
+      },
+      "openProject": "Open the project",
+      "state": {
+        "waiting": "Waiting",
+        "done": "Done",
+        "failed": "Failed"
+      }
+    },
+    "doneLive": "Check finished: {{done}} of 5 done.",
       "stepsAria": "Setup steps",
       "loadFailed": "Couldn’t check the setup",
       "notFound": {
@@ -2406,7 +2423,8 @@
       "summary": "Summary",
       "events": "Job events",
       "noEvents": "The runner has sent no events yet.",
-      "eventsFailed": "Could not refresh the events — showing the last ones received."
+      "eventsFailed": "Could not refresh the events — showing the last ones received.",
+      "checkActionsSetup": "Check the GitHub Actions setup"
     },
     "view": {
       "title": "Team jobs",

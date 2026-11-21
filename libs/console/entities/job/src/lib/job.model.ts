@@ -1,6 +1,6 @@
 import type { IconName } from '@console/shared/ui';
 import { withoutInvisibles } from '@shared/plain-text';
-import type { JobDto, JobEventDto, JobKind, JobState } from '@shared/contracts';
+import { ACTIONS_DISPATCH_FAILED, ACTIONS_NO_SHOW, type JobDto, type JobEventDto, type JobKind, type JobState } from '@shared/contracts';
 
 /**
  * The kinds Run now offers (#464, ADR 0008 row 2-E): the ones `POST …/jobs` runs from the kind alone. `review` needs
@@ -142,4 +142,41 @@ export function jobSummaryOf(job: JobDto): string | null {
 /** The runner named by id when the account's runners are known; a short id otherwise (a member cannot list them). */
 export function runnerLabelOf(runnerId: string, names: ReadonlyMap<string, string>): string {
   return names.get(runnerId) ?? `…${runnerId.slice(-6)}`;
+}
+
+/**
+ * A failed Actions job that never reached a runner (#670): its `workflow_dispatch` call failed or no run came for it.
+ * Both point at the repository's setup, so the job view links to the setup page (#871); an agent failure does not.
+ */
+export function isActionsSetupFailure(job: JobDto): boolean {
+  return job.dispatch === 'actions' && job.state === 'failed' && failureReasonOf(job) !== 'other';
+}
+
+function failureReasonOf(job: JobDto): 'dispatch-failed' | 'actions-no-show' | 'other' {
+  const metrics = job.result?.['metrics'];
+  const reason = typeof metrics === 'object' && metrics !== null ? (metrics as Record<string, unknown>)['reason'] : null;
+  return reason === ACTIONS_DISPATCH_FAILED || reason === ACTIONS_NO_SHOW ? reason : 'other';
+}
+
+/** Where a project's first jobs on GitHub Actions stand (#871, UX spec §3.6). */
+export type ActionsFirstJob =
+  | { readonly kind: 'waiting' }
+  | { readonly kind: 'done'; readonly at: string }
+  | { readonly kind: 'failed'; readonly reason: 'dispatch-failed' | 'actions-no-show' | 'other' };
+
+/**
+ * The first-job signal from the jobs the console already reads (newest first, a bounded window): any finished Actions
+ * job is a success, else the newest ended one that failed, else the first is still on its way. Needs no API of its own.
+ */
+export function actionsFirstJobOf(jobs: readonly JobDto[]): ActionsFirstJob {
+  const actions = jobs.filter((job) => job.dispatch === 'actions');
+  const finished = actions.find((job) => job.state === 'finished' && job.finishedAt !== null);
+  if (finished?.finishedAt) {
+    return { kind: 'done', at: finished.finishedAt };
+  }
+  const failed = actions.find((job) => job.state === 'failed' || job.state === 'lost');
+  if (failed === undefined) {
+    return { kind: 'waiting' };
+  }
+  return { kind: 'failed', reason: failureReasonOf(failed) };
 }

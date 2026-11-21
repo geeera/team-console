@@ -16,6 +16,7 @@ import {
 } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { actionsSummaryOf, ActionsSetupStatuses, missingStepsOf } from '@console/entities/actions-setup';
+import { actionsFirstJobOf, JobsApi, type ActionsFirstJob } from '@console/entities/job';
 import { projectSetupRouteOf, ProjectsStore, spaceUrlOf } from '@console/entities/project';
 import { RunnersApi } from '@console/entities/runner';
 import { ActionsSetupLedger } from '@console/features/actions-setup';
@@ -54,6 +55,7 @@ export const ACTIONS_SLOW_CHECK_MS = 3000;
 export class ProjectActionsPage {
   private readonly statuses = inject(ActionsSetupStatuses);
   private readonly runners = inject(RunnersApi);
+  private readonly jobs = inject(JobsApi);
   private readonly injector = inject(Injector);
   private readonly announcer = inject(LiveAnnouncer);
   private readonly transloco = inject(TranslocoService);
@@ -80,6 +82,8 @@ export class ProjectActionsPage {
   protected readonly branch = signal<string | null>(null);
   protected readonly isSlow = signal(false);
   protected readonly justSwitched = signal(false);
+  /** Step 6; `null` until the jobs were read, and when they cannot be (a member, an error): the step then stays out. */
+  protected readonly firstJob = signal<ActionsFirstJob | null>(null);
 
   protected readonly setupRoute = computed(() => projectSetupRouteOf(this.slug()));
   protected readonly spaceUrl = computed(() => spaceUrlOf(this.slug(), undefined));
@@ -154,6 +158,19 @@ export class ProjectActionsPage {
     });
     void this.projects.ready();
 
+    // The jobs are read again whenever a new answer says the project runs on Actions, so the step follows a re-check.
+    effect(() => {
+      const snapshot = this.snapshot();
+      const slug = this.slug();
+      untracked(() => {
+        if (snapshot?.dispatch === 'actions') {
+          void this.loadFirstJob(slug);
+        } else {
+          this.firstJob.set(null);
+        }
+      });
+    });
+
     // Back from GitHub: one check by itself, announced only when the result changed (UX spec §2 "Re-check").
     const document = inject(DOCUMENT);
     const onVisible = (): void => {
@@ -219,6 +236,14 @@ export class ProjectActionsPage {
       this.transloco.translate('actions.doneLive', { done: total - missing, total }),
       'polite',
     );
+  }
+
+  private async loadFirstJob(slug: string): Promise<void> {
+    const result = await this.jobs.list(slug);
+    if (this.slug() !== slug) {
+      return;
+    }
+    this.firstJob.set(result.ok ? actionsFirstJobOf(result.value.jobs) : null);
   }
 
   /** The default branch names the rule and the file; when GitHub was never asked, the copy says «по умолчанию». */
