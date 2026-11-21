@@ -26,7 +26,11 @@ export class EnrolRunner {
       title: this.transloco.translate('runners.enrol.title'),
       width: 'wide',
       autoFocus: '[data-testid="enrol-name"]',
-      data: { accountId: target.accountId, projects: target.projects, prefill: target.prefill },
+      data: {
+        accountId: target.accountId,
+        projects: target.projects,
+        ...(target.prefill === undefined ? {} : { prefill: target.prefill }),
+      },
     });
     return (await firstValueFrom(ref.closed)) === true;
   }

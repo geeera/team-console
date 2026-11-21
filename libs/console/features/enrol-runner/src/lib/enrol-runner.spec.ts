@@ -21,7 +21,7 @@ const ISSUED: EnrolmentCodeDto = {
 describe('EnrolRunnerDialog (#464)', () => {
   async function render(
     answer: () => RunnerResult<EnrolmentCodeDto> = () => ({ ok: true, value: ISSUED }),
-    prefill?: EnrolRunnerData['prefill'],
+    prefill?: NonNullable<EnrolRunnerData['prefill']>,
   ) {
     const calls: { accountId: string; input: CreateEnrolmentCodeInput }[] = [];
     const close = vi.fn();
@@ -40,7 +40,7 @@ describe('EnrolRunnerDialog (#464)', () => {
               { slug: 'team-console', displayName: 'Team Console' },
               { slug: 'storify', displayName: 'Storify' },
             ],
-            prefill,
+            ...(prefill === undefined ? {} : { prefill }),
           } satisfies EnrolRunnerData,
         },
         {
