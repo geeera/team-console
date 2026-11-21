@@ -19,7 +19,10 @@ const ISSUED: EnrolmentCodeDto = {
 };
 
 describe('EnrolRunnerDialog (#464)', () => {
-  async function render(answer: () => RunnerResult<EnrolmentCodeDto> = () => ({ ok: true, value: ISSUED })) {
+  async function render(
+    answer: () => RunnerResult<EnrolmentCodeDto> = () => ({ ok: true, value: ISSUED }),
+    prefill?: EnrolRunnerData['prefill'],
+  ) {
     const calls: { accountId: string; input: CreateEnrolmentCodeInput }[] = [];
     const close = vi.fn();
     const ref = { close, disableClose: false };
@@ -37,6 +40,7 @@ describe('EnrolRunnerDialog (#464)', () => {
               { slug: 'team-console', displayName: 'Team Console' },
               { slug: 'storify', displayName: 'Storify' },
             ],
+            prefill,
           } satisfies EnrolRunnerData,
         },
         {
@@ -93,6 +97,18 @@ describe('EnrolRunnerDialog (#464)', () => {
     return { root, find, type, pick, tick, submit, calls, close, ref, hold, resume };
   }
 
+
+  it('opens filled in with what the add-runner wizard asked, and sends exactly that (#634 decision 1)', async () => {
+    const { find, calls, submit } = await render(undefined, {
+      name: 'VPS',
+      projectScope: 'selected',
+      allowedProjects: ['storify'],
+    });
+    expect((find('enrol-name') as HTMLInputElement).value).toBe('VPS');
+    expect((find('runner-scope-selected') as HTMLInputElement).checked).toBe(true);
+    await submit();
+    expect(calls[0]?.input).toEqual({ name: 'VPS', projectScope: 'selected', allowedProjects: ['storify'] });
+  });
   it('issues a code for the name and the chosen projects and shows the enrol command once, with its expiry', async () => {
     const { root, find, type, pick, tick, submit, calls } = await render();
     await type('  Mac  ');

@@ -38,10 +38,17 @@ import {
   type RunnerProjectScope,
 } from '@shared/contracts';
 
+export interface EnrolRunnerPrefill {
+  readonly name: string;
+  readonly projectScope: RunnerProjectScope;
+  readonly allowedProjects: readonly string[];
+}
+
 export interface EnrolRunnerData {
   readonly accountId: string;
   /** The account's active projects, for the runner's allow-list. */
   readonly projects: readonly RunnerProjectOption[];
+  readonly prefill?: EnrolRunnerPrefill;
 }
 
 /** What the dialog shows once the code exists: the command and when it stops working — never stored anywhere. */
@@ -216,9 +223,9 @@ export class EnrolRunnerDialog {
   protected readonly formId = `tc-enrol-runner-${nextFormId++}`;
   protected readonly nameMaxLength = RUNNER_NAME_MAX_LENGTH;
   protected readonly ttlMinutes = Math.round(ENROLMENT_CODE_TTL_SECONDS / 60);
-  protected readonly name = signal('');
-  protected readonly scope = signal<RunnerProjectScope>(DEFAULT_RUNNER_PROJECT_SCOPE);
-  protected readonly projects = signal<readonly string[]>([]);
+  protected readonly name = signal(this.data.prefill?.name ?? '');
+  protected readonly scope = signal<RunnerProjectScope>(this.data.prefill?.projectScope ?? DEFAULT_RUNNER_PROJECT_SCOPE);
+  protected readonly projects = signal<readonly string[]>(this.data.prefill?.allowedProjects ?? []);
   protected readonly running = signal(false);
   protected readonly failure = signal<string | null>(null);
   protected readonly issued = signal<IssuedCode | null>(null);

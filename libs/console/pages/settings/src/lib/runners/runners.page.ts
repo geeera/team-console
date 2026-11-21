@@ -18,6 +18,7 @@ import {
   type RunnerPolicyScope,
   type RunnerProjectOption,
 } from '@console/entities/runner';
+import { AddRunner } from '@console/features/add-runner';
 import { EnrolRunner } from '@console/features/enrol-runner';
 import { ManageRunner } from '@console/features/manage-runner';
 import { ProjectDispatchEditor } from '@console/features/project-dispatch';
@@ -55,6 +56,7 @@ import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
 export class RunnersPage {
   protected readonly store = inject(RunnersStore);
   private readonly projectsStore = inject(ProjectsStore);
+  private readonly addRunner = inject(AddRunner);
   private readonly enrol = inject(EnrolRunner);
   private readonly manage = inject(ManageRunner);
   private readonly transloco = inject(TranslocoService);
@@ -114,15 +116,48 @@ export class RunnersPage {
     this.pickedSlug.set(slug);
   }
 
+  /**
+   * «Подключить раннер» (#634 PR 4): the wizard for a Mac. Linux hands over to the one-time-code dialog with what the
+   * owner typed (decision 1), and «Выбрать проекты» opens the new runner's scope editor: the page composes the two
+   * features, neither imports the other.
+   */
   protected async enrolRunner(): Promise<void> {
     const account = this.store.account();
     if (account === null) {
       return;
     }
-    const issued = await this.enrol.open({ accountId: account.id, projects: this.projects() });
-    if (issued) {
-      // The runner appears once it has run `enrol` on its host; a fresh read shows it then.
-      void this.store.load();
+    const outcome = await this.addRunner.open({
+      accountId: account.id,
+      projects: this.projects(),
+      releaseVersion: this.store.release().version,
+    });
+    switch (outcome.kind) {
+      case 'closed':
+        if (outcome.enrolled) {
+          await this.store.load();
+        }
+        return;
+      case 'code': {
+        const { name, projectScope, allowedProjects } = outcome;
+        const issued = await this.enrol.open({
+          accountId: account.id,
+          projects: this.projects(),
+          prefill: { name, projectScope, allowedProjects },
+        });
+        if (issued) {
+          // The runner appears once it has run `enrol` on its host; a fresh read shows it then.
+          void this.store.load();
+        }
+        return;
+      }
+      case 'pick-projects': {
+        await this.store.load();
+        const runner = this.store.runners().find((row) => row.id === outcome.runnerId);
+        if (runner !== undefined) {
+          await this.editProjects(runner);
+        }
+        return;
+      }
     }
   }
 
