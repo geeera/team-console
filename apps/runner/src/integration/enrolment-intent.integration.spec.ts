@@ -45,7 +45,7 @@ describe('integration: an enrolment intent against the local stack', () => {
     if (!isEnrolmentIntentCreatedDto(created)) {
       throw new Error('the answer is not an EnrolmentIntentCreatedDto');
     }
-    expect(created.command).toBe(`team-console-runner setup --url ${origin} --enrolment ${created.intentId}`);
+    expect(created.command).toBe(`sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url ${origin} --enrolment ${created.intentId}`);
 
     // 2. The runner's half: its own key, bound to the intent; the fingerprint is computed on both sides.
     const key = generateRunnerKey();
