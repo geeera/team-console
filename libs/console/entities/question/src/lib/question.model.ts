@@ -2,6 +2,7 @@ import type {
   AnswerCommand,
   InboxItemDto,
   OwnerCategory,
+  NeedsYouActionsDriftDto,
   NeedsYouBudgetStopDto,
   NeedsYouConcurrencyStopDto,
   NeedsYouDto,
@@ -15,6 +16,7 @@ import type {
   Section,
   TeamRecommendation,
 } from '@shared/contracts';
+import { isNeedsYouActionsDriftDto } from '@shared/contracts';
 import { ANSWERS, isAnswerCommand, isOwnerCategory, isTeamRecommendation } from '@shared/owner-grammar';
 
 /**
@@ -81,6 +83,11 @@ export interface QuestionConcurrencyStop extends NeedsYouConcurrencyStopDto {
   readonly project: NeedsYouProjectRef;
 }
 
+/** An Actions project whose workflow drifted (#874), as last stored; the row leads to its Actions setup page. */
+export interface QuestionActionsDrift extends NeedsYouActionsDriftDto {
+  readonly project: NeedsYouProjectRef;
+}
+
 export interface NeedsYouView {
   readonly items: readonly QuestionItem[];
   /** Slugs whose inbox was read in this response; answers for other projects are left alone. */
@@ -89,6 +96,7 @@ export interface NeedsYouView {
   readonly setups: readonly QuestionProjectSetup[];
   readonly budgetStops: readonly QuestionBudgetStop[];
   readonly concurrencyStops: readonly QuestionConcurrencyStop[];
+  readonly actionsDrifts: readonly QuestionActionsDrift[];
   readonly omitted: readonly NeedsYouProjectRef[];
 }
 
@@ -207,7 +215,9 @@ function isNeedsYouProject(value: unknown): value is NeedsYouProjectDto {
     // Absent from a server that predates #684, and from every project the budget has not stopped.
     (value['budgetStop'] === undefined || isBudgetStop(value['budgetStop'])) &&
     // Absent from a server that predates #746, and from every project whose account may run a job.
-    (value['concurrencyStop'] === undefined || isConcurrencyStop(value['concurrencyStop']))
+    (value['concurrencyStop'] === undefined || isConcurrencyStop(value['concurrencyStop'])) &&
+    // Absent from a server that predates #874, from a project with no drift, and for a caller who cannot manage it.
+    (value['actionsDrift'] === undefined || isNeedsYouActionsDriftDto(value['actionsDrift']))
   );
 }
 
@@ -315,6 +325,17 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
       project.concurrencyStop === undefined
         ? []
         : [{ project: { slug: project.slug, name: project.name }, queuedJobs: project.concurrencyStop.queuedJobs }],
+    ),
+    actionsDrifts: dto.projects.flatMap((project) =>
+      project.actionsDrift === undefined
+        ? []
+        : [
+            {
+              project: { slug: project.slug, name: project.name },
+              drift: project.actionsDrift.drift,
+              checkedAt: project.actionsDrift.checkedAt,
+            },
+          ],
     ),
     omitted: dto.omittedProjects,
   };
