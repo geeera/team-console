@@ -4,7 +4,12 @@ import { TestBed } from '@angular/core/testing';
 import { OWNER_ACCOUNT_ID, problemTypeOf } from '@shared/contracts';
 import { TimeoutError } from 'rxjs';
 import { runnerFailureKeyOf, runnerFailureOf } from './runner-failure';
-import { RUNNER_FIXTURE_IDS, runnerFixture } from './runner.fixture';
+import {
+  ENROLMENT_INTENT_FIXTURE_ID,
+  RUNNER_FIXTURE_IDS,
+  enrolmentIntentFixture,
+  runnerFixture,
+} from './runner.fixture';
 import { RunnersApi } from './runners.api';
 
 const RUNNERS = `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`;
@@ -146,6 +151,65 @@ describe('RunnersApi', () => {
     });
   });
 
+  it('counts the owners among the members, and refuses a member list of the wrong shape', async () => {
+    const { api, http } = setup();
+    const member = (userId: string, role: string) => ({ userId, login: userId, avatarUrl: null, role, joinedAt: '2026-11-01T00:00:00.000Z' });
+    const counted = api.ownerCount(OWNER_ACCOUNT_ID);
+    http.expectOne(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`).flush({
+      members: [member('01M6YSNJ0000000000000000M1', 'owner'), member('01M6YSNJ0000000000000000M2', 'owner'), member('01M6YSNJ0000000000000000M3', 'member')],
+    });
+    expect(await counted).toEqual({ ok: true, value: 2 });
+
+    const malformed = api.ownerCount(OWNER_ACCOUNT_ID);
+    http.expectOne(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`).flush({ members: [{ role: 'owner' }] });
+    expect(await malformed).toMatchObject({ ok: false, failure: { kind: 'error' } });
+  });
+
+  it('creates an intent with an empty list under all, and reads, approves and withdraws it by its path', async () => {
+    const { api, http } = setup();
+    const created = api.createEnrolmentIntent(OWNER_ACCOUNT_ID, {
+      name: 'Mac',
+      projectScope: 'all',
+      allowedProjects: ['team-console'],
+      isolation: 'user',
+    });
+    const create = http.expectOne(`${RUNNERS}/enrolment-intents`);
+    expect([create.request.method, create.request.body]).toEqual([
+      'POST',
+      { name: 'Mac', projectScope: 'all', allowedProjects: [], isolation: 'user' },
+    ]);
+    const dto = { intentId: ENROLMENT_INTENT_FIXTURE_ID, expiresAt: '2026-11-11T10:10:00.000Z', command: 'x' };
+    create.flush(dto, { status: 201, statusText: 'Created' });
+    expect(await created).toEqual({ ok: true, value: dto });
+
+    const intentUrl = `${RUNNERS}/enrolment-intents/${ENROLMENT_INTENT_FIXTURE_ID}`;
+    const read = api.enrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    const get = http.expectOne(intentUrl);
+    // R-INT-2: the id is in the path, never in a query string.
+    expect(get.request.urlWithParams).toBe(intentUrl);
+    get.flush(enrolmentIntentFixture());
+    expect(await read).toEqual({ ok: true, value: enrolmentIntentFixture() });
+
+    const approved = api.approveEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, '7K2Q-M9XD');
+    const approve = http.expectOne(`${intentUrl}/approve`);
+    expect([approve.request.method, approve.request.body]).toEqual(['POST', { fingerprint: '7K2Q-M9XD' }]);
+    approve.flush(enrolmentIntentFixture({ state: 'approved', runnerId: RUNNER_FIXTURE_IDS.mac }));
+    expect(await approved).toMatchObject({ ok: true, value: { state: 'approved' } });
+
+    const withdrawn = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    http.expectOne(`${intentUrl}/withdraw`).flush(null, { status: 204, statusText: 'No Content' });
+    expect(await withdrawn).toEqual({ ok: true, value: null });
+  });
+
+  it('refuses an intent of the wrong shape: a hostname with a direction override is never rendered', async () => {
+    const { api, http } = setup();
+    const read = api.enrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    http
+      .expectOne(`${RUNNERS}/enrolment-intents/${ENROLMENT_INTENT_FIXTURE_ID}`)
+      .flush(enrolmentIntentFixture({ host: { os: 'darwin', arch: 'arm64', hostname: 'mac\u202Elocal' } }));
+    expect(await read).toMatchObject({ ok: false, failure: { kind: 'error' } });
+  });
+
   it('reports a dropped connection as offline', async () => {
     const { api, http } = setup();
     const read = api.list(OWNER_ACCOUNT_ID);
@@ -187,6 +251,26 @@ describe('runnerFailureOf', () => {
   it('reads an Access redirect as an expired session, not as offline', () => {
     const redirect = new HttpErrorResponse({ status: 0, url: 'https://team.cloudflareaccess.com/cdn-cgi/access/login' });
     expect(runnerFailureOf(redirect).kind).toBe('session-expired');
+  });
+});
+
+describe('runnerFailureOf for enrolment intents', () => {
+  it.each([
+    'enrolment-intent-limit',
+    'enrolment-intent-changed',
+    'enrolment-fingerprint-mismatch',
+    'enrolment-intent-not-bound',
+  ])('reads a 409 %s as a conflict with its slug', (slug) => {
+    expect(runnerFailureOf(problem(409, slug))).toEqual({ kind: 'conflict', slug, field: null });
+  });
+
+  it('words the limit, a changed request and a suspended account', () => {
+    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-limit', field: null })).toBe('runners.wizard.err.limit');
+    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-fingerprint-mismatch', field: null })).toBe(
+      'runners.wizard.err.changed',
+    );
+    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-changed', field: null })).toBe('runners.wizard.err.changed');
+    expect(runnerFailureKeyOf({ kind: 'forbidden', slug: 'account-suspended', field: null })).toBe('runners.wizard.err.suspended');
   });
 });
 

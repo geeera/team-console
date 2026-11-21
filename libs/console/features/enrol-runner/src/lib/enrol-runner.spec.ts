@@ -5,7 +5,7 @@ import { DIALOG_DATA, DialogRef, Sheet } from '@console/shared/ui';
 import { OWNER_ACCOUNT_ID, type CreateEnrolmentCodeInput, type EnrolmentCodeDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { EnrolRunner } from './enrol-runner';
-import { EnrolRunnerDialog, runnerNameOf, type EnrolRunnerData } from './enrol-runner-dialog';
+import { EnrolRunnerDialog, type EnrolRunnerData } from './enrol-runner-dialog';
 
 const CODE = `tce_${'Ab-_'.repeat(10)}xyz`;
 const ISSUED: EnrolmentCodeDto = {
@@ -203,12 +203,5 @@ describe('EnrolRunner', () => {
     );
     sheet.open.mockReturnValueOnce({ closed: of(undefined) } as never);
     expect(await TestBed.inject(EnrolRunner).open({ accountId: OWNER_ACCOUNT_ID, projects })).toBe(false);
-  });
-});
-
-describe('runnerNameOf', () => {
-  it('reads a name as one trimmed line', () => {
-    expect(runnerNameOf('  Mac\n mini ')).toBe('Mac mini');
-    expect(runnerNameOf(' \t ')).toBe('');
   });
 });

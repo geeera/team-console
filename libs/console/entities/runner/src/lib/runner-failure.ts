@@ -14,6 +14,8 @@ import { TimeoutError } from 'rxjs';
  * - `revoked` — 409 `runner-revoked`: someone revoked it meanwhile;
  * - `not-suspect` — 409 `runner-not-suspect`: its suspect mark was cleared meanwhile (#492);
  * - `enroller-set` — 409 `runner-enroller-set`: its enroller was recorded meanwhile (#827);
+ * - `conflict` — 409 on an enrolment intent (#634 PR 4): the open-request limit, or the request changed or is not
+ *   bound yet; the slug says which;
  * - `rate-limited` — 429; `offline` — no answer; `timeout` — none in `RUNNER_CALL_TIMEOUT_MS`;
  * - `session-expired` — Access wants a new login (the app root takes over); `error` — anything else.
  */
@@ -24,6 +26,7 @@ export type RunnerFailureKind =
   | 'revoked'
   | 'not-suspect'
   | 'enroller-set'
+  | 'conflict'
   | 'rate-limited'
   | 'offline'
   | 'timeout'
@@ -80,6 +83,11 @@ export function runnerFailureOf(error: unknown): RunnerFailure {
           return failure('not-suspect');
         case 'runner-enroller-set':
           return failure('enroller-set');
+        case 'enrolment-intent-limit':
+        case 'enrolment-intent-changed':
+        case 'enrolment-fingerprint-mismatch':
+        case 'enrolment-intent-not-bound':
+          return failure('conflict');
         default:
           return failure('error');
       }
@@ -126,13 +134,20 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
   if (failure.kind === 'forbidden' && failure.slug === 'runner-enroller-not-sole-owner') {
     return 'runners.err.enrollerNotSoleOwner';
   }
+  if (failure.kind === 'forbidden' && failure.slug === 'account-suspended') {
+    return 'runners.wizard.err.suspended';
+  }
+  if (failure.kind === 'conflict') {
+    // Mismatch and changed read alike to the owner: the machine behind the request is not the one they saw.
+    return failure.slug === 'enrolment-intent-limit' ? 'runners.wizard.err.limit' : 'runners.wizard.err.changed';
+  }
   if (failure.kind === 'not-found' && failure.slug === 'enrolment-not-found') {
     return 'runners.err.enrolmentGone';
   }
   return FAILURE_KEYS[failure.kind];
 }
 
-const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid'>, string>> = {
+const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid' | 'conflict'>, string>> = {
   forbidden: 'runners.err.forbidden',
   'not-found': 'runners.err.notFound',
   revoked: 'runners.err.revoked',

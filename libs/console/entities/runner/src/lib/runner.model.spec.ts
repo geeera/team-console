@@ -1,5 +1,5 @@
 import type { AccountMembershipDto } from '@shared/contracts';
-import { d3RunnerOf, projectAccountRoleOf } from './runner.model';
+import { d3RunnerOf, projectAccountRoleOf, runnerNameOf } from './runner.model';
 import { RUNNER_FIXTURE_IDS, runnerFixture } from './runner.fixture';
 
 const SLUG = 'storify';
@@ -65,5 +65,12 @@ describe('projectAccountRoleOf (#759, #848)', () => {
   it('cannot tell when the project’s account is not among the caller’s, even if every account is owned (#870)', () => {
     expect(projectAccountRoleOf([account('a', 'owner'), account('b', 'owner')], 'c')).toBe('unknown');
     expect(projectAccountRoleOf([], 'a')).toBe('unknown');
+  });
+});
+
+describe('runnerNameOf', () => {
+  it('reads a name as one trimmed line', () => {
+    expect(runnerNameOf('  Mac\n mini ')).toBe('Mac mini');
+    expect(runnerNameOf(' \t ')).toBe('');
   });
 });

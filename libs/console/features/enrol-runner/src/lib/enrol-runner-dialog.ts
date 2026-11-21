@@ -14,6 +14,7 @@ import {
   RunnerScopePicker,
   RunnersApi,
   runnerFailureKeyOf,
+  runnerNameOf,
   type RunnerProjectOption,
 } from '@console/entities/runner';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
@@ -55,11 +56,6 @@ interface IssuedCode {
 }
 
 let nextFormId = 0;
-
-/** One line, as the Worker stores it (`checkCreateEnrolmentCodeInput` trims). */
-export function runnerNameOf(value: string): string {
-  return value.replace(/\s+/gu, ' ').trim();
-}
 
 /**
  * "New runner" (#464, ADR 0006 "Enrolment"): the owner names the runner and chooses its scope (#775: every project of
