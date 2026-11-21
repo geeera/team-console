@@ -1348,10 +1348,22 @@ describe('SprintBoard', () => {
       await settle();
       const block = root.querySelector('[data-testid="jobs-error"]') as HTMLElement;
       expect(block.textContent).toContain('Не удалось загрузить задачи');
+      // A member gets the error block alone: nothing says they may Run now.
+      expect(root.querySelector('[data-testid="run-now"]')).toBeNull();
       (block.querySelector('button') as HTMLButtonElement).click();
       http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await settle();
       expect(root.querySelector('[data-testid="jobs-empty"]')).not.toBeNull();
+    });
+
+    it('keeps Run now beside the error block for an owner after a failed first read (#848)', async () => {
+      const { root, settle } = await renderConsole();
+      http.expectOne(JOBS).flush('down', { status: 503, statusText: 'Unavailable' });
+      await answerRunners('owner');
+      await settle();
+      expect(root.querySelector('[data-testid="jobs-error"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="run-now"]')).not.toBeNull();
+      expect(root.querySelector('[data-testid="jobs-availability"]')?.textContent?.trim()).toBe('');
     });
 
     it('shows a job Run now queued at once and reads the queue again', async () => {

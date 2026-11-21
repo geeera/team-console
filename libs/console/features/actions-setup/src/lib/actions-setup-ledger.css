@@ -1,0 +1,91 @@
+:host {
+  display: block;
+}
+
+/* The first step that is not done is the one to act on (UX spec §6 "Partial"). */
+.step--first {
+  background: var(--warning-soft);
+}
+
+.step__title:focus {
+  outline: none;
+}
+
+.step__title:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
+
+.subs {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+
+.sub__icon {
+  align-self: center;
+  flex: none;
+}
+
+.sub__word {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+}
+
+.sub__text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sub--ok .sub__icon,
+.sub--ok .sub__word {
+  color: var(--success-text);
+}
+
+.sub--missing .sub__icon,
+.sub--missing .sub__word,
+.sub--warning .sub__icon,
+.sub--warning .sub__word {
+  color: var(--warning-text);
+}
+
+.sub--unknown .sub__icon,
+.sub--unknown .sub__word {
+  color: var(--text-3);
+}
+
+.how {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+}
+
+.how > li {
+  display: grid;
+  gap: var(--space-1);
+  overflow-wrap: anywhere;
+}
+
+.how__key {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+}

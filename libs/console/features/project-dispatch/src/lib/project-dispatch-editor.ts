@@ -4,17 +4,22 @@ import {
   Component,
   computed,
   effect,
+  ElementRef,
   inject,
+  Injector,
   input,
   output,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
+import { ActionsSetupStatuses, missingStepsOf, notReadyMessageOf } from '@console/entities/actions-setup';
+import { projectActionsRouteOf, ProjectsStore } from '@console/entities/project';
 import { RunnersApi, runnerFailureKeyOf, type RunnerFailure } from '@console/entities/runner';
 import { RouterLink } from '@angular/router';
-import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, Choice, ChoiceGroup, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
-import type { ProjectDispatch, ProjectDispatchDto } from '@shared/contracts';
+import { TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
+import { Banner, Button, Choice, ChoiceGroup, focusAfterRender, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
+import { ACTIONS_NOT_READY, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
 
 type EditorStatus = 'loading' | 'ready' | 'error';
 
@@ -25,10 +30,15 @@ let nextEditorId = 0;
  * repository, the console starting a workflow run per job. Read with `GET …/dispatch`, saved with `PUT`; the Worker
  * refuses Actions for a subscription project or a pinned/failover placement, and reads the default branch from
  * GitHub itself. States plainly that the Actions minutes are the customer's own spend. Owner-only, as its page.
+ *
+ * #759: choosing «На GitHub Actions» shows a readiness line (one check through the `actions-setup` entity, never for
+ * `pull`) with «Подготовить репозиторий». The radio never navigates (WCAG 3.2.2); Save is `aria-disabled` while the
+ * repository is known not to be ready, and activating it then moves focus to that link. The server's 422
+ * `actions-not-ready` names the items that hold it back.
  */
 @Component({
   selector: 'tc-project-dispatch-editor',
-  imports: [Banner, Button, Choice, ChoiceGroup, Icon, RouterLink, StateBlock, TranslocoPipe],
+  imports: [Banner, Button, Choice, ChoiceGroup, Icon, RouterLink, StateBlock, TranslocoPipe, TranslocoPluralPipe],
   templateUrl: './project-dispatch-editor.html',
   styleUrl: './project-dispatch-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -38,6 +48,10 @@ export class ProjectDispatchEditor {
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
   private readonly restoreRetryFocus = injectRetryFocus();
+  private readonly injector = inject(Injector);
+  private readonly actionsStatuses = inject(ActionsSetupStatuses);
+  private readonly projects = inject(ProjectsStore);
+  private readonly prepareLink = viewChild<ElementRef<HTMLElement>>('prepareLink');
 
   readonly slug = input.required<string>();
   /** Settings › Team of this project (#688): linked from an `access-source-hosted` refusal; none hides the link. */
@@ -55,6 +69,29 @@ export class ProjectDispatchEditor {
   /** The last save was refused for the project's access source (`access-source-hosted`): Team is where it changes. */
   protected readonly isAccessSourceRefusal = signal(false);
   protected readonly isSaved = signal(false);
+  /** The last save was refused with `actions-not-ready`: the refusal links the setup page. */
+  protected readonly isNotReadyRefusal = signal(false);
+
+  protected readonly actionsRoute = computed(() => projectActionsRouteOf(this.slug()));
+  /** The readiness of the project's repository, asked only once «На GitHub Actions» is the choice. */
+  private readonly readiness = computed(() =>
+    this.choice() === 'actions' ? this.actionsStatuses.of(this.slug()) : null,
+  );
+  protected readonly readinessLine = computed(() => {
+    const readiness = this.readiness();
+    if (readiness === null) {
+      return null;
+    }
+    const snapshot = readiness.snapshot();
+    if (snapshot !== null && readiness.state() !== 'loading') {
+      return snapshot.ready
+        ? ({ kind: 'ok' } as const)
+        : ({ kind: 'missing', n: Math.max(1, missingStepsOf(snapshot).length) } as const);
+    }
+    return readiness.state() === 'error' ? ({ kind: 'failed' } as const) : ({ kind: 'checking' } as const);
+  });
+  /** Known not ready: Save would only be refused. A failed check leaves Save to the server. */
+  protected readonly isSaveBlocked = computed(() => this.readinessLine()?.kind === 'missing');
 
   protected readonly loadFailureText = computed(() => {
     const failure = this.loadFailure();
@@ -65,6 +102,12 @@ export class ProjectDispatchEditor {
     effect(() => {
       const slug = this.slug();
       untracked(() => void this.load(slug));
+    });
+    effect(() => {
+      const readiness = this.readiness();
+      if (readiness !== null) {
+        untracked(() => void readiness.ensureLoaded());
+      }
     });
   }
 
@@ -84,10 +127,15 @@ export class ProjectDispatchEditor {
     if (this.saving()) {
       return;
     }
+    if (this.choice() === 'actions' && this.isSaveBlocked()) {
+      focusAfterRender(() => this.prepareLink(), { injector: this.injector });
+      return;
+    }
     const slug = this.slug();
     this.saving.set(true);
     this.saveFailure.set(null);
     this.isAccessSourceRefusal.set(false);
+    this.isNotReadyRefusal.set(false);
     this.isSaved.set(false);
     const result = await this.api.setDispatch(slug, this.choice());
     this.saving.set(false);
@@ -95,8 +143,18 @@ export class ProjectDispatchEditor {
       return;
     }
     if (!result.ok) {
-      this.saveFailure.set(this.t(runnerFailureKeyOf(result.failure)));
+      const isNotReady = result.failure.slug === ACTIONS_NOT_READY;
+      this.saveFailure.set(
+        isNotReady
+          ? notReadyMessageOf(result.failure.items ?? [], this.projectName(), (key, params) => this.t(key, params))
+          : this.t(runnerFailureKeyOf(result.failure)),
+      );
       this.isAccessSourceRefusal.set(result.failure.slug === 'access-source-hosted');
+      this.isNotReadyRefusal.set(isNotReady);
+      if (isNotReady) {
+        // The check this screen holds is stale: the server just judged otherwise.
+        void this.actionsStatuses.of(slug).load();
+      }
       return;
     }
     this.apply(result.value);
@@ -122,6 +180,10 @@ export class ProjectDispatchEditor {
     this.loadFailure.set(null);
     this.apply(result.value);
     this.status.set('ready');
+  }
+
+  private projectName(): string {
+    return this.projects.bySlug(this.slug())?.displayName ?? this.slug();
   }
 
   private apply(dto: ProjectDispatchDto): void {

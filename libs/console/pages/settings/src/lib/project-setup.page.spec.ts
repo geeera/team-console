@@ -11,11 +11,15 @@ import { JUST_ADDED_STATE } from '@console/features/add-project';
 import { NetworkStatus } from '@console/shared/api';
 import { provideAppConfig } from '@console/shared/config';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import type { ProjectSetupDto } from '@shared/contracts';
+import { actionsSetupFixture } from '@console/entities/actions-setup';
+import type { ProjectDispatchDto, ProjectSetupDto } from '@shared/contracts';
 import { ENVIRONMENT_STATUS_URL, type EnvironmentStatusDto } from '@shared/environment';
 import { settingsRoutes } from './settings.routes';
 
 const SETUP_URL = '/api/v1/projects/fieldnote/setup';
+const DISPATCH_URL = '/api/v1/projects/fieldnote/dispatch';
+const ACTIONS_URL = '/api/v1/projects/fieldnote/actions-setup';
+const ACCOUNTS_URL = '/api/v1/accounts';
 const CONNECTED = {
   state: 'connected',
   login: 'geeera',
@@ -60,7 +64,32 @@ describe('ProjectSetupPage', () => {
   /** The project's environment status (#750): a 403 unless a case says otherwise, as for a customer. */
   let environmentAnswer: EnvironmentStatusDto | number = 403;
 
+  /** `GET …/dispatch` for the Actions row (#759): the account's read, so a member gets 200 too. */
+  let dispatchAnswer: ProjectDispatchDto | number = 403;
+  /** The caller's role in its one account (`GET /accounts`); the row is the owner's only. */
+  let accountRole: 'owner' | 'member' = 'member';
+
+  function answerDispatch(): void {
+    for (const request of http.match((req) => req.url === ACCOUNTS_URL)) {
+      request.flush({ accounts: [{ id: '01M6YSNJ0000000000000000A1', slug: 'geeera', name: 'geeera', role: accountRole }] });
+    }
+    for (const request of http.match((req) => req.url === ACTIONS_URL)) {
+      // The Worker's answer to a member: owner-only, before any GitHub call.
+      if (accountRole === 'member') {
+        request.flush({ type: 'https://team-console/problems/owner-only', title: 'x', status: 403 }, { status: 403, statusText: 'Forbidden' });
+      }
+    }
+    for (const request of http.match((req) => req.url === DISPATCH_URL)) {
+      if (typeof dispatchAnswer === 'number') {
+        request.flush(null, { status: dispatchAnswer, statusText: 'Refused' });
+      } else {
+        request.flush(dispatchAnswer);
+      }
+    }
+  }
+
   function answerEnvironment(): void {
+    answerDispatch();
     for (const request of http.match((req) => req.url === ENVIRONMENT_STATUS_URL)) {
       expect(request.request.params.get('project')).toBe('fieldnote');
       if (typeof environmentAnswer === 'number') {
@@ -122,8 +151,54 @@ describe('ProjectSetupPage', () => {
   afterEach(() => {
     answerEnvironment();
     environmentAnswer = 403;
+    dispatchAnswer = 403;
+    accountRole = 'member';
     harness?.fixture.nativeElement.remove();
     http.verify();
+  });
+
+  describe('the GitHub Actions row (#759)', () => {
+    const chip = (): string => root().querySelector('[data-testid="project-actions-chip"]')?.textContent?.trim() ?? '';
+
+    it('reads «Не включено» for a pull project and spends no readiness check', async () => {
+      accountRole = 'owner';
+      dispatchAnswer = { dispatch: 'pull', defaultBranch: null };
+      await open();
+      setupRequest().flush(READY);
+      await settle();
+      answerEnvironment();
+      await settle();
+      expect(chip()).toBe('Не включено');
+      expect(root().querySelector('[data-testid="project-actions-entry"] a')?.getAttribute('href')).toBe(
+        '/settings/projects/fieldnote/actions',
+      );
+      http.expectNone(ACTIONS_URL);
+    });
+
+    it('counts the missing steps of a switched-on project', async () => {
+      accountRole = 'owner';
+      dispatchAnswer = { dispatch: 'actions', defaultBranch: 'main' };
+      await open();
+      setupRequest().flush(READY);
+      await settle();
+      answerEnvironment();
+      await settle();
+      http
+        .expectOne(ACTIONS_URL)
+        .flush(actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }));
+      await settle();
+      expect(chip()).toBe('Не готово: 1');
+    });
+
+    it('is not there for a member, whose dispatch read answers 200', async () => {
+      dispatchAnswer = { dispatch: 'actions', defaultBranch: 'main' };
+      await open();
+      setupRequest().flush(READY);
+      await settle();
+      answerEnvironment();
+      await settle();
+      expect(root().querySelector('[data-testid="project-actions-entry"]')).toBeNull();
+    });
   });
 
   describe('the Project environment row (#750)', () => {

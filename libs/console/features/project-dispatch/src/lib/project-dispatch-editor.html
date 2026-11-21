@@ -41,6 +41,29 @@
           <small tc-choice-hint [id]="id + '-actions'">{{ 'runners.dispatch.actionsHint' | transloco }}</small>
         </label>
       </fieldset>
+      @if (readinessLine(); as line) {
+        <p class="dispatch__ready" role="status" data-testid="project-dispatch-readiness" [id]="id + '-ready'" [attr.data-state]="line.kind">
+          @switch (line.kind) {
+            @case ('ok') {
+              <tc-icon name="check" size="sm" />{{ 'runners.dispatch.ready.ok' | transloco }}
+            }
+            @case ('missing') {
+              <tc-icon name="alert" size="sm" />{{ 'runners.dispatch.ready.missing' | translocoPlural: line.n }}
+            }
+            @case ('failed') {
+              {{ 'runners.dispatch.ready.failed' | transloco }}
+            }
+            @default {
+              {{ 'runners.dispatch.ready.checking' | transloco }}
+            }
+          }
+          @if (line.kind !== 'ok' && line.kind !== 'checking') {
+            <a #prepareLink class="dispatch__prepare" data-testid="project-dispatch-prepare" [routerLink]="actionsRoute()" [queryParams]="{ from: 'runners' }">
+              {{ 'runners.dispatch.ready.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
+            </a>
+          }
+        </p>
+      }
       <p class="dispatch__note" [id]="id + '-minutes'" data-testid="project-dispatch-minutes">
         {{ 'runners.dispatch.minutes' | transloco }}
       </p>
@@ -55,6 +78,11 @@
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>{{ message }}</p>
         </div>
+        @if (isNotReadyRefusal()) {
+          <a tc-button size="sm" data-testid="project-dispatch-prepare-refusal" [routerLink]="actionsRoute()" [queryParams]="{ from: 'runners' }">
+            {{ 'runners.dispatch.ready.link' | transloco }}
+          </a>
+        }
         @if (isAccessSourceRefusal() && teamUrl(); as url) {
           <a tc-button size="sm" data-testid="project-dispatch-team" [routerLink]="url">{{ 'runners.err.openTeam' | transloco }}</a>
         }
@@ -66,7 +94,8 @@
           variant="primary"
           data-testid="project-dispatch-save"
           [loading]="saving()"
-          [attr.aria-disabled]="saving() ? 'true' : null"
+          [attr.aria-disabled]="saving() || (choice() === 'actions' && isSaveBlocked()) ? 'true' : null"
+          [attr.aria-describedby]="choice() === 'actions' && isSaveBlocked() ? id + '-ready' : null"
         >
           {{ (saving() ? 'runners.dispatch.busy' : 'runners.dispatch.save') | transloco }}
         </button>

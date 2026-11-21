@@ -79,6 +79,7 @@
   } @if (checklistContext(); as context) {
   <tc-setup-checklist [steps]="steps()" [context]="context" />
   }
+  <tc-project-actions-entry [slug]="project.slug" />
   <tc-project-environment-entry [slug]="project.slug" />
 
   <div class="subpage__actions">

@@ -22,7 +22,7 @@ import { Router } from '@angular/router';
 import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
 import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
-import { d3RunnerOf, projectPauseOf, RunnersStore } from '@console/entities/runner';
+import { d3RunnerOf, projectAccountRoleOf, projectPauseOf, RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
   daysUntilDemo,
@@ -365,6 +365,8 @@ export class SprintBoard {
    * Every runner that may serve the project is paused on a usage or rate limit (#571): the tile says so and until
    * when, unless a job is running anyway. Only the account's owner reads runners, so a member never sees it.
    */
+  /** The caller owns the project's own account: Run now's hint on a failed first jobs read (#848). */
+  protected readonly ownsAccount = computed(() => projectAccountRoleOf(this.runners.memberships()) === 'owner');
   protected readonly jobsPause = computed(() => projectPauseOf(this.runners.runners(), this.project().slug));
   /** The owner's paused line (#775): only when the Worker says this caller may Run now here, so it reads its runners. */
   protected readonly jobsPauseLine = computed((): JobsPauseLine | null => {

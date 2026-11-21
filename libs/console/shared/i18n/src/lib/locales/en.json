@@ -2278,7 +2278,9 @@
       "enrollerOnly": "Only the owner who enrolled this runner can add projects to it: it may run on their Claude subscription. You can still remove projects from it.",
       "openTeam": "Open team settings",
       "enrollerNotSoleOwner": "Only the account's sole owner can claim a runner. Enrol the runner again.",
-      "enrollerSet": "The console already knows who enrolled this runner. Refresh the list."
+      "enrollerSet": "The console already knows who enrolled this runner. Refresh the list.",
+      "actionsNotReady": "GitHub Actions isn't ready for {{project}} yet: {{items}}. Nothing changed.",
+      "actionsNotReadyBare": "GitHub Actions isn't ready for {{project}} yet. Nothing changed."
     },
     "dispatch": {
       "title": "Where jobs run",
@@ -2293,7 +2295,19 @@
       "branch": "Default branch on GitHub: {{ branch }}",
       "save": "Save",
       "busy": "Saving…",
-      "saved": "How jobs run is saved"
+      "saved": "How jobs run is saved",
+      "ready": {
+        "checking": "Checking the repository…",
+        "ok": "The repository is ready for GitHub Actions.",
+        "missing": {
+          "one": "The repository isn't ready yet: {{n}} step missing.",
+          "few": "The repository isn't ready yet: {{n}} steps missing.",
+          "many": "The repository isn't ready yet: {{n}} steps missing.",
+          "other": "The repository isn't ready yet: {{n}} steps missing."
+        },
+        "failed": "Couldn't check the repository.",
+        "link": "Prepare the repository"
+      }
     },
     "suspect": {
       "open": "Clear mark",
@@ -2986,6 +3000,210 @@
       "waivedEditing": "When you save, {{month}} is capped again at {{budget}}.",
       "waivedEditingNone": "When you save, there is no budget: the waiver is no longer needed.",
       "waivedReview": "ends the waiver for {{month}}"
+    }
+  },
+  "actions": {
+    "title": "Run on GitHub Actions",
+    "crumb": "GitHub Actions",
+    "lead": "{{project}}'s jobs will run in your repository {{repo}} on GitHub Actions, so no machine of yours has to stay on. It takes up to three steps on GitHub; the console checks the rest.",
+    "checkingSr": "Checking {{repo}}…",
+    "checkingSlow": "The check takes up to 10 seconds",
+    "stepsAria": "GitHub Actions setup steps",
+    "branchFallback": "default",
+    "sum": {
+      "missing": {
+        "one": "{{n}} step missing",
+        "few": "{{n}} steps missing",
+        "many": "{{n}} steps missing",
+        "other": "{{n}} steps missing"
+      },
+      "ready": "All set — just switch it on",
+      "on": "Jobs run on GitHub Actions",
+      "drift": {
+        "one": "Jobs run on GitHub Actions, but the repository isn't ready any more: {{n}} step missing. New jobs will fail until it's fixed.",
+        "few": "Jobs run on GitHub Actions, but the repository isn't ready any more: {{n}} steps missing. New jobs will fail until it's fixed.",
+        "many": "Jobs run on GitHub Actions, but the repository isn't ready any more: {{n}} steps missing. New jobs will fail until it's fixed.",
+        "other": "Jobs run on GitHub Actions, but the repository isn't ready any more: {{n}} steps missing. New jobs will fail until it's fixed."
+      },
+      "driftLink": "Move jobs back to your runners"
+    },
+    "doneLive": "Check finished: {{done}} of {{total}} done.",
+    "st": {
+      "done": "Done",
+      "missing": "Missing",
+      "outdated": "Update available",
+      "off": "Off",
+      "on": "On"
+    },
+    "sub": {
+      "ok": "ok",
+      "missing": "no",
+      "warning": "note",
+      "unknown": "not checked"
+    },
+    "access": {
+      "title": "The team uses an API key",
+      "done": "Access source: API key.",
+      "missing": "The team uses a Claude subscription, and a subscription never runs on GitHub Actions.",
+      "how": "Open Team → “How the team reaches Claude” and choose “API key”.",
+      "link": "Open Team"
+    },
+    "perm": {
+      "title": "The app has the permissions it needs",
+      "done": "The app can open the PR with the file and check the environment. Its permissions apply to {{repo}} only.",
+      "missing": "GitHub is waiting for you to accept the app's new permissions.",
+      "how": "On the installation page, select Review request, then Accept new permissions. The app never asks for repository admin rights.",
+      "link": "Accept the permissions on GitHub",
+      "whyToggle": "Which permissions, and why",
+      "why": {
+        "contents": "Contents and Pull requests, write: create a team-console/runner-… branch and open a PR with one file. The console never writes to {{branch}}: the file gets there only when you merge the PR.",
+        "workflows": "Workflows, write: GitHub requires it for any file in .github/workflows. The console gets it for one “Open PR” click and revokes it right after.",
+        "environments": "Environments, read: check that the TC_INFERENCE_API_KEY secret exists. GitHub never returns a secret's value.",
+        "ruleset": "Protect {{branch}} with a ruleset: PRs only, no bypass for apps. Then even a compromised console can't write to it directly.",
+        "rulesetLink": "Rulesets on GitHub"
+      }
+    },
+    "env": {
+      "title": "The team-console GitHub environment is set up",
+      "environment": {
+        "ok": "The team-console environment exists",
+        "missing": "{{repo}} has no team-console environment",
+        "unknown": "The team-console environment couldn't be checked"
+      },
+      "branch": {
+        "ok": "Runs from {{branch}} only",
+        "missing": "The environment allows more than {{branch}}, so any branch could reach the key",
+        "unknown": "The branch rule couldn't be checked"
+      },
+      "rules": {
+        "ok": "No required reviewers or wait timer",
+        "warning": "Every job will wait for your approval or a timer on GitHub. If it doesn't start within 15 minutes, the console cancels it.",
+        "unknown": "Reviewers and the wait timer couldn't be checked"
+      },
+      "secret": {
+        "ok": "The TC_INFERENCE_API_KEY key is added",
+        "missing": "The environment has no TC_INFERENCE_API_KEY secret",
+        "unknown": "Can't be checked until the app has its permissions (step 2)"
+      },
+      "linkNew": "Create the environment on GitHub",
+      "linkEdit": "Open the team-console environment",
+      "how": {
+        "1": "Open the repository's environments page.",
+        "2": "Name: team-console, then Configure environment.",
+        "3": "Deployment branches and tags → Selected branches and tags → Add deployment branch or tag rule → Ref type: Branch, name {{branch}}. Add no other rules.",
+        "4": "Leave Required reviewers and Wait timer off.",
+        "5": "Environment secrets → Add environment secret → Name TC_INFERENCE_API_KEY, Value: your Anthropic API key (sk-ant-…)."
+      },
+      "keyNote": "You paste the key into GitHub only; the console never sees or keeps it. Don't make it a repository or organisation secret: a workflow on any branch could read it there.",
+      "noVars": "No environment variables needed: the console's address is already in the workflow file.",
+      "limit": "Set a spend limit on this key in the Anthropic Console. It is the only hard cap."
+    },
+    "copyAria": "Copy “{{value}}”",
+    "wf": {
+      "title": "The workflow file on the {{branch}} branch",
+      "missing": "{{branch}} has no team-console-runner.yml.",
+      "ok": "The file matches the console's version.",
+      "outdated": "A new runner version is out: update the file so jobs start.",
+      "modified": "The file on {{branch}} differs from the console's version. The console can't vouch for a changed file.",
+      "unknown": "The file on {{branch}} couldn't be checked.",
+      "noPermission": "The console can open the PR once the app has its permissions (step 2). Or add the file yourself.",
+      "prOff": "The console isn't opening PRs right now. Add the file yourself; it takes a minute."
+    },
+    "pr": {
+      "open": "Open a PR with the file",
+      "bump": "Open a PR with the update",
+      "restore": "Open a PR that restores the file",
+      "busy": "Opening the PR…",
+      "opened": "PR #{{n}} is open. Merge it; the console checks again when you come back.",
+      "openedLive": "PR #{{n}} is open",
+      "alreadyLive": "PR #{{n}} is already open",
+      "view": "Open PR #{{n}} on GitHub",
+      "foreign": "PR #{{n}} on the console's branch wasn't opened by the console, or has other commits. Don't merge it until you've checked it.",
+      "leftover": "PR #{{n}} isn't needed any more; you can close it.",
+      "err": {
+        "permission": "The app is missing permissions: {{permissions}}. Accept the new permissions and try again.",
+        "permissionBare": "The app is missing permissions. Accept the new permissions and try again.",
+        "ready": "The file is already there. Checking again…",
+        "tampered": "The console couldn't open a clean PR: its branch changed, so the console closed that PR. Delete the branch on GitHub and try again, or add the file yourself.",
+        "branchExists": "The console's team-console/runner-… branch already exists in the repository, most likely left by an earlier attempt. The console never writes to a branch it didn't just create: delete that branch on GitHub and open the PR again, or add the file yourself.",
+        "branchLink": "Open the branches on GitHub",
+        "downgrade": "The file on {{branch}} pins newer versions ({{pins}}) than the console's file. The console never opens a PR that lowers a version.",
+        "downgradeBare": "The file on {{branch}} pins newer versions than the console's file. The console never opens a PR that lowers a version.",
+        "rate": "You can open a PR again at {{time}}.",
+        "unverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
+        "offline": "You're offline. No PR was opened; try again once you're back online.",
+        "failed": "The PR didn't open. Try again, or add the file yourself."
+      }
+    },
+    "file": {
+      "path": ".github/workflows/team-console-runner.yml",
+      "pathAria": "Copy the file path",
+      "show": "Show the file",
+      "hide": "Hide the file",
+      "loading": "Loading the file…",
+      "meta": "Version {{version}} · sha256 {{sha}}…",
+      "region": "The team-console-runner.yml file",
+      "copyAria": "Copy the team-console-runner.yml file",
+      "create": "Create the file on GitHub",
+      "protected": "If {{branch}} is protected, GitHub offers to create a branch and a PR; merge it.",
+      "err": "The file didn't load.",
+      "blob": "View the file on GitHub",
+      "misconfigured": "The console can't build the file right now. The problem is on our side; your repository is fine. Try again later."
+    },
+    "switch": {
+      "title": "Run jobs on GitHub Actions",
+      "ready": "All set.",
+      "on": "Switch on",
+      "busy": "Switching on…",
+      "blocked": {
+        "one": "Do the steps above first: {{n}} step missing.",
+        "few": "Do the steps above first: {{n}} steps missing.",
+        "many": "Do the steps above first: {{n}} steps missing.",
+        "other": "Do the steps above first: {{n}} steps missing."
+      },
+      "done": "The project's jobs run on GitHub Actions.",
+      "doneLive": "GitHub Actions is on",
+      "change": "Change in Runners"
+    },
+    "backRunners": "Back to Runners",
+    "err": {
+      "github": "GitHub didn't respond, so the repository couldn't be checked",
+      "load": "Couldn't check the repository",
+      "rate": "Checked too often. You can check again at {{time}}.",
+      "offline": "You're offline. Showing the state at {{time}}.",
+      "offline0": "You're offline. The repository can't be checked until you're back online.",
+      "offlineWhy": "You're offline",
+      "misconfigured": "The console can't check the repository right now. The problem is on our side; your repository is fine. Try again later.",
+      "unverified": "The console couldn't confirm the project's repository on GitHub. Check that the app is installed on it.",
+      "forbidden": {
+        "title": "The account owner sets up GitHub Actions",
+        "body": "Ask them to open this page. Your sign-in can't check the repository.",
+        "back": "Back to project setup"
+      }
+    },
+    "item": {
+      "access-source": "access source",
+      "app-permissions": "app permissions",
+      "environment": "the team-console GitHub environment",
+      "branch-policy": "branch rule",
+      "protection-rules": "approval or timer on the environment",
+      "secret": "the TC_INFERENCE_API_KEY key",
+      "workflow": "workflow file",
+      "unknown": "repository setup"
+    },
+    "row": {
+      "title": "Run on GitHub Actions",
+      "sub": {
+        "off": "Jobs in your repository, no machine of yours needed",
+        "drift": "New jobs on GitHub Actions will fail"
+      },
+      "chip": {
+        "off": "Off",
+        "on": "On",
+        "notReady": "Not ready: {{n}}",
+        "checking": "Checking…",
+        "unknown": "Not checked"
+      }
     }
   }
 }

@@ -29,6 +29,8 @@ export class RunnersStore {
   readonly forbidden = signal<RunnersForbidden | null>(null);
   readonly failure = signal<RunnerFailure | null>(null);
   readonly account = signal<AccountMembershipDto | null>(null);
+  /** Every account the caller belongs to and its role there, for `projectAccountRoleOf` (#848, #759). */
+  readonly memberships = signal<readonly AccountMembershipDto[]>([]);
   private readonly list = signal<readonly RunnerDto[]>([]);
   /** Codes that can still enrol a machine (#492), oldest first: the owner can withdraw one. */
   readonly pendingEnrolments = signal<readonly PendingEnrolmentDto[]>([]);
@@ -73,6 +75,7 @@ export class RunnersStore {
       this.fail(accounts.failure);
       return;
     }
+    this.memberships.set(accounts.value);
     const managed = managedAccountOf(accounts.value);
     if (managed.kind !== 'owner') {
       this.account.set(null);

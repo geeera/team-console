@@ -121,6 +121,7 @@
   --menu-w: 320px; /* #409: the Move menu and the field pickers as a popover */
   --ledger-label: 112px; /* #409: the label column of a field ledger */
   --log-max: 680px;
+  --yml-max: 240px; /* #759: the height of an inline file region (the runner workflow's Copy path) */
   /* #766: the one cap of every project page and Needs you from 900 px, padding included. 1920 less the sidebar was
      the approved 1664; the owner asked for less empty space on the largest screens, so it ends at 2048. */
   --page-max: 2048px;

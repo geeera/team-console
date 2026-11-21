@@ -1,4 +1,5 @@
-import { d3RunnerOf } from './runner.model';
+import type { AccountMembershipDto } from '@shared/contracts';
+import { d3RunnerOf, projectAccountRoleOf } from './runner.model';
 import { RUNNER_FIXTURE_IDS, runnerFixture } from './runner.fixture';
 
 const SLUG = 'storify';
@@ -37,5 +38,20 @@ describe('d3RunnerOf', () => {
     ['is an Actions identity', { isolation: 'actions-ephemeral' }],
   ] as const)('skips a runner that %s', (_name, overrides) => {
     expect(d3RunnerOf([held(overrides)], SLUG)).toBeNull();
+  });
+});
+
+describe('projectAccountRoleOf (#759, #848)', () => {
+  const account = (id: string, role: AccountMembershipDto['role']): AccountMembershipDto => ({ id, slug: id, name: id, role });
+
+  it('is the one role every account gives', () => {
+    expect(projectAccountRoleOf([account('a', 'owner')])).toBe('owner');
+    expect(projectAccountRoleOf([account('a', 'member')])).toBe('member');
+    expect(projectAccountRoleOf([account('a', 'owner'), account('b', 'owner')])).toBe('owner');
+  });
+
+  it('cannot tell with no account, or when owning one account and only belonging to another', () => {
+    expect(projectAccountRoleOf([])).toBe('unknown');
+    expect(projectAccountRoleOf([account('a', 'owner'), account('b', 'member')])).toBe('unknown');
   });
 });

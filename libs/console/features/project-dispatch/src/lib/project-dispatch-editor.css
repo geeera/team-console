@@ -25,3 +25,30 @@
   font-size: var(--fs-sm);
   color: var(--success-text);
 }
+
+.dispatch__ready {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
+.dispatch__ready[data-state='ok'] {
+  color: var(--success-text);
+}
+
+.dispatch__ready[data-state='missing'] {
+  color: var(--warning-text);
+}
+
+.dispatch__prepare {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h-touch);
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
+}

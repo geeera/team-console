@@ -23,6 +23,8 @@ const config: StorybookConfig = {
     '../../../entities/runner/src/**/*.stories.ts',
     // The job card's states (#464, the board's runs section).
     '../../../entities/job/src/**/*.stories.ts',
+    // The GitHub Actions setup ledger's states (#759).
+    '../../../features/actions-setup/src/**/*.stories.ts',
     // The board's folder states (#557).
     '../../../widgets/sprint-board/src/**/*.stories.ts',
   ],

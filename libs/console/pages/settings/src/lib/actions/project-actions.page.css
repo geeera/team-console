@@ -1,0 +1,42 @@
+.actions__head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.actions__lead {
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--text-2);
+  line-height: var(--lh-body);
+}
+
+.actions__repo,
+.actions__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  justify-self: start;
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}
+
+.actions__time {
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+.actions__recheck {
+  display: flex;
+}
+
+.actions__minutes {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+  max-width: var(--measure);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+}
