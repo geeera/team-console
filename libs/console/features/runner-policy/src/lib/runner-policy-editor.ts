@@ -28,7 +28,6 @@ import {
   FieldControl,
   Icon,
   IconButton,
-  injectRetryFocus,
   StateBlock,
 } from '@console/shared/ui';
 import {
@@ -59,19 +58,7 @@ let nextEditorId = 0;
  */
 @Component({
   selector: 'tc-runner-policy-editor',
-  imports: [
-    Banner,
-    Button,
-    Choice,
-    ChoiceGroup,
-    Field,
-    FieldControl,
-    Icon,
-    IconButton,
-    RouterLink,
-    StateBlock,
-    TranslocoPipe,
-  ],
+  imports: [Banner, Button, Choice, ChoiceGroup, Field, FieldControl, Icon, IconButton, RouterLink, StateBlock, TranslocoPipe],
   templateUrl: './runner-policy-editor.html',
   styleUrl: './runner-policy-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -80,7 +67,6 @@ export class RunnerPolicyEditor {
   private readonly api = inject(RunnersApi);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
-  private readonly restoreRetryFocus = injectRetryFocus();
 
   readonly scope = input.required<RunnerPolicyScope>();
   /** Every runner of the account (revoked ones only to name them in a stored policy). */
@@ -160,9 +146,8 @@ export class RunnerPolicyEditor {
     }
   }
 
-  protected async retry(): Promise<void> {
-    await this.load(this.scope());
-    this.restoreRetryFocus();
+  protected retry(): void {
+    void this.load(this.scope());
   }
 
   protected setMode(mode: PolicyMode): void {
@@ -205,9 +190,7 @@ export class RunnerPolicyEditor {
     if (runner === undefined) {
       return this.t('runners.policy.unknownRunner');
     }
-    return runner.revokedAt === null
-      ? runner.name
-      : this.t('runners.policy.revokedRunner', { name: runner.name });
+    return runner.revokedAt === null ? runner.name : this.t('runners.policy.revokedRunner', { name: runner.name });
   }
 
   protected errorOf(field: PolicyFormError): string {
