@@ -114,7 +114,12 @@ export class RunnersStore {
       Promise.all(others.map(async (account) => [account.id, await this.api.list(account.id)] as const)),
     ]);
     // A failed read of a further account leaves it without runners: the board falls back to its generic copy, and the
-    // Settings screen (the managed account) is not blocked by it.
+    // Settings screen (the managed account) is not blocked by it. It is logged so the gap is not silent (#891).
+    for (const [id, result] of otherReads) {
+      if (!result.ok) {
+        console.warn(`runners: could not read the runners of account ${id} (${result.failure.kind})`);
+      }
+    }
     this.otherAccountRunners.set(
       new Map(otherReads.flatMap(([id, result]) => (result.ok ? [[id, result.value.runners] as const] : []))),
     );

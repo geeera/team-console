@@ -1278,6 +1278,39 @@ describe('SprintBoard', () => {
       expect(lane.querySelector('.board__section-count')?.textContent?.trim()).toBe('2');
     });
 
+    // #891: the project lives in a second owned account; its job's runner is named from that account, not the first.
+    it("names the job's runner from the project's own account when that is a second owned account", async () => {
+      const SECOND_ACCOUNT_ID = '01M6YSNJ0000000000000000A3';
+      const { root, settle } = await render(false, (host) => host.project.set({ ...CONSOLE, accountId: SECOND_ACCOUNT_ID }));
+      http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
+      http.expectOne(sprintsUrl(TC.slug)).flush({
+        sprints: [{ number: 1, title: 'Sprint 01', dueOn: '2026-10-16', state: 'open', description: '', createdAt: '2026-10-01T00:00:00Z', closedAt: null }],
+      });
+      await tick();
+      http.expectOne((request) => request.url === itemsUrl(TC.slug)).flush({ items: [], next: null });
+      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http.expectOne('/api/v1/accounts').flush({
+        accounts: [
+          { id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role: 'owner' },
+          { id: SECOND_ACCOUNT_ID, slug: 'two', name: 'Two', role: 'owner' },
+        ],
+      });
+      await tick();
+      const release = { version: null, minimumVersion: null };
+      http.expectOne(RUNNERS).flush({ runners: [], pendingEnrolments: [], release });
+      http
+        .expectOne(`/api/v1/accounts/${SECOND_ACCOUNT_ID}/runners`)
+        .flush({ runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'Second Mac' }], pendingEnrolments: [], release });
+      await settle();
+      http
+        .expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first))
+        .flush({ events: [], nextCursor: null });
+      await settle();
+
+      const card = root.querySelector('[data-testid="jobs-current"] [data-testid="job-card"]') as HTMLElement;
+      expect(card.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe('Second Mac');
+    });
+
     // #571: the only runner that serves the project hit its usage limit; the queue waits for it.
     it('says the runner is paused, why and until when, while nothing runs; a running job still reads as running', async () => {
       const until = '2026-11-11T14:30:00.000Z';

@@ -360,9 +360,6 @@ export class SprintBoard {
   protected readonly jobsTileState = computed(() =>
     this.jobs.status() === 'ready' ? this.jobs.tile().state : 'unknown',
   );
-  protected readonly runnerNames = computed(
-    () => new Map(this.runners.runners().map((runner) => [runner.id, runner.name] as const)),
-  );
   /**
    * Every runner that may serve the project is paused on a usage or rate limit (#571): the tile says so and until
    * when, unless a job is running anyway. Only the account's owner reads runners, so a member never sees it.
@@ -373,6 +370,10 @@ export class SprintBoard {
   );
   /** The project's own account's runners: a slug is only unique inside an account (#847). */
   private readonly projectRunners = computed(() => this.runners.runnersOfAccount(this.project().accountId));
+  /** Job runner names from the project's own account (#891); a runner of another account keeps the generic label. */
+  protected readonly runnerNames = computed(
+    () => new Map(this.projectRunners().map((runner) => [runner.id, runner.name] as const)),
+  );
   protected readonly jobsPause = computed(() => projectPauseOf(this.projectRunners(), this.project().slug));
   /** The owner's paused line (#775): only when the Worker says this caller may Run now here, so it reads its runners. */
   protected readonly jobsPauseLine = computed((): JobsPauseLine | null => {
