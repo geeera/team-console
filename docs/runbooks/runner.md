@@ -71,7 +71,52 @@ gh attestation verify oci://ghcr.io/geeera/team-console-runner@sha256:<digest> -
 
 ## `user` backend (macOS) — the owner's Mac (#576)
 
-`sudo` may not search Homebrew's `PATH`, so name `node` and the bundle explicitly:
+### One command: `setup` (#634)
+
+On Settings › Runners › Add runner the console makes an enrolment request (an id, not a secret) and shows the command
+for it. Run it in Terminal on the Mac, as an admin:
+
+```sh
+sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://<console> --enrolment <request id>
+```
+
+`setup` runs these steps in order. Each step is safe to repeat; `--only <step>,<step>` re-runs some of them after a fix.
+
+| Step | Runs as | What it does |
+| --- | --- | --- |
+| `install` | root | With `--release <tarball> --sha256 <sum>`: copies the downloaded tarball into a root-owned 0700 directory, checks the copy against the sum the console showed, and installs from that copy into `/usr/local/lib/team-console-runner` (R-ONE-1). Then applies the installer's plan below (users, home, sudoers rule, managed settings, LaunchDaemon). |
+| `enrol` | `_tcrunner` | Makes the runner key and binds it to the request. Prints the account and a fingerprint `ABCD-EFGH`: compare it with the one in the console, then press «Подтвердить» there. Nothing is written until you approve. If the terminal says **the request is already taken by another machine**, press «Отклонить» and start again with a new request. Skipped when the Mac is already enrolled. |
+| `toolchain` | root asks, `_tcjob` proves | Finds `claude`, `git` and `node` (Homebrew, `/usr/local/bin`, `/usr/bin/git`). A tool counts only when `_tcjob` can run `<tool> --version` with an empty environment and no file or directory on its path is writable by group or others. A `claude` under a user's home is refused: install it system-wide (`brew install --cask claude-code`). Writes `toolchain` into `config.json`. |
+| `credential` | `_tcrunner` | Runs `claude setup-token` with your terminal for the sign-in; the sign-in page opens in your browser. The token is captured into `credentials/claude-setup-token` (0600) and never shown: nothing of what the CLI prints after the token reaches the terminal. Root never sees it. A wrapped, doubled or wrong-kind token is refused and nothing is written; run `setup --only credential` again. An existing token is kept unless you pass `--replace-credential` (revoke the old one at claude.ai first). `--credential api-key` asks for an API key with echo off instead. |
+| `service` | root | `launchctl bootstrap` (or `kickstart -k` when it is already loaded). |
+| `check` | root, with `_tcrunner`'s half | `self-check`, below. |
+
+**`self-check`** (also `sudo … team-console-runner self-check` on its own) prints one line per check and ends with
+«Готово: раннер «<name>» на связи» or the first item to fix: the config and the key load as `_tcrunner`; the console
+accepts the key (`GET /runner/self`) and the version is not below its minimum; the service is running and keeps its
+pid past its first claim; the credential file is `_tcrunner`'s, 0600, and its length is sane (the value is never
+read), and every project the runner serves fits its kind; `claude`, `git` and `node` run as `_tcjob` (a `warn` names a
+tool another user owns, see S2 below); and the L3 checks 1–4 and 8: `_tcjob` has home `/var/empty` and shell
+`/usr/bin/false`, neither user is an admin, the home is 0710 with `credentials` and `logs` 0700 and no symlinks,
+`_tcjob` cannot list it, the managed settings are root's and unchanged, `_tcrunner` has exactly the one sudoers rule,
+and the release files are root's alone. L3 checks 5–7 need a running job: see the manual check at the end.
+
+An already enrolled Mac (the owner's «Mac»): `sudo … setup --only toolchain,credential,service,check`.
+
+Until the release ships its own node (#634 PR 5), the launcher runs as root only with a node that root alone can
+change (S2): Node.js from nodejs.org (`/usr/local/bin/node`), not Homebrew's. Until the console's wizard builds the
+download command (#634 PR 4/5), extract the release by hand as in [Get a release](#get-a-release-and-verify-it-both-backends)
+and run `setup` without `--release`.
+
+Root's part never reads the Claude credential: every step that touches the key, `config.json` or the credential
+starts as `sudo -u _tcrunner -- env -i HOME=/Users/_tcrunner TC_RUNNER_HOME=/Users/_tcrunner PATH=<system> …`, with
+your terminal as its stdin and stdout. `claude setup-token` runs with a fresh 0700 `HOME` in the system's temporary
+directory that is deleted afterwards, so no login state lands in `_tcrunner`'s home.
+
+### By hand
+
+The steps `setup` automates, for a Mac where you want to see each one. `sudo` may not search Homebrew's `PATH`, so
+name `node` and the bundle explicitly:
 
 ```sh
 NODE=$(command -v node); B=/usr/local/lib/team-console-runner/team-console-runner.mjs
