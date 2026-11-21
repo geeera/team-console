@@ -201,6 +201,21 @@ describe('RunnersApi', () => {
     expect(await withdrawn).toEqual({ ok: true, value: null });
   });
 
+  it('sends a withdraw with keepalive only when asked, so it can outlive the page (#878)', async () => {
+    const { api, http } = setup();
+    const intentUrl = `${RUNNERS}/enrolment-intents/${ENROLMENT_INTENT_FIXTURE_ID}`;
+    const plain = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    const first = http.expectOne(`${intentUrl}/withdraw`);
+    expect(first.request.keepalive).toBe(false);
+    first.flush(null, { status: 204, statusText: 'No Content' });
+    await plain;
+    const leaving = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, { keepalive: true });
+    const second = http.expectOne(`${intentUrl}/withdraw`);
+    expect(second.request.keepalive).toBe(true);
+    second.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await leaving).toEqual({ ok: true, value: null });
+  });
+
   it('refuses an intent of the wrong shape: a hostname with a direction override is never rendered', async () => {
     const { api, http } = setup();
     const read = api.enrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
@@ -241,6 +256,17 @@ describe('runnerFailureOf', () => {
     expect(failure).toEqual({ kind: 'invalid', slug: 'actions-not-ready', field: 'dispatch', items: ['secret', 'workflow'] });
     expect(runnerFailureKeyOf(failure)).toBe('runners.err.actionsNotReadyBare');
     expect(runnerFailureOf(problem(422, 'access-source-hosted'))).not.toHaveProperty('items');
+  });
+
+  it('keeps the Retry-After of a 429, and null when there is none (#879)', () => {
+    const limited = new HttpErrorResponse({
+      status: 429,
+      error: { type: problemTypeOf('rate-limited'), title: 'x', status: 429 },
+      headers: new HttpHeaders({ 'Content-Type': 'application/problem+json', 'Retry-After': '17' }),
+      url: '/api/v1/x',
+    });
+    expect(runnerFailureOf(limited)).toMatchObject({ kind: 'rate-limited', retryAfterSeconds: 17 });
+    expect(runnerFailureOf(problem(429, 'rate-limited')).retryAfterSeconds).toBeNull();
   });
 
   it('maps a timeout and a non-HTTP error', () => {

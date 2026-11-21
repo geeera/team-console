@@ -77,7 +77,9 @@ describe('RunnerScopePicker (#775)', () => {
   it('states D3 unless the account is known to have one owner (N6, decision 5)', async () => {
     const { root, fixture, radio } = await render();
     const owners = (): Element | null => root.querySelector('[data-testid="runner-scope-owners"]');
-    expect(owners()?.textContent).toContain('В аккаунте несколько владельцев');
+    // Unknown count: the conditional wording, which never claims owners the account may not have (#878).
+    expect(owners()?.textContent).toContain('Если в аккаунте есть другие владельцы');
+    expect(owners()?.textContent).not.toContain('несколько владельцев');
     expect(radio('all').getAttribute('aria-describedby')).toContain(owners()?.id ?? 'missing');
 
     fixture.componentInstance.ownerCount.set(1);
@@ -86,6 +88,6 @@ describe('RunnerScopePicker (#775)', () => {
 
     fixture.componentInstance.ownerCount.set(2);
     await fixture.whenStable();
-    expect(owners()).not.toBeNull();
+    expect(owners()?.textContent).toContain('В аккаунте несколько владельцев');
   });
 });

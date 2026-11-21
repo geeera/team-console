@@ -19,7 +19,7 @@ import {
   type EnrolmentIntentDto,
 } from '@shared/contracts';
 import { AddRunnerWizard, type AddRunnerData } from './add-runner-wizard';
-import { countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from './add-runner.model';
+import { APPROVE_ARM_MS, countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from './add-runner.model';
 
 const SETUP = `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment ${ENROLMENT_INTENT_FIXTURE_ID}`;
 const CREATED: EnrolmentIntentCreatedDto = {
@@ -42,6 +42,8 @@ class ManualWatch {
   readonly minimumVersion = signalOf<string | null>('0.2.0');
   readonly failedPolls = signalOf(0);
   readonly stopped = signalOf<'session-expired' | 'forbidden' | 'not-found' | null>(null);
+  readonly gaveUp = signalOf(false);
+  readonly rateLimitedFor = signalOf<number | null>(null);
   readonly watchIntent = vi.fn();
   readonly watchRunner = vi.fn();
   readonly stop = vi.fn();
@@ -69,7 +71,7 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       createEnrolmentIntent: vi.fn(async (_account: string, _input: CreateEnrolmentIntentInput) => created()),
       approveEnrolmentIntent: vi.fn(async (_account: string, _id: string, _fingerprint: string) => approve()),
       enrolmentIntent: vi.fn(async () => reread()),
-      withdrawEnrolmentIntent: vi.fn(async () => withdraw()),
+      withdrawEnrolmentIntent: vi.fn(async (_account: string, _id: string, _options?: { keepalive?: boolean }) => withdraw()),
     };
     const sheet = { confirm: vi.fn(async () => confirm) };
     const toaster = { show: vi.fn() };
@@ -121,14 +123,25 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       await type('Mac mini');
       await submit();
     };
+    /** Waits out the #878 mis-click guard, as an owner comparing the code does. */
+    const arm = async (): Promise<void> => {
+      await vi.advanceTimersByTimeAsync(APPROVE_ARM_MS);
+      await settle();
+    };
     const toConfirm = async (): Promise<void> => {
       await toCommand();
       await flip(enrolmentIntentFixture());
+      await arm();
     };
-    return { fixture, root, find, type, submit, click, flip, toCommand, toConfirm, settle, api, watch, close, ref, guard, sheet, toaster };
+    return { fixture, root, find, type, submit, click, flip, arm, toCommand, toConfirm, settle, api, watch, close, ref, guard, sheet, toaster };
   }
 
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     document.body.innerHTML = '';
   });
 
@@ -150,7 +163,7 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
 
   it('keeps the D3 line when the owner count fails to load (decision 5)', async () => {
     const { find } = await render({ owners: () => failed('offline') });
-    expect(find('runner-scope-owners')).not.toBeNull();
+    expect(find('runner-scope-owners')?.textContent).toContain('Если в аккаунте есть другие владельцы');
   });
 
   it('refuses an empty name and focuses the field', async () => {
@@ -251,8 +264,27 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(find('wizard-approved-waiting')).not.toBeNull();
   });
 
+  it('ignores approve for a second after «Подтвердить» takes the withdraw button’s spot (#878)', async () => {
+    const { toCommand, flip, click, find, api, settle } = await render();
+    await toCommand();
+    // The click aimed at «Отозвать запрос» lands after the poll flipped the step.
+    await flip(enrolmentIntentFixture());
+    expect(find('wizard-approve')?.getAttribute('aria-disabled')).toBe('true');
+    await click('wizard-approve');
+    expect(api.approveEnrolmentIntent).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(APPROVE_ARM_MS / 2);
+    await settle();
+    await click('wizard-approve');
+    expect(api.approveEnrolmentIntent).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(APPROVE_ARM_MS / 2);
+    await settle();
+    expect(find('wizard-approve')?.hasAttribute('aria-disabled')).toBe(false);
+    await click('wizard-approve');
+    expect(api.approveEnrolmentIntent).toHaveBeenCalledTimes(1);
+  });
+
   it('re-reads after a 409 changed, shows the new code and never approves on its own', async () => {
-    const { toConfirm, click, api, find } = await render({
+    const { toConfirm, click, arm, api, find } = await render({
       approve: () => failed('conflict', 'enrolment-fingerprint-mismatch'),
       reread: () => ({ ok: true, value: enrolmentIntentFixture({ fingerprint: 'ZZZZ-1111' }) }),
     });
@@ -261,6 +293,10 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(api.approveEnrolmentIntent).toHaveBeenCalledTimes(1);
     expect(find('wizard-fingerprint')?.textContent?.trim()).toBe('ZZZZ-1111');
     expect(find('wizard-error')?.textContent).toContain('Запрос изменился');
+    // The second click of a double click lands on the new code: the guard holds it too.
+    await click('wizard-approve');
+    expect(api.approveEnrolmentIntent).toHaveBeenCalledTimes(1);
+    await arm();
     await click('wizard-approve');
     expect(api.approveEnrolmentIntent).toHaveBeenLastCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, 'ZZZZ-1111');
   });
@@ -320,18 +356,30 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
   });
 
   it('says what to check after five minutes offline, and keeps waiting (decision 4)', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
-    try {
-      const { toConfirm, click, find, fixture } = await render();
-      await toConfirm();
-      await click('wizard-approve');
-      expect(find('wizard-slow')).toBeNull();
-      await vi.advanceTimersByTimeAsync(5 * 60_000);
-      await fixture.whenStable();
-      expect(find('wizard-slow')?.textContent).toContain('self-check');
-    } finally {
-      vi.useRealTimers();
-    }
+    const { toConfirm, click, find, fixture } = await render();
+    await toConfirm();
+    await click('wizard-approve');
+    expect(find('wizard-slow')).toBeNull();
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await fixture.whenStable();
+    expect(find('wizard-slow')?.textContent).toContain('self-check');
+  });
+
+  it('offers a manual re-check once the watch stops polling the offline runner (#878)', async () => {
+    const { toConfirm, click, find, watch, settle } = await render();
+    await toConfirm();
+    await click('wizard-approve');
+    watch.gaveUp.set(true);
+    await settle();
+    expect(find('wizard-slow')?.textContent).toContain('Раннер пока не вышел на связь');
+    expect(find('wizard-stopped')?.textContent).toContain('Консоль перестала проверять сама');
+    expect(find('wizard-approved-waiting')).toBeNull();
+    watch.checkNow.mockImplementationOnce(async () => {
+      watch.runner.set(runnerFixture({ online: true }));
+    });
+    await click('wizard-recheck');
+    expect(watch.checkNow).toHaveBeenCalledTimes(1);
+    expect(find('wizard-online')?.textContent).toContain('Раннер «Mac mini» подключён');
   });
 
   it('asks before closing a live request, withdraws it, and closes even when the withdraw fails', async () => {
@@ -343,6 +391,61 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(api.withdrawEnrolmentIntent).toHaveBeenCalled();
     expect(toaster.show).toHaveBeenCalledWith('Не удалось отозвать запрос. Он истечёт сам через 10 минут.');
     expect(close).toHaveBeenCalledWith({ kind: 'closed', enrolled: false });
+  });
+
+  it('withdraws a live request once when the sheet goes away without the dialog (#878)', async () => {
+    const { toConfirm, fixture, api, settle } = await render();
+    await toConfirm();
+    fixture.destroy();
+    await settle();
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledTimes(1);
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, {
+      keepalive: true,
+    });
+  });
+
+  it('withdraws on pagehide with keepalive and not again when the sheet then goes away (#878)', async () => {
+    const { toCommand, fixture, api, settle } = await render();
+    await toCommand();
+    window.dispatchEvent(new Event('pagehide'));
+    await settle();
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, {
+      keepalive: true,
+    });
+    fixture.destroy();
+    await settle();
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a failed withdraw on leaving rather than dropping it (#878)', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const { toCommand, fixture, settle } = await render({ withdraw: () => failed('session-expired') });
+      await toCommand();
+      fixture.destroy();
+      await settle();
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('session-expired'));
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each([
+    ['step 1', false],
+    ['after the close dialog withdrew it', true],
+  ] as const)('sends no second withdraw on leaving %s', async (_case, live) => {
+    const { toCommand, guard, fixture, api, settle } = await render();
+    if (live) {
+      await toCommand();
+      guard.request();
+      await settle();
+    }
+    fixture.destroy();
+    await settle();
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledTimes(live ? 1 : 0);
+    if (live) {
+      expect(api.withdrawEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    }
   });
 
   it('stays open when the owner chooses «Остаться»', async () => {
@@ -360,6 +463,19 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     await settle();
     expect(sheet.confirm).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith({ kind: 'closed', enrolled: false });
+  });
+
+  it('says the console asked to slow down on a 429, not that it is unreachable (#879)', async () => {
+    const { toCommand, watch, settle, find } = await render();
+    await toCommand();
+    watch.rateLimitedFor.set(30);
+    await settle();
+    expect(find('wizard-poll-limited')?.getAttribute('role')).toBe('status');
+    expect(find('wizard-poll-limited')?.textContent).toContain('Проверим снова через 30 с');
+    expect(find('wizard-poll-failing')).toBeNull();
+    watch.rateLimitedFor.set(null);
+    await settle();
+    expect(find('wizard-poll-limited')).toBeNull();
   });
 
   it('says so after two failed polls and when the session expired', async () => {

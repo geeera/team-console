@@ -44,12 +44,20 @@ const INSTALL = {
 
 const frame = (inner: string): string => `<div style="max-width: var(--sheet-dialog-w); display: grid; gap: var(--space-5)">${inner}</div>`;
 
-/** Step 1 for an account with several owners (or an unknown count): the D3 line under «Все проекты аккаунта». */
+/** Step 1 while the owner count is unknown: the D3 line in its conditional wording (#878). */
 export const Params: Story = {
   render: () => ({
     props: { projects: PROJECTS },
     template: frame(`<tc-add-runner-step-indicator step="params" />
       <tc-add-runner-params-step formId="story-params" [projects]="projects" [ownerCount]="null" />`),
+  }),
+};
+
+/** Step 1 for an account with several owners: the D3 line as a plain statement. */
+export const ParamsSeveralOwners: Story = {
+  render: () => ({
+    props: { projects: PROJECTS },
+    template: frame(`<tc-add-runner-params-step formId="story-owners" [projects]="projects" [ownerCount]="2" />`),
   }),
 };
 
@@ -110,6 +118,18 @@ export const Confirm: Story = {
   }),
 };
 
+/** Step 3 in the dark theme: the warning callout and the large fingerprint keep their contrast. */
+export const ConfirmDark: Story = {
+  ...Confirm,
+  globals: { theme: 'dark' },
+};
+
+/** Step 3 on the iPhone: the fingerprint at the same 28 px, the ledger label-over-value under 360 px. */
+export const ConfirmPhone: Story = {
+  ...Confirm,
+  globals: { viewport: { value: 'iphone', isRotated: false } },
+};
+
 /** Step 3 with a long hostname and no country from the edge. */
 export const ConfirmLongHost: Story = {
   render: () => ({
@@ -132,6 +152,18 @@ export const Approved: Story = {
 /** Step 4a after five minutes: what to check on the machine. */
 export const ApprovedSlow: Story = {
   render: () => ({ template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" />`) }),
+};
+
+/** Step 4a after fifteen minutes (#878): polling stopped, the owner re-checks by hand. */
+export const ApprovedStopped: Story = {
+  render: () => ({ template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" />`) }),
+};
+
+/** Step 4a while a re-check runs. */
+export const ApprovedRechecking: Story = {
+  render: () => ({
+    template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" [rechecking]="true" />`),
+  }),
 };
 
 /** Step 4b: on line. */

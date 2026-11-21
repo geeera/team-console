@@ -9,10 +9,14 @@ let nextPickerId = 0;
 /**
  * Which projects a runner serves (#775, `runners.project_scope`): every project of the account, present and future
  * (`all`, the default for a new runner), or only the ticked ones (`selected`, the projects picker below the radio).
- * Used by enrolment and by the scope editor. The hint under `all` says plainly what it covers; owner decision D3 (a
- * subscription runner takes only the enrolling owner's projects) is its own visible line, shown unless the account is
- * known to have exactly one owner (`ownerCount`), so the safe text wins while the count is unknown. `allowedProjects` stays as the owner left it when they switch to `all`, so
- * switching back restores the list; the Worker stores `[]` under `all`.
+ * Used by enrolment and by the scope editor. The hint under `all` says plainly what it covers.
+ *
+ * Owner decision D3 (a subscription runner takes only the enrolling owner's projects) is its own visible line, shown
+ * unless the account is known to have exactly one owner (`ownerCount`), so the safe text wins while the count is
+ * unknown. An unknown count gets the conditional wording (#878): it never claims owners the account may not have.
+ *
+ * `allowedProjects` stays as the owner left it when they switch to `all`, so switching back restores the list; the
+ * Worker stores `[]` under `all`.
  */
 @Component({
   selector: 'tc-runner-scope-picker',
@@ -35,7 +39,7 @@ let nextPickerId = 0;
           <small tc-choice-hint [id]="groupName + '-all-hint'">{{ 'runners.scope.allHint' | transloco }}</small>
           @if (showsOwners()) {
             <small tc-choice-hint data-testid="runner-scope-owners" [id]="groupName + '-all-owners'">{{
-              'runners.scope.allOwners' | transloco
+              ownersKey() | transloco
             }}</small>
           }
         </label>
@@ -85,6 +89,9 @@ export class RunnerScopePicker {
   readonly ownerCount = input<number | null>(null);
 
   protected readonly showsOwners = computed(() => this.ownerCount() !== 1);
+  protected readonly ownersKey = computed(() =>
+    this.ownerCount() === null ? 'runners.scope.allOwnersUnknown' : 'runners.scope.allOwners',
+  );
 
   protected readonly groupName = `tc-runner-scope-${nextPickerId++}`;
 }

@@ -1,17 +1,17 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Callout, CopyCode, Receipt, Spinner } from '@console/shared/ui';
+import { Button, Callout, CopyCode, Receipt, Spinner } from '@console/shared/ui';
 import type { RunnerDto, RunnerProjectScope } from '@shared/contracts';
 import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-runner.model';
 
 /**
  * Step 4 «На связи» (spec §3.4–3.5): after the approval, waiting for the first signal (with what to check once it
  * takes longer than five minutes, decision 4), then the runner on line. The console cannot see `self-check`'s
- * output, so the step says where to look on the machine.
+ * output, so the step says where to look on the machine. Once the watch gives up (#878), a re-check is the owner's.
  */
 @Component({
   selector: 'tc-add-runner-online-step',
-  imports: [Callout, CopyCode, Receipt, Spinner, TranslocoPipe],
+  imports: [Button, Callout, CopyCode, Receipt, Spinner, TranslocoPipe],
   template: `
     @if (runner()?.online) {
       <tc-receipt tone="positive" flush>
@@ -47,11 +47,13 @@ import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-
     } @else {
       <h3 class="step__heading" tabindex="-1" data-step-heading>{{ 'runners.wizard.approved.title' | transloco }}</h3>
       <p class="step__lead">{{ 'runners.wizard.approved.body' | transloco }}</p>
-      <div class="step__wait" data-testid="wizard-approved-waiting">
-        <tc-spinner />
-        <span>{{ 'runners.wizard.approved.waiting' | transloco }}</span>
-      </div>
-      @if (slow()) {
+      @if (!gaveUp()) {
+        <div class="step__wait" data-testid="wizard-approved-waiting">
+          <tc-spinner />
+          <span>{{ 'runners.wizard.approved.waiting' | transloco }}</span>
+        </div>
+      }
+      @if (slow() || gaveUp()) {
         <section tc-callout tone="warning" data-testid="wizard-slow">
           <p tc-callout-title>{{ 'runners.wizard.slow.title' | transloco }}</p>
           <p>{{ 'runners.wizard.slow.body' | transloco }}</p>
@@ -64,7 +66,28 @@ import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-
             [failedNote]="'runners.enrol.copyFailed' | transloco"
           />
           <p>{{ 'runners.wizard.slow.log' | transloco: { path: logPath } }}</p>
-          <p>{{ 'runners.wizard.slow.keepWaiting' | transloco }}</p>
+          @if (gaveUp()) {
+            <p data-testid="wizard-stopped">{{ 'runners.wizard.slow.stopped' | transloco }}</p>
+            <p>
+              <button
+                tc-button
+                size="sm"
+                type="button"
+                data-testid="wizard-recheck"
+                [loading]="rechecking()"
+                [attr.aria-disabled]="rechecking() ? 'true' : null"
+                (click)="recheck.emit()"
+              >
+                @if (rechecking()) {
+                  {{ 'runners.wizard.slow.rechecking' | transloco }}
+                } @else {
+                  {{ 'runners.wizard.slow.recheck' | transloco }}
+                }
+              </button>
+            </p>
+          } @else {
+            <p>{{ 'runners.wizard.slow.keepWaiting' | transloco }}</p>
+          }
         </section>
       }
     }
@@ -80,6 +103,10 @@ export class AddRunnerOnlineStep {
   readonly minimumVersion = input<string | null>(null);
   readonly projectScope = input<RunnerProjectScope>('all');
   readonly allowedProjects = input<readonly string[]>([]);
+  /** The watch stopped polling (`RUNNER_WATCH_LIMIT_MS`): the callout offers a re-check instead of waiting on. */
+  readonly gaveUp = input(false);
+  readonly rechecking = input(false);
+  readonly recheck = output();
 
   protected readonly selfCheck = SELF_CHECK_COMMAND;
   protected readonly logPath = RUNNER_LOG_PATH;

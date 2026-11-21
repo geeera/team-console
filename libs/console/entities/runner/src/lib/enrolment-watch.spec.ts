@@ -1,3 +1,4 @@
+import { ErrorHandler } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { OWNER_ACCOUNT_ID, type EnrolmentIntentDto, type RunnerListDto } from '@shared/contracts';
 import {
@@ -5,6 +6,7 @@ import {
   INTENT_POLL_VISIBLE_MS,
   POLL_HIDDEN_MS,
   RUNNER_POLL_VISIBLE_MS,
+  RUNNER_WATCH_LIMIT_MS,
 } from './enrolment-watch';
 import type { RunnerResult } from './runner-failure';
 import {
@@ -42,8 +44,11 @@ describe('EnrolmentWatch', () => {
       enrolmentIntent: vi.fn(async () => intents.shift() ?? { ok: true as const, value: pendingIntentFixture() }),
       list: vi.fn(async () => lists.shift() ?? { ok: false as const, failure: { kind: 'error' as const, slug: null, field: null } }),
     };
-    TestBed.configureTestingModule({ providers: [EnrolmentWatch, { provide: RunnersApi, useValue: api }] });
-    return { watch: TestBed.inject(EnrolmentWatch), api };
+    const errors = { handleError: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [EnrolmentWatch, { provide: RunnersApi, useValue: api }, { provide: ErrorHandler, useValue: errors }],
+    });
+    return { watch: TestBed.inject(EnrolmentWatch), api, errors };
   }
 
   it('reads the intent every 3 s while visible and stops once it settles', async () => {
@@ -143,5 +148,90 @@ describe('EnrolmentWatch', () => {
     expect(watch.minimumVersion()).toBe('0.2.0');
     await vi.advanceTimersByTimeAsync(RUNNER_POLL_VISIBLE_MS * 5);
     expect(api.list).toHaveBeenCalledTimes(2);
+  });
+
+  it('stops polling the runner after the limit and reads only on a re-check (#878)', async () => {
+    const offline: RunnerResult<RunnerListDto> = {
+      ok: true,
+      value: { runners: [runnerFixture({ online: false, lastSeenAt: null })], pendingEnrolments: [], release: RELEASE },
+    };
+    const { watch, api } = setup([]);
+    api.list.mockImplementation(async () => offline);
+    watch.watchRunner(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+    await vi.advanceTimersByTimeAsync(RUNNER_WATCH_LIMIT_MS);
+    expect(watch.gaveUp()).toBe(true);
+    const reads = api.list.mock.calls.length;
+    // At most 180 reads in the fifteen minutes (spec N4 rate).
+    expect(reads).toBeGreaterThan(170);
+    expect(reads).toBeLessThanOrEqual(RUNNER_WATCH_LIMIT_MS / RUNNER_POLL_VISIBLE_MS);
+
+    await vi.advanceTimersByTimeAsync(RUNNER_WATCH_LIMIT_MS);
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('online'));
+    await vi.advanceTimersByTimeAsync(RUNNER_POLL_VISIBLE_MS);
+    expect(api.list).toHaveBeenCalledTimes(reads);
+
+    await watch.checkNow();
+    expect(api.list).toHaveBeenCalledTimes(reads + 1);
+    expect(watch.gaveUp()).toBe(true);
+    await vi.advanceTimersByTimeAsync(RUNNER_POLL_VISIBLE_MS * 3);
+    expect(api.list).toHaveBeenCalledTimes(reads + 1);
+
+    api.list.mockImplementation(async () => ({
+      ok: true,
+      value: { runners: [runnerFixture({ online: true })], pendingEnrolments: [], release: RELEASE },
+    }));
+    await watch.checkNow();
+    expect(watch.runner()?.online).toBe(true);
+  });
+
+  it('logs a read that throws, counts it as failed and keeps polling', async () => {
+    const { watch, api, errors } = setup([]);
+    const bug = new Error('guard bug');
+    api.enrolmentIntent.mockImplementationOnce(async () => {
+      throw bug;
+    });
+    watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(errors.handleError).toHaveBeenCalledWith(bug);
+    expect(watch.failedPolls()).toBe(1);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
+    expect(watch.failedPolls()).toBe(0);
+  });
+
+  it('waits out Retry-After on a 429 and says rate-limited, not unreachable (#879)', async () => {
+    const limited: RunnerResult<EnrolmentIntentDto> = {
+      ok: false,
+      failure: { kind: 'rate-limited', slug: 'rate-limited', field: null, retryAfterSeconds: 30 },
+    };
+    const { watch, api } = setup([limited, limited]);
+    watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(watch.rateLimitedFor()).toBe(30);
+    expect(watch.failedPolls()).toBe(0);
+
+    // Neither the 3 s timer nor a wake-up reads inside the 30 s.
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
+    expect(watch.failedPolls()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(3);
+    expect(watch.rateLimitedFor()).toBeNull();
+  });
+
+  it('waits a minute on a 429 without Retry-After', async () => {
+    const { watch, api } = setup([{ ok: false, failure: { kind: 'rate-limited', slug: null, field: null, retryAfterSeconds: null } }]);
+    watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(watch.rateLimitedFor()).toBe(60);
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
   });
 });

@@ -2346,7 +2346,8 @@
       "title": "Runner projects",
       "edit": "Projects",
       "editAria": "Change the projects of runner {{name}}",
-      "allOwners": "This account has several owners. Under this rule a runner signed in with a Claude subscription takes only your projects. It takes other owners’ projects only if you tick them under “Only the chosen ones”."
+      "allOwners": "This account has several owners. Under this rule a runner signed in with a Claude subscription takes only your projects. It takes other owners’ projects only if you tick them under “Only the chosen ones”.",
+      "allOwnersUnknown": "If the account has other owners, a runner signed in with a Claude subscription takes only your projects under this rule. It takes other owners’ projects only if you tick them under “Only the chosen ones”."
     },
     "enroller": {
       "open": "Claim as mine",
@@ -2445,6 +2446,10 @@
         "body": "Look at Terminal: setup names the step that failed and how to fix it. To check everything again:",
         "log": "Service log: {{path}}",
         "keepWaiting": "The console keeps waiting. You can close this window: the runner is already listed and turns “Online” on its own.",
+        "stopped": "The console has stopped checking on its own. When the runner starts, press “Check again”. You can close this window: the runner is already listed.",
+        "recheck": "Check again",
+        "rechecking": "Checking…",
+        "stillOffline": "The runner still isn’t online.",
         "copyAria": "Copy the runner check command",
         "region": "Runner check command"
       },
@@ -2468,6 +2473,7 @@
       "close": "Close",
       "done": "Done",
       "pollFailing": "No connection to the console, trying again. The request on your machine keeps waiting.",
+      "pollRateLimited": "The console asks us to check less often. Checking again in {{seconds}} s; the request on your machine keeps waiting.",
       "offline": "You’re offline. When the connection is back, the console checks the request again.",
       "offlineReason": "You’re offline",
       "closeConfirm": {
