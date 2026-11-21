@@ -1,4 +1,4 @@
-import type { IdentityProvider } from '@shared/contracts';
+import { DISPLAY_NAME_MAX, type IdentityProvider } from '@shared/contracts';
 
 /** One `users` row (migration 0018). The provider's id is the identity; `login` is display only. */
 export interface UserRecord {
@@ -8,6 +8,8 @@ export interface UserRecord {
   readonly login: string;
   readonly email: string | null;
   readonly avatarUrl: string | null;
+  /** The profile name (#775, migration 0038): display only, already cleaned at write; `null` when there is none. */
+  readonly displayName: string | null;
   /** The linked Access identity (decision 3), written once by the explicit link. */
   readonly accessSubject: string | null;
   readonly createdAt: string;
@@ -21,13 +23,31 @@ interface UserRow {
   login: string;
   email: string | null;
   avatar_url: string | null;
+  display_name: string | null;
   access_subject: string | null;
   created_at: string;
   last_seen_at: string;
 }
 
 const COLUMNS =
-  'id, provider, provider_user_id, login, email, avatar_url, access_subject, created_at, last_seen_at';
+  'id, provider, provider_user_id, login, email, avatar_url, display_name, access_subject, created_at, last_seen_at';
+
+/** Control, format (bidi overrides and isolates among them) and line/paragraph separators, as R-INT-7 refuses them. */
+const UNSHOWN = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+
+/**
+ * A provider's profile name as the console may show it (#775): those characters stripped, whitespace collapsed and
+ * trimmed, cut to `DISPLAY_NAME_MAX` code points; `null` for anything that is not a string or is empty after.
+ * The name is still plain text for interpolation only, never markup.
+ */
+export function displayNameOf(raw: unknown): string | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const cleaned = raw.replace(UNSHOWN, '').replace(/\s+/gu, ' ').trim();
+  const kept = [...cleaned].slice(0, DISPLAY_NAME_MAX).join('').trim();
+  return kept === '' ? null : kept;
+}
 
 function toRecord(row: UserRow): UserRecord {
   return {
@@ -37,13 +57,17 @@ function toRecord(row: UserRow): UserRecord {
     login: row.login,
     email: row.email,
     avatarUrl: row.avatar_url,
+    displayName: row.display_name,
     accessSubject: row.access_subject,
     createdAt: row.created_at,
     lastSeenAt: row.last_seen_at,
   };
 }
 
-/** Console users (ADR 0008 decision 3). Sign-in writes arrive with T-3; T-1 only reads. */
+/**
+ * Console users (ADR 0008 decision 3). Sign-in writes arrive with T-3; until then the one write is the profile name
+ * the owner's GitHub connect refreshes (#775).
+ */
 export class UsersRepo {
   constructor(private readonly db: D1Database) {}
 
@@ -68,5 +92,20 @@ export class UsersRepo {
       .bind(accessSubject)
       .first<UserRow>();
     return row === null ? null : toRecord(row);
+  }
+
+  /**
+   * The profile name of the user the provider id names, cleaned by `displayNameOf`, written at sign-in and on every
+   * later one (#775). Creates no user: a provider id with no row changes nothing. Whether a row changed.
+   */
+  async refreshDisplayName(provider: IdentityProvider, providerUserId: string, rawName: unknown): Promise<boolean> {
+    const result = await this.db
+      .prepare(
+        `UPDATE users SET display_name = ?3
+         WHERE provider = ?1 AND provider_user_id = ?2 AND display_name IS NOT ?3`,
+      )
+      .bind(provider, providerUserId, displayNameOf(rawName))
+      .run();
+    return result.meta.changes > 0;
   }
 }

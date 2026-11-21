@@ -9,8 +9,8 @@ import {
   type GitHubConnectionDto,
 } from '@shared/contracts';
 import { randomHex, timingSafeEqualText, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { OwnerConnectionsRepo } from '@worker/db';
-import { GitHubError, pkceChallengeOf, type GitHubOAuth, type UserTokenPair } from '@worker/github';
+import { OwnerConnectionsRepo, UsersRepo } from '@worker/db';
+import { GitHubError, pkceChallengeOf, type GitHubOAuth, type GitHubUser, type UserTokenPair } from '@worker/github';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -61,6 +61,19 @@ function backToSettings(outcome: GitHubConnectOutcome, login?: string): Response
       'Referrer-Policy': 'no-referrer',
     },
   });
+}
+
+/**
+ * The owner's GitHub profile name onto their user row (#775, migration 0038): this connect is the console's sign-in
+ * until T-3. The connection is already stored, so a failed write is logged and the connect still succeeds; the console
+ * then keeps its nameless copy.
+ */
+async function refreshOwnerDisplayName(c: WorkerContext<ApiEnv>, user: GitHubUser): Promise<void> {
+  try {
+    await new UsersRepo(c.env.DB).refreshDisplayName('github', String(user.id), user.name);
+  } catch (error: unknown) {
+    c.get('logger').error('owner display name not refreshed', { error });
+  }
 }
 
 /**
@@ -224,6 +237,7 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         const connection = await github.ownerConnection(c.env, logger);
         await connection.connect(user, pair);
         logger.info('owner connected', { login: user.login });
+        await refreshOwnerDisplayName(c, user);
         return backToSettings('connected');
       } catch (error: unknown) {
         // The login is the owner's or unknown here: the grant may hold the stored connection.

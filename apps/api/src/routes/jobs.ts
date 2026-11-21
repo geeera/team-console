@@ -13,7 +13,7 @@ import {
   type RunnerPolicyDto,
 } from '@shared/contracts';
 import { newUlid, problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { AccountsRepo, JobsRepo, RunnersRepo, effectivePolicyOf, type JobRecord, type NewAuditEvent } from '@worker/db';
+import { AccountsRepo, JobsRepo, ProjectsRepo, RunnersRepo, effectivePolicyOf, type JobRecord, type NewAuditEvent } from '@worker/db';
 import { dispatchActionsJob } from '../actions/dispatch';
 import { isJobRole } from '../auth/job-roles';
 import type { ApiGitHub } from '../github';
@@ -191,7 +191,8 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       const page = rows.slice(0, limit);
       const runners = new RunnersRepo(c.env.DB);
       const now = new Date().toISOString();
-      const isOwner = policyActorOfContext(c).kind === 'owner';
+      const actor = policyActorOfContext(c);
+      const isOwner = actor.kind === 'owner';
       const body: JobListDto = {
         jobs: page.map(jobDtoOf),
         nextCursor: rows.length > limit ? (page.at(-1)?.id ?? null) : null,
@@ -199,9 +200,24 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
         // #775: judged per project, so an owner of one account who is a member of another sees the right Run now.
         canRunNow: isOwner,
       };
+      // #775 (SECURITY review of #804, condition 2): a member hears who may start jobs — the display names of this
+      // project's account's owners, nothing else about them. A job and an owner never get the key.
+      if (actor.kind === 'member') {
+        const names = await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(row.account_id);
+        return c.json({ ...body, accountOwnerNames: [...names.values()] } satisfies JobListDto);
+      }
       // SECURITY review of #804: the reason names a subscription and D3, so only the account's owner hears it.
       if (body.runnerAvailability === 'none' && isOwner) {
-        return c.json({ ...body, runnerUnavailableReason: await runners.unavailableReasonOf(row.slug, now) } satisfies JobListDto);
+        const reason = await runners.unavailableReasonOf(row.slug, now);
+        const creator =
+          reason === 'other-owner-subscription' ? await new ProjectsRepo(c.env.DB).creatorOf(row.account_id, row.slug) : null;
+        const creatorName =
+          creator === null ? undefined : (await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(row.account_id)).get(creator);
+        return c.json({
+          ...body,
+          runnerUnavailableReason: reason,
+          ...(creatorName === undefined ? {} : { projectCreatorName: creatorName }),
+        } satisfies JobListDto);
       }
       return c.json(body);
     })

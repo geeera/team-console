@@ -19,6 +19,8 @@
 export interface FakeUser {
   readonly login: string;
   readonly id: number;
+  /** The profile name `GET /user` answers (#775); absent like a profile without one. */
+  readonly name?: string;
 }
 
 /** One-shot faults for the next matching request. */

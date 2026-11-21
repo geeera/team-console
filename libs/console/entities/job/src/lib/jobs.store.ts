@@ -46,6 +46,10 @@ export class JobsStore {
   readonly unavailableReason = signal<RunnerUnavailableReason | null>(null);
   /** Whether the caller may Run now on this project, as the Worker judged it for the project's own account. */
   readonly canRunNow = signal(false);
+  /** The account owners' display names a member's list carries (#775); empty for an owner or when none has a name. */
+  readonly ownerNames = signal<readonly string[]>([]);
+  /** The project creator's display name, with the D3 reason only; `null` otherwise. */
+  readonly projectCreatorName = signal<string | null>(null);
 
   readonly current = computed(() => currentJobsOf(this.jobs()));
   readonly recent = computed(() => recentJobsOf(this.jobs()));
@@ -128,6 +132,8 @@ export class JobsStore {
       this.availability.set(read.value.runnerAvailability);
       this.unavailableReason.set(read.value.runnerUnavailableReason ?? null);
       this.canRunNow.set(read.value.canRunNow);
+      this.ownerNames.set(read.value.accountOwnerNames ?? []);
+      this.projectCreatorName.set(read.value.projectCreatorName ?? null);
       this.failure.set(null);
       this.status.set('ready');
       await this.readEvents(slug, ticket, read.value.jobs.filter(isHeldJob));
@@ -158,6 +164,8 @@ export class JobsStore {
     this.availability.set(null);
     this.unavailableReason.set(null);
     this.canRunNow.set(false);
+    this.ownerNames.set([]);
+    this.projectCreatorName.set(null);
     this.failure.set(null);
     this.refreshing.set(false);
     this.status.set('loading');

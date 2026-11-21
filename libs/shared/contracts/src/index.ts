@@ -76,6 +76,7 @@ export type {
   IdentityProvider,
   MemberRole,
 } from './lib/account';
+export { DISPLAY_NAME_MAX } from './lib/guards';
 export {
   ENROLMENT_CODE_TTL_SECONDS,
   RUNNER_ALLOWED_PROJECTS_MAX,

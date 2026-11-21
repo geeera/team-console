@@ -25,7 +25,7 @@ let nextNoneId = 0;
       <span class="jobs-none__mark" aria-hidden="true"><tc-icon name="offline" size="sm" /></span>
       <h4 #title class="jobs-none__title" tabindex="-1" [id]="titleId">{{ titleKey() | transloco }}</h4>
       <p class="jobs-none__body" dir="auto" data-testid="jobs-none-body">
-        {{ bodyKey() | transloco: { project: projectName(), runner: runnerName() } }}
+        {{ bodyKey() | transloco: { project: projectName(), runner: runnerName(), owner: people(), owners: people() } }}
       </p>
       @switch (kind()) {
         @case ('owner') {
@@ -145,6 +145,11 @@ export class BoardJobsNone {
   readonly projectName = input('');
   /** The D3 runner's name, isolated for bidi; the D3 kinds only. */
   readonly runnerName = input('');
+  /**
+   * Who the copy names (#775), already isolated and joined: the account's owners for `member`, the runner's owner for
+   * `d3`, the project's creator for `d3-mine`. Empty when nobody has a display name: the copy then names no one.
+   */
+  readonly people = input('');
 
   private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
 
@@ -162,15 +167,16 @@ export class BoardJobsNone {
   });
 
   protected readonly bodyKey = computed(() => {
+    const named = this.people() === '' ? '' : 'Named';
     switch (this.kind()) {
       case 'member':
-        return 'jobs.none.member';
+        return `jobs.none.member${named}`;
       case 'owner':
         return 'jobs.none.owner';
       case 'd3':
-        return 'jobs.none.d3';
+        return `jobs.none.d3${named}`;
       case 'd3-mine':
-        return 'jobs.none.d3Mine';
+        return `jobs.none.d3Mine${named}`;
     }
   });
 

@@ -34,7 +34,7 @@ async function routeJobs(page: Page, change: (list: JobListDto) => JobListDto): 
 }
 
 /** A subscription runner under «All account projects» that D3 keeps off this project. */
-function d3Runner(enrolledByYou: boolean): RunnerDto {
+function d3Runner(enrolledByYou: boolean, enrolledByName: string | null = null): RunnerDto {
   return {
     id: '01M6YSNJ000000000000000R01',
     name: 'Mac',
@@ -56,6 +56,7 @@ function d3Runner(enrolledByYou: boolean): RunnerDto {
     belowMinimum: false,
     pause: null,
     enrolledByYou,
+    enrolledByName,
     enroller: 'recorded',
   };
 }
@@ -169,6 +170,35 @@ test('a member gets no form and no header Run, only the line about the account o
   await expect(none).toHaveAttribute('data-none', 'member');
   await expect(none.getByTestId('jobs-none-body')).toHaveText(ru('jobs.none.member'));
   await expect(none.getByRole('link')).toHaveCount(0);
+});
+
+// #775 (migration 0038): with display names the copy names the people; each name is isolated and plain text.
+test('with display names, a member hears who the owners are and the D3 owner hears whose runner it is', async ({
+  page,
+  stack,
+}) => {
+  await seed(stack, ['geeera/team-console']);
+  let list: (list: JobListDto) => JobListDto = (answer) => ({
+    jobs: answer.jobs,
+    nextCursor: answer.nextCursor,
+    runnerAvailability: 'ready',
+    canRunNow: false,
+    accountOwnerNames: ['Анна', 'Борис'],
+  });
+  await routeJobs(page, (answer) => list(answer));
+  await page.goto(BOARD);
+  const runs = page.getByTestId('runs');
+  await expect(runs.getByTestId('jobs-member-line')).toHaveText(
+    ru('jobs.member.lineNamed', { owners: '\u2068Анна\u2069, \u2068Борис\u2069' }),
+  );
+  await expectAccessible(page, 'Board, GitHub tracker, member, named owners');
+
+  list = (answer) => ({ jobs: answer.jobs, nextCursor: answer.nextCursor, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' });
+  await routeRunners(page, [d3Runner(false, 'Анна')]);
+  await page.reload();
+  await expect(runs.getByTestId('jobs-none-body')).toHaveText(
+    ru('jobs.none.d3Named', { runner: '\u2068Mac\u2069', owner: '\u2068Анна\u2069', project: '\u2068team-console\u2069' }),
+  );
 });
 
 test('D3: another owner’s subscription runner and the owner’s own one each get their copy, a way out and «Why»', async ({

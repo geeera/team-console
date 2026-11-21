@@ -123,7 +123,7 @@ describe('GET /api/v1/projects/:slug/jobs runnerAvailability', () => {
     const member = await sendAsSession({ cookie: await seedSession(memberId) }, 'GET', path, undefined, {}, localEnv({ AUTH_MODE: undefined }));
     expect(member.status).toBe(200);
     const memberBody = (await member.json()) as JobListDto;
-    expect(Object.keys(memberBody).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
+    expect(Object.keys(memberBody).sort()).toEqual(['accountOwnerNames', 'canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
     expect(memberBody.canRunNow).toBe(false);
     const job = await send('GET', path, undefined, { job: jobActor('pm') });
     expect(job.status).toBe(200);
@@ -181,5 +181,73 @@ describe('GET /api/v1/projects/:slug/jobs runnerAvailability', () => {
     const body = (await visited.json()) as JobListDto;
     expect(body.canRunNow).toBe(false);
     expect('runnerUnavailableReason' in body).toBe(false);
+  });
+
+  /** Sets a user's display name the way the sign-in writes it (migration 0038). */
+  const nameUser = (userId: string, name: string | null) =>
+    env.DB.prepare(`UPDATE users SET display_name = ?2 WHERE id = ?1`).bind(userId, name).run();
+
+  // #775 (SECURITY review of #804, condition 2): the member line names the owners — display names only, of the
+  // project's own account only, owners without a name left out.
+  it('gives a member the display names of this account’s owners only, and never a login or id', async () => {
+    const owner = await seedSessionUser('owner');
+    const unnamedOwner = await seedUser('unnamed-owner');
+    await seedMembership(owner.account.id, unnamedOwner, 'owner');
+    const member = await seedUser('member-names');
+    await seedMembership(owner.account.id, member, 'member');
+    const otherMember = await seedUser('member-names-2');
+    await seedMembership(owner.account.id, otherMember, 'member');
+    await nameUser(owner.userId, 'Анна');
+    await nameUser(otherMember, 'Not an owner');
+    // Another account the member also belongs to, with its own named owner: never in this project's list.
+    const other = await seedSessionUser('owner');
+    await nameUser(other.userId, 'Борис');
+    await seedMembership(other.account.id, member, 'member');
+    const project = await seedAccountProject(owner.account);
+    const bindings = localEnv({ AUTH_MODE: undefined });
+
+    const asMember = await sendAsSession({ cookie: await seedSession(member) }, 'GET', `/api/v1/projects/${project.slug}/jobs`, undefined, {}, bindings);
+    expect(asMember.status).toBe(200);
+    const text = await asMember.text();
+    const body = JSON.parse(text) as JobListDto;
+    expect(Object.keys(body).sort()).toEqual(['accountOwnerNames', 'canRunNow', 'jobs', 'nextCursor', 'runnerAvailability']);
+    expect(body.accountOwnerNames).toEqual(['Анна']);
+    for (const leak of [owner.userId, unnamedOwner, other.userId, 'owner-', 'Борис', 'Not an owner']) {
+      expect(text).not.toContain(leak);
+    }
+
+    const asOwner = (await (await sendAsSession(owner, 'GET', `/api/v1/projects/${project.slug}/jobs`, undefined, {}, bindings)).json()) as JobListDto;
+    expect('accountOwnerNames' in asOwner).toBe(false);
+    const asJob = (await (await send('GET', `/api/v1/projects/${project.slug}/jobs`, undefined, { job: jobActor('pm') })).json()) as JobListDto;
+    expect('accountOwnerNames' in asJob).toBe(false);
+  });
+
+  // #775 D3: the owner held back by another owner's subscription runner hears who created the project, by name only.
+  it('names the project’s creator to an owner only with the D3 reason, and only when that owner has a name', async () => {
+    const enroller = await seedSessionUser('owner');
+    const creatorId = await seedUser('creator-owner');
+    await seedMembership(enroller.account.id, creatorId, 'owner');
+    const creator = { cookie: await seedSession(creatorId) };
+    const project = await seedAccountProject(enroller.account);
+    await env.DB.prepare(`UPDATE projects SET created_by = ?2 WHERE slug = ?1`).bind(project.slug, creatorId).run();
+    runners += 1;
+    await env.DB.prepare(
+      `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at, last_seen_at, project_scope, enrolled_by)
+       VALUES (?1, ?2, 'Mac', ?3, '{"local":true,"maxConcurrency":1,"accessSources":["subscription"]}', 'user', '[]', '0.1.0', ?4, ?5, 'all', ?6)`,
+    )
+      .bind(`01M6YSNJ0000000000JBSR${String(runners).padStart(4, '0')}`, enroller.account.id, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0, new Date().toISOString(), enroller.userId)
+      .run();
+    const bindings = localEnv({ AUTH_MODE: undefined });
+    const read = async () =>
+      (await (await sendAsSession(creator, 'GET', `/api/v1/projects/${project.slug}/jobs`, undefined, {}, bindings)).json()) as JobListDto;
+
+    const unnamed = await read();
+    expect(unnamed).toMatchObject({ runnerAvailability: 'none', runnerUnavailableReason: 'other-owner-subscription' });
+    expect('projectCreatorName' in unnamed).toBe(false);
+
+    await nameUser(creatorId, 'Вера');
+    const named = await read();
+    expect(Object.keys(named).sort()).toEqual(['canRunNow', 'jobs', 'nextCursor', 'projectCreatorName', 'runnerAvailability', 'runnerUnavailableReason']);
+    expect(named.projectCreatorName).toBe('Вера');
   });
 });

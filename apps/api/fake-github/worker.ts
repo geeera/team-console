@@ -12,7 +12,7 @@ import {
  * the owner connection (#59) runs end to end against `wrangler dev` of the api with
  * `--var GITHUB_FAKE_ORIGIN:http://127.0.0.1:9999`. The api sends https://github.com/… and https://api.github.com/…
  * here as /github.com/… and /api.github.com/…; the authorize page approves at once as the current user. Controls:
- * POST /_fake/user {"login","id"}, POST /_fake/fail {"fault"}, GET /_fake/state, and for the run log (#114)
+ * POST /_fake/user {"login","id","name"?}, POST /_fake/fail {"fault"}, GET /_fake/state, and for the run log (#114)
  * POST /_fake/issue (a thread to serve: repo, number, title, author, labels, repoOwner) and POST /_fake/token (a fake
  * owner token for the vendored `runlog` CLI pointed here with PT_GITHUB_API), and POST /_fake/comment (a team entry
  * written earlier into a seeded thread: repo, number, body, author, createdAt and an optional later updatedAt, in ms —
@@ -40,7 +40,11 @@ function isFakeUser(value: unknown): value is FakeUser {
     return false;
   }
   const record = value as Record<string, unknown>;
-  return typeof record['login'] === 'string' && typeof record['id'] === 'number';
+  return (
+    typeof record['login'] === 'string' &&
+    typeof record['id'] === 'number' &&
+    (record['name'] === undefined || typeof record['name'] === 'string')
+  );
 }
 
 function isIssueSeed(value: unknown): value is FakeIssueSeed {
@@ -203,7 +207,7 @@ async function control(server: FakeGitHubOAuth, request: Request, path: string):
     }
   }
   if (path === '/_fake/user' && isFakeUser(body)) {
-    server.user = { login: body.login, id: body.id };
+    server.user = { login: body.login, id: body.id, ...(body.name === undefined ? {} : { name: body.name }) };
     return json(200, server.user);
   }
   if (path === '/_fake/fail' && typeof body === 'object' && body !== null && 'fault' in body) {

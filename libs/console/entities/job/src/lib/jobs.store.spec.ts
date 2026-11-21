@@ -89,7 +89,7 @@ describe('JobsStore', () => {
     expect(store.canRunNow()).toBe(true);
     stop();
 
-    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'offline', canRunNow: false }));
+    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'offline', canRunNow: false, accountOwnerNames: ['Анна'] }));
     const next = store.watch('storify');
     expect(store.availability()).toBeNull();
     expect(store.canRunNow()).toBe(false);
@@ -97,6 +97,8 @@ describe('JobsStore', () => {
     expect(store.availability()).toBe('offline');
     expect(store.unavailableReason()).toBeNull();
     expect(store.canRunNow()).toBe(false);
+    expect(store.ownerNames()).toEqual(['Анна']);
+    expect(store.projectCreatorName()).toBeNull();
     next();
   });
 

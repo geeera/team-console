@@ -140,6 +140,18 @@ export class ProjectsRepo {
       .first<ProjectRow>();
   }
 
+  /**
+   * Who created the project in `accountId` (#775, D3): the audit actor `runners.enrolled_by` is compared with, for the
+   * owner's copy; `null` for a legacy row, an unknown slug or another account's project.
+   */
+  async creatorOf(accountId: string, slug: string): Promise<string | null> {
+    const row = await this.db
+      .prepare(`SELECT created_by FROM projects WHERE account_id = ?1 AND slug = ?2`)
+      .bind(accountId, slug)
+      .first<{ created_by: string | null }>();
+    return row?.created_by ?? null;
+  }
+
   /** The active project of the provider's repository id (decision 2: a rename or transfer never lands elsewhere). */
   async findActiveByRepoId(provider: 'github' | 'gitlab', repoId: number): Promise<ProjectRow | null> {
     return this.db
