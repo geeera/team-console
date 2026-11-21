@@ -1,14 +1,16 @@
 import { Hono } from 'hono';
+import { renderRunnerWorkflow } from '@shared/actions-workflow';
 import {
   NEEDS_YOU_MAX_PROJECTS,
+  type NeedsYouActionsDriftDto,
   type NeedsYouBudgetStopDto,
   type NeedsYouConcurrencyStopDto,
   type NeedsYouProjectRef,
 } from '@shared/contracts';
-import type { WorkerHonoEnv } from '@worker/core';
-import { JobsRepo, TeamStateRepo } from '@worker/db';
+import type { Logger, WorkerHonoEnv } from '@worker/core';
+import { ActionsWorkflowStateRepo, JobsRepo, TeamStateRepo } from '@worker/db';
 import { GitHubError, InvalidRepoNameError, parseRepoName } from '@worker/github';
-import { buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
+import { actionsDriftOf, buildNeedsYou, type ProjectInboxResult } from '@worker/read-models';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { canManageProject, scopedProjectsOf, trackerProjectOf } from '../projects/lookup';
@@ -26,7 +28,7 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  * Subrequest budget (Workers free plan: 50 per request). The first NEEDS_YOU_MAX_PROJECTS (6) GitHub-backed active
  * projects are read, each at most 6 subrequests on a cold isolate (installation lookup, token mint, ≤ 3 pages of
  * open issues, project.yml; see `ProjectReads`) → ≤ 36, plus 4 D1 queries (the registry, its tracker columns, the
- * budget stops, the concurrency stops) and the Access key set → ≤ 41. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
+ * budget stops, the concurrency stops, the Actions workflow judgements) and the Access key set → ≤ 41. Later GitHub-backed projects are listed in `omittedProjects`, not read. Within the read
  * cache's TTL a project costs nothing. A console-tracker project (#434) is one D1 query and no subrequest, so every
  * one is read and none counts against the cap.
  *
@@ -37,7 +39,9 @@ type ProjectInbox = Omit<Extract<ProjectInboxResult, { readonly inbox: unknown }
  * A project whose team the budget stopped (#684) carries `budgetStop`, its one "Budget used up" row. Every project
  * also carries `canManage` (#735): the caller's own standing on it, the same check `projectOwnerRefusal` makes at
  * write time, read once here as a hint for the UI. A project whose queued jobs cannot start because its account is
- * entitled to no concurrent job (#746, `max_concurrency: 0`) carries `concurrencyStop`, which says so.
+ * entitled to no concurrent job (#746, `max_concurrency: 0`) carries `concurrencyStop`, which says so. An Actions
+ * project whose workflow drifted (#874) carries `actionsDrift`, from the judgement the readiness check or a failed
+ * dispatch last stored: no GitHub call, so it is only as fresh as that write, and it says when it was made.
  */
 export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>().get('/', async (c) => {
@@ -126,6 +130,35 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
     );
     // #735: a hint only, read once per project here; the write routes refuse on their own regardless of it.
     const canManage = new Map(read.map((row) => [row.slug, canManageProject(c, row)]));
-    return c.json(buildNeedsYou(results, omitted, budgetStops, canManage, concurrencyStops));
+    const actionsDrifts = await actionsDriftsOf(c.env, c.get('logger'), read.map((row) => row.slug));
+    return c.json(buildNeedsYou(results, omitted, budgetStops, canManage, concurrencyStops, actionsDrifts));
   });
+}
+
+/**
+ * #874: one D1 query, then this console's rendering, made locally, for the sha256 a stored `ok` is compared with. A
+ * console that cannot render (its origin misconfigured) still shows every stored drift word, only not `release`.
+ */
+async function actionsDriftsOf(
+  env: ApiEnv,
+  logger: Logger,
+  slugs: readonly string[],
+): Promise<Map<string, NeedsYouActionsDriftDto>> {
+  const drifts = new Map<string, NeedsYouActionsDriftDto>();
+  const states = await new ActionsWorkflowStateRepo(env.DB).actionsStatesOf(slugs);
+  if (states.length === 0) {
+    return drifts;
+  }
+  const rendered = await renderRunnerWorkflow({ consoleOrigin: env.CONSOLE_PUBLIC_ORIGIN ?? '', environment: env.ENVIRONMENT });
+  if (!rendered.ok) {
+    logger.error('needs-you could not render the runner workflow', { failure: rendered.failure });
+  }
+  const sha256 = rendered.ok ? rendered.rendering.sha256 : null;
+  for (const state of states) {
+    const drift = actionsDriftOf(state, sha256);
+    if (drift !== null) {
+      drifts.set(state.projectSlug, drift);
+    }
+  }
+  return drifts;
 }

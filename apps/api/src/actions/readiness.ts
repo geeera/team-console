@@ -54,6 +54,7 @@ import type { ApiGitHub } from '../github';
 import { runnerReleaseOf } from '../routes/runner';
 import { repositoryUrlOf } from './github-links';
 import { isSetupWriteAllowed } from './workflow-pr';
+import { recordWorkflowJudgement } from './workflow-state';
 
 /**
  * The Actions setup's readiness check (#759 PR 3; architect note §4, security note rows "Readiness over-reads or
@@ -72,6 +73,10 @@ import { isSetupWriteAllowed } from './workflow-pr';
  * #870 adds what the page needs to word the workflow step without a second call: the default branch, whether the PR
  * path is on (the same `isSetupWriteAllowed` the write route judges), the pins of the file against the rendering's
  * and the environment's `RUNNER_MINIMUM_VERSION`, and a PR left open from an earlier rendering's branch (`stale`).
+ *
+ * #874 keeps one thing of a check: the workflow item's status, with the rendering's sha256 and the time
+ * (`ActionsWorkflowStateRepo`), so "Needs you" can show drift without a GitHub call. Only a check that read the file
+ * records it; the answer itself is still never stored.
  */
 
 export interface ReadinessDeps {
@@ -508,6 +513,12 @@ export async function checkActionsReadiness(
       workflow: workflow.item,
     },
   );
+  // `judgeWorkflowFile` never answers `wrong`; the guard keeps a broken invariant out of the stored row.
+  const judged = workflow.item.status;
+  if (judged === 'wrong') {
+    throw new Error('the readiness check judged the workflow file wrong');
+  }
+  await recordWorkflowJudgement(deps, row.slug, { status: judged, sha256: rendered.rendering.sha256, checkedAt });
   deps.logger.info('actions readiness checked', {
     slug: row.slug,
     ready: setup.ready,
