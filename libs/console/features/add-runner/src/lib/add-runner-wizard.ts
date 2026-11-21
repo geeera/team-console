@@ -44,6 +44,7 @@ import {
   type RunnerProjectScope,
 } from '@shared/contracts';
 import {
+  APPROVE_ARM_MS,
   COUNTDOWN_TICK_MS,
   fingerprintSpokenOf,
   SLOW_AFTER_MS,
@@ -265,7 +266,7 @@ let nextWizardId = 0;
               variant="primary"
               data-testid="wizard-approve"
               [loading]="busy() === 'approving'"
-              [attr.aria-disabled]="busy() !== null || !online() || suspended() ? 'true' : null"
+              [attr.aria-disabled]="busy() !== null || !online() || suspended() || !approveArmed() ? 'true' : null"
               [attr.aria-describedby]="online() ? null : wizardId + '-offline'"
               (click)="approve()"
             >
@@ -381,6 +382,8 @@ export class AddRunnerWizard {
   protected readonly failure = signal<string | null>(null);
   protected readonly offerCode = signal(false);
   protected readonly suspended = signal(false);
+  /** False for `APPROVE_ARM_MS` after the shown fingerprint appears or changes (#878 mis-click guard). */
+  protected readonly approveArmed = signal(false);
   protected readonly slow = signal(false);
   protected readonly now = signal(Date.now());
   protected readonly online = signal(this.document.defaultView?.navigator.onLine ?? true);
@@ -398,6 +401,9 @@ export class AddRunnerWizard {
 
   private slowTimer: ReturnType<typeof setTimeout> | null = null;
   private minuteTimer: ReturnType<typeof setTimeout> | null = null;
+  private armTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The intent this sheet has already sent a withdraw for, so leaving does not send a second one. */
+  private withdrawnId: string | null = null;
 
   constructor() {
     // Every way out goes through requestClose(): the CDK leaves Escape and the scrim to the frame's guard.
@@ -410,13 +416,19 @@ export class AddRunnerWizard {
     const onOffline = (): void => this.online.set(false);
     view?.addEventListener('online', onOnline);
     view?.addEventListener('offline', onOffline);
+    const onPageHide = (): void => this.withdrawLeftBehind();
+    view?.addEventListener('pagehide', onPageHide);
     const tick = setInterval(() => this.now.set(Date.now()), COUNTDOWN_TICK_MS);
     inject(DestroyRef).onDestroy(() => {
+      // Session expiry and navigation close every sheet without the §3.6 dialog (#878).
+      this.withdrawLeftBehind();
       guard.release();
       view?.removeEventListener('online', onOnline);
       view?.removeEventListener('offline', onOffline);
+      view?.removeEventListener('pagehide', onPageHide);
       clearInterval(tick);
       this.clearTimers();
+      this.clearArmTimer();
     });
 
     effect(() => {
@@ -485,6 +497,7 @@ export class AddRunnerWizard {
       this.failure.set(this.t(runnerFailureKeyOf(result.failure)));
       return;
     }
+    this.withdrawnId = created.intentId;
     this.watch.stop();
     this.created.set(null);
     this.failure.set(null);
@@ -498,7 +511,14 @@ export class AddRunnerWizard {
   protected async approve(): Promise<void> {
     const created = this.created();
     const shown = this.shown();
-    if (created === null || shown?.fingerprint == null || this.busy() !== null || !this.online() || this.suspended()) {
+    if (
+      created === null ||
+      shown?.fingerprint == null ||
+      this.busy() !== null ||
+      !this.online() ||
+      this.suspended() ||
+      !this.approveArmed()
+    ) {
       return;
     }
     this.busy.set('approving');
@@ -526,6 +546,7 @@ export class AddRunnerWizard {
       this.failure.set(this.t(runnerFailureKeyOf(result.failure)));
       return;
     }
+    this.withdrawnId = created.intentId;
     this.end('rejected');
   }
 
@@ -563,6 +584,7 @@ export class AddRunnerWizard {
       return;
     }
     this.busy.set('withdrawing');
+    this.withdrawnId = created.intentId;
     const result = await this.api.withdrawEnrolmentIntent(this.data.accountId, created.intentId);
     this.busy.set(null);
     this.watch.stop();
@@ -632,7 +654,7 @@ export class AddRunnerWizard {
       }
       if (current.state === 'bound') {
         // Never approve again on our own: the owner compares the new code first.
-        this.shown.set(current);
+        this.showForApproval(current);
         if (failure.kind === 'conflict' && failure.slug !== 'enrolment-intent-not-bound') {
           this.failure.set(this.t('runners.wizard.err.changed'));
         }
@@ -667,7 +689,7 @@ export class AddRunnerWizard {
         return;
       case 'bound':
         if (this.phase() === 'command') {
-          this.shown.set(intent);
+          this.showForApproval(intent);
           this.phase.set('confirm');
           this.announce('runners.wizard.live.bound', {
             host: intent.host?.hostname ?? '',
@@ -688,6 +710,45 @@ export class AddRunnerWizard {
           this.end(intent.state);
         }
         return;
+    }
+  }
+
+  /** Every fingerprint the owner is asked to compare arrives here, so approve waits out the guard each time. */
+  private showForApproval(intent: EnrolmentIntentDto): void {
+    this.shown.set(intent);
+    this.approveArmed.set(false);
+    this.clearArmTimer();
+    this.armTimer = setTimeout(() => {
+      this.armTimer = null;
+      this.approveArmed.set(true);
+    }, APPROVE_ARM_MS);
+  }
+
+  /**
+   * Best effort for a live request the sheet leaves without the §3.6 dialog: an expired session or navigation closes
+   * every sheet, and `pagehide` covers a closed tab (`keepalive` lets the call outlive the page). An approve in flight
+   * is left to finish. A failure is only logged: the request cannot be approved from anywhere and expires in ten minutes.
+   */
+  private withdrawLeftBehind(): void {
+    const created = this.created();
+    const phase = this.phase();
+    if (
+      created === null ||
+      created.intentId === this.withdrawnId ||
+      (phase !== 'command' && phase !== 'confirm') ||
+      this.busy() === 'approving'
+    ) {
+      return;
+    }
+    // The watch keeps going: back from the back-forward cache, its next read shows «Запрос отозван».
+    this.withdrawnId = created.intentId;
+    void this.sendWithdrawLeftBehind(created.intentId);
+  }
+
+  private async sendWithdrawLeftBehind(intentId: string): Promise<void> {
+    const result = await this.api.withdrawEnrolmentIntent(this.data.accountId, intentId, { keepalive: true });
+    if (!result.ok && result.failure.kind !== 'not-found') {
+      console.warn(`add-runner: could not withdraw a request left open (${result.failure.kind}); it expires on its own`);
     }
   }
 
@@ -757,6 +818,13 @@ export class AddRunnerWizard {
           this.announce('runners.wizard.expiresSoon');
         }
       }, soon);
+    }
+  }
+
+  private clearArmTimer(): void {
+    if (this.armTimer !== null) {
+      clearTimeout(this.armTimer);
+      this.armTimer = null;
     }
   }
 

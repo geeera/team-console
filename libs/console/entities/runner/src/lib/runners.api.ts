@@ -141,9 +141,17 @@ export class RunnersApi {
     return this.call(this.http.post<unknown>(url, { fingerprint }), isEnrolmentIntentDto);
   }
 
-  /** Answered 204; a request that is already gone is 404 `enrolment-not-found`. */
-  withdrawEnrolmentIntent(accountId: string, intentId: string): Promise<RunnerResult<null>> {
-    return this.call(this.http.post<unknown>(`${enrolmentIntentUrl(accountId, intentId)}/withdraw`, {}), isNoContent);
+  /**
+   * Answered 204; a request that is already gone is 404 `enrolment-not-found`. `keepalive` lets the call outlive the
+   * page, for the wizard's withdraw on `pagehide` (#878).
+   */
+  withdrawEnrolmentIntent(
+    accountId: string,
+    intentId: string,
+    { keepalive = false }: { readonly keepalive?: boolean } = {},
+  ): Promise<RunnerResult<null>> {
+    const url = `${enrolmentIntentUrl(accountId, intentId)}/withdraw`;
+    return this.call(this.http.post<unknown>(url, {}, keepalive ? { keepalive } : {}), isNoContent);
   }
 
   /** The runner's scope (#775): `all`, or `selected` with its list; `allowedProjects` is `[]` under `all`. */

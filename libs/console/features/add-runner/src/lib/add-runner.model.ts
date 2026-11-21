@@ -18,6 +18,12 @@ export type WizardEnd = 'expired' | 'withdrawn' | 'rejected';
 
 /** Owner decision 4: the Claude sign-in sits between the approval and the first signal. */
 export const SLOW_AFTER_MS = 5 * 60_000;
+/**
+ * #878 mis-click guard: a poll can swap «Отозвать запрос» for «Подтвердить» in the same footer spot, and a re-read
+ * can swap the fingerprint under the cursor. Approve ignores clicks this long after either, so a click aimed at the
+ * old content never approves a code nobody compared.
+ */
+export const APPROVE_ARM_MS = 1_000;
 /** The countdown is a display: it moves once a minute and is never a live region. */
 export const COUNTDOWN_TICK_MS = 60_000;
 

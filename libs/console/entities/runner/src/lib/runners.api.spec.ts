@@ -201,6 +201,21 @@ describe('RunnersApi', () => {
     expect(await withdrawn).toEqual({ ok: true, value: null });
   });
 
+  it('sends a withdraw with keepalive only when asked, so it can outlive the page (#878)', async () => {
+    const { api, http } = setup();
+    const intentUrl = `${RUNNERS}/enrolment-intents/${ENROLMENT_INTENT_FIXTURE_ID}`;
+    const plain = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
+    const first = http.expectOne(`${intentUrl}/withdraw`);
+    expect(first.request.keepalive).toBe(false);
+    first.flush(null, { status: 204, statusText: 'No Content' });
+    await plain;
+    const leaving = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, { keepalive: true });
+    const second = http.expectOne(`${intentUrl}/withdraw`);
+    expect(second.request.keepalive).toBe(true);
+    second.flush(null, { status: 204, statusText: 'No Content' });
+    expect(await leaving).toEqual({ ok: true, value: null });
+  });
+
   it('refuses an intent of the wrong shape: a hostname with a direction override is never rendered', async () => {
     const { api, http } = setup();
     const read = api.enrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
