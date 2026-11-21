@@ -255,6 +255,23 @@ test('ready: «Включить» switches on, focuses the summary; a not-ready 
   await expectAccessible(page, 'GitHub Actions setup, switched on');
 });
 
+test('a member gets no setup row, and no readiness check is made', async ({ page }) => {
+  // The seeded owner is replayed as a member of the same account (`GET …/dispatch` would answer a member 200 too).
+  await page.route('**/api/v1/accounts', async (route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as { accounts: { role: string }[] };
+    await route.fulfill({ response, json: { accounts: body.accounts.map((account) => ({ ...account, role: 'member' })) } });
+  });
+  const { calls } = await answerReadiness(page, () => problem(403, 'owner-only'));
+  const accounts = page.waitForResponse('**/api/v1/accounts');
+  await page.goto(`/settings/projects/${SLUG}`);
+  await accounts;
+  await expect(page.getByTestId('team-entry')).toBeVisible();
+  await expect(page.getByTestId('check-again')).toHaveText(ru('settings.setup.checkAgain'));
+  await expect(page.getByTestId('project-actions-entry')).toHaveCount(0);
+  expect(calls()).toBe(0);
+});
+
 test('a member sees the forbidden state and no steps', async ({ page }) => {
   await answerReadiness(page, () => problem(403, 'owner-only'));
   await openPage(page);

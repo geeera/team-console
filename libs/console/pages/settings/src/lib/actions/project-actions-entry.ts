@@ -1,7 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { ActionsSetupStatuses, missingStepsOf } from '@console/entities/actions-setup';
 import { projectActionsRouteOf } from '@console/entities/project';
-import { RunnersApi } from '@console/entities/runner';
+import { projectAccountRoleOf, RunnersApi } from '@console/entities/runner';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Chip, type ChipTone, Icon, List, ListRow } from '@console/shared/ui';
 import type { ProjectDispatch } from '@shared/contracts';
@@ -17,8 +17,9 @@ export type ActionsEntryChip =
 /**
  * The project setup page's «Запуск на GitHub Actions» row (#759 UX spec §4), above the operator-only environment row.
  * It reads `GET …/dispatch` first (no mint): `pull` shows «Не включено» and never runs a readiness check; only an
- * `actions` project spends one, to show «Включено» or «Не готово: N». Hidden for a member (403) and until the dispatch
- * answered.
+ * `actions` project spends one, to show «Включено» or «Не готово: N». Shown to the owner of the project's account
+ * only: `GET …/dispatch` is the account's read (a member gets 200), so the role comes from `GET /accounts`
+ * (`projectAccountRoleOf`); the row stays hidden until both answered, and when the role cannot be told.
  */
 @Component({
   selector: 'tc-project-actions-entry',
@@ -86,9 +87,13 @@ export class ProjectActionsEntry {
 
   private async load(slug: string): Promise<void> {
     this.dispatch.set(null);
+    const accounts = await this.runners.accounts();
+    if (this.slug() !== slug || !accounts.ok || projectAccountRoleOf(accounts.value) !== 'owner') {
+      // A member, a role that cannot be told, or a failed read: no row, so nobody is led to a page that answers 403.
+      return;
+    }
     const result = await this.runners.dispatch(slug);
     if (this.slug() !== slug || !result.ok) {
-      // 403 (a member) and any failure keep the row hidden: the setup page stays as it was before #759.
       return;
     }
     this.dispatch.set(result.value.dispatch);

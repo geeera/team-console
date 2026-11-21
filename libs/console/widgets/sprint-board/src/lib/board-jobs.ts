@@ -310,8 +310,8 @@ export class BoardJobs {
   /** The runner D3 holds back from the project, from the owner's own runner list; `null` when none fits. */
   readonly d3Runner = input<RunnerDto | null>(null);
   /**
-   * The caller owns an account (the runners read found one), for the one case the jobs answer cannot say it: a failed
-   * first read. Run now then stays beside the error block (#848, #775 UX spec "error"); a member's press is refused by
+   * The caller owns the project's own account (`projectAccountRoleOf`), for the one case the jobs answer cannot say
+   * it: a failed first read. Run now then stays beside the error block (#848, #775 UX spec "error"); a member's press is refused by
    * the Worker and worded by Run now itself.
    */
   readonly ownsAccount = input(false);
