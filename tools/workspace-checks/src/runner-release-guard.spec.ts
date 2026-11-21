@@ -1,9 +1,8 @@
 import { workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RELEASE_PLATFORMS, attestationVerifyArgs, releaseDownloadArgs, tarballNameOf } from '@shared/contracts';
 import { parse } from 'yaml';
-import { attestationArgs, downloadArgs, tarballNamesOf } from '../../deploy-guard/check-runner-release.js';
+import { loadDeployGuard, loadReleaseIdentity } from './support/release-tools';
 
 /**
  * S1 of the #634 security note (threat model C11 R-ONE-2): deploy.yml checks `RUNNER_RELEASE_SHA256SUMS` against the
@@ -28,10 +27,14 @@ const deploy = parse(readFileSync(join(workspaceRoot, '.github/workflows/deploy.
 };
 
 describe('the deploy-time runner release check', () => {
-  it('verifies with exactly the identity flags of @shared/contracts', () => {
-    expect(attestationArgs('/tmp/SHA256SUMS', '0.2.0')).toEqual(attestationVerifyArgs('/tmp/SHA256SUMS', '0.2.0'));
-    expect(downloadArgs('0.2.0', '/tmp/d')).toEqual(releaseDownloadArgs('0.2.0', 'SHA256SUMS', '/tmp/d'));
-    expect(tarballNamesOf('0.2.0')).toEqual(RELEASE_PLATFORMS.map((platform) => tarballNameOf('0.2.0', platform)).sort());
+  it('verifies with exactly the identity flags of @shared/contracts', async () => {
+    const guard = await loadDeployGuard();
+    const identity = await loadReleaseIdentity();
+    expect(guard.attestationArgs('/tmp/SHA256SUMS', '0.2.0')).toEqual(identity.attestationVerifyArgs('/tmp/SHA256SUMS', '0.2.0'));
+    expect(guard.downloadArgs('0.2.0', '/tmp/d')).toEqual(identity.releaseDownloadArgs('0.2.0', 'SHA256SUMS', '/tmp/d'));
+    expect(guard.tarballNamesOf('0.2.0')).toEqual(
+      identity.RELEASE_PLATFORMS.map((platform) => identity.tarballNameOf('0.2.0', platform)).sort(),
+    );
   });
 
   it('runs in guard, before the deploy job and its credentials, with read-only access', () => {

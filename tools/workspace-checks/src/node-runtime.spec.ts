@@ -1,9 +1,8 @@
 import { workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { RELEASE_FILES, RELEASE_PLATFORMS } from '@shared/contracts';
 import { parse } from 'yaml';
-import { PLATFORMS, keyringFingerprints, parseFingerprints, parsePin } from '../../release/node-runtime.mjs';
+import { loadNodeRuntime, loadReleaseIdentity, type NodeRuntime, type ReleaseIdentity } from './support/release-tools';
 
 /**
  * The Node.js the runner release ships (#634 PR 5, threat model C11 R-NODE-1/R-NODE-2): the fingerprints pinned in
@@ -34,16 +33,24 @@ const check = workflow('node-runtime-check.yml');
 const runOf = (job: Job | undefined): string => (job?.steps ?? []).map((step) => step.run ?? '').join('\n');
 
 describe('the bundled Node.js', () => {
+  let runtime: NodeRuntime;
+  let identity: ReleaseIdentity;
+
+  beforeAll(async () => {
+    runtime = await loadNodeRuntime();
+    identity = await loadReleaseIdentity();
+  });
+
   it('pins one fingerprint list in both workflows, exactly the committed keyring’s keys', () => {
-    const pinned = parseFingerprints(release.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '');
-    expect(parseFingerprints(check.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '')).toEqual(pinned);
-    expect([...keyringFingerprints(read('apps/runner/node/release-keys.asc'))].sort()).toEqual([...pinned].sort());
+    const pinned = runtime.parseFingerprints(release.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '');
+    expect(runtime.parseFingerprints(check.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '')).toEqual(pinned);
+    expect([...runtime.keyringFingerprints(read('apps/runner/node/release-keys.asc'))].sort()).toEqual([...pinned].sort());
   });
 
   it('pins a version the launcher can run, for every release platform', () => {
-    const pin = parsePin(read('apps/runner/node/node-release.json'));
+    const pin = runtime.parsePin(read('apps/runner/node/node-release.json'));
     expect(pin.major).toBeGreaterThanOrEqual(22);
-    expect([...PLATFORMS].sort()).toEqual([...RELEASE_PLATFORMS].sort());
+    expect([...runtime.PLATFORMS].sort()).toEqual([...identity.RELEASE_PLATFORMS].sort());
   });
 
   it('is fetched and verified only in pack, which runs no npm and can read the repository only', () => {
@@ -62,7 +69,7 @@ describe('the bundled Node.js', () => {
     expect(pack).toContain('for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do');
     expect(pack).toContain('install -m 0555 "node/${platform}/node" "${stage}/node"');
     expect(pack).toContain(`sha256sum ${['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].join(' ')} > SHA256SUMS`);
-    expect(['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].sort()).toEqual([...RELEASE_FILES].sort());
+    expect(['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].sort()).toEqual([...identity.RELEASE_FILES].sort());
     expect(pack).toContain('-cf - SHA256SUMS team-console-runner.mjs node bin');
   });
 
