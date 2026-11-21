@@ -24,7 +24,9 @@ import {
   type ActionsStepState,
   type SubCheckTone,
 } from '@console/entities/actions-setup';
-import { TranslocoPipe } from '@console/shared/i18n';
+import type { ActionsFirstJob } from '@console/entities/job';
+import { spaceUrlOf } from '@console/entities/project';
+import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { Button, CopyCode, focusAfterRender, Icon, type IconName } from '@console/shared/ui';
 import {
   ACTIONS_ENVIRONMENT,
@@ -58,14 +60,14 @@ const TONE_ICONS: Readonly<Record<SubCheckTone, IconName>> = {
 };
 
 /**
- * The Actions setup ledger (#759 UX spec §2–§3): five numbered steps in the project setup's checklist pattern,
+ * The Actions setup ledger (#759 UX spec §2–§3): five numbered steps (a sixth, the first job, once it is on) in the project setup's checklist pattern,
  * grouped by where the customer acts, each with its state word, its fix line and a «Как сделать» disclosure with the
  * exact GitHub page and Copy for every exact string. The first step that is not done is open. Before the first
  * answer only the titles show. Only the fixed names `team-console` and `TC_INFERENCE_API_KEY` ever appear.
  */
 @Component({
   selector: 'tc-actions-setup-ledger',
-  imports: [ActionsSwitchOn, Button, CopyCode, Icon, RouterLink, TranslocoPipe, WorkflowStep],
+  imports: [ActionsSwitchOn, Button, CopyCode, Icon, LocalTimePipe, RouterLink, TranslocoPipe, WorkflowStep],
   templateUrl: './actions-setup-ledger.html',
   styleUrl: './actions-setup-ledger.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,6 +84,8 @@ export class ActionsSetupLedger {
   readonly branchLabel = input.required<string>();
   /** Settings › Team of this project, for step 1 and the switch's `access-source-hosted` refusal. */
   readonly teamUrl = input<string | null>(null);
+  /** Step 6's signal, from the jobs the page already reads; `null` while unknown (a member, a failed read). */
+  readonly firstJob = input<ActionsFirstJob | null>(null);
 
   readonly recheck = output<void>();
   readonly switched = output<ProjectDispatchDto>();
@@ -94,6 +98,7 @@ export class ActionsSetupLedger {
   protected readonly id = `tc-actions-ledger-${ActionsSetupLedger.nextId++}`;
   private readonly opened = signal<ReadonlySet<string>>(new Set());
 
+  protected readonly spaceUrl = computed(() => spaceUrlOf(this.slug(), undefined));
   protected readonly params = computed(() => ({ repo: this.repo(), branch: this.branchLabel() }));
   protected readonly firstMissing = computed(() => firstMissingStepOf(this.setup()));
   protected readonly missingCount = computed(() => {

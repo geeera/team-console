@@ -240,4 +240,38 @@
       }
     </div>
   </li>
+  <!-- 6 · the first job, only once the switch is on -->
+  @if (setup()?.dispatch === 'actions' && firstJob(); as first) {
+    <li class="step" [class.step--done]="first.kind === 'done'" [attr.data-first-job]="first.kind" data-step="first-job">
+      <span class="step__mark" aria-hidden="true">
+        @switch (first.kind) {
+          @case ('done') { <tc-icon name="check" size="sm" /> }
+          @case ('failed') { <tc-icon name="alert" size="sm" /> }
+          @default { 6 }
+        }
+      </span>
+      <div class="step__body">
+        <div class="step__head">
+          <h3 #stepTitle class="step__title" tabindex="-1" data-step="first-job">{{ 'actions.run.title' | transloco }}</h3>
+          <span class="step__state" data-testid="step-state">{{ 'actions.run.state.' + first.kind | transloco }}</span>
+        </div>
+        @switch (first.kind) {
+          @case ('done') {
+            <p class="step__fix" data-testid="first-job-text">{{ 'actions.run.done' | transloco: { time: (first.at | localTime) } }}</p>
+          }
+          @case ('failed') {
+            <p class="step__fix" data-testid="first-job-text">
+              {{ 'actions.run.failed' | transloco: { reason: ('actions.run.reason.' + first.reason | transloco) } }}
+            </p>
+          }
+          @default {
+            <p class="step__fix" data-testid="first-job-text">{{ 'actions.run.waiting' | transloco }}</p>
+          }
+        }
+        <a class="step__link" data-testid="first-job-open" [routerLink]="spaceUrl()">
+          {{ 'actions.run.openProject' | transloco }}<tc-icon name="chevron-right" size="sm" />
+        </a>
+      </div>
+    </li>
+  }
 </ol>

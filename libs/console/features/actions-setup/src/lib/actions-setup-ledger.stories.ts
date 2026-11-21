@@ -1,35 +1,20 @@
-import { signal } from '@angular/core';
-import { provideRouter } from '@angular/router';
-import { ActionsSetupApi, actionsSetupFixture } from '@console/entities/actions-setup';
-import { RunnersApi } from '@console/entities/runner';
-import { NetworkStatus } from '@console/shared/api';
+import { actionsSetupFixture } from '@console/entities/actions-setup';
+import type { ActionsFirstJob } from '@console/entities/job';
 import type { ActionsSetupDto } from '@shared/contracts';
 import { applicationConfig, moduleMetadata, type Meta, type StoryObj } from '@storybook/angular';
 import { ActionsSetupLedger } from './actions-setup-ledger';
+import { actionsStoryProviders, STORY_PR_URL as PR_URL } from './actions-setup.story-kit';
 
 interface Args {
   readonly setup: ActionsSetupDto | null;
+  readonly firstJob: ActionsFirstJob | null;
 }
-
-const PR_URL = 'https://github.com/geeera/storify/pull/42';
-const WORKFLOW = { text: 'name: Team Console runner\non:\n  workflow_dispatch:\n', sha256: 'a'.repeat(64), version: '0.42.0' };
 
 const meta: Meta<Args> = {
   title: 'Features/Actions setup/Ledger',
   decorators: [
     applicationConfig({
-      providers: [
-        provideRouter([]),
-        { provide: NetworkStatus, useValue: { online: signal(true) } },
-        {
-          provide: ActionsSetupApi,
-          useValue: {
-            workflow: async () => ({ ok: true, value: WORKFLOW }),
-            openWorkflowPr: async () => ({ ok: true, value: { number: 42, url: PR_URL, kind: 'setup' } }),
-          },
-        },
-        { provide: RunnersApi, useValue: { setDispatch: async () => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } }) } },
-      ],
+      providers: actionsStoryProviders(),
     }),
     moduleMetadata({ imports: [ActionsSetupLedger] }),
   ],
@@ -45,11 +30,12 @@ const meta: Meta<Args> = {
           branchLabel="main"
           teamUrl="/settings/projects/storify/team"
           [setup]="setup"
+          [firstJob]="firstJob"
         />
       </div>
     `,
   }),
-  args: { setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }) },
+  args: { firstJob: null, setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }) },
 };
 
 export default meta;
@@ -85,3 +71,13 @@ export const ReviewersWarning: Story = { args: { setup: actionsSetupFixture({ it
 export const Ready: Story = { args: { setup: actionsSetupFixture() } };
 /** Switched on. */
 export const On: Story = { args: { setup: actionsSetupFixture({ dispatch: 'actions' }) } };
+/** Switched on, no job yet: step 6 waits and points to the project. */
+export const FirstJobWaiting: Story = { args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'waiting' } } };
+/** The first job passed. */
+export const FirstJobDone: Story = {
+  args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'done', at: '2026-11-21T12:10:00.000Z' } },
+};
+/** The first job never reached GitHub's runner: the reason is in words. */
+export const FirstJobFailed: Story = {
+  args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'failed', reason: 'actions-no-show' } },
+};

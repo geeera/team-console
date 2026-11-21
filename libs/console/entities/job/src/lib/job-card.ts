@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import {
   Chip,
@@ -10,7 +11,7 @@ import {
   type StatusCardTone,
 } from '@console/shared/ui';
 import type { JobDto, JobEventDto, JobEventLevel, JobState } from '@shared/contracts';
-import { JOB_STATE_ICONS, jobEventTextOf, jobSummaryOf } from './job.model';
+import { isActionsSetupFailure, JOB_STATE_ICONS, jobEventTextOf, jobSummaryOf } from './job.model';
 
 const TONES: Readonly<Record<JobState, StatusCardTone & ChipTone>> = {
   queued: 'neutral',
@@ -40,7 +41,7 @@ let nextCardId = 0;
  */
 @Component({
   selector: 'tc-job-card',
-  imports: [Chip, Icon, Ledger, LedgerRow, LocalDayPipe, LocalTimePipe, StatusCard, TranslocoPipe],
+  imports: [Chip, Icon, Ledger, LedgerRow, LocalDayPipe, LocalTimePipe, RouterLink, StatusCard, TranslocoPipe],
   template: `
     <article
       tc-status-card
@@ -95,6 +96,11 @@ let nextCardId = 0;
           </div>
         }
       </dl>
+      @if (setupLinkShown() && actionsSetupLink(); as commands) {
+        <a class="job-card__setup" data-testid="job-actions-setup" [routerLink]="commands">
+          {{ 'jobs.card.checkActionsSetup' | transloco }}<tc-icon name="chevron-right" size="sm" />
+        </a>
+      }
       @if (shownEvents().length > 0) {
         <ol
           class="job-card__events"
@@ -159,6 +165,16 @@ let nextCardId = 0;
     .job-card__note {
       margin: 0;
     }
+
+    .job-card__setup {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-1);
+      min-height: var(--control-h-touch);
+      color: var(--accent-text);
+      font-size: var(--fs-sm);
+      font-weight: var(--fw-semibold);
+    }
   `,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -169,6 +185,8 @@ export class JobCard {
   readonly events = input<readonly JobEventDto[]>([]);
   /** The last events read failed: the log shown may be behind. */
   readonly eventsFailed = input(false);
+  /** Router commands of the project's Actions setup page; the caller knows the routes, an entity does not. */
+  readonly actionsSetupLink = input<readonly string[] | null>(null);
 
   protected readonly titleId = `tc-job-card-${nextCardId++}`;
   protected readonly tone = computed(() => TONES[this.job().state]);
@@ -176,6 +194,7 @@ export class JobCard {
   protected readonly isHeld = computed(
     () => this.job().state === 'claimed' || this.job().state === 'running',
   );
+  protected readonly setupLinkShown = computed(() => isActionsSetupFailure(this.job()));
   protected readonly summary = computed(() => jobSummaryOf(this.job()));
   protected readonly shownEvents = computed(() => this.events().slice(-JOB_CARD_EVENTS_SHOWN));
 

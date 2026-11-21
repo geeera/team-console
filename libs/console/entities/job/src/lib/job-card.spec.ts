@@ -1,5 +1,6 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { JobDto, JobEventDto } from '@shared/contracts';
 import { JOB_CARD_EVENTS_SHOWN, JobCard } from './job-card';
@@ -12,6 +13,7 @@ import { jobEventFixture, jobFixture, queuedJobFixture } from './job.fixture';
     [runnerName]="runner()"
     [events]="events()"
     [eventsFailed]="failed()"
+    [actionsSetupLink]="['/settings', 'projects', 'storify', 'actions']"
   />`,
 })
 class Host {
@@ -23,7 +25,7 @@ class Host {
 
 describe('JobCard', () => {
   function render(change: (host: Host) => void = () => undefined): HTMLElement {
-    TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] });
+    TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n(), provideRouter([])] });
     const fixture = TestBed.createComponent(Host);
     change(fixture.componentInstance);
     fixture.detectChanges();
@@ -86,5 +88,19 @@ describe('JobCard', () => {
     expect(text(root, 'job-state')).toBe('Завершён');
     expect(text(root, 'job-summary')).toBe('Merged');
     expect(text(root, 'job-events-failed')).toContain('Не удалось обновить события');
+  });
+
+  it('links a dispatch failure to the Actions setup page, and nothing else', () => {
+    const failed = (reason: string, dispatch: JobDto['dispatch'] = 'actions'): HTMLElement =>
+      render((host) =>
+        host.job.set(jobFixture({ dispatch, state: 'failed', result: { summary: 'x', metrics: { reason } } })),
+      );
+    const link = failed('dispatch-failed').querySelector<HTMLAnchorElement>('[data-testid="job-actions-setup"]');
+    expect(link?.textContent).toContain('Проверить настройку GitHub Actions');
+    expect(link?.getAttribute('href')).toBe('/settings/projects/storify/actions');
+    TestBed.resetTestingModule();
+    expect(failed('agent-error').querySelector('[data-testid="job-actions-setup"]')).toBeNull();
+    TestBed.resetTestingModule();
+    expect(failed('dispatch-failed', 'pull').querySelector('[data-testid="job-actions-setup"]')).toBeNull();
   });
 });

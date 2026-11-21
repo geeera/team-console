@@ -4,6 +4,7 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { ActionsSetupApi, actionsSetupFixture } from '@console/entities/actions-setup';
+import type { ActionsFirstJob } from '@console/entities/job';
 import { RunnersApi, runnerFailureOf, type RunnerResult } from '@console/entities/runner';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -23,6 +24,7 @@ describe('ActionsSetupLedger (#759)', () => {
   async function render(
     setup: ActionsSetupDto | null,
     write: () => RunnerResult<ProjectDispatchDto> = () => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } }),
+    firstJob: ActionsFirstJob | null = null,
   ) {
     const writes: string[] = [];
     const announce = vi.fn(async () => undefined);
@@ -52,6 +54,7 @@ describe('ActionsSetupLedger (#759)', () => {
     fixture.componentRef.setInput('branch', 'main');
     fixture.componentRef.setInput('branchLabel', 'main');
     fixture.componentRef.setInput('teamUrl', '/settings/projects/storify/team');
+    fixture.componentRef.setInput('firstJob', firstJob);
     const switched: ProjectDispatchDto[] = [];
     const rechecks: number[] = [];
     fixture.componentInstance.switched.subscribe((dto) => switched.push(dto));
@@ -151,5 +154,37 @@ describe('ActionsSetupLedger (#759)', () => {
     const { find } = await render(actionsSetupFixture({ dispatch: 'actions' }));
     expect(find('[data-testid="switch-done"]')?.textContent).toContain('Задания проекта идут на GitHub Actions.');
     expect(find<HTMLAnchorElement>('[data-testid="switch-change"]')?.getAttribute('href')).toBe('/settings/runners');
+  });
+
+  describe('step 6, the first job', () => {
+    const on = () => actionsSetupFixture({ dispatch: 'actions' });
+    const ok = (): RunnerResult<ProjectDispatchDto> => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } });
+
+    it('stays out until the project runs on Actions', async () => {
+      expect((await render(actionsSetupFixture(), ok, { kind: 'waiting' })).find('[data-step="first-job"]')).toBeNull();
+    });
+
+    it('stays out until the jobs were read', async () => {
+      expect((await render(on(), ok, null)).find('[data-step="first-job"]')).toBeNull();
+    });
+
+    it('waits for the first job and points to the project', async () => {
+      const { find } = await render(on(), ok, { kind: 'waiting' });
+      expect(find('[data-testid="first-job-text"]')?.textContent).toContain('Ждём первое задание');
+      expect(find<HTMLAnchorElement>('[data-testid="first-job-open"]')?.getAttribute('href')).toBe('/p/storify/questions');
+    });
+
+    it('says when the first job passed', async () => {
+      const { find } = await render(on(), ok, { kind: 'done', at: '2026-11-21T10:00:00.000Z' });
+      expect(find('[data-step="first-job"]')?.getAttribute('data-first-job')).toBe('done');
+      expect(find('[data-testid="first-job-text"]')?.textContent).toContain('Первое задание прошло в');
+    });
+
+    it('names why the first job failed', async () => {
+      const { find } = await render(on(), ok, { kind: 'failed', reason: 'actions-no-show' });
+      expect(find('[data-testid="first-job-text"]')?.textContent).toContain(
+        'Первое задание не прошло: запуск на GitHub не начался за 15 минут.',
+      );
+    });
   });
 });
