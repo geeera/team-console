@@ -64,7 +64,7 @@ export class WorkflowStep {
   /** The route said the file is already current, or a PR just opened: the page checks again. */
   readonly recheck = output<void>();
 
-  private readonly prLink = viewChild<ElementRef<HTMLElement>>('prLink');
+  private readonly prLink = viewChild('prLink', { read: ElementRef<HTMLElement> });
 
   protected readonly path = WORKFLOW_FILE_PATH;
   protected readonly opening = signal(false);
