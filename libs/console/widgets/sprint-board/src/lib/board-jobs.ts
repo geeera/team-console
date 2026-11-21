@@ -3,7 +3,7 @@ import { RouterLink } from '@angular/router';
 import { JobCard, jobFailureKeyOf, JobsStore, runnerLabelOf, type JobFailure } from '@console/entities/job';
 import { RunNow } from '@console/features/run-now';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Icon, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import type { JobDto, RunnerDto, RunnerPauseReason } from '@shared/contracts';
 import { withoutInvisibles } from '@shared/plain-text';
 import { BoardJobsNone, type JobsNoneKind } from './board-jobs-none';
@@ -276,6 +276,7 @@ export class BoardJobs {
   readonly d3Runner = input<RunnerDto | null>(null);
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+  private readonly restoreRetryFocus = injectRetryFocus(() => this.heading());
   private readonly runNow = viewChild(RunNow);
   private readonly none = viewChild(BoardJobsNone);
 
@@ -340,7 +341,8 @@ export class BoardJobs {
     void this.store.refresh();
   }
 
-  protected refresh(): void {
-    void this.store.refresh();
+  protected async refresh(): Promise<void> {
+    await this.store.refresh();
+    this.restoreRetryFocus();
   }
 }

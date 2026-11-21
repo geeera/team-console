@@ -52,6 +52,7 @@ import {
   Icon,
   markArrival,
   Receipt,
+  injectRetryFocus,
   StateBlock,
 } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
@@ -128,6 +129,7 @@ export class QuestionList {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly restoreRetryFocus = injectRetryFocus();
   private readonly projects = inject(ProjectsStore);
   private readonly viewer = inject(DesignViewer);
 
@@ -259,6 +261,11 @@ export class QuestionList {
 
   async reload(): Promise<void> {
     await this.load(this.project());
+  }
+
+  protected async retry(): Promise<void> {
+    await this.reload();
+    this.restoreRetryFocus();
   }
 
   protected toneOf(command: AnswerCommand): CardStamp {

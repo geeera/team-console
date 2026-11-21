@@ -29,6 +29,7 @@ import {
   isPageScrollLocked,
   List,
   ListRow,
+  injectRetryFocus,
   StateBlock,
   ToastOutlet,
   TopBar,
@@ -76,6 +77,7 @@ import { shellAreaOf } from './shell-location';
 export class AppShell {
   private readonly router = inject(Router);
   private readonly injector = inject(Injector);
+  private readonly restoreRetryFocus = injectRetryFocus();
   private readonly transloco = inject(TranslocoService);
   private readonly breakpoints = inject(BreakpointObserver);
   private readonly state = inject(PersistedStateStore);
@@ -178,8 +180,9 @@ export class AppShell {
     await this.router.navigateByUrl(url);
   }
 
-  protected retry(): void {
-    void this.projects.load();
+  protected async retry(): Promise<void> {
+    await this.projects.load();
+    this.restoreRetryFocus();
   }
 
   protected onScroll(): void {

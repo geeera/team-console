@@ -1,12 +1,14 @@
 import { DESIGN_FILE_LIMIT, DESIGN_IMAGE_MAX_BYTES } from '@shared/contracts';
 import { isGitHubPullRequest, pullRequestRecordOf, type PullRequestRecord } from '../github-records';
 import {
+  blobBaseUrlOf,
   captionOf,
   designFilesOf,
   designManifestOf,
   deviceOf,
   imageTypeOf,
   isGitHubTree,
+  issuesBaseUrlOf,
   linkingPullRequestOf,
   pagesUrlOf,
   screenCaptionsOf,
@@ -346,5 +348,20 @@ describe('linkingPullRequestOf', () => {
     const own = pull(14, { body: 'Closes #277', head: head('design/277-viewer', 'Geeera/Team-Console') });
     expect(find([fork, deletedFork, own], 277)?.number).toBe(14);
     expect(find([fork, deletedFork], 277)).toBeNull();
+  });
+});
+
+describe('repository URL bases', () => {
+  // Literal strings on purpose: a spec that rebuilds the URL with the same helper would pass on any change.
+  it('builds the blob base from owner, name and sha', () => {
+    expect(blobBaseUrlOf(REPO, SHA)).toBe(`https://github.com/geeera/team-console/blob/${'a'.repeat(40)}/`);
+  });
+
+  it('builds the issues base from owner and name', () => {
+    expect(issuesBaseUrlOf(REPO)).toBe('https://github.com/geeera/team-console/issues/');
+  });
+
+  it('percent-encodes an owner or name that is not URL-safe', () => {
+    expect(issuesBaseUrlOf({ owner: 'a b', name: 'x/y' })).toBe('https://github.com/a%20b/x%2Fy/issues/');
   });
 });

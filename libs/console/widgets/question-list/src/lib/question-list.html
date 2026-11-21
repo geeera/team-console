@@ -9,7 +9,7 @@
   [title]="'questions.loadFailed' | transloco"
   [description]="'questions.loadFailedHint' | transloco"
 >
-  <button tc-button tc-state-action type="button" (click)="reload()">
+  <button tc-button tc-state-action type="button" (click)="retry()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>
@@ -23,7 +23,7 @@
 </p>
 } @if (refreshFailed()) {
 <tc-state-block kind="error" compact data-testid="refresh-error" [title]="'questions.loadFailed' | transloco">
-  <button tc-button tc-state-action size="sm" type="button" (click)="reload()">
+  <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>

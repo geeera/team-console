@@ -28,6 +28,7 @@ import {
   FieldControl,
   Icon,
   IconButton,
+  injectRetryFocus,
   StateBlock,
 } from '@console/shared/ui';
 import {
@@ -67,6 +68,7 @@ export class RunnerPolicyEditor {
   private readonly api = inject(RunnersApi);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
+  private readonly restoreRetryFocus = injectRetryFocus();
 
   readonly scope = input.required<RunnerPolicyScope>();
   /** Every runner of the account (revoked ones only to name them in a stored policy). */
@@ -146,8 +148,9 @@ export class RunnerPolicyEditor {
     }
   }
 
-  protected retry(): void {
-    void this.load(this.scope());
+  protected async retry(): Promise<void> {
+    await this.load(this.scope());
+    this.restoreRetryFocus();
   }
 
   protected setMode(mode: PolicyMode): void {

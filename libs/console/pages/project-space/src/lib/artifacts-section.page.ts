@@ -20,7 +20,7 @@ import {
 import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
-import { Button, Callout, StateBlock } from '@console/shared/ui';
+import { Button, Callout, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import { isArtifactType, type ArtifactType } from '@shared/contracts';
 import { map } from 'rxjs';
 
@@ -213,6 +213,7 @@ export class ArtifactsSectionPage {
   private readonly transloco = inject(TranslocoService);
   private readonly viewer = inject(DesignViewer);
   private readonly manifests = inject(DesignManifests);
+  private readonly restoreRetryFocus = injectRetryFocus();
 
   protected readonly slug = toSignal(
     (this.route.parent ?? this.route).paramMap.pipe(map((params) => params.get('slug'))),
@@ -278,10 +279,11 @@ export class ArtifactsSectionPage {
     });
   }
 
-  protected reload(): void {
+  protected async reload(): Promise<void> {
     const slug = this.slug();
     if (slug !== null) {
-      void this.store.load(slug);
+      await this.store.load(slug);
+      this.restoreRetryFocus();
     }
   }
 

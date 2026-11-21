@@ -13,7 +13,7 @@ import {
 import { RunnersApi, runnerFailureKeyOf, type RunnerFailure } from '@console/entities/runner';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, Choice, ChoiceGroup, Icon, StateBlock } from '@console/shared/ui';
+import { Banner, Button, Choice, ChoiceGroup, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import type { ProjectDispatch, ProjectDispatchDto } from '@shared/contracts';
 
 type EditorStatus = 'loading' | 'ready' | 'error';
@@ -37,6 +37,7 @@ export class ProjectDispatchEditor {
   private readonly api = inject(RunnersApi);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
+  private readonly restoreRetryFocus = injectRetryFocus();
 
   readonly slug = input.required<string>();
   /** Settings › Team of this project (#688): linked from an `access-source-hosted` refusal; none hides the link. */
@@ -67,8 +68,9 @@ export class ProjectDispatchEditor {
     });
   }
 
-  protected retry(): void {
-    void this.load(this.slug());
+  protected async retry(): Promise<void> {
+    await this.load(this.slug());
+    this.restoreRetryFocus();
   }
 
   protected choose(dispatch: ProjectDispatch): void {

@@ -29,7 +29,7 @@ import {
 import { TeamStatusStore } from '@console/entities/team-run';
 import { httpProblemOf } from '@console/shared/api';
 import { TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, Icon, isPhoneSignal, Sheet, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
+import { Banner, Button, Icon, injectRetryFocus, isPhoneSignal, Sheet, SrOnlyOnPhone, StateBlock } from '@console/shared/ui';
 import {
   CommandsPane,
   CommandsSheet,
@@ -97,6 +97,7 @@ export class OverviewPage {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly restoreRetryFocus = injectRetryFocus();
 
   protected readonly isPhone = isPhoneSignal();
   protected readonly now = signal(Date.now());
@@ -197,6 +198,7 @@ export class OverviewPage {
       this.state.set({ kind: 'loading' });
     }
     await this.load();
+    this.restoreRetryFocus();
   }
 
   /** The card's Commands: the sheet on the phone; on a wide screen the pane, toggled, or moved to this card. */
