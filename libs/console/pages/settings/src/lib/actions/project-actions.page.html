@@ -1,0 +1,137 @@
+<div class="tc-page subpage" data-testid="actions-page">
+  @if (projects.status() !== 'ready') {
+    <tc-state-block kind="loading" [title]="'settings.projects.loading' | transloco" />
+  } @else if (project() === undefined || blockingProblem()?.kind === 'not-found') {
+    <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+      <a routerLink="/overview"><tc-icon name="chevron-left" size="sm" />{{ 'overview.title' | transloco }}</a>
+    </nav>
+    <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'settings.setup.notFound.title' | transloco }}</h1>
+    <tc-state-block kind="empty" data-testid="actions-not-found" [title]="'settings.setup.notFound.body' | transloco: { slug: slug() }">
+      <a tc-button tc-state-action routerLink="/overview">{{ 'overview.title' | transloco }}</a>
+    </tc-state-block>
+  } @else if (project(); as project) {
+    <nav class="subpage__crumbs" [attr.aria-label]="'settings.breadcrumb' | transloco">
+      <a [routerLink]="setupRoute()" data-testid="actions-crumb"><tc-icon name="chevron-left" size="sm" />{{ project.displayName }}</a>
+    </nav>
+    <header class="actions__head">
+      <h1 #heading class="tc-page__title subpage__title" tabindex="-1">{{ 'actions.title' | transloco }}</h1>
+      @if (blockingProblem()?.kind !== 'forbidden') {
+        <p class="actions__lead">{{ 'actions.lead' | transloco: { project: project.displayName, repo: project.repo } }}</p>
+        @if (repoUrl(); as url) {
+          <a class="actions__repo tc-tap-target" [href]="url" target="_blank" rel="noopener noreferrer">
+            {{ 'settings.setup.repoLink' | transloco: { repo: project.repo } }}<span class="tc-sr-only">
+              {{ 'settings.common.external' | transloco }}</span
+            >
+            <tc-icon name="external" size="sm" />
+          </a>
+        }
+      }
+    </header>
+
+    @if (blockingProblem(); as problem) {
+      @switch (problem.kind) {
+        @case ('forbidden') {
+          <tc-state-block
+            kind="empty"
+            icon="lock"
+            data-testid="actions-forbidden"
+            [title]="'actions.err.forbidden.title' | transloco"
+            [description]="'actions.err.forbidden.body' | transloco"
+          >
+            <a tc-button tc-state-action [routerLink]="setupRoute()">{{ 'actions.err.forbidden.back' | transloco }}</a>
+          </tc-state-block>
+        }
+        @default {
+          <div role="alert">
+            <tc-state-block kind="error" data-testid="actions-error" [attr.data-problem]="problem.kind" [title]="problemTitle(problem.kind) | transloco">
+              @if (problem.kind !== 'misconfigured') {
+                <button tc-button tc-state-action type="button" data-testid="actions-retry" [attr.aria-disabled]="isRecheckBlocked() ? 'true' : null" (click)="recheck()">
+                  {{ 'settings.common.retry' | transloco }}
+                </button>
+              }
+            </tc-state-block>
+          </div>
+        }
+      }
+    } @else {
+      <section
+        tc-callout
+        aria-labelledby="actions-result"
+        data-testid="actions-summary"
+        [attr.aria-busy]="isChecking() ? 'true' : null"
+        [tone]="summaryTone()"
+      >
+        <h2 #result tc-callout-title id="actions-result" tabindex="-1">
+          @if (summary(); as summary) {
+            @switch (summary.kind) {
+              @case ('ready') { {{ 'actions.sum.ready' | transloco }} }
+              @case ('on') { {{ 'actions.sum.on' | transloco }} }
+              @case ('missing') { {{ 'actions.sum.missing' | translocoPlural: summary.n }} }
+              @case ('drift') { {{ 'actions.sum.on' | transloco }} }
+            }
+          } @else {
+            {{ 'settings.step.pending' | transloco }}
+          }
+        </h2>
+        @if (summary(); as summary) {
+          @if (summary.kind === 'drift') {
+            <p data-testid="actions-drift">{{ 'actions.sum.drift' | translocoPlural: summary.n }}</p>
+            <a class="actions__link" routerLink="/settings/runners">{{ 'actions.sum.driftLink' | transloco }}<tc-icon name="chevron-right" size="sm" /></a>
+          }
+        }
+        @if (isChecking() && snapshot() === null) {
+          <p class="tc-sr-only">{{ 'actions.checkingSr' | transloco: { repo: project.repo } }}</p>
+          @if (isSlow()) {
+            <p data-testid="actions-slow">{{ 'actions.checkingSlow' | transloco }}</p>
+          }
+        }
+        @if (isOfflineSnapshot() && snapshot(); as snapshot) {
+          <p role="status" data-testid="actions-offline">{{ 'actions.err.offline' | transloco: { time: (snapshot.checkedAt | localTime) } }}</p>
+        } @else if (snapshot(); as snapshot) {
+          <p class="actions__time">{{ 'settings.setup.checkedAt' | transloco: { time: (snapshot.checkedAt | localTime) } }}</p>
+        }
+        @if (rateRetryAt(); as time) {
+          <p role="status" data-testid="actions-rate">{{ 'actions.err.rate' | transloco: { time: (time | localTime) } }}</p>
+        }
+        @if (status().state() === 'error' && !isOfflineSnapshot() && rateRetryAt() === null && snapshot() !== null) {
+          <p role="alert" data-testid="actions-recheck-failed">{{ problemTitle(problem()?.kind ?? 'failed') | transloco }}</p>
+        }
+        <div class="actions__recheck">
+          <button
+            tc-button
+            type="button"
+            data-testid="actions-check-again"
+            [loading]="isChecking()"
+            [attr.aria-disabled]="isRecheckBlocked() ? 'true' : null"
+            (click)="recheck()"
+          >
+            <tc-icon name="refresh" size="sm" />{{ 'settings.setup.checkAgain' | transloco }}
+          </button>
+        </div>
+      </section>
+
+      <p class="actions__minutes"><tc-icon name="clock" size="sm" />{{ 'runners.dispatch.minutes' | transloco }}</p>
+
+      <tc-actions-setup-ledger
+        [slug]="project.slug"
+        [repo]="project.repo"
+        [projectName]="project.displayName"
+        [setup]="snapshot()"
+        [branch]="branch()"
+        [branchLabel]="branchLabel()"
+        [teamUrl]="teamUrl()"
+        (recheck)="recheck()"
+        (switched)="onSwitched($event)"
+      />
+
+      @if (justSwitched() || summary()?.kind === 'on') {
+        <div class="subpage__actions">
+          <a tc-button variant="primary" data-testid="actions-open-project" [routerLink]="spaceUrl()">{{ 'settings.setup.open' | transloco }}</a>
+          @if (from() === 'runners') {
+            <a tc-button routerLink="/settings/runners" data-testid="actions-back-runners">{{ 'actions.backRunners' | transloco }}</a>
+          }
+        </div>
+      }
+    }
+  }
+</div>

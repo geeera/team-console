@@ -37,6 +37,7 @@ import { LocalTimePipe, TranslocoPipe, TranslocoPluralPipe, TranslocoService } f
 import { Button, Callout, Card, focusAfterRender, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { ProjectSetupDto } from '@shared/contracts';
 import { readNavigationState } from './settings-navigation';
+import { ProjectActionsEntry } from './actions/project-actions-entry';
 import { ProjectEnvironmentEntry } from './environment/project-environment-entry';
 
 /**
@@ -57,6 +58,7 @@ import { ProjectEnvironmentEntry } from './environment/project-environment-entry
     LocalTimePipe,
     RouterLink,
     SetupChecklist,
+    ProjectActionsEntry,
     ProjectEnvironmentEntry,
     StateBlock,
     TranslocoPipe,

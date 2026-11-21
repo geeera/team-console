@@ -22,7 +22,7 @@
         <div class="step__how">
           <p>{{ 'actions.access.how' | transloco }}</p>
           @if (teamUrl(); as url) {
-            <a class="step__link" data-testid="actions-team-link" [routerLink]="url" fragment="access">
+            <a class="step__link" data-testid="actions-team-link" [routerLink]="url">
               {{ 'actions.access.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
             </a>
           }

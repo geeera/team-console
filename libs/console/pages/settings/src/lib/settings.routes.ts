@@ -22,6 +22,11 @@ export const settingsRoutes: Route[] = [
     loadComponent: () => import('./team/team.page').then((m) => m.TeamPage),
     canDeactivate: [(page: { canLeave(): Promise<boolean> }) => page.canLeave()],
   },
+  // Settings › project › GitHub Actions (#759): the customer's own setup, its own chunk.
+  {
+    path: 'projects/:slug/actions',
+    loadComponent: () => import('./actions/project-actions.page').then((m) => m.ProjectActionsPage),
+  },
   // Settings › Runners (#464): its own chunk; nothing on the main Settings screen needs it.
   { path: 'runners', loadComponent: () => import('./runners/runners.page').then((m) => m.RunnersPage) },
   ...environmentRoutes,
