@@ -111,7 +111,7 @@ describe('ArtifactsSectionPage, the Design filter states (#295, #277 spec §4)',
 
   it('keeps the generic loading block for the other filters', async () => {
     const { query } = await setup('/p/tc/artifacts');
-    expect(textOf(query('[data-testid="artifacts-loading"]'))).toBe('Загружаю артефакты…');
+    expect(textOf(query('[data-testid="artifacts-loading"]'))).toBe('Загружаем артефакты…');
     expect(query('[data-testid="artifacts-designs-loading"]')).toBeNull();
   });
 
