@@ -103,7 +103,7 @@ describe('apps/api/wrangler.jsonc', () => {
       expect.objectContaining({
         binding: 'ASSETS',
         not_found_handling: 'single-page-application',
-        run_worker_first: ['/api', '/api/*', '/manifest.webmanifest', '/brand/*'],
+        run_worker_first: ['/api', '/api/*', '/manifest.webmanifest', '/favicon.ico', '/brand/*'],
       }),
     );
   });

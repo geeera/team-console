@@ -78,6 +78,8 @@ describe('GET /brand/* (the icons index.html links to)', () => {
     ['dev', '/brand/apple-touch-icon.png', '/icons/dev/apple-touch-icon.png', 'image/png'],
     ['stage', '/brand/favicon.ico', '/icons/stage/favicon.ico', 'image/vnd.microsoft.icon'],
     ['local', '/brand/favicon.ico', '/icons/local/favicon.ico', 'image/vnd.microsoft.icon'],
+    ['production', '/favicon.ico', '/icons/production/favicon.ico', 'image/vnd.microsoft.icon'],
+    ['dev', '/favicon.ico', '/icons/dev/favicon.ico', 'image/vnd.microsoft.icon'],
   ] as const)('answers %s %s with %s', async (environment, path, file, type) => {
     const response = await fetchApi(path, bindings(environment));
     const expected = await SELF.fetch(`${ORIGIN}${file}`);
