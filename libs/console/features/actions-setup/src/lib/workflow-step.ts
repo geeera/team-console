@@ -95,7 +95,10 @@ export class WorkflowStep {
       this.setup();
       untracked(() => {
         this.knownPr.set(null);
-        if (this.refusal()?.kind !== 'write-disabled') {
+        const kind = this.refusal()?.kind;
+        // The kill switch holds until a reload; «Файл уже на месте» stays until the check agrees the file is ok.
+        const keeps = kind === 'write-disabled' || (kind === 'ready' && this.view().kind !== 'ok');
+        if (!keeps) {
           this.refusal.set(null);
         }
       });

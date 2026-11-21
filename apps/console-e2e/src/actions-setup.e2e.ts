@@ -93,7 +93,7 @@ test('the local stack says the console cannot check here; the setup row reads «
   await expectAccessible(page, 'GitHub Actions setup, console misconfigured');
 });
 
-test('partial: each step names its fix and links only to github.com; Open PR shows the PR and focuses it', async ({ page }) => {
+test('partial: each step names its fix and links only to github.com; the Copy path and a held switch', async ({ page }, testInfo) => {
   await answerReadiness(page, () =>
     readiness({
       'app-permissions': { status: 'missing', link: INSTALLATION_URL },
@@ -131,9 +131,14 @@ test('partial: each step names its fix and links only to github.com; Open PR sho
   // Switch blocked: activating it moves focus to the first step that is not done.
   const switchOn = ledger.getByTestId('switch-on');
   await expect(switchOn).toHaveAttribute('aria-disabled', 'true');
-  await switchOn.click();
+  // aria-disabled, never disabled: it stays focusable and says why when activated.
+  await switchOn.focus();
+  await page.keyboard.press('Enter');
   await expect(ledger.locator('h3[data-step="permissions"]')).toBeFocused();
-  expect(meetsMinTap((await ledger.getByTestId('actions-why-toggle').boundingBox())?.height)).toBe(true);
+  if (testInfo.project.name === 'iphone') {
+    // The kit's touch targets: 44 px on a phone.
+    expect(meetsMinTap((await ledger.getByTestId('actions-why-toggle').boundingBox())?.height)).toBe(true);
+  }
 });
 
 test('Open PR: the PR opens and is focused; a foreign PR is never called mergeable', async ({ page }) => {
@@ -282,7 +287,8 @@ test('Runners: choosing GitHub Actions shows the readiness line; Save waits and 
   await expect(page).toHaveURL(/\/settings\/runners$/);
   const save = editor.getByTestId('project-dispatch-save');
   await expect(save).toHaveAttribute('aria-disabled', 'true');
-  await save.click();
+  await save.focus();
+  await page.keyboard.press('Enter');
   const prepare = editor.getByTestId('project-dispatch-prepare');
   await expect(prepare).toBeFocused();
   await expectAccessible(page, 'Settings › Runners, Actions not ready');
