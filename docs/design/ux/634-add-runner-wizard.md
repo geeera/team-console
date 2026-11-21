@@ -161,7 +161,8 @@ configured):
 Heading h3 (focused on arrival): «Машина просит подключения».
 - Callout tone warning, title **«Сверьте с терминалом»**, body: «Терминал напечатал код машины. Подтверждайте,
   только если он совпадает с кодом ниже и это ваша машина.»
-- **Код машины**: the fingerprint `ABCD-EFGH` in mono, large (28 px phone / 32 px Mac), `aria-label` spelled out by
+- **Код машины**: the fingerprint `ABCD-EFGH` in mono, large (`--fs-2xl`, 28 px on every screen; #878 kept the token
+  scale rather than add a one-use 32 px step), `aria-label` spelled out by
   characters («A B C D, дефис, E F G H»), so a screen reader reads it the way it is compared.
 - Ledger (`tc-ledger`), every value text-only in `<bdi dir="auto">`, long values wrap (`overflow-wrap: anywhere`):
   - «Машина»: `host.hostname`
@@ -177,6 +178,10 @@ Heading h3 (focused on arrival): «Машина просит подключен�
 - The expiry line from step 2.
 - Footer, in this DOM order: **«Отклонить»** (danger, secondary), **«Подтвердить»** (primary). Nothing is
   autofocused (decision 6). Busy: «Подтверждаем…» / «Отклоняем…»; the other button is `aria-disabled`.
+- **Mis-click guard (#878).** A poll flips step 2 to step 3 on its own, and «Подтвердить» lands where «Отозвать
+  запрос» sat (far right on Mac, the full-width slot on iPhone). For 1 s after a fingerprint is shown, on arrival and
+  after every re-read that changes it, «Подтвердить» is `aria-disabled` and ignores clicks (`APPROVE_ARM_MS`). The
+  layout stays as above: moving the button would break this order and the phone's stacked footer has no other spot.
 
 Approve outcomes (`POST …/approve {fingerprint: <displayed>}`):
 
@@ -202,7 +207,11 @@ Heading h3: «Подтверждено — ждём первый сигнал».
   не вышел на связь». Body: «Посмотрите в Терминал: setup называет шаг, который не прошёл, и как его исправить.
   Проверить всё ещё раз:» + `CopyCode` `sudo /usr/local/lib/team-console-runner/bin/team-console-runner self-check` +
   «Журнал службы: /Users/_tcrunner/logs/runner.log». Last line: «Консоль ждёт дальше. Окно можно закрыть: раннер уже
-  в списке и сам перейдёт в «На связи».» The polling continues.
+  в списке и сам перейдёт в «На связи».» The polling continues until 15 minutes after the approval
+  (`RUNNER_WATCH_LIMIT_MS`, #878: at most 180 reads). Then it stops: the last line becomes
+  `runners.wizard.slow.stopped` with a button «Проверить снова» (`runners.wizard.slow.recheck`, one `GET …/runners`
+  per click, «Проверяем…» while it runs, «Раннер всё ещё не на связи.» announced politely if it is still offline), and
+  the spinner line goes away.
 - Footer: primary «Закрыть» (closing is safe: the runner row exists).
 
 ### 3.5 Step 4b «Раннер на связи»
@@ -284,7 +293,7 @@ API's, and so is the text.
 | 11 | **Withdrawn elsewhere** (GET says `withdrawn`, and this sheet did not withdraw it) | Callout neutral «Запрос отозван», body `runners.wizard.withdrawn.body`, primary «Новая команда» |
 | 12 | **409 taken** (another machine bound first) | It looks like state 6, because the console cannot tell. The fingerprint does not match the terminal, and the terminal prints the «уже занят» line. The §3.3 disclosure says what to do: Отклонить → state 9 → Новая команда. |
 | 13 | **Approved, waiting for the first signal** | §3.4 |
-| 14 | **Poll timing out** (approved, still offline after 5 min) | §3.4 «Раннер пока не вышел на связь». Waiting goes on. |
+| 14 | **Poll timing out** (approved, still offline after 5 min) | §3.4 «Раннер пока не вышел на связь». Waiting goes on until 15 min after the approval, then a manual «Проверить снова» (#878). |
 | 15 | **On line** | §3.5, with the below-minimum variant |
 | 16 | **Network error while polling** | After 2 failed polls in a row: banner warning `role="status"` «Нет связи с консолью, пробуем снова. Запрос на вашей машине продолжает ждать.» It goes away on the next success. The step keeps its last content. |
 | 17 | **Offline** (`navigator.onLine` false) | Banner «Нет сети. Когда связь вернётся, консоль снова проверит запрос.». «Подтвердить», «Отклонить», «Новая команда» `aria-disabled` with the reason «Нет сети». The copy button still works. |
