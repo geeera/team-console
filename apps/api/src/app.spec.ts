@@ -1,5 +1,5 @@
 import { SELF, env } from 'cloudflare:test';
-import { PROBLEM_TYPE_PREFIX, isProblemDetails } from '@shared/contracts';
+import { OWNER_ACCOUNT_ID, PROBLEM_TYPE_PREFIX, isProblemDetails } from '@shared/contracts';
 import { version } from '../../../package.json';
 
 const ORIGIN = 'http://api.test';
@@ -146,6 +146,7 @@ describe('GET /api/v1/projects', () => {
         snooze: { snoozed: false },
         tracker: 'github',
         keyPrefix: null,
+        accountId: OWNER_ACCOUNT_ID,
       },
     ]);
   });
