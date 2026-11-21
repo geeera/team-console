@@ -266,6 +266,11 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    затем сравните его с значением в PR. Деплой делает ту же проверку сам и не выкладывает консоль при расхождении,
    поэтому ваша проверка — вторая. Команду установки консоль показывает только для релиза 0.2.0 и новее: в них уже
    есть свой Node.js.
+   **Команда для Linux (#634 PR 7).** Тем же PR задаётся `RUNNER_RELEASE_IMAGE_DIGEST` — дайджест образа из заметок
+   релиза (строка «Container image», часть после `@`, вида `sha256:…`). Перед go проверьте его у себя:
+   `gh attestation verify oci://ghcr.io/geeera/team-console-runner@sha256:<дайджест> --repo geeera/team-console --signer-workflow github.com/geeera/team-console/.github/workflows/release-runner.yml --source-ref refs/tags/v<v> --deny-self-hosted-runners`.
+   Деплой делает ту же проверку и не выкладывает консоль, если дайджест собран не этим релизом. Пустое значение —
+   на Linux консоль подключает по одноразовому коду. Команду для Linux консоль показывает для релиза 0.2.0 и новее.
 6. **Установка на твой Mac** — `docs/runbooks/runner.md` (#576, `needs:local`).
 
 ## Раннер: GitHub Actions (#671 — первый настоящий запуск на dev)

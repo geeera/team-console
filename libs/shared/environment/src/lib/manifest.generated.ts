@@ -695,6 +695,33 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       }
     },
     {
+      "name": "RUNNER_RELEASE_IMAGE_DIGEST",
+      "optional": true,
+      "kind": "variable",
+      "origin": "generated",
+      "environments": [
+        "dev",
+        "stage",
+        "production"
+      ],
+      "locations": [
+        {
+          "place": "wrangler-var",
+          "app": "api"
+        }
+      ],
+      "neededBy": [
+        "apps/api (команда для Linux в ответе enrolment-intents, #634 PR 7, R-LNX)"
+      ],
+      "purpose": "Дайджест (`sha256:…`) образа раннера из `RUNNER_RELEASE_VERSION`; команда для Linux тянет образ только по нему.",
+      "guide": {
+        "obtain": null,
+        "scopes": null,
+        "rotation": "Задаётся вместе с `RUNNER_RELEASE_VERSION` для каждого релиза: дайджест из заметок релиза (строка «Container image»), после `gh attestation verify oci://ghcr.io/geeera/team-console-runner@<дайджест> …` у себя.",
+        "gotchas": "deploy.yml проверяет аттестацию этого дайджеста против тега версии и не деплоит при ошибке. Пустое значение — консоль не предлагает команду для Linux (подключение по одноразовому коду). Без версии значение не принимается."
+      }
+    },
+    {
       "name": "AUTH_MODE",
       "kind": "variable",
       "origin": "generated",

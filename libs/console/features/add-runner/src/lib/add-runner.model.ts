@@ -1,12 +1,17 @@
 import {
   RELEASE_HOST,
   RELEASE_REPOSITORY,
+  LINUX_PODMAN_UNIT,
+  LINUX_RUNNER_UNIT,
   RUNNER_INSTALLED_LAUNCHER,
   type EnrolmentIntentDto,
   type RunnerProjectScope,
 } from '@shared/contracts';
 
-/** Where the runner is going to work: a Mac takes the intent path, Linux hands over to the code dialog (decision 1). */
+/**
+ * Where the runner is going to work. Both take the intent path (#634 PR 7); Linux still hands over to the code dialog
+ * when the environment names no runner image for the one command.
+ */
 export type RunnerPlatform = 'mac' | 'linux';
 
 /** The four steps of the sheet (spec §0.3); the end states belong to the step they ended on. */
@@ -45,6 +50,10 @@ export const RUNBOOK_UPDATE_URL = `${RUNBOOK}#update-decision-10-rr13`;
 
 export const SELF_CHECK_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} self-check`;
 export const RUNNER_LOG_PATH = '/Users/_tcrunner/logs/runner.log';
+
+/** Linux (#634 PR 7): both services of the one command, and where systemd keeps the runner's output. */
+export const LINUX_STATUS_COMMAND = `sudo systemctl status ${LINUX_RUNNER_UNIT} ${LINUX_PODMAN_UNIT}`;
+export const LINUX_LOG_COMMAND = `sudo journalctl -u ${LINUX_RUNNER_UNIT}`;
 
 /** «7K2Q-M9XD» as a screen reader should compare it: «7 K 2 Q, дефис, M 9 X D». */
 export function fingerprintSpokenOf(fingerprint: string, dashWord: string): string {

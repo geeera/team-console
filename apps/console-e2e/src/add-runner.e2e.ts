@@ -4,6 +4,7 @@ import { OWNER_ACCOUNT_ID, isEnrolmentIntentId, type EnrolmentIntentDto } from '
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { claimStatus } from './support/runner';
+import { E2E_RUNNER_IMAGE_DIGEST } from './stack/local-stack';
 import { apiClient, seed, type Stack } from './support/stack';
 
 /**
@@ -42,7 +43,7 @@ async function commandFor(page: Page, name: string): Promise<{ dialog: Locator; 
 }
 
 /** The runner's half of `setup`: a fresh key bound to the intent; the console answers the fingerprint. */
-async function bindAsRunner(stack: Stack, intentId: string): Promise<Bound> {
+async function bindAsRunner(stack: Stack, intentId: string, machine: 'mac' | 'linux' = 'mac'): Promise<Bound> {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const api = await apiClient(stack);
   try {
@@ -50,9 +51,12 @@ async function bindAsRunner(stack: Stack, intentId: string): Promise<Bound> {
       data: {
         intentId,
         publicKey: { kty: 'OKP', crv: 'Ed25519', x: publicKey.export({ format: 'jwk' }).x },
-        host: { os: 'darwin', arch: 'arm64', hostname: 'e2e-wizard.local' },
+        host:
+          machine === 'mac'
+            ? { os: 'darwin', arch: 'arm64', hostname: 'e2e-wizard.local' }
+            : { os: 'linux', arch: 'x64', hostname: 'e2e-build-box' },
         capabilities: { local: true, maxConcurrency: 1 },
-        isolation: 'user',
+        isolation: machine === 'mac' ? 'user' : 'container',
         version: '0.3.0',
       },
     });
@@ -134,6 +138,59 @@ test('add a Mac runner: the command, the fingerprint compared and approved, then
   // R-INT-2: the id rode in the path of the owner's own calls only, never in a query or the page's URL.
   expect(urls.filter((url) => url.includes(intentId)).every((url) => new URL(url).search === '')).toBe(true);
   expect(page.url()).not.toContain(intentId);
+});
+
+test('add a Linux runner: the API’s two commands by image digest, no docker.sock, approved, then on line (#634 PR 7)', async ({
+  page,
+  stack,
+}) => {
+  await page.goto('/settings/runners');
+  await page.getByTestId('runners-empty').getByTestId('runners-enrol').click();
+  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await dialog.getByTestId('wizard-name').fill('E2E Linux');
+  await dialog.getByTestId('wizard-platform-linux').check();
+  await expect(dialog.getByTestId('wizard-platform-linux')).toHaveAccessibleDescription(
+    new RegExp(ru('runners.wizard.platform.linuxHint').replaceAll('.', '\\.')),
+  );
+  await dialog.getByTestId('wizard-submit').click();
+  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.command.linux.title', { name: 'E2E Linux' }) })).toBeFocused();
+
+  const image = `ghcr.io/geeera/team-console-runner:0.3.0@${E2E_RUNNER_IMAGE_DIGEST}`;
+  const prepare = (await dialog.getByTestId('wizard-linux-prepare').getByTestId('copy-code-text').textContent()) ?? '';
+  const enrol = (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
+  const intentId = /-e TC_ENROLMENT=(\S+) /.exec(enrol)?.[1] ?? '';
+  expect(isEnrolmentIntentId(intentId), enrol).toBe(true);
+  // R-LNX: by digest only, the local stack's own origin, nothing but the request id passed in, and no docker.sock.
+  expect(enrol).toContain(`${image} setup --url ${new URL(stack.baseURL).origin} --image ${image}`);
+  expect([...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1])).toEqual(['HOME', 'TC_RUNNER_HOME', 'TC_ENROLMENT']);
+  expect(`${prepare}\n${enrol}`).not.toMatch(/docker\.sock|tce_|sk-ant/);
+  for (const line of ['User=tcrunner', 'ProtectSystem=strict', 'ProtectHome=yes']) {
+    expect(prepare.split('\n').filter((unitLine) => unitLine === line)).toHaveLength(2);
+  }
+  // The runner's own unit; rootless podman's unit needs its setuid newuidmap and is capability-bounded instead.
+  expect(prepare.split('\n').filter((unitLine) => unitLine === 'NoNewPrivileges=yes')).toHaveLength(1);
+  expect(prepare).toContain(`${image} run --loop`);
+  await expect(dialog.getByTestId('wizard-linux-socket')).toContainText('/var/lib/team-console-runner/podman.sock');
+  await expect(dialog.getByRole('region', { name: ru('runners.wizard.command.linux.prepareRegion') })).toBeVisible();
+  await expect(dialog.getByRole('button', { name: ru('runners.wizard.command.linux.enrolCopyAria') })).toBeVisible();
+  await expectAccessible(page, 'Add runner wizard, Linux command');
+
+  const bound = await bindAsRunner(stack, intentId, 'linux');
+  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.confirm.title') })).toBeFocused();
+  await expect(dialog.getByTestId('wizard-fingerprint')).toHaveText(bound.fingerprint);
+  await expect(dialog.getByTestId('wizard-hostname')).toHaveText('e2e-build-box');
+  await expect(dialog.getByTestId('wizard-approve')).not.toHaveAttribute('aria-disabled', 'true');
+  await dialog.getByTestId('wizard-approve').click();
+  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.approved.title') })).toBeFocused();
+  await expect(dialog).toContainText(ru('runners.wizard.approved.bodyLinux'));
+  const intent = await withApi(stack, async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto);
+  expect(intent).toMatchObject({ state: 'approved', isolation: 'container' });
+
+  await withApi(stack, async (api) => {
+    expect(await claimStatus(api, { id: intent.runnerId ?? '', key: bound.key })).toBeLessThan(300);
+  });
+  await expect(dialog.getByTestId('wizard-online')).toContainText('E2E Linux', { timeout: 15_000 });
+  await expectAccessible(page, 'Add runner wizard, Linux runner on line');
 });
 
 test('reject a machine whose code does not match, then get a new command', async ({ page, stack }) => {

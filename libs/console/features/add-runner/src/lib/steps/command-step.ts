@@ -1,7 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, input, model } from '@angular/core';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
 import { Callout, CopyCode, Segment, SegmentedRadio, Spinner } from '@console/shared/ui';
-import type { MacReleasePlatform, RunnerInstallCommandsDto } from '@shared/contracts';
+import {
+  LINUX_PODMAN_SOCKET,
+  LINUX_RUNNER_USER,
+  type LinuxInstallCommandsDto,
+  type MacReleasePlatform,
+  type RunnerInstallCommandsDto,
+} from '@shared/contracts';
 import { minutesLeftOf, RUNBOOK_INSTALL_URL } from '../add-runner.model';
 
 let nextCommandId = 0;
@@ -16,14 +22,53 @@ let nextCommandId = 0;
   imports: [Callout, CopyCode, LocalTimePipe, Segment, SegmentedRadio, Spinner, TranslocoPipe],
   template: `
     <h3 class="step__heading" tabindex="-1" data-step-heading>
-      {{ 'runners.wizard.command.title' | transloco: { name: name() } }}
+      {{ (linuxInstall() === null ? 'runners.wizard.command.title' : 'runners.wizard.command.linux.title') | transloco: { name: name() } }}
     </h3>
     @if (isPhone()) {
       <section tc-callout data-testid="wizard-phone-note">
-        <p>{{ 'runners.wizard.command.phone' | transloco }}</p>
+        <p>{{ (linuxInstall() === null ? 'runners.wizard.command.phone' : 'runners.wizard.command.linux.phone') | transloco }}</p>
       </section>
     }
-    @if (installCommands(); as install) {
+    @if (linuxInstall(); as linux) {
+      <p class="step__lead">{{ 'runners.wizard.command.linux.lead' | transloco }}</p>
+      <ol class="command__steps" data-testid="wizard-linux">
+        <li>
+          <span class="step__value">{{ 'runners.wizard.command.linux.prepareTitle' | transloco }}</span>
+          <span class="step__meta">{{ 'runners.wizard.command.linux.prepareBody' | transloco }}</span>
+          <tc-copy-code
+            data-testid="wizard-linux-prepare"
+            [code]="linux.prepare"
+            [regionLabel]="'runners.wizard.command.linux.prepareRegion' | transloco"
+            [ariaLabel]="'runners.wizard.command.linux.prepareCopyAria' | transloco"
+            [copyLabel]="'runners.enrol.copy' | transloco"
+            [copiedLabel]="'runners.enrol.copied' | transloco"
+            [failedNote]="'runners.enrol.copyFailed' | transloco"
+          />
+        </li>
+        <li>
+          <span class="step__value">{{ 'runners.wizard.command.linux.enrolTitle' | transloco }}</span>
+          <span class="step__meta">{{ 'runners.wizard.command.linux.enrolBody' | transloco }}</span>
+          <tc-copy-code
+            data-testid="wizard-command"
+            [code]="linux.enrol"
+            [regionLabel]="'runners.wizard.command.linux.enrolRegion' | transloco"
+            [ariaLabel]="'runners.wizard.command.linux.enrolCopyAria' | transloco"
+            [copyLabel]="'runners.enrol.copy' | transloco"
+            [copiedLabel]="'runners.enrol.copied' | transloco"
+            [failedNote]="'runners.enrol.copyFailed' | transloco"
+          />
+        </li>
+      </ol>
+      <section tc-callout data-testid="wizard-linux-socket">
+        <p>{{ 'runners.wizard.command.linux.socket' | transloco: { user: linuxUser, socket: podmanSocket } }}</p>
+      </section>
+      <details class="command__what">
+        <summary>{{ 'runners.wizard.command.what' | transloco }}</summary>
+        <p class="step__meta">
+          {{ 'runners.wizard.command.linux.whatBody' | transloco: { version: linux.version, image: linux.image } }}
+        </p>
+      </details>
+    } @else if (installCommands(); as install) {
       <p class="step__lead">{{ 'runners.wizard.command.leadOneLiner' | transloco }}</p>
       <fieldset tc-segmented [legend]="'runners.wizard.command.arch' | transloco">
         @for (option of archOptions; track option.value) {
@@ -101,6 +146,12 @@ let nextCommandId = 0;
       padding-inline-start: var(--space-5);
     }
 
+    /* min-width: 0 keeps a long command scrolling inside its own region instead of widening the sheet. */
+    .command__steps,
+    .command__steps li {
+      min-width: 0;
+    }
+
     .command__steps li {
       display: grid;
       gap: var(--space-2);
@@ -125,6 +176,8 @@ export class AddRunnerCommandStep {
   readonly setupCommand = input.required<string>();
   /** The verified-download one-liners; `null` puts the runbook path on screen (variant B). */
   readonly installCommands = input<RunnerInstallCommandsDto | null>(null);
+  /** The Linux one command (#634 PR 7): prepare once, then the interactive enrol step. Wins over both Mac variants. */
+  readonly linuxInstall = input<LinuxInstallCommandsDto | null>(null);
   /** The release the environment names, for variant B's first step. */
   readonly releaseVersion = input<string | null>(null);
   readonly expiresAt = input.required<string>();
@@ -135,6 +188,8 @@ export class AddRunnerCommandStep {
 
   protected readonly groupId = `tc-add-runner-command-${nextCommandId++}`;
   protected readonly runbookUrl = RUNBOOK_INSTALL_URL;
+  protected readonly linuxUser = LINUX_RUNNER_USER;
+  protected readonly podmanSocket = LINUX_PODMAN_SOCKET;
   protected readonly archOptions: readonly { readonly value: MacReleasePlatform; readonly label: string }[] = [
     { value: 'darwin-arm64', label: 'runners.wizard.command.archArm' },
     { value: 'darwin-x64', label: 'runners.wizard.command.archIntel' },

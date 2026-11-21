@@ -4,6 +4,7 @@ import {
   checkPollEnrolmentInput,
   checkStartEnrolmentInput,
   isEnrolmentIntentCreatedDto,
+  isLinuxInstallCommandsDto,
   isRunnerInstallCommandsDto,
   isEnrolmentIntentDto,
   isPollEnrolmentPendingDto,
@@ -194,14 +195,26 @@ describe('the DTO guards', () => {
 
   it('narrow the creation, the bind and the pending poll', () => {
     const expiresAt = '2026-11-18T10:10:00.000Z';
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null })).toBe(true);
-    expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, command: null, installCommands: null })).toBe(false);
+    const none = { command: null, installCommands: null, linuxInstall: null };
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none })).toBe(true);
+    expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, ...none })).toBe(false);
     const installCommands = { version: '0.2.0', 'darwin-arm64': 'curl …', 'darwin-x64': 'curl …' };
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands })).toBe(true);
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null })).toBe(false);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, installCommands })).toBe(true);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, linuxInstall: null })).toBe(false);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'linux-x64': 'x' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'darwin-x64': '' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, version: 'v0.2.0' })).toBe(false);
+    // #634 PR 7: the Linux pair names the image by digest, and the enrol step runs that very image.
+    const image = `ghcr.io/geeera/team-console-runner:0.2.0@sha256:${'a'.repeat(64)}`;
+    const linuxInstall = { version: '0.2.0', image, prepare: 'PREPARE', enrol: `podman run … ${image} setup` };
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, linuxInstall })).toBe(true);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, image: 'ghcr.io/geeera/team-console-runner:0.2.0' })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, image: `ghcr.io/x/y:0.2.0@sha256:${'a'.repeat(64)}` })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, version: '0.3.0' })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, enrol: 'podman run another-image setup' })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, prepare: '' })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, extra: 'x' })).toBe(false);
     const bind = { pollToken: 'tcep_x', fingerprint: 'J3XC-NZN9', intervalSeconds: 5, expiresAt, accountName: 'Acme' };
     expect(isStartEnrolmentResponse(bind)).toBe(true);
     expect(isStartEnrolmentResponse({ ...bind, intervalSeconds: 0 })).toBe(false);

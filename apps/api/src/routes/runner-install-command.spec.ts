@@ -1,5 +1,16 @@
 import { tarballUrlOf } from '@shared/contracts';
-import { macInstallCommandOf, macInstallCommandsOf, namedRunnerReleaseOf, type MacInstallCommandInput } from './runner-install-command';
+import {
+  linuxEnrolCommandOf,
+  linuxInstallCommandsOf,
+  linuxPrepareCommandOf,
+  macInstallCommandOf,
+  macInstallCommandsOf,
+  namedRunnerImageOf,
+  namedRunnerReleaseOf,
+  podmanUnitOf,
+  runnerUnitOf,
+  type MacInstallCommandInput,
+} from './runner-install-command';
 
 /**
  * The macOS first-install one-liner (#634 PR 5; threat model C11 R-ONE-1, R-ONE-2): built from compile-time constants
@@ -98,5 +109,135 @@ describe('macInstallCommandsOf', () => {
   it('gives nothing without a configured origin or a named release', () => {
     expect(macInstallCommandsOf(env, null, INTENT)).toBeNull();
     expect(macInstallCommandsOf({}, 'https://console.example', INTENT)).toBeNull();
+  });
+});
+
+/**
+ * The Linux one command (#634 PR 7, threat model C11 R-LNX): the image by digest only, no Docker socket, the runner
+ * under a dedicated non-root user with the systemd hardening, and the request id as the only value passed with `-e`.
+ */
+describe('the Linux one command', () => {
+  const DIGEST = `sha256:${'d'.repeat(64)}`;
+  const IMAGE = `ghcr.io/geeera/team-console-runner:0.2.0@${DIGEST}`;
+  const env = { ENVIRONMENT: 'production', RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_IMAGE_DIGEST: DIGEST };
+  const unitLines = (unit: string): string[] => unit.split('\n');
+  const execStartOf = (unit: string): string => unitLines(unit).find((line) => line.startsWith('ExecStart=')) ?? '';
+
+  it('names the image of the configured release by its digest', () => {
+    expect(namedRunnerImageOf(env)).toEqual({ version: '0.2.0', image: IMAGE });
+  });
+
+  it.each([
+    ['no digest', { RUNNER_RELEASE_VERSION: '0.2.0' }],
+    ['no version', { RUNNER_RELEASE_IMAGE_DIGEST: DIGEST }],
+    ['a release before the Linux setup', { ...env, RUNNER_RELEASE_VERSION: '0.1.0' }],
+    ['a tag in place of a digest', { ...env, RUNNER_RELEASE_IMAGE_DIGEST: '0.2.0' }],
+    ['a short digest', { ...env, RUNNER_RELEASE_IMAGE_DIGEST: `sha256:${'d'.repeat(63)}` }],
+    ['an upper-case digest', { ...env, RUNNER_RELEASE_IMAGE_DIGEST: `sha256:${'D'.repeat(64)}` }],
+    ['a digest with a shell tail', { ...env, RUNNER_RELEASE_IMAGE_DIGEST: `${DIGEST};id` }],
+  ])('names no image with %s', (_, vars) => {
+    expect(namedRunnerImageOf(vars)).toBeNull();
+  });
+
+  it('runs both units as tcrunner with ProtectSystem=strict, ProtectHome=yes and PrivateTmp', () => {
+    for (const unit of [podmanUnitOf(), runnerUnitOf(IMAGE)]) {
+      const lines = unitLines(unit);
+      expect(lines).toEqual(
+        expect.arrayContaining([
+          'User=tcrunner',
+          'Group=tcrunner',
+          'ProtectSystem=strict',
+          'ProtectHome=yes',
+          'PrivateTmp=yes',
+          'StateDirectory=team-console-runner',
+          'StateDirectoryMode=0700',
+        ]),
+      );
+      const once = /^(User|ProtectSystem|ProtectHome|NoNewPrivileges|CapabilityBoundingSet)=/;
+      expect(lines.filter((line) => once.test(line))).toHaveLength(5);
+      // Nothing runs as root: no root user, no ambient capability, no `+`/`!` privileged Exec line.
+      expect(unit).not.toMatch(/User=root|AmbientCapabilities|PermissionsStartOnly|^Exec\w*=[+!]/m);
+    }
+  });
+
+  it('runs the runner’s unit with NoNewPrivileges and no capability at all', () => {
+    expect(unitLines(runnerUnitOf(IMAGE))).toEqual(expect.arrayContaining(['NoNewPrivileges=yes', 'CapabilityBoundingSet=']));
+  });
+
+  it('bounds the podman unit to the capabilities of setuid newuidmap/newgidmap, which NoNewPrivileges would forbid', () => {
+    expect(unitLines(podmanUnitOf())).toEqual(
+      expect.arrayContaining([
+        'NoNewPrivileges=no',
+        'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN',
+      ]),
+    );
+  });
+
+  it('serves rootless podman of tcrunner on a socket in its own state directory', () => {
+    expect(execStartOf(podmanUnitOf())).toBe(
+      'ExecStart=/usr/bin/podman system service --time=0 unix:///var/lib/team-console-runner/podman.sock',
+    );
+  });
+
+  it('caps the jobs together at the podman unit, where rootless podman cannot cap each one', () => {
+    expect(unitLines(podmanUnitOf())).toEqual(expect.arrayContaining(['TasksMax=4096', 'MemoryMax=6G']));
+  });
+
+  it('runs the runner by digest with that socket only, never a docker.sock', () => {
+    const unit = runnerUnitOf(IMAGE);
+    expect(execStartOf(unit)).toBe(
+      `ExecStart=/usr/bin/podman --remote run --rm --replace --name=team-console-runner --userns=keep-id --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs=/tmp:rw,nosuid,nodev,mode=1777 -e HOME=/tmp -e TC_RUNNER_HOME=/var/lib/team-console-runner/home --mount=type=bind,src=/var/lib/team-console-runner/home,dst=/var/lib/team-console-runner/home -e CONTAINER_HOST=unix:///run/team-console-runner/podman.sock --mount=type=bind,src=/var/lib/team-console-runner/podman.sock,dst=/run/team-console-runner/podman.sock ${IMAGE} run --loop`,
+    );
+    expect(unit).toContain('Requires=team-console-runner-podman.service');
+    expect(unit).not.toMatch(/docker\.sock|--privileged/);
+  });
+
+  it('prepares the host without running the image or naming the request', () => {
+    const prepare = linuxPrepareCommandOf(IMAGE);
+    expect(prepare.split('\n')[0]).toBe(
+      'id tcrunner >/dev/null 2>&1 || sudo useradd --system --user-group --add-subids-for-system --home-dir /var/lib/team-console-runner --no-create-home --shell /usr/sbin/nologin tcrunner',
+    );
+    // Quoted heredocs: the shell expands nothing inside a unit.
+    expect(prepare).toContain(`sudo tee /etc/systemd/system/team-console-runner-podman.service >/dev/null <<'EOF'\n${podmanUnitOf()}\nEOF`);
+    expect(prepare).toContain(`sudo tee /etc/systemd/system/team-console-runner.service >/dev/null <<'EOF'\n${runnerUnitOf(IMAGE)}\nEOF`);
+    expect(prepare.endsWith('sudo systemctl daemon-reload && sudo systemctl enable --now team-console-runner-podman.service')).toBe(true);
+    expect(prepare).not.toMatch(/TC_ENROLMENT|docker\.sock/);
+  });
+
+  it('enrols interactively as tcrunner with the request id as the only value passed in', () => {
+    const enrol = linuxEnrolCommandOf('https://console.example', IMAGE, INTENT);
+    expect(enrol).toBe(
+      `sudo -u tcrunner -H podman --remote --url=unix:///var/lib/team-console-runner/podman.sock run -it --rm --userns=keep-id --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs=/tmp:rw,nosuid,nodev,mode=1777 -e HOME=/tmp -e TC_RUNNER_HOME=/var/lib/team-console-runner/home --mount=type=bind,src=/var/lib/team-console-runner/home,dst=/var/lib/team-console-runner/home --hostname="$(hostname)" -e TC_ENROLMENT=${INTENT} ${IMAGE} setup --url https://console.example --image ${IMAGE} && sudo systemctl enable team-console-runner.service && sudo systemctl restart team-console-runner.service`,
+    );
+    expect(enrol).not.toContain('\n');
+    const passed = [...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1]);
+    expect(passed).toEqual(['HOME', 'TC_RUNNER_HOME', 'TC_ENROLMENT']);
+    expect(enrol).not.toMatch(/tce_|sk-ant|API_KEY|TC_ENROL_CODE|--env-file|docker\.sock/);
+  });
+
+  it.each([
+    ['the console names no origin', null, INTENT],
+    ['an http origin', 'http://console.example', INTENT],
+    ['an origin with a shell tail', 'https://console.example;id', INTENT],
+    ['an id that is not a ULID', 'https://console.example', 'x'],
+  ])('builds nothing when %s', (_, origin, intent) => {
+    expect(linuxInstallCommandsOf(env, origin, intent)).toBeNull();
+  });
+
+  it('takes a loopback http origin on the local stack only, as the runner does', () => {
+    const local = { ...env, ENVIRONMENT: 'local' };
+    expect(linuxInstallCommandsOf(local, 'http://127.0.0.1:8300', INTENT)?.enrol).toContain('setup --url http://127.0.0.1:8300 ');
+    expect(linuxInstallCommandsOf(local, 'http://console.example', INTENT)).toBeNull();
+    expect(linuxInstallCommandsOf({ ...env, ENVIRONMENT: 'dev' }, 'http://127.0.0.1:8300', INTENT)).toBeNull();
+  });
+
+  it('builds the pair from the named image only', () => {
+    expect(linuxInstallCommandsOf(env, 'https://console.example', INTENT)).toEqual({
+      version: '0.2.0',
+      image: IMAGE,
+      prepare: linuxPrepareCommandOf(IMAGE),
+      enrol: linuxEnrolCommandOf('https://console.example', IMAGE, INTENT),
+    });
+    expect(linuxInstallCommandsOf({ ENVIRONMENT: 'production' }, 'https://console.example', INTENT)).toBeNull();
   });
 });

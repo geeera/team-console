@@ -124,6 +124,9 @@ export class ContainerBackend implements IsolationBackend {
       `${JOB_LABEL}=${sandbox.jobId}`,
       '--user',
       `${String(uid)}:${String(gid)}`,
+      // Rootless podman (the Linux one command, #634 PR 7) maps container uids onto subordinate ids; keep-id maps the
+      // runner's uid onto itself, so the job can write the clone the runner made and nothing else of the host.
+      ...(this.runtime === 'podman' ? ['--userns', 'keep-id'] : []),
       '--read-only',
       '--cap-drop',
       'ALL',

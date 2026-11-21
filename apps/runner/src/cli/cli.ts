@@ -39,6 +39,7 @@ import {
 import { openRequestChannel, systemSetupHost, userOpener } from '../setup/host';
 import { runnerHalfReport } from '../setup/runner-half';
 import { selfCheck, type SetupHost } from '../setup/self-check';
+import { enrolmentOf, runContainerSetup } from '../setup/container-setup';
 import { SetupError, installedPrefixOf, isSetupStep, runSetup, type OpenRequestChannel, type SetupStep } from '../setup/setup';
 import { ToolchainError } from '../setup/toolchain';
 
@@ -106,6 +107,10 @@ const USAGE = [
   '        with the request from Settings › Runners › Add runner (compare the fingerprint, approve there), finds claude,',
   '        git and node for jobs, captures the Claude sign-in as _tcrunner without showing it, starts the service and',
   '        runs self-check. --only re-runs some steps; each is safe to repeat.',
+  '  setup --url <console origin> --image <name@sha256:…> [--replace-credential]',
+  '        Linux, in the runner image as tcrunner (the console\'s Linux command): enrols TC_RUNNER_HOME for the container',
+  '        backend with the request id in TC_ENROLMENT, asks for the Anthropic API key without showing it, and checks',
+  '        that the console accepts the runner.',
   '  self-check  (with sudo) Check config, key, console, service, credential, toolchain and isolation; one line each.',
   '  install --backend user|container (--dry-run | --yes) [--home <dir>] [--image <name@sha256:…>] [--runtime docker|podman|container]',
   '        List (--dry-run) or make (--yes) the job users, sudoers rule and service; user needs sudo, container must not.',
@@ -284,7 +289,8 @@ function launchedNodeOf(deps: CliDeps): string {
   return given.startsWith('/') ? given : (deps.execPath ?? process.execPath);
 }
 
-const RUNTIME_ENV = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'XDG_RUNTIME_DIR'];
+// CONTAINER_HOST: rootless podman's socket of the Linux one command (#634 PR 7), which puts its client in remote mode.
+const RUNTIME_ENV = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'XDG_RUNTIME_DIR', 'CONTAINER_HOST'];
 
 function pick(env: CliDeps['env'], names: readonly string[]): Record<string, string> {
   const picked: Record<string, string> = {};
@@ -551,6 +557,75 @@ function parsed<T extends Record<string, string | boolean | undefined>>(
   }
 }
 
+/** `setup` in the runner's container on Linux (#634 PR 7): enrol by `TC_ENROLMENT`, the API key, the console check. */
+async function runLinuxSetup(
+  values: {
+    url?: string;
+    enrolment?: string;
+    only?: string;
+    release?: string;
+    sha256?: string;
+    credential?: string;
+    'replace-credential'?: boolean;
+    'from-pkg'?: boolean;
+    image?: string;
+  },
+  deps: CliDeps,
+): Promise<number> {
+  if (values.only !== undefined || values.release !== undefined || values.sha256 !== undefined || values['from-pkg'] === true) {
+    return usageError(deps, 'On Linux, setup takes --url, --image and --replace-credential only (the request id comes in TC_ENROLMENT).');
+  }
+  if (values.credential !== undefined && values.credential !== 'api-key') {
+    return usageError(deps, 'The container backend runs on an Anthropic API key: --credential api-key, or leave it out.');
+  }
+  try {
+    const home = runnerHomeOf(deps.env, deps.homeDir);
+    const keys = deps.keys === undefined ? {} : { keys: deps.keys };
+    const ready = await runContainerSetup(
+      {
+        url: values.url,
+        enrolment: enrolmentOf(values.enrolment, deps.env),
+        image: values.image,
+        replaceCredential: values['replace-credential'] === true,
+      },
+      {
+        home,
+        uid: deps.uid ?? process.getuid?.() ?? -1,
+        out: deps.stdout,
+        enrol: async (options) =>
+          await enrol(options, {
+            home,
+            fetch: deps.fetch,
+            host: deps.host,
+            out: deps.stdout,
+            ...keys,
+            ...(deps.sleep === undefined ? {} : { sleep: deps.sleep }),
+            ...(deps.now === undefined ? {} : { now: deps.now }),
+          }),
+        setUpApiKey: async (config, replace) => {
+          await setUpCredential(
+            {
+              home,
+              config,
+              terminal: deps.terminal ?? { stdout: (text) => process.stdout.write(text), stderr: (text) => process.stderr.write(text) },
+              log: deps.stdout,
+              tmpRoot: deps.tmpRoot ?? tmpdir(),
+              spawnClaude: deps.spawnClaude ?? hostSpawnClaude,
+              ...(deps.readHiddenLine === undefined ? {} : { readHiddenLine: deps.readHiddenLine }),
+            },
+            { kind: 'api-key', replace, claude: 'claude', path: SYSTEM_PATH },
+          );
+        },
+        runnerHalf: async () => await runnerHalfReport(home, { fetch: deps.fetch, ...keys }),
+      },
+    );
+    return ready ? EXIT_OK : EXIT_FAILED;
+  } catch (error: unknown) {
+    deps.stderr(`setup stopped: ${describeFailure(error)}`);
+    return error instanceof EnrolUsageError ? EXIT_USAGE : EXIT_FAILED;
+  }
+}
+
 async function runSetupCommand(args: readonly string[], deps: CliDeps): Promise<number> {
   const values = parsed<{
     url?: string;
@@ -561,6 +636,7 @@ async function runSetupCommand(args: readonly string[], deps: CliDeps): Promise<
     credential?: string;
     'replace-credential'?: boolean;
     'from-pkg'?: boolean;
+    image?: string;
   }>(args, {
     url: { type: 'string' },
     enrolment: { type: 'string' },
@@ -570,9 +646,16 @@ async function runSetupCommand(args: readonly string[], deps: CliDeps): Promise<
     credential: { type: 'string' },
     'replace-credential': { type: 'boolean' },
     'from-pkg': { type: 'boolean' },
+    image: { type: 'string' },
   });
   if (typeof values === 'string') {
     return usageError(deps, values);
+  }
+  if ((deps.platform ?? process.platform) === 'linux') {
+    return await runLinuxSetup(values, deps);
+  }
+  if (values.image !== undefined) {
+    return usageError(deps, '--image is for the Linux setup in the runner’s container.');
   }
   const only = values.only?.split(',').map((step) => step.trim());
   if (only !== undefined && (only.length === 0 || !only.every(isSetupStep))) {

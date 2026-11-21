@@ -25,6 +25,8 @@ const STOP_TIMEOUT_MS = 10_000;
 const FAKE_CLIENT_ID = 'Iv23liLOCALFAKE';
 const FAKE_CLIENT_SECRET = 'local-fake-secret';
 const MOCK_OWNER = { login: 'geeera', id: 100_001 } as const;
+/** The runner image digest the local stack names (#634 PR 7); the specs only read it back from the API's command. */
+export const E2E_RUNNER_IMAGE_DIGEST = `sha256:${'e2e0'.repeat(16)}`;
 
 export interface StackPorts {
   readonly api: number;
@@ -562,6 +564,9 @@ export class LocalStack {
         // Settings › Runners flags a runner below the minimum (#464); runners.e2e.ts enrols one at 0.1.0.
         '--var',
         'RUNNER_RELEASE_VERSION:0.3.0',
+        // #634 PR 7: a digest for that release's image, so the wizard's Linux choice gets the API's command.
+        '--var',
+        `RUNNER_RELEASE_IMAGE_DIGEST:${E2E_RUNNER_IMAGE_DIGEST}`,
         '--var',
         'RUNNER_MINIMUM_VERSION:0.2.0',
       ],

@@ -34,8 +34,10 @@ FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production
 # /etc/claude-code is made here, not by the COPY below: a parent that COPY --chmod creates gets the file's mode, and a
 # 0444 directory cannot be traversed, so the CLI would never see its managed settings.
+# podman is the client of the Linux one command (#634 PR 7, R-LNX): the runner's container starts each job's container
+# through tcrunner's rootless podman socket (CONTAINER_HOST). The image runs no podman service and holds no socket.
 RUN apt-get update \
-  && apt-get install --yes --no-install-recommends git ca-certificates \
+  && apt-get install --yes --no-install-recommends git ca-certificates podman \
   && rm -rf /var/lib/apt/lists/* \
   && install -d -m 0755 /etc/claude-code \
   && groupadd --system job \

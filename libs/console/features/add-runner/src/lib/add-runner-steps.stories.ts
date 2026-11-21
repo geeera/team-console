@@ -98,6 +98,42 @@ export const CommandRunbook: Story = {
   }),
 };
 
+const LINUX_IMAGE = `ghcr.io/geeera/team-console-runner:0.3.0@sha256:${'4df0ba8b'.repeat(8)}`;
+const LINUX = {
+  version: '0.3.0',
+  image: LINUX_IMAGE,
+  prepare: [
+    'id tcrunner >/dev/null 2>&1 || sudo useradd --system --user-group --add-subids-for-system … tcrunner',
+    "sudo tee /etc/systemd/system/team-console-runner-podman.service >/dev/null <<'EOF'",
+    '[Service]',
+    'User=tcrunner',
+    'NoNewPrivileges=yes',
+    'ProtectSystem=strict',
+    'ProtectHome=yes',
+    '…',
+    'EOF',
+    'sudo systemctl daemon-reload && sudo systemctl enable --now team-console-runner-podman.service',
+  ].join('\n'),
+  enrol: `sudo -u tcrunner -H podman --remote … run -it --rm … -e TC_ENROLMENT=01M6YSNJ00000000000000N001 ${LINUX_IMAGE} setup --url https://console.example --image ${LINUX_IMAGE} && sudo systemctl enable team-console-runner.service && sudo systemctl restart team-console-runner.service`,
+};
+
+/** Step 2 on Linux (#634 PR 7): prepare the machine once, then the interactive enrol step; no docker.sock. */
+export const CommandLinux: Story = {
+  render: () => ({
+    props: { setup: SETUP, linux: LINUX, expires: EXPIRES, now: NOW },
+    template: frame(`<tc-add-runner-step-indicator step="command" />
+      <tc-add-runner-command-step name="build-box" [setupCommand]="setup" [linuxInstall]="linux" [expiresAt]="expires" [now]="now" />`),
+  }),
+};
+
+/** Step 4 on Linux after the approval, slow: the systemd status and journal instead of `self-check`. */
+export const ApprovedSlowLinux: Story = {
+  render: () => ({
+    template: frame(`<tc-add-runner-step-indicator step="online" />
+      <tc-add-runner-online-step name="build-box" platform="linux" [slow]="true" />`),
+  }),
+};
+
 /** Step 2 on the iPhone: Copy stays, plus the note to run it on the Mac (decision 3). */
 export const CommandPhone: Story = {
   render: () => ({

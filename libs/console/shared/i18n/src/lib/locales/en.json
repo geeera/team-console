@@ -2380,11 +2380,10 @@
         "macHint": "A separate macOS user: jobs cannot see your files. You will need an administrator password.",
         "isolation": "Isolation: {{backend}}",
         "linux": "Linux or Docker",
-        "linuxHint": "Enrols with a one-time code for now. One command for Linux comes later.",
+        "linuxHint": "A container under rootless podman of a separate tcrunner user, with no root and no docker.sock. Needs systemd and podman 4 or later.",
         "pkgLater": "Later: a .pkg installer for Mac, without Terminal."
       },
       "submit": "Show the command",
-      "submitCode": "Get a code",
       "busy": "Preparing the command…",
       "err": {
         "limit": "Three enrolment requests are already open in other tabs or windows. Close them or wait: each expires after 10 minutes.",
@@ -2410,7 +2409,22 @@
         "copyAria": "Copy the runner install command",
         "region": "Runner install command",
         "noSecrets": "The command holds no secrets: only the console address and the request number. It works for one machine.",
-        "phone": "The command is run in Terminal on a Mac. It’s easier to start right there: open Settings › Runners on it. Or copy the command and send it to yourself. You can confirm the request from here too."
+        "phone": "The command is run in Terminal on a Mac. It’s easier to start right there: open Settings › Runners on it. Or copy the command and send it to yourself. You can confirm the request from here too.",
+        "linux": {
+          "title": "Run two commands on «{{name}}»",
+          "lead": "Open a terminal on the Linux machine and run the commands in order. You need admin rights (sudo).",
+          "prepareTitle": "1. Prepare the machine (once)",
+          "prepareBody": "Creates a tcrunner system user with no login and two systemd services: rootless podman of that user and the runner itself. Both run without root, with ProtectSystem=strict and ProtectHome=yes. The runner service also runs with NoNewPrivileges and no privileges at all.",
+          "prepareRegion": "Machine preparation command",
+          "prepareCopyAria": "Copy the machine preparation command",
+          "enrolTitle": "2. Connect the runner",
+          "enrolBody": "Runs the runner image as tcrunner. It prints the machine code to compare, and after you approve it asks for the Anthropic API key: the key is not shown as you type and is not part of the command. Then the service starts.",
+          "enrolRegion": "Runner connection command",
+          "enrolCopyAria": "Copy the runner connection command",
+          "socket": "No docker.sock is needed or used. The runner container starts jobs through the rootless podman socket of the {{user}} user: {{socket}}.",
+          "whatBody": "The image {{image}} is pulled by digest only. The console checked its attestation: the release process built it from release {{version}}. Jobs run in their own containers from the same image, with no access to the runner key.",
+          "phone": "The commands run in a terminal on the Linux machine. Copy them and send them to yourself. You can approve the request from here."
+        }
       },
       "expires": "The request is valid until {{time}}, {{minutes}} min left.",
       "expiresSoon": "The request expires in a minute.",
@@ -2444,7 +2458,8 @@
       "approved": {
         "title": "Confirmed — waiting for the first signal",
         "body": "Terminal carries on with the install. It will now ask you to sign in to Claude, in the browser. Then it starts the service, and the runner comes online.",
-        "waiting": "Waiting for the runner to come online…"
+        "waiting": "Waiting for the runner to come online…",
+        "bodyLinux": "The terminal carries on. It now asks for the Anthropic API key (nothing is shown as you type), then starts the service, and the runner comes online."
       },
       "slow": {
         "title": "The runner isn’t online yet",

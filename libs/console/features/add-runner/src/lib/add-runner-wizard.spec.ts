@@ -27,6 +27,7 @@ const CREATED: EnrolmentIntentCreatedDto = {
   expiresAt: new Date(Date.now() + 600_000).toISOString(),
   command: SETUP,
   installCommands: { version: '0.3.0', 'darwin-arm64': 'ARM ONE-LINER', 'darwin-x64': 'INTEL ONE-LINER' },
+  linuxInstall: null,
 };
 const PROJECTS = [
   { slug: 'team-console', displayName: 'Team Console' },
@@ -174,14 +175,55 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(document.activeElement?.getAttribute('data-testid')).toBe('wizard-name');
   });
 
-  it('hands Linux over to the code dialog with the name and scope (decision 1)', async () => {
-    const { type, find, submit, close, settle, api } = await render();
+  it('creates a container intent for Linux and shows the API’s two commands byte for byte (#634 PR 7)', async () => {
+    const linuxInstall = {
+      version: '0.3.0',
+      image: `ghcr.io/geeera/team-console-runner:0.3.0@sha256:${'a'.repeat(64)}`,
+      prepare: 'PREPARE THE HOST',
+      enrol: 'ENROL WITH TC_ENROLMENT',
+    };
+    const { type, find, submit, settle, api, watch, close, root } = await render({
+      created: () => ({ ok: true, value: { ...CREATED, installCommands: null, linuxInstall } }),
+    });
     await type('VPS');
     (find('wizard-platform-linux') as HTMLInputElement).click();
     await settle();
-    expect(find('wizard-submit')?.textContent).toContain('Получить код');
+    expect(root.textContent).toContain('Изоляция: Контейнер');
+    expect(find('wizard-submit')?.textContent).toContain('Показать команду');
     await submit();
-    expect(api.createEnrolmentIntent).not.toHaveBeenCalled();
+    expect(api.createEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, {
+      name: 'VPS',
+      projectScope: 'all',
+      allowedProjects: [],
+      isolation: 'container',
+    });
+    expect(close).not.toHaveBeenCalled();
+    expect(watch.watchIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, CREATED.expiresAt);
+    expect(find('wizard-step')?.textContent).toContain('Шаг 2 из 4 · Команда');
+    expect(document.activeElement?.textContent).toContain('Выполните две команды на машине «VPS»');
+    const text = (id: string): string => find(id)?.querySelector('[data-testid="copy-code-text"]')?.textContent ?? '';
+    expect(text('wizard-linux-prepare')).toBe('PREPARE THE HOST');
+    expect(text('wizard-command')).toBe('ENROL WITH TC_ENROLMENT');
+    expect(find('wizard-linux-socket')?.textContent).toContain(
+      'Сокет docker.sock не нужен и не используется. Контейнер раннера запускает задания через сокет rootless podman пользователя tcrunner: /var/lib/team-console-runner/podman.sock.',
+    );
+    expect(find('wizard-arch-darwin-arm64')).toBeNull();
+    expect(find('wizard-runbook')).toBeNull();
+    // Both blocks are named regions with their own copy button (a11y).
+    const regions = [...root.querySelectorAll('[data-testid="wizard-linux"] [role="region"]')].map((region) => region.getAttribute('aria-label'));
+    expect(regions).toEqual(['Команда подготовки машины', 'Команда подключения раннера']);
+  });
+
+  it('withdraws the Linux request and hands over to the code dialog when no image is named (decision 1)', async () => {
+    const { type, find, submit, close, settle, api } = await render({
+      created: () => ({ ok: true, value: { ...CREATED, installCommands: null, linuxInstall: null } }),
+    });
+    await type('VPS');
+    (find('wizard-platform-linux') as HTMLInputElement).click();
+    await settle();
+    await submit();
+    expect(api.createEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, expect.objectContaining({ isolation: 'container' }));
+    expect(api.withdrawEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
     expect(close).toHaveBeenCalledWith({ kind: 'code', name: 'VPS', projectScope: 'all', allowedProjects: [] });
   });
 

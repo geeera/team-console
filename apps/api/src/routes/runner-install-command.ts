@@ -1,10 +1,23 @@
 import {
+  ENROLMENT_INTENT_ENV,
+  LINUX_PODMAN_SOCKET,
+  LINUX_PODMAN_SOCKET_IN_RUNNER,
+  LINUX_PODMAN_UNIT,
+  LINUX_RUNNER_HOME,
+  LINUX_RUNNER_UNIT,
+  LINUX_RUNNER_USER,
+  LINUX_STATE_DIR,
+  LINUX_UNIT_DIR,
   MAC_RELEASE_PLATFORMS,
   isEnrolmentIntentId,
+  isImageDigest,
+  isLinuxSetupShipped,
   isNodeBundled,
   isReleaseVersion,
   releaseSumsOf,
+  runnerImageRefOf,
   tarballUrlOf,
+  type LinuxInstallCommandsDto,
   type MacReleasePlatform,
   type ReleasePlatform,
   type RunnerInstallCommandsDto,
@@ -96,4 +109,192 @@ export function macInstallCommandsOf(
   const arm = commandOf('darwin-arm64');
   const intel = commandOf('darwin-x64');
   return arm === null || intel === null ? null : { version: release.version, 'darwin-arm64': arm, 'darwin-x64': intel };
+}
+
+/**
+ * The image this environment names for Linux (R-LNX), or `null`: no release, a release before `LINUX_SETUP_SINCE`, or
+ * a digest that is not `sha256:<64 hex>`. deploy.yml has proved the digest was built by the release workflow from the
+ * version's tag before this Worker shipped.
+ */
+export function namedRunnerImageOf(
+  env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RUNNER_RELEASE_IMAGE_DIGEST'>,
+): { readonly version: string; readonly image: string } | null {
+  const version = env.RUNNER_RELEASE_VERSION ?? '';
+  const digest = env.RUNNER_RELEASE_IMAGE_DIGEST ?? '';
+  if (!isReleaseVersion(version) || !isLinuxSetupShipped(version) || !isImageDigest(digest)) {
+    return null;
+  }
+  return { version, image: runnerImageRefOf(version, digest) };
+}
+
+/** What both units share: the dedicated user, its state directory, and the file-system hardening R-LNX names. */
+const UNIT_SERVICE_BASE = [
+  `User=${LINUX_RUNNER_USER}`,
+  `Group=${LINUX_RUNNER_USER}`,
+  'StateDirectory=team-console-runner',
+  'StateDirectoryMode=0700',
+  `WorkingDirectory=${LINUX_STATE_DIR}`,
+  'ProtectSystem=strict',
+  'ProtectHome=yes',
+  'PrivateTmp=yes',
+];
+
+/**
+ * The only privileges rootless podman needs: its user namespace is set up by the distribution's setuid `newuidmap` and
+ * `newgidmap` (subordinate ids), which `NoNewPrivileges=yes` forbids and which need these four capabilities to write
+ * the maps. The bounding set keeps any other setuid binary to the same four; every container the service starts runs
+ * with `no-new-privileges` and an empty bounding set.
+ */
+export const PODMAN_UNIT_CAPABILITIES = 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN';
+
+/**
+ * Rootless podman's API of `tcrunner`, on a socket in that user's 0700 state directory: the only runtime socket the
+ * runner's container gets, never a `docker.sock` (R-LNX). `RuntimeDirectory` is podman's run root, because
+ * `ProtectHome=yes` hides `/run/user`.
+ */
+export function podmanUnitOf(): string {
+  return [
+    '[Unit]',
+    `Description=Team Console runner: rootless podman API of ${LINUX_RUNNER_USER}`,
+    'After=network-online.target',
+    'Wants=network-online.target',
+    '',
+    '[Service]',
+    ...UNIT_SERVICE_BASE,
+    'NoNewPrivileges=no',
+    PODMAN_UNIT_CAPABILITIES,
+    'RuntimeDirectory=team-console-runner',
+    'RuntimeDirectoryMode=0700',
+    `Environment=HOME=${LINUX_STATE_DIR} XDG_RUNTIME_DIR=/run/team-console-runner`,
+    `ExecStartPre=/usr/bin/install -d -m 0700 ${LINUX_RUNNER_HOME}`,
+    `ExecStart=/usr/bin/podman system service --time=0 unix://${LINUX_PODMAN_SOCKET}`,
+    'Restart=on-failure',
+    // Rootless podman on cgroupfs ignores a job's --memory and --pids-limit; every job container lives in this
+    // unit's cgroup, so the caps that hold are these, for the runner's jobs together.
+    'TasksMax=4096',
+    'MemoryMax=6G',
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target',
+  ].join('\n');
+}
+
+/**
+ * How the service and the enrol step both run the runner's container: `tcrunner`'s own uid inside (`keep-id`), a
+ * read-only root with every capability dropped, and the runner's home at its host path, so a job container's mounts
+ * name paths the podman service can see. The podman socket is the service's alone; the enrol step has no use for it.
+ */
+const RUNNER_CONTAINER_FLAGS = [
+  '--userns=keep-id',
+  '--read-only',
+  '--cap-drop=ALL',
+  '--security-opt=no-new-privileges',
+  '--tmpfs=/tmp:rw,nosuid,nodev,mode=1777',
+  '-e',
+  'HOME=/tmp',
+  '-e',
+  `TC_RUNNER_HOME=${LINUX_RUNNER_HOME}`,
+  `--mount=type=bind,src=${LINUX_RUNNER_HOME},dst=${LINUX_RUNNER_HOME}`,
+];
+
+/** The runner as a service: `run --loop` in its container, whose podman client talks to the socket above only. */
+export function runnerUnitOf(image: string): string {
+  const run = [
+    '/usr/bin/podman',
+    '--remote',
+    'run',
+    '--rm',
+    '--replace',
+    '--name=team-console-runner',
+    ...RUNNER_CONTAINER_FLAGS,
+    '-e',
+    `CONTAINER_HOST=unix://${LINUX_PODMAN_SOCKET_IN_RUNNER}`,
+    `--mount=type=bind,src=${LINUX_PODMAN_SOCKET},dst=${LINUX_PODMAN_SOCKET_IN_RUNNER}`,
+    image,
+    'run',
+    '--loop',
+  ];
+  return [
+    '[Unit]',
+    'Description=Team Console runner',
+    `Requires=${LINUX_PODMAN_UNIT}`,
+    `After=${LINUX_PODMAN_UNIT}`,
+    '',
+    '[Service]',
+    ...UNIT_SERVICE_BASE,
+    // The runner's own unit runs a podman client only: no new privileges and no capability at all.
+    'NoNewPrivileges=yes',
+    'CapabilityBoundingSet=',
+    `Environment=HOME=${LINUX_STATE_DIR} CONTAINER_HOST=unix://${LINUX_PODMAN_SOCKET}`,
+    `ExecStart=${run.join(' ')}`,
+    'Restart=always',
+    'RestartSec=10',
+    'TimeoutStopSec=90',
+    '',
+    '[Install]',
+    'WantedBy=multi-user.target',
+  ].join('\n');
+}
+
+/** A quoted heredoc: the shell expands nothing inside, so the unit lands byte for byte. */
+const unitFileOf = (unit: string, text: string): string =>
+  `sudo tee ${LINUX_UNIT_DIR}/${unit} >/dev/null <<'EOF'\n${text}\nEOF`;
+
+/**
+ * Once per machine, as an admin: the `tcrunner` system user with subordinate ids of its own (rootless podman needs
+ * them), both units, and podman's socket started. It neither runs the image nor carries the request id.
+ */
+export function linuxPrepareCommandOf(image: string): string {
+  return [
+    `id ${LINUX_RUNNER_USER} >/dev/null 2>&1 || sudo useradd --system --user-group --add-subids-for-system --home-dir ${LINUX_STATE_DIR} --no-create-home --shell /usr/sbin/nologin ${LINUX_RUNNER_USER}`,
+    unitFileOf(LINUX_PODMAN_UNIT, podmanUnitOf()),
+    unitFileOf(LINUX_RUNNER_UNIT, runnerUnitOf(image)),
+    `sudo systemctl daemon-reload && sudo systemctl enable --now ${LINUX_PODMAN_UNIT}`,
+  ].join('\n');
+}
+
+/**
+ * The enrol step, interactive (`-it`) as `tcrunner`: the request id travels in `TC_ENROLMENT` and nothing else does.
+ * There is no code and no key in it: the API key is typed at the runner's hidden prompt. The service starts once
+ * `setup` succeeds.
+ */
+export function linuxEnrolCommandOf(origin: string, image: string, intentId: string): string {
+  return [
+    `sudo -u ${LINUX_RUNNER_USER} -H podman --remote --url=unix://${LINUX_PODMAN_SOCKET} run -it --rm`,
+    ...RUNNER_CONTAINER_FLAGS,
+    '--hostname="$(hostname)"',
+    '-e',
+    `${ENROLMENT_INTENT_ENV}=${intentId}`,
+    image,
+    `setup --url ${origin} --image ${image}`,
+    // restart, not --now: a new release's command must replace the running container with the new image.
+    `&& sudo systemctl enable ${LINUX_RUNNER_UNIT} && sudo systemctl restart ${LINUX_RUNNER_UNIT}`,
+  ].join(' ');
+}
+
+/** The local stack's own origin: the runner accepts http for a loopback host only, and so does this. */
+const LOOPBACK_HTTP_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?$/;
+
+/**
+ * The Linux one command for a `container` intent, or `null` when any part cannot be built from checked values. An
+ * https origin everywhere; a loopback http origin on the local stack (`ENVIRONMENT=local`) as well, where the same
+ * command runs against a console on this machine.
+ */
+export function linuxInstallCommandsOf(
+  env: Pick<ApiEnv, 'ENVIRONMENT' | 'RUNNER_RELEASE_VERSION' | 'RUNNER_RELEASE_IMAGE_DIGEST'>,
+  origin: string | null,
+  intentId: string,
+): LinuxInstallCommandsDto | null {
+  const named = namedRunnerImageOf(env);
+  const originOk =
+    origin !== null && (HTTPS_ORIGIN.test(origin) || (env.ENVIRONMENT === 'local' && LOOPBACK_HTTP_ORIGIN.test(origin)));
+  if (named === null || origin === null || !originOk || !isEnrolmentIntentId(intentId)) {
+    return null;
+  }
+  return {
+    version: named.version,
+    image: named.image,
+    prepare: linuxPrepareCommandOf(named.image),
+    enrol: linuxEnrolCommandOf(origin, named.image, intentId),
+  };
 }

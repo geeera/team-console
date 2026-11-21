@@ -186,6 +186,49 @@ must be readable and executable by `_tcjob`: check with `sudo -u _tcjob /opt/hom
 `_tcjob`; install Claude Code system-wide (Homebrew). These tools belong to the login user too, so the S2 note above
 applies to what a job runs as well.
 
+## Linux: one command (#634 PR 7)
+
+On Settings › Runners › Add runner, choose **Linux**. When the console names a runner image (release 0.2.0 or later,
+`RUNNER_RELEASE_IMAGE_DIGEST`), it shows two blocks to paste into a terminal on the Linux machine. You need sudo,
+systemd and podman 4 or later (`sudo apt install podman` on Debian 12 / Ubuntu 24.04). Docker is not used, and no
+`docker.sock` is mounted anywhere.
+
+1. **Prepare the machine (once).** This creates the system user `tcrunner` with no login shell, its own subordinate
+   ids for rootless podman (`useradd --add-subids-for-system`, shadow 4.11 or later), and home
+   `/var/lib/team-console-runner`. It writes two systemd units and starts the first:
+   - `team-console-runner-podman.service` is rootless podman's API for `tcrunner`, on
+     `/var/lib/team-console-runner/podman.sock` (0700 directory).
+   - `team-console-runner.service` is the runner itself: `podman run … <image>@sha256:<digest> run --loop`.
+
+   Both units run as `tcrunner` with `ProtectSystem=strict`, `ProtectHome=yes` and `PrivateTmp=yes`. The runner's
+   unit also has `NoNewPrivileges=yes` and no capabilities. The podman unit cannot have `NoNewPrivileges=yes`,
+   because rootless podman maps its subordinate ids through the setuid `newuidmap` and `newgidmap`. Instead, its
+   capability bounding set is limited to the four capabilities those two need. Rootless podman ignores per-job
+   `--memory` and `--pids-limit`, so the podman unit caps all jobs together at `TasksMax=4096` and `MemoryMax=6G`.
+   To change these caps, run `sudo systemctl edit team-console-runner-podman.service`.
+2. **Connect the runner.** This runs the image interactively as `tcrunner` with `-e TC_ENROLMENT=<request id>`. The
+   request id is an identifier, not a secret, and it is the only value the command passes in. `setup` binds a fresh key
+   to the request and prints the machine code. Compare it with the console and approve there. `setup` then asks for
+   the Anthropic API key at a hidden prompt (the `container` backend runs on an API key) and writes it 0600 into
+   `/var/lib/team-console-runner/home/credentials/`. It checks that the console accepts the runner and prints
+   «Готово». The same line then enables and (re)starts `team-console-runner.service`.
+
+The runner's container runs read-only with every capability dropped, as `tcrunner`'s own uid (`--userns=keep-id`). The
+runner home is mounted at the same path inside, so the mounts of a job's container name host paths. Each job gets its
+own container from the same image, started through `tcrunner`'s podman socket. That socket is the only runtime socket
+the runner's container sees, and it is never mounted into a job.
+
+Check and logs: `sudo systemctl status team-console-runner.service team-console-runner-podman.service` and
+`sudo journalctl -u team-console-runner.service`. To replace the API key, run the connect line again with
+`--replace-credential` added after `setup`. To remove the runner, revoke it on Settings › Runners, then run
+`sudo systemctl disable --now team-console-runner.service team-console-runner-podman.service`, remove both unit files
+and `sudo rm -rf /var/lib/team-console-runner`, then `sudo userdel tcrunner`.
+
+A new release is a new digest. Take the new commands from Add runner and run both: prepare rewrites the units with
+the new image, and on an enrolled home `setup` keeps the key and the API key and moves jobs to the new image (it does
+not use the request, so close the wizard afterwards; the request expires on its own). Without a named image the
+console connects Linux machines with the one-time code below.
+
 ## `container` backend (Linux, or Docker/OrbStack on a Mac)
 
 ```sh

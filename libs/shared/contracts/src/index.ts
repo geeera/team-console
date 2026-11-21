@@ -169,6 +169,7 @@ export {
   isEnrolmentIntentCreatedDto,
   isEnrolmentIntentDto,
   isRunnerInstallCommandsDto,
+  isLinuxInstallCommandsDto,
   isEnrolmentIntentId,
   isEnrolmentIntentState,
   isPollEnrolmentPendingDto,
@@ -183,6 +184,7 @@ export type {
   EnrolmentIntentCreatedDto,
   EnrolmentIntentDto,
   EnrolmentIntentState,
+  LinuxInstallCommandsDto,
   PollEnrolmentInput,
   PollEnrolmentPendingDto,
   RunnerInstallCommandsDto,
@@ -216,6 +218,22 @@ export {
   tarballUrlOf,
 } from './lib/runner-release';
 export type { MacReleasePlatform, ReleasePlatform } from './lib/runner-release';
+export {
+  ENROLMENT_INTENT_ENV,
+  LINUX_PODMAN_SOCKET,
+  LINUX_PODMAN_SOCKET_IN_RUNNER,
+  LINUX_PODMAN_UNIT,
+  LINUX_RUNNER_HOME,
+  LINUX_RUNNER_UNIT,
+  LINUX_RUNNER_USER,
+  LINUX_SETUP_SINCE,
+  LINUX_STATE_DIR,
+  LINUX_UNIT_DIR,
+  RUNNER_IMAGE,
+  isImageDigest,
+  isLinuxSetupShipped,
+  runnerImageRefOf,
+} from './lib/runner-linux';
 export {
   BUDGET_PAUSER,
   JOB_COST_USD_MAX,

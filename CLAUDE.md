@@ -714,8 +714,11 @@ changing it is a security change, `runner-release-identity.spec.ts`); `update` v
 and switches releases by one rename of `current` (`update/install-layout.ts`, `update.spec.ts`). Each tarball ships a
 pinned, signature-checked Node.js (`apps/runner/node/`, `tools/release/node-runtime.mjs`, #634 PR 5): the
 LaunchDaemon and the launcher as root run only that root-owned `<prefix>/node`. deploy.yml refuses a
-`RUNNER_RELEASE_SHA256SUMS` that is not the attested `SHA256SUMS` of `RUNNER_RELEASE_VERSION`
-(`tools/deploy-guard/check-runner-release.js`). No agent pushes a `v*` tag or runs that workflow.
+`RUNNER_RELEASE_SHA256SUMS` that is not the attested `SHA256SUMS` of `RUNNER_RELEASE_VERSION`, and a
+`RUNNER_RELEASE_IMAGE_DIGEST` whose image attestation is not that release's (`tools/deploy-guard/check-runner-release.js`).
+The Linux one command (#634 PR 7, `@shared/contracts` `lib/runner-linux.ts`, `runner-install-command.ts`) runs the image
+by that digest as `tcrunner` under rootless podman, with hardened systemd units and no `docker.sock`; `TC_ENROLMENT`
+carries the intent id only. No agent pushes a `v*` tag or runs that workflow.
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t

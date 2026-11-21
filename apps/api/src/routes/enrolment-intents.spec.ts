@@ -167,9 +167,10 @@ describe('the owner’s enrolment intents', () => {
     expect(response.status).toBe(201);
     const body = (await response.json()) as EnrolmentIntentCreatedDto;
     expect(isEnrolmentIntentCreatedDto(body)).toBe(true);
-    expect(Object.keys(body).sort()).toEqual(['command', 'expiresAt', 'installCommands', 'intentId']);
-    // No release named in the test env: no one-liner (#634 PR 5).
+    expect(Object.keys(body).sort()).toEqual(['command', 'expiresAt', 'installCommands', 'intentId', 'linuxInstall']);
+    // No release named in the test env: no one-liner (#634 PR 5), and a Mac request has no Linux command (PR 7).
     expect(body.installCommands).toBeNull();
+    expect(body.linuxInstall).toBeNull();
     expect(Date.parse(body.expiresAt) - Date.now()).toBeGreaterThan(9 * 60 * 1000);
     expect(Date.parse(body.expiresAt) - Date.now()).toBeLessThanOrEqual(10 * 60 * 1000);
 
@@ -283,6 +284,33 @@ describe('the owner’s enrolment intents', () => {
     expect((await create({ ...vars, RUNNER_RELEASE_SHA256SUMS: sums.replace('\n', '') })).installCommands).toBeNull();
     expect((await create({ ...vars, RUNNER_RELEASE_VERSION: '0.1.0', RUNNER_RELEASE_SHA256SUMS: sums.replaceAll('0.2.0', '0.1.0') })).installCommands).toBeNull();
     expect((await create({ ...vars, RUNNER_RELEASE_VERSION: '' })).installCommands).toBeNull();
+  });
+
+  it('carries the Linux one command on a container request only, from the attested image digest (#634 PR 7)', async () => {
+    const digest = `sha256:${'c'.repeat(64)}`;
+    const vars = { CONSOLE_PUBLIC_ORIGIN: 'https://console.example', RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_IMAGE_DIGEST: digest };
+    const create = async (bindings: Record<string, string>, isolation = 'container'): Promise<EnrolmentIntentCreatedDto> => {
+      const owner = await seedSessionUser('owner');
+      const env = accessEnv(uniqueTeamDomain(), bindings);
+      const response = await sendAsSession(owner, 'POST', intentsPath(owner.account.id), { name: 'box', isolation }, { origin: 'https://evil.example' }, env);
+      expect(response.status).toBe(201);
+      return (await response.json()) as EnrolmentIntentCreatedDto;
+    };
+
+    const body = await create(vars);
+    expect(isEnrolmentIntentCreatedDto(body)).toBe(true);
+    expect(body.installCommands).toBeNull();
+    const image = `ghcr.io/geeera/team-console-runner:0.2.0@${digest}`;
+    expect(body.linuxInstall?.image).toBe(image);
+    expect(body.linuxInstall?.enrol).toContain(`-e TC_ENROLMENT=${body.intentId} ${image} setup --url https://console.example --image ${image}`);
+    expect(body.linuxInstall?.prepare).toContain(`${image} run --loop`);
+    expect(JSON.stringify(body.linuxInstall)).not.toContain('evil.example');
+
+    // A Mac request, a malformed digest, an image before the Linux setup, or no digest: no Linux command.
+    expect((await create(vars, 'user')).linuxInstall).toBeNull();
+    expect((await create({ ...vars, RUNNER_RELEASE_IMAGE_DIGEST: `sha256:${'c'.repeat(63)}` })).linuxInstall).toBeNull();
+    expect((await create({ ...vars, RUNNER_RELEASE_VERSION: '0.1.0' })).linuxInstall).toBeNull();
+    expect((await create({ ...vars, RUNNER_RELEASE_IMAGE_DIGEST: '' })).linuxInstall).toBeNull();
   });
 
   it.each([
