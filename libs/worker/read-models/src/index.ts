@@ -93,3 +93,5 @@ export type { IssueAuthor } from './lib/untrusted-text';
 export { handledRequestOf } from './lib/request-handled';
 export type { HandledCandidate, HandledRequest } from './lib/request-handled';
 export { repoUrlOf } from './lib/repo-url';
+export { actionsDriftOf } from './lib/actions-drift';
+export type { StoredWorkflowJudgement } from './lib/actions-drift';

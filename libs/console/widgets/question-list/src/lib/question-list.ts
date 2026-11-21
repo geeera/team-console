@@ -19,12 +19,14 @@ import {
   AnsweredItem,
   AnsweredItems,
   answeredKeyOf,
+  projectActionsRouteOf,
   projectSetupRouteOf,
   ProjectsStore,
 } from '@console/entities/project';
 import type { QuestionArrival } from '@console/entities/push';
 import {
   githubIssueUrlOf,
+  QuestionActionsDrift,
   QuestionBudgetStop,
   QuestionCard,
   QuestionConcurrencyStop,
@@ -38,7 +40,7 @@ import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
 import { BudgetStop } from '@console/features/budget-stop';
 import { DesignViewer } from '@console/features/design-viewer';
 import { teamLimitsLinkOf } from '@console/features/team-config';
-import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import { localDayOf, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import {
   type Arrival,
   Banner,
@@ -162,6 +164,8 @@ export class QuestionList {
   protected readonly limitsLinkOf = teamLimitsLinkOf;
   /** Projects whose queued jobs the account's entitlement keeps from starting (#746): one plain row each. */
   protected readonly concurrencyStops = signal<readonly QuestionConcurrencyStop[]>([]);
+  /** Actions projects whose workflow drifted (#874): one row each, to the project's Actions setup page. */
+  protected readonly actionsDrifts = signal<readonly QuestionActionsDrift[]>([]);
   protected readonly omitted = signal<readonly NeedsYouProjectRef[]>([]);
   private readonly stamping = signal<ReadonlySet<string>>(new Set());
   protected readonly announcement = signal('');
@@ -220,7 +224,8 @@ export class QuestionList {
       this.setups().length +
       this.problems().length +
       this.budgetStops().length +
-      this.concurrencyStops().length,
+      this.concurrencyStops().length +
+      this.actionsDrifts().length,
   );
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
   protected readonly projectCount = computed(
@@ -231,6 +236,7 @@ export class QuestionList {
         ...this.problems().map((problem) => problem.project.slug),
         ...this.budgetStops().map((stop) => stop.project.slug),
         ...this.concurrencyStops().map((stop) => stop.project.slug),
+        ...this.actionsDrifts().map((drift) => drift.project.slug),
       ]).size,
   );
   protected readonly omittedNames = computed(() =>
@@ -310,6 +316,24 @@ export class QuestionList {
 
   protected settingsLinkOf(slug: string): readonly string[] {
     return projectSetupRouteOf(slug);
+  }
+
+  protected actionsLinkOf(slug: string): readonly string[] {
+    return projectActionsRouteOf(slug);
+  }
+
+  /** Jobs fail on a missing, unsupported or modified file; an older one still runs and only wants updating. */
+  protected isDriftBroken(drift: QuestionActionsDrift): boolean {
+    return drift.drift !== 'outdated' && drift.drift !== 'release';
+  }
+
+  /** The stored judgement can be stale, so the row says when it was made; the page checks again on entry. */
+  protected driftCheckedOf(drift: QuestionActionsDrift): string {
+    const lang = this.transloco.getActiveLang();
+    return this.transloco.translate('needsYou.attention.actionsDrift.checked', {
+      day: localDayOf(drift.checkedAt, lang),
+      time: localTimeOf(drift.checkedAt, lang),
+    });
   }
 
   /**
@@ -425,6 +449,7 @@ export class QuestionList {
         this.setups.set(view.setups);
         this.budgetStops.set(view.budgetStops);
         this.concurrencyStops.set(view.concurrencyStops);
+        this.actionsDrifts.set(view.actionsDrifts);
         this.omitted.set(view.omitted);
         this.answeredItems.reconcile(view.readSlugs, this.refsOf(view.items));
       } else {
@@ -437,6 +462,7 @@ export class QuestionList {
         this.setups.set([]);
         this.budgetStops.set([]);
         this.concurrencyStops.set([]);
+        this.actionsDrifts.set([]);
         this.omitted.set([]);
         this.answeredItems.reconcile([project.slug], this.refsOf(items));
       }

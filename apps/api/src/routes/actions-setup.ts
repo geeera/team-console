@@ -28,7 +28,8 @@ const P = '/api/v1/projects/:slug';
  * `GET …/actions-setup` (PR 3) is the readiness check, item by item (`actions/readiness.ts`). It is the account
  * owner's only (security note row "Cross-tenant or member trigger"): every call mints a token, so a member gets 403
  * and another account 404 from `trackerAccess` before anything is counted or asked of GitHub. Rate limited per
- * project. The answer is never stored or cached: it is re-read on every call.
+ * project. The answer is never stored or cached: it is re-read on every call. Only the workflow item's status, the
+ * rendering's sha256 and the time are kept, for Needs you (#874).
  *
  * `POST …/actions-setup/workflow-pr` (PR 4) opens the pull request with that rendering in the project's repository
  * (`actions/workflow-pr.ts`). The account owner's only, like the check; it takes no body and reads none, so nothing of

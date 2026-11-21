@@ -37,6 +37,12 @@ a.questions__attention-row:hover [tc-banner-text] {
   outline-offset: var(--focus-offset);
 }
 
+.questions__attention-meta {
+  display: block;
+  color: var(--text-2);
+  font-size: var(--fs-sm);
+}
+
 .questions__attention-go {
   margin-left: var(--space-1);
   vertical-align: middle;

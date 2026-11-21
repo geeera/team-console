@@ -331,3 +331,26 @@ describe('the concurrency stop (#746)', () => {
     expect(isNeedsYouDto({ ...body, projects: [{ ...body.projects[0], concurrencyStop }] })).toBe(false);
   });
 });
+
+describe('the Actions workflow drift (#874)', () => {
+  const drift = { drift: 'modified', checkedAt: '2026-11-20T09:00:00.000Z' } as const;
+
+  it('lists one row per drifted project, with when it was checked, and none without', () => {
+    const body = needsYou();
+    const view = needsYouViewOf({
+      ...body,
+      projects: [{ ...body.projects[0]!, actionsDrift: drift }, body.projects[1]!, body.projects[2]!],
+    });
+    expect(view.actionsDrifts).toEqual([{ project: { slug: 'team-console', name: 'Team Console' }, ...drift }]);
+    expect(needsYouViewOf(body).actionsDrifts).toEqual([]);
+  });
+
+  it.each([
+    ['a word that is no drift', { ...drift, drift: 'ok' }],
+    ['no check time', { drift: 'modified' }],
+    ['an extra key', { ...drift, sha256: 'a'.repeat(64) }],
+  ])('refuses %s', (_name, actionsDrift) => {
+    const body = needsYou();
+    expect(isNeedsYouDto({ ...body, projects: [{ ...body.projects[0], actionsDrift }] })).toBe(false);
+  });
+});

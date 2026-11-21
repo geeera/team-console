@@ -150,6 +150,12 @@ export type {
   JobTokenHold,
   NewJob,
 } from './lib/jobs/jobs.repo';
+export { ActionsWorkflowStateRepo } from './lib/jobs/actions-workflow-state.repo';
+export type {
+  ActionsWorkflowState,
+  ActionsWorkflowStateRecord,
+  ActionsWorkflowStoredStatus,
+} from './lib/jobs/actions-workflow-state.repo';
 export { ProjectDispatchRepo } from './lib/jobs/project-dispatch.repo';
 export type {
   ActionsReadinessTarget,

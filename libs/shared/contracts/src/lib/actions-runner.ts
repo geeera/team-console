@@ -401,6 +401,45 @@ export function blockingItemsOf(items: readonly ActionsSetupItemDto[]): ActionsS
     .map((item) => item.id);
 }
 
+/**
+ * Why "Needs you" lists an Actions project's workflow (#874), from the last stored judgement of the file (migration
+ * 0041). `missing`, `outdated`, `unsupported` and `modified` are the readiness check's own words: the file is gone,
+ * pins an older release, pins a runner below the minimum, or is not the console's bytes. `release`: the file was the
+ * console's rendering when checked, but this console renders another one since (a release or a config change), so
+ * it is behind until a check says otherwise. `ok` and `unknown` are no drift: `unknown` is a permission the page
+ * itself asks for.
+ */
+export const ACTIONS_DRIFT_STATUSES = [
+  'missing',
+  'outdated',
+  'unsupported',
+  'modified',
+] as const satisfies readonly ActionsSetupStatus[];
+export type ActionsDriftStatus = (typeof ACTIONS_DRIFT_STATUSES)[number];
+export const isActionsDriftStatus = (value: unknown): value is ActionsDriftStatus =>
+  (ACTIONS_DRIFT_STATUSES as readonly unknown[]).includes(value);
+
+export const NEEDS_YOU_ACTIONS_DRIFTS = [...ACTIONS_DRIFT_STATUSES, 'release'] as const;
+export type NeedsYouActionsDrift = (typeof NEEDS_YOU_ACTIONS_DRIFTS)[number];
+
+export interface NeedsYouActionsDriftDto {
+  readonly drift: NeedsYouActionsDrift;
+  /** When the stored judgement was made: the row can be stale, so the console says when it was checked. */
+  readonly checkedAt: string;
+}
+
+export function isNeedsYouActionsDriftDto(value: unknown): value is NeedsYouActionsDriftDto {
+  if (!isRecord(value) || !hasExactKeys(value, ['drift', 'checkedAt'])) {
+    return false;
+  }
+  const { drift, checkedAt } = value;
+  return (
+    (NEEDS_YOU_ACTIONS_DRIFTS as readonly unknown[]).includes(drift) &&
+    isString(checkedAt) &&
+    !Number.isNaN(Date.parse(checkedAt))
+  );
+}
+
 const VERSION = /^\d{1,5}\.\d{1,5}\.\d{1,5}$/;
 const isVersion = (value: unknown): value is string => isString(value) && VERSION.test(value);
 const PIN_KEYS = ['runner', 'node', 'claudeCode'] as const;

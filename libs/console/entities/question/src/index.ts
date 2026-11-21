@@ -8,6 +8,7 @@ export {
 } from './lib/question.model';
 export type {
   NeedsYouView,
+  QuestionActionsDrift,
   QuestionBudgetStop,
   QuestionConcurrencyStop,
   QuestionItem,

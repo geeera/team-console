@@ -63,7 +63,12 @@
     "attention": {
       "label": "Projects that need you",
       "setup": "{{name}}: setup needed",
-      "noConcurrency": "{{name}}: jobs don't start — the account's plan allows no jobs at a time. Queued: {{n}}. The console's operator sets this limit."
+      "noConcurrency": "{{name}}: jobs don't start — the account's plan allows no jobs at a time. Queued: {{n}}. The console's operator sets this limit.",
+      "actionsDrift": {
+        "broken": "{{name}}: GitHub Actions setup broke; check it",
+        "update": "{{name}}: a newer GitHub Actions workflow is available; check the setup",
+        "checked": "Checked {{day}} at {{time}}"
+      }
     }
   },
   "push": {

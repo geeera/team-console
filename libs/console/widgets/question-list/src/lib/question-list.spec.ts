@@ -555,4 +555,46 @@ describe('QuestionList', () => {
       expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('проектов: 1');
     });
   });
+  describe('an Actions project whose workflow drifted (#874)', () => {
+    const project = (actionsDrift: { drift: string; checkedAt: string }) => ({
+      slug: 'acme',
+      name: 'Acme',
+      setup: false,
+      setupUrl: null,
+      paused: false,
+      pausedUrl: null,
+      problem: null,
+      actionsDrift,
+    });
+
+    it('a broken file is one danger row to the project’s Actions setup page, with when it was checked', async () => {
+      const { settle, root } = await render(null);
+      http
+        .expectOne(NEEDS_YOU_ITEMS_URL)
+        .flush({ ...needsYouBody([]), projects: [project({ drift: 'modified', checkedAt: '2026-11-20T09:00:00.000Z' })] });
+      await settle();
+
+      const rows = root.querySelectorAll('[data-testid="project-attention"] [data-testid="actions-drift"]');
+      expect(rows).toHaveLength(1);
+      const row = rows[0] as HTMLAnchorElement;
+      expect(row.getAttribute('href')).toBe('/settings/projects/acme/actions');
+      expect(row.classList).toContain('tc-banner--danger');
+      expect(row.textContent).toContain('Acme: запуск на GitHub Actions сломался — проверьте настройку');
+      expect(row.querySelector('[data-testid="actions-drift-checked"]')?.textContent).toMatch(/^Проверено 20 ноября в \d{2}:\d{2}$/);
+      expect(root.querySelector('[data-testid="empty"]')).toBeNull();
+      expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('проектов: 1');
+    });
+
+    it('an older release is a warning that asks for an update, not a breakage', async () => {
+      const { settle, root } = await render(null);
+      http
+        .expectOne(NEEDS_YOU_ITEMS_URL)
+        .flush({ ...needsYouBody([]), projects: [project({ drift: 'release', checkedAt: '2026-11-20T09:00:00.000Z' })] });
+      await settle();
+
+      const row = root.querySelector('[data-testid="actions-drift"]') as HTMLAnchorElement;
+      expect(row.classList).toContain('tc-banner--warning');
+      expect(row.textContent).toContain('Acme: для GitHub Actions есть новая версия workflow — проверьте настройку');
+    });
+  });
 });

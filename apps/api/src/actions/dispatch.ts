@@ -11,6 +11,7 @@ import {
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
+import { recordWorkflowJudgement } from './workflow-state';
 
 /**
  * Dispatch to GitHub Actions (#670; architect note on #573 section 1, ADR 0008 decision 7(a′)). For each queued
@@ -156,6 +157,10 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
     });
     const at = nowOf(deps);
     const failed = await jobs.failUndispatched(jobId, at, ACTIONS_DISPATCH_FAILED, `${ACTIONS_DISPATCH_FAILED}: ${failure}`);
+    // #874: GitHub's 404 on `workflow_dispatch` is the file gone, so "Needs you" says so before the next check.
+    if (failure === 'workflow missing') {
+      await recordWorkflowJudgement(deps, slug, { status: 'missing', sha256: null, checkedAt: at });
+    }
     return { kind: 'failed', failure, job: failed };
   }
   // The run GitHub started boots for many seconds before it can exchange, so this lands first; were it ever late,

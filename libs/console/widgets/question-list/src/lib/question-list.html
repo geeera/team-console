@@ -58,6 +58,26 @@
       >
     </div>
   </li>
+  } @for (drift of actionsDrifts(); track drift.project.slug) {
+  <li>
+    <a
+      tc-banner
+      [tone]="isDriftBroken(drift) ? 'danger' : 'warning'"
+      class="questions__attention-row"
+      data-testid="actions-drift"
+      [attr.data-project]="drift.project.slug"
+      [attr.data-drift]="drift.drift"
+      [routerLink]="actionsLinkOf(drift.project.slug)"
+    >
+      <tc-icon tc-banner-icon [name]="isDriftBroken(drift) ? 'alert' : 'refresh'" size="sm" />
+      <span tc-banner-text
+        >{{ (isDriftBroken(drift) ? 'needsYou.attention.actionsDrift.broken' : 'needsYou.attention.actionsDrift.update')
+        | transloco: { name: drift.project.name } }}
+        <span class="questions__attention-meta" data-testid="actions-drift-checked">{{ driftCheckedOf(drift) }}</span
+        ><tc-icon class="questions__attention-go" name="chevron-right" size="sm"
+      /></span>
+    </a>
+  </li>
   } @for (setup of setups(); track setup.project.slug) {
   <li>
     @if (setup.url; as url) {

@@ -102,6 +102,7 @@ describe('migrations on a fresh D1', () => {
       '0037_runner_enrolment_requests.sql',
       '0038_user_display_name.sql',
       '0040_operator_stops.sql',
+      '0041_actions_workflow_state.sql',
     ]);
   });
 
@@ -367,6 +368,9 @@ describe('migrations on a fresh D1', () => {
       'dispatch',
       'access_source',
       'created_by',
+      'actions_workflow_status',
+      'actions_workflow_sha256',
+      'actions_workflow_checked_at',
     ]);
     expect(results.filter((column) => column.notnull === 1).map((column) => column.name)).toEqual([
       'repo',
