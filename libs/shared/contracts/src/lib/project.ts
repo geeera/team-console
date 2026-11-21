@@ -29,6 +29,11 @@ export interface ProjectDto {
   readonly tracker?: TrackerMode;
   /** The item key prefix (`TC` for `TC-310`); `null` while the project is on GitHub. */
   readonly keyPrefix?: string | null;
+  /**
+   * The id of the account the project belongs to (#870), one of the caller's own `GET /accounts`, so the console can
+   * tell the caller's role in it. Set by the registry routes; optional so DTOs built elsewhere need not.
+   */
+  readonly accountId?: string;
 }
 
 /** `POST /api/v1/projects`. The slug defaults to the repository name in kebab case. */

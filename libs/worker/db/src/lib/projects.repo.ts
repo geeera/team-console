@@ -421,5 +421,6 @@ export function toProjectDto(row: ProjectRow, nowMs: number): ProjectDto {
     addedAt: row.added_at,
     archivedAt: row.archived_at,
     snooze: snoozeOf(row, nowMs),
+    accountId: row.account_id,
   };
 }
