@@ -65,6 +65,12 @@ export interface ApiEnv extends WorkerBaseEnv {
    */
   readonly RUNNER_RELEASE_SHA256SUMS?: string;
   /**
+   * Non-secret var (#634 PR 7, R-LNX): the digest (`sha256:<64 hex>`) of `RUNNER_RELEASE_VERSION`'s runner image, which
+   * the Linux one command pulls by. deploy.yml refuses to deploy unless `gh attestation verify` proves the release
+   * workflow built that digest from the version's tag; the Worker refuses any other shape (`isImageDigest`).
+   */
+  readonly RUNNER_RELEASE_IMAGE_DIGEST?: string;
+  /**
    * Non-secret var, the kill switch of the Actions setup's write path (#759, security note): only the exact value
    * `true` lets the `workflow-pr` mint (Contents, Workflows and Pull requests write) run. `false` on stage and
    * production until a reviewed change turns each on; unset is off. Set by `wrangler.jsonc` alone, never by `--var`

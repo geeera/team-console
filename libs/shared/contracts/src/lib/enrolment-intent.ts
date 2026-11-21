@@ -16,6 +16,7 @@ import {
   type RunnerHostDto,
   type RunnerProjectScopeDto,
 } from './runner';
+import { RUNNER_IMAGE, isImageDigest } from './runner-linux';
 import { MAC_RELEASE_PLATFORMS, RUNNER_INSTALLED_LAUNCHER, isReleaseVersion, type MacReleasePlatform } from './runner-release';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
@@ -96,6 +97,19 @@ export interface CreateEnrolmentIntentInput extends RunnerProjectScopeDto {
  */
 export type RunnerInstallCommandsDto = { readonly version: string } & Readonly<Record<MacReleasePlatform, string>>;
 
+/**
+ * The Linux one command (#634 PR 7, R-LNX), both parts built by the API from constants and the attested image digest:
+ * `prepare` makes the `tcrunner` user and the two hardened systemd units once (as an admin), `enrol` runs the runner's
+ * image interactively as `tcrunner` with the request id in `TC_ENROLMENT` (the API key is typed at its hidden prompt,
+ * never passed in) and then starts the service. `image` is the reference both name, by digest.
+ */
+export interface LinuxInstallCommandsDto {
+  readonly version: string;
+  readonly image: string;
+  readonly prepare: string;
+  readonly enrol: string;
+}
+
 export interface EnrolmentIntentCreatedDto {
   readonly intentId: string;
   readonly expiresAt: string;
@@ -110,6 +124,11 @@ export interface EnrolmentIntentCreatedDto {
    * attestation check and the Worker's format check, that release ships its own `node` (S2), and the origin is https.
    */
   readonly installCommands: RunnerInstallCommandsDto | null;
+  /**
+   * The Linux one command for a `container` intent; `null` for any other isolation, and unless this environment names
+   * a release from `LINUX_SETUP_SINCE` on with an image digest that passed the deploy-time attestation check.
+   */
+  readonly linuxInstall: LinuxInstallCommandsDto | null;
 }
 
 /** `GET …/enrolment-intents/:intent`: what the wizard polls. The bind's members are `null` until a runner bound. */
@@ -301,13 +320,31 @@ export function isRunnerInstallCommandsDto(value: unknown): value is RunnerInsta
   );
 }
 
+export function isLinuxInstallCommandsDto(value: unknown): value is LinuxInstallCommandsDto {
+  if (!isRecord(value) || Object.keys(value).length !== 4 || !isReleaseVersion(value['version'])) {
+    return false;
+  }
+  const image = value['image'];
+  const prefix = `${RUNNER_IMAGE}:${value['version']}@`;
+  return (
+    isString(image) &&
+    image.startsWith(prefix) &&
+    isImageDigest(image.slice(prefix.length)) &&
+    isString(value['prepare']) &&
+    value['prepare'] !== '' &&
+    isString(value['enrol']) &&
+    value['enrol'].includes(image)
+  );
+}
+
 export function isEnrolmentIntentCreatedDto(value: unknown): value is EnrolmentIntentCreatedDto {
   return (
     isRecord(value) &&
     isEnrolmentIntentId(value['intentId']) &&
     isTimestamp(value['expiresAt']) &&
     isNullable(value['command'], isString) &&
-    isNullable(value['installCommands'], isRunnerInstallCommandsDto)
+    isNullable(value['installCommands'], isRunnerInstallCommandsDto) &&
+    isNullable(value['linuxInstall'], isLinuxInstallCommandsDto)
   );
 }
 
