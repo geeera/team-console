@@ -245,3 +245,33 @@ test('the D3 line keeps its conditional wording while the owner count is unknown
   await expect(dialog.getByTestId('runner-scope-all')).toHaveAttribute('aria-describedby', /-all-owners/);
 });
 
+test('a 429 while polling says the console asked to slow down and waits out Retry-After (#879)', async ({ page }) => {
+  // The real limit is 120 reads a minute (#880); one refused read is enough to see the wizard honour it.
+  let refusals = 0;
+  let readsAfter = 0;
+  await page.route(`**${INTENTS}/*`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    if (refusals === 0) {
+      refusals += 1;
+      await route.fulfill({
+        status: 429,
+        headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '5' },
+        json: { type: 'https://team-console.dev/problems/rate-limited', title: 'Too Many Requests', status: 429 },
+      });
+      return;
+    }
+    readsAfter += 1;
+    await route.fallback();
+  });
+  const { dialog } = await commandFor(page, 'E2E Limited');
+  const banner = dialog.getByTestId('wizard-poll-limited');
+  await expect(banner).toHaveText(ru('runners.wizard.pollRateLimited', { seconds: 5 }));
+  await expect(banner).toHaveAttribute('role', 'status');
+  await expect(dialog.getByTestId('wizard-poll-failing')).toHaveCount(0);
+  await expect(banner).toHaveCount(0, { timeout: 15_000 });
+  expect(readsAfter).toBeGreaterThan(0);
+});
+
