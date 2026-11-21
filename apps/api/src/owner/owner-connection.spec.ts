@@ -310,9 +310,10 @@ describe('OwnerConnection.account', () => {
   });
 });
 
-// #86 item 1: a reconnect revokes the access token it replaces, best effort.
+// #86 item 1, #831: a reconnect stores the new pair, then retires the previous one, best effort.
 describe('OwnerConnection.connect', () => {
   const TOKEN_REVOKE = `DELETE https://api.github.com/applications/${env.GITHUB_APP_CLIENT_ID}/token`;
+  const TOKEN_ENDPOINT = 'https://github.com/login/oauth/access_token';
 
   function revokesIn(fake: ReturnType<typeof fakeGitHub>): string[] {
     return fake.calls.filter((c) => c.method === 'DELETE').map((c) => `${c.method} ${c.url}`);
@@ -327,36 +328,75 @@ describe('OwnerConnection.connect', () => {
     };
   }
 
-  function notRevokedReasons(logs: readonly string[]): unknown[] {
+  function reasonsFor(logs: readonly string[], message: string): unknown[] {
     return parsedLogs(logs)
-      .filter((line) => line['message'] === 'owner reconnect: the previous access token was not revoked')
+      .filter((line) => line['message'] === message)
       .map((line) => line['reason']);
+  }
+
+  const notRevokedReasons = (logs: readonly string[]) =>
+    reasonsFor(logs, 'owner reconnect: the previous access token was not revoked');
+  const chainNotEndedReasons = (logs: readonly string[]) =>
+    reasonsFor(logs, 'owner reconnect: the previous refresh chain was not ended');
+
+  async function isRefreshTokenRedeemable(fake: ReturnType<typeof fakeGitHub>, refreshToken: string) {
+    const answer = await fake.fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      body: new URLSearchParams({
+        client_id: env.GITHUB_APP_CLIENT_ID,
+        client_secret: env.GITHUB_APP_CLIENT_SECRET ?? '',
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+      }).toString(),
+    });
+    return Object.hasOwn((await answer.json()) as object, 'access_token');
   }
 
   it('a first connect calls GitHub not at all', async () => {
     const fake = fakeGitHub();
-    await (await ownerConnection(fake)).connect(OWNER, freshPair(fake));
+    await expect((await ownerConnection(fake)).connect(OWNER, freshPair(fake))).resolves.toBe('connected');
     expect(fake.calls).toEqual([]);
     expect(await storedRow()).toMatchObject({ login: OWNER.login, user_id: OWNER.id });
   });
 
-  it('revokes only the previous access token: the grant and the new pair stay live', async () => {
+  it('ends the previous pair: its access token, its refresh token and the access token redeeming it issued', async () => {
     const fake = fakeGitHub();
     const logs: string[] = [];
     const previous = await seedConnection(fake);
     const next = freshPair(fake);
 
-    await (await ownerConnection(fake, { logs })).connect(OWNER, next);
+    await expect((await ownerConnection(fake, { logs })).connect(OWNER, next)).resolves.toBe('connected');
 
-    expect(revokesIn(fake)).toEqual([TOKEN_REVOKE]);
+    expect(revokesIn(fake)).toEqual([TOKEN_REVOKE, TOKEN_REVOKE]);
+    expect(fake.refreshCalls()).toBe(1);
     expect(fake.isAccessTokenLive(previous.accessToken)).toBe(false);
+    expect(await isRefreshTokenRedeemable(fake, previous.refreshToken)).toBe(false);
+    // The grant and the new pair stay live: a grant revoke would disconnect the owner.
     expect(fake.isAccessTokenLive(next.accessToken)).toBe(true);
     expect(fake.activeGrants()).toBe(1);
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
-    expect(parsedLogs(logs)).toContainEqual(
-      expect.objectContaining({ message: 'owner reconnect: the previous access token was revoked' }),
-    );
+    const messages = parsedLogs(logs).map((line) => line['message']);
+    expect(messages).toContain('owner reconnect: the previous access token was revoked');
+    expect(messages).toContain('owner reconnect: the previous redeemed access token was revoked');
+    expect(messages).toContain('owner reconnect: the previous refresh chain was ended');
     expect(logs.join('\n')).not.toMatch(/gh[ur]_/);
+  });
+
+  it('a failed write retires nothing: the previous pair still works', async () => {
+    const fake = fakeGitHub();
+    const previous = await seedConnection(fake);
+    class FailingConnect extends OwnerConnectionsRepo {
+      override async connect(): Promise<void> {
+        throw new Error('D1_ERROR: simulated write failure');
+      }
+    }
+    const failing = await ownerConnection(fake, { repo: new FailingConnect(env.DB) });
+
+    await expect(failing.connect(OWNER, freshPair(fake))).rejects.toThrow('simulated write failure');
+
+    expect(fake.calls).toEqual([]);
+    expect(fake.isAccessTokenLive(previous.accessToken)).toBe(true);
+    await expect((await ownerConnection(fake)).getToken()).resolves.toBe(previous.accessToken);
   });
 
   it('GitHub rejecting the previous token (already gone) is logged and the connect goes on', async () => {
@@ -388,16 +428,52 @@ describe('OwnerConnection.connect', () => {
     await (await ownerConnection(fake, { logs })).connect(OWNER, next);
 
     expect(notRevokedReasons(logs)).toEqual(['revoke-failed']);
-    expect(fake.isAccessTokenLive(previous.accessToken)).toBe(true);
+    await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
+    // The redemption still ended the chain, and with it the access token GitHub would not revoke.
+    expect(fake.isAccessTokenLive(previous.accessToken)).toBe(false);
+  });
+
+  it('a GitHub 5xx on the redemption is logged and the connect goes on', async () => {
+    const fake = fakeGitHub();
+    const logs: string[] = [];
+    const previous = await seedConnection(fake);
+    fake.fail('refresh-unavailable');
+    const next = freshPair(fake);
+
+    await (await ownerConnection(fake, { logs })).connect(OWNER, next);
+
+    expect(chainNotEndedReasons(logs)).toEqual(['refresh-failed']);
+    expect(await isRefreshTokenRedeemable(fake, previous.refreshToken)).toBe(true);
+    await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
+  });
+
+  it('a previous refresh token GitHub refuses (already redeemed) is logged as dead and the connect goes on', async () => {
+    const fake = fakeGitHub();
+    const logs: string[] = [];
+    const previous = await seedConnection(fake);
+    await isRefreshTokenRedeemable(fake, previous.refreshToken);
+    const next = freshPair(fake);
+
+    await (await ownerConnection(fake, { logs })).connect(OWNER, next);
+
+    expect(parsedLogs(logs)).toContainEqual(
+      expect.objectContaining({
+        message: 'owner reconnect: the previous refresh token was already dead',
+        error: 'bad_refresh_token',
+      }),
+    );
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
   });
 
   it.each([
-    ['expired', 'UPDATE owner_connections SET access_expires_at = 1'],
-    ['undecryptable', "UPDATE owner_connections SET access_token_enc = 'ff' || substr(access_token_enc, 3)"],
+    ['expired', 'UPDATE owner_connections SET access_expires_at = 1, refresh_expires_at = 1'],
+    [
+      'undecryptable',
+      "UPDATE owner_connections SET access_token_enc = 'ff' || substr(access_token_enc, 3), refresh_token_enc = 'ff' || substr(refresh_token_enc, 3)",
+    ],
     ['under another master key', "UPDATE owner_connections SET key_id = '00000000'"],
   ])(
-    'a previous token that is %s is not sent to GitHub; logged, and the connect goes on',
+    'a previous pair that is %s is not sent to GitHub; logged, and the connect goes on',
     async (_label, sql) => {
       const fake = fakeGitHub();
       const logs: string[] = [];
@@ -409,41 +485,27 @@ describe('OwnerConnection.connect', () => {
 
       expect(fake.calls).toEqual([]);
       expect(notRevokedReasons(logs)).toEqual(['no-usable-token']);
+      expect(chainNotEndedReasons(logs)).toEqual(['no-usable-token']);
       await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
     },
   );
 
-  it('a changed GitHub user id is still a security signal, and the previous token is still revoked', async () => {
+  it('a changed GitHub user id is refused: a security signal, nothing stored, nothing sent to GitHub', async () => {
     const fake = fakeGitHub();
     const logs: string[] = [];
-    await seedConnection(fake);
+    const previous = await seedConnection(fake);
+    const before = await storedRow();
     const other = { login: OWNER.login, id: 4242 };
 
-    await (await ownerConnection(fake, { logs })).connect(other, freshPair(fake, other));
+    await expect(
+      (await ownerConnection(fake, { logs })).connect(other, freshPair(fake, other)),
+    ).resolves.toBe('user-id-changed');
 
-    expect(revokesIn(fake)).toEqual([TOKEN_REVOKE]);
+    expect(fake.calls).toEqual([]);
+    expect(await storedRow()).toEqual(before);
     expect(parsedLogs(logs)).toContainEqual(
       expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
     );
-    expect(await storedRow()).toMatchObject({ user_id: 4242 });
-  });
-
-  // Recorded, not wished away: GitHub's docs do not promise that the token revoke ends the refresh token (#86).
-  it('the previous refresh token is not assumed dead: reconnect is not a remediation for a leaked pair', async () => {
-    const fake = fakeGitHub();
-    const previous = await seedConnection(fake);
-
-    await (await ownerConnection(fake)).connect(OWNER, freshPair(fake));
-
-    const redeemed = await fake.fetch('https://github.com/login/oauth/access_token', {
-      method: 'POST',
-      body: new URLSearchParams({
-        client_id: env.GITHUB_APP_CLIENT_ID,
-        client_secret: env.GITHUB_APP_CLIENT_SECRET ?? '',
-        grant_type: 'refresh_token',
-        refresh_token: previous.refreshToken,
-      }).toString(),
-    });
-    expect(await redeemed.json()).toHaveProperty('access_token');
+    await expect((await ownerConnection(fake)).getToken()).resolves.toBe(previous.accessToken);
   });
 });

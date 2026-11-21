@@ -13,7 +13,8 @@
  *
  * Grants (#86): like GitHub, one grant per user — a second authorize by the same user adds tokens to the live grant,
  * so a grant revoke ends the earlier pair too. `DELETE …/token` ends that access token only; its refresh token stays
- * redeemable, because GitHub's docs do not promise more and the console must not count on it.
+ * redeemable, because GitHub's docs do not promise more and the console must not count on it. Redeeming a refresh
+ * token ends it and the access token of its own pair only (#831).
  */
 
 export interface FakeUser {
@@ -69,6 +70,8 @@ interface IssuedToken {
   readonly grant: number;
   readonly expiresAt: number;
   used: boolean;
+  /** Refresh tokens only: the access token issued with it, which its redemption ends. */
+  readonly pairedAccessToken?: string;
 }
 
 export interface FakeCall {
@@ -455,11 +458,9 @@ export class FakeGitHubOAuth {
         });
       }
       refresh.used = true;
-      // GitHub: a refresh ends the old access token too.
-      for (const [token, issued] of this.accessTokens) {
-        if (issued.grant === refresh.grant) {
-          this.accessTokens.delete(token);
-        }
+      // GitHub: a refresh ends the old access token of its own chain; other pairs of the grant stay live.
+      if (refresh.pairedAccessToken !== undefined) {
+        this.accessTokens.delete(refresh.pairedAccessToken);
       }
       return json(200, this.pairBody(this.mint(refresh.grant)));
     }
@@ -804,6 +805,7 @@ export class FakeGitHubOAuth {
       grant,
       expiresAt: now + this.refreshLifetime() * 1000,
       used: false,
+      pairedAccessToken: accessToken,
     });
     return { accessToken, refreshToken };
   }

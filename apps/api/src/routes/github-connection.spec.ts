@@ -346,7 +346,11 @@ describe('GET /api/v1/github/callback', () => {
       .bind(userId)
       .run();
     const nameOf = async (): Promise<string | null | undefined> =>
-      (await env.DB.prepare(`SELECT display_name FROM users WHERE provider = 'github' AND provider_user_id = '1001'`).first<{ display_name: string | null }>())?.display_name;
+      (
+        await env.DB.prepare(
+          `SELECT display_name FROM users WHERE provider = 'github' AND provider_user_id = '1001'`,
+        ).first<{ display_name: string | null }>()
+      )?.display_name;
 
     const first = await connectAs(harness(), { login: 'geeera', id: 1001, name: ' Kirill\u202E ' });
     expectBackToSettings(first.response, '/settings?github=connected');
@@ -356,7 +360,9 @@ describe('GET /api/v1/github/callback', () => {
     const later = await connectAs(harness(), { login: 'geeera', id: 1001 });
     expectBackToSettings(later.response, '/settings?github=connected');
     expect(await nameOf()).toBeNull();
-    const users = await env.DB.prepare(`SELECT COUNT(*) AS n FROM users WHERE provider_user_id = '1001'`).first<{ n: number }>();
+    const users = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM users WHERE provider_user_id = '1001'`,
+    ).first<{ n: number }>();
     expect(users?.n).toBe(1);
   });
 
@@ -565,7 +571,7 @@ describe('GET /api/v1/github/callback', () => {
       expect(h.fake.activeGrants()).toBe(1);
     });
 
-    it('D1 fails while storing the owner pair: only the fresh token is revoked, the grant stays', async () => {
+    it('D1 fails while storing the owner pair: only the fresh token is revoked; the old connection still works (#831)', async () => {
       const h = harness();
       const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
       const bindings = { ...localEnv(), DB: failingOwnerInserts(env.DB) };
@@ -579,21 +585,16 @@ describe('GET /api/v1/github/callback', () => {
       });
 
       expectBackToSettings(response, '/settings?github=failed');
-      const revokes = revokeCalls(h);
-      // The previous token's revoke (item 1) and the fresh token's: never the grant.
-      expect(revokes.every((line) => line.endsWith('/token'))).toBe(true);
-      expect(revokes).toHaveLength(2);
+      // Only the fresh token's revoke: the previous pair is retired after a successful write, never before.
+      expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
+      expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption
       expect(h.fake.activeGrants()).toBe(1);
       expect(await storedRow()).not.toBeNull();
       expect(parsedLogs(h.logs)).toContainEqual(
         expect.objectContaining({ message: 'owner connect failed after the exchange', revoked: true }),
       );
-      // Item 1 revoked the stored access token before the failed write; the stored refresh token renews it, so
-      // the owner is not disconnected (the next owner write's 401 takes this path).
-      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
-      const connection = await ownerConnection(h.fake);
-      connection.invalidate(seeded.accessToken);
-      expect(h.fake.isAccessTokenLive(await connection.getToken())).toBe(true);
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+      await expect((await ownerConnection(h.fake)).getToken()).resolves.toBe(seeded.accessToken);
     });
 
     it('a GitHub 5xx on the fresh token revoke is logged and still ends in failed', async () => {
@@ -616,15 +617,17 @@ describe('GET /api/v1/github/callback', () => {
     });
   });
 
-  describe('a reconnect while connected (#86 item 1)', () => {
-    it('revokes the previous access token, then stores the new pair', async () => {
+  describe('a reconnect while connected (#86 item 1, #831)', () => {
+    it('stores the new pair, then revokes the previous access token and ends its refresh chain', async () => {
       const h = harness();
       const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
 
       const { response } = await connectAs(h);
 
       expectBackToSettings(response, '/settings?github=connected');
-      expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
+      const tokenRevoke = `DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`;
+      expect(revokeCalls(h)).toEqual([tokenRevoke, tokenRevoke]);
+      expect(h.fake.refreshCalls()).toBe(2); // the code exchange and the redemption
       expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
       expect(h.fake.activeGrants()).toBe(1);
       const connectedAt = Date.parse((await storedRow())?.connected_at ?? '');
@@ -641,7 +644,8 @@ describe('GET /api/v1/github/callback', () => {
       const { response } = await connectAs(h);
 
       expectBackToSettings(response, '/settings?github=connected');
-      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+      // The redemption still ended the chain, and with it the access token GitHub would not revoke.
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
       expect(parsedLogs(h.logs)).toContainEqual(
         expect.objectContaining({
           message: 'owner reconnect: the previous access token was not revoked',
@@ -650,6 +654,31 @@ describe('GET /api/v1/github/callback', () => {
         }),
       );
     });
+  });
+
+  // #831: the owner login under another GitHub user id (renamed or taken over) is not a reconnect.
+  it('refuses a changed GitHub user id: the fresh grant goes, the stored connection is untouched', async () => {
+    const h = harness();
+    const seeded = await seedConnection(h.fake, { nowMs: Date.now() - 60_000 });
+    const before = await storedRow();
+
+    const { response } = await connectAs(h, { login: OWNER.login, id: 4242 });
+
+    expectBackToSettings(response, '/settings?github=failed');
+    expect(await storedRow()).toEqual(before);
+    expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/grant`]);
+    expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption
+    expect(h.fake.activeGrants()).toBe(1);
+    expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+    expect(parsedLogs(h.logs)).toContainEqual(
+      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
+    );
+    expect(parsedLogs(h.logs)).toContainEqual(
+      expect.objectContaining({
+        message: 'owner connect refused: the GitHub user id is not the connected one',
+        revoked: true,
+      }),
+    );
   });
 
   it('redirects only to the fixed Settings URL, whatever else the query carries', async () => {
