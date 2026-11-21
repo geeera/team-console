@@ -139,14 +139,13 @@ describe('the Linux one command', () => {
     expect(namedRunnerImageOf(vars)).toBeNull();
   });
 
-  it('runs both units as tcrunner with NoNewPrivileges, ProtectSystem=strict and ProtectHome=yes', () => {
+  it('runs both units as tcrunner with ProtectSystem=strict, ProtectHome=yes and PrivateTmp', () => {
     for (const unit of [podmanUnitOf(), runnerUnitOf(IMAGE)]) {
       const lines = unitLines(unit);
       expect(lines).toEqual(
         expect.arrayContaining([
           'User=tcrunner',
           'Group=tcrunner',
-          'NoNewPrivileges=yes',
           'ProtectSystem=strict',
           'ProtectHome=yes',
           'PrivateTmp=yes',
@@ -154,10 +153,24 @@ describe('the Linux one command', () => {
           'StateDirectoryMode=0700',
         ]),
       );
-      expect(lines.filter((line) => /^(User|ProtectSystem|ProtectHome|NoNewPrivileges)=/.test(line))).toHaveLength(4);
-      // Nothing runs with more than the user's rights: no root, no capability, no `+`/`!` privileged Exec line.
-      expect(unit).not.toMatch(/User=root|AmbientCapabilities|CapabilityBoundingSet|PermissionsStartOnly|^Exec\w*=[+!]/m);
+      const once = /^(User|ProtectSystem|ProtectHome|NoNewPrivileges|CapabilityBoundingSet)=/;
+      expect(lines.filter((line) => once.test(line))).toHaveLength(5);
+      // Nothing runs as root: no root user, no ambient capability, no `+`/`!` privileged Exec line.
+      expect(unit).not.toMatch(/User=root|AmbientCapabilities|PermissionsStartOnly|^Exec\w*=[+!]/m);
     }
+  });
+
+  it('runs the runner’s unit with NoNewPrivileges and no capability at all', () => {
+    expect(unitLines(runnerUnitOf(IMAGE))).toEqual(expect.arrayContaining(['NoNewPrivileges=yes', 'CapabilityBoundingSet=']));
+  });
+
+  it('bounds the podman unit to the capabilities of setuid newuidmap/newgidmap, which NoNewPrivileges would forbid', () => {
+    expect(unitLines(podmanUnitOf())).toEqual(
+      expect.arrayContaining([
+        'NoNewPrivileges=no',
+        'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN',
+      ]),
+    );
   });
 
   it('serves rootless podman of tcrunner on a socket in its own state directory', () => {

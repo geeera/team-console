@@ -164,9 +164,11 @@ test('add a Linux runner: the API’s two commands by image digest, no docker.so
   expect(enrol).toContain(`${image} setup --url ${new URL(stack.baseURL).origin} --image ${image}`);
   expect([...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1])).toEqual(['HOME', 'TC_RUNNER_HOME', 'TC_ENROLMENT']);
   expect(`${prepare}\n${enrol}`).not.toMatch(/docker\.sock|tce_|sk-ant/);
-  for (const line of ['User=tcrunner', 'NoNewPrivileges=yes', 'ProtectSystem=strict', 'ProtectHome=yes']) {
+  for (const line of ['User=tcrunner', 'ProtectSystem=strict', 'ProtectHome=yes']) {
     expect(prepare.split('\n').filter((unitLine) => unitLine === line)).toHaveLength(2);
   }
+  // The runner's own unit; rootless podman's unit needs its setuid newuidmap and is capability-bounded instead.
+  expect(prepare.split('\n').filter((unitLine) => unitLine === 'NoNewPrivileges=yes')).toHaveLength(1);
   expect(prepare).toContain(`${image} run --loop`);
   await expect(dialog.getByTestId('wizard-linux-socket')).toContainText('/var/lib/team-console-runner/podman.sock');
   await expect(dialog.getByRole('region', { name: ru('runners.wizard.command.linux.prepareRegion') })).toBeVisible();

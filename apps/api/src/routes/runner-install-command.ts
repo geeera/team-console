@@ -127,18 +127,25 @@ export function namedRunnerImageOf(
   return { version, image: runnerImageRefOf(version, digest) };
 }
 
-/** What both units share: the dedicated user, its state directory, and the hardening R-LNX names. */
+/** What both units share: the dedicated user, its state directory, and the file-system hardening R-LNX names. */
 const UNIT_SERVICE_BASE = [
   `User=${LINUX_RUNNER_USER}`,
   `Group=${LINUX_RUNNER_USER}`,
   'StateDirectory=team-console-runner',
   'StateDirectoryMode=0700',
   `WorkingDirectory=${LINUX_STATE_DIR}`,
-  'NoNewPrivileges=yes',
   'ProtectSystem=strict',
   'ProtectHome=yes',
   'PrivateTmp=yes',
 ];
+
+/**
+ * The only privileges rootless podman needs: its user namespace is set up by the distribution's setuid `newuidmap` and
+ * `newgidmap` (subordinate ids), which `NoNewPrivileges=yes` forbids and which need these four capabilities to write
+ * the maps. The bounding set keeps any other setuid binary to the same four; every container the service starts runs
+ * with `no-new-privileges` and an empty bounding set.
+ */
+export const PODMAN_UNIT_CAPABILITIES = 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN';
 
 /**
  * Rootless podman's API of `tcrunner`, on a socket in that user's 0700 state directory: the only runtime socket the
@@ -154,6 +161,8 @@ export function podmanUnitOf(): string {
     '',
     '[Service]',
     ...UNIT_SERVICE_BASE,
+    'NoNewPrivileges=no',
+    PODMAN_UNIT_CAPABILITIES,
     'RuntimeDirectory=team-console-runner',
     'RuntimeDirectoryMode=0700',
     `Environment=HOME=${LINUX_STATE_DIR} XDG_RUNTIME_DIR=/run/team-console-runner`,
@@ -213,6 +222,9 @@ export function runnerUnitOf(image: string): string {
     '',
     '[Service]',
     ...UNIT_SERVICE_BASE,
+    // The runner's own unit runs a podman client only: no new privileges and no capability at all.
+    'NoNewPrivileges=yes',
+    'CapabilityBoundingSet=',
     `Environment=HOME=${LINUX_STATE_DIR} CONTAINER_HOST=unix://${LINUX_PODMAN_SOCKET}`,
     `ExecStart=${run.join(' ')}`,
     'Restart=always',

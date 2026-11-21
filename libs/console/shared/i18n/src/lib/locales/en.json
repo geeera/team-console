@@ -2414,7 +2414,7 @@
           "title": "Run two commands on «{{name}}»",
           "lead": "Open a terminal on the Linux machine and run the commands in order. You need admin rights (sudo).",
           "prepareTitle": "1. Prepare the machine (once)",
-          "prepareBody": "Creates a tcrunner system user with no login and two systemd services: rootless podman of that user and the runner itself. Both run without root, with NoNewPrivileges, ProtectSystem=strict and ProtectHome=yes.",
+          "prepareBody": "Creates a tcrunner system user with no login and two systemd services: rootless podman of that user and the runner itself. Both run without root, with ProtectSystem=strict and ProtectHome=yes. The runner service also runs with NoNewPrivileges and no privileges at all.",
           "prepareRegion": "Machine preparation command",
           "prepareCopyAria": "Copy the machine preparation command",
           "enrolTitle": "2. Connect the runner",

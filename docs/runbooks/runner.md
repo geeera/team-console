@@ -200,8 +200,12 @@ systemd and podman 4 or later (`sudo apt install podman` on Debian 12 / Ubuntu 2
      `/var/lib/team-console-runner/podman.sock` (0700 directory).
    - `team-console-runner.service` is the runner itself: `podman run … <image>@sha256:<digest> run --loop`.
 
-   Both units run as `tcrunner` with `NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=yes` and
-   `PrivateTmp=yes`.
+   Both units run as `tcrunner` with `ProtectSystem=strict`, `ProtectHome=yes` and `PrivateTmp=yes`. The runner's
+   unit also has `NoNewPrivileges=yes` and no capabilities. The podman unit cannot have `NoNewPrivileges=yes`,
+   because rootless podman maps its subordinate ids through the setuid `newuidmap` and `newgidmap`. Instead, its
+   capability bounding set is limited to the four capabilities those two need. Rootless podman ignores per-job
+   `--memory` and `--pids-limit`, so the podman unit caps all jobs together at `TasksMax=4096` and `MemoryMax=6G`.
+   To change these caps, run `sudo systemctl edit team-console-runner-podman.service`.
 2. **Connect the runner.** This runs the image interactively as `tcrunner` with `-e TC_ENROLMENT=<request id>`. The
    request id is an identifier, not a secret, and it is the only value the command passes in. `setup` binds a fresh key
    to the request and prints the machine code. Compare it with the console and approve there. `setup` then asks for
