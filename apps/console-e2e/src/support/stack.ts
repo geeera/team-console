@@ -146,8 +146,8 @@ export async function apiClient(stack: Stack): Promise<APIRequestContext> {
   });
 }
 
-/** The owner's OAuth round trip over HTTP, for specs whose subject is not the connect flow itself. */
-export async function connectOwner(api: APIRequestContext, stack: Stack): Promise<void> {
+/** The owner's OAuth round trip over HTTP as whoever the fake GitHub signs in; the callback's Settings landing. */
+export async function ownerCallbackLanding(api: APIRequestContext, stack: Stack): Promise<string> {
   const fake = fakeOf(stack);
   const start = await api.post('/api/v1/github/connect', { data: {} });
   if (start.status() !== 200) {
@@ -166,9 +166,17 @@ export async function connectOwner(api: APIRequestContext, stack: Stack): Promis
     throw new Error(`fake authorize gave no redirect: ${authorize.status()}`);
   }
   const done = await api.get(callback, { maxRedirects: 0, headers: { Cookie: attemptCookie } });
-  const landing = done.headers()['location'] ?? '';
+  if (done.status() !== 302) {
+    throw new Error(`connect callback answered ${done.status()}`);
+  }
+  return done.headers()['location'] ?? '';
+}
+
+/** The owner's OAuth round trip over HTTP, for specs whose subject is not the connect flow itself. */
+export async function connectOwner(api: APIRequestContext, stack: Stack): Promise<void> {
+  const landing = await ownerCallbackLanding(api, stack);
   if (!landing.includes('github=connected')) {
-    throw new Error(`connect callback landed on ${landing} (${done.status()})`);
+    throw new Error(`connect callback landed on ${landing}`);
   }
 }
 

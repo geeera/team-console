@@ -167,20 +167,20 @@ export class OwnerConnection implements OwnerTokenSource {
   async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<ConnectOutcome> {
     const previous = await this.repo.find(this.environment);
     if (previous !== null && previous.user_id !== user.id) {
-      this.logger.warn('owner connect refused: the GitHub user id changed since the last connect', {
-        securitySignal: 'owner-user-id-changed',
-        login: user.login,
-      });
-      return 'user-id-changed';
+      return this.refuseChangedUserId(user.login);
     }
     const retired = previous === null ? null : await this.previousPair(previous);
-    await this.repo.connect({
+    const stored = await this.repo.connect({
       environment: this.environment,
       login: user.login,
       userId: user.id,
       now: new Date(this.now()).toISOString(),
       ...(await this.seal(pair)),
     });
+    // The read above is only the fast path: the upsert re-checks the id, so a racing callback cannot swap it (#889).
+    if (!stored) {
+      return this.refuseChangedUserId(user.login);
+    }
     if (retired !== null) {
       await this.retirePrevious(retired);
     }
@@ -229,6 +229,14 @@ export class OwnerConnection implements OwnerTokenSource {
       }
       throw error;
     }
+  }
+
+  private refuseChangedUserId(login: string): ConnectOutcome {
+    this.logger.warn('owner connect refused: the GitHub user id changed since the last connect', {
+      securitySignal: 'owner-user-id-changed',
+      login,
+    });
+    return 'user-id-changed';
   }
 
   /** The previous row's tokens that can still be used: decrypted under the current key and not expired. */

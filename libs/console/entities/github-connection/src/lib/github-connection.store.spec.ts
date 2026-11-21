@@ -205,6 +205,7 @@ describe('connectOutcomeOf', () => {
     expect(connectOutcomeOf('connected', null)).toEqual({ kind: 'connected' });
     expect(connectOutcomeOf('denied', null)).toEqual({ kind: 'denied' });
     expect(connectOutcomeOf('failed', null)).toEqual({ kind: 'failed' });
+    expect(connectOutcomeOf('user-id-changed', null)).toEqual({ kind: 'user-id-changed' });
     expect(connectOutcomeOf('wrong-account', 'octocat')).toEqual({ kind: 'wrong-account', login: 'octocat' });
   });
 

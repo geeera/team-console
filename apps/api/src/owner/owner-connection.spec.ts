@@ -386,7 +386,7 @@ describe('OwnerConnection.connect', () => {
     const fake = fakeGitHub();
     const previous = await seedConnection(fake);
     class FailingConnect extends OwnerConnectionsRepo {
-      override async connect(): Promise<void> {
+      override async connect(): Promise<boolean> {
         throw new Error('D1_ERROR: simulated write failure');
       }
     }
@@ -507,5 +507,41 @@ describe('OwnerConnection.connect', () => {
       expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
     );
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(previous.accessToken);
+  });
+
+  it('another account winning the first-connect race is not overwritten: the late callback is refused (#889)', async () => {
+    const fake = fakeGitHub();
+    const logs: string[] = [];
+    const rival = { login: OWNER.login, id: 4242 };
+    // The rival's callback stores its row between our read (empty) and our write.
+    class RacedRepo extends OwnerConnectionsRepo {
+      override async find(environment: string) {
+        await super.connect({
+          environment,
+          login: rival.login,
+          userId: rival.id,
+          accessTokenEnc: 'rival-access',
+          refreshTokenEnc: 'rival-refresh',
+          accessExpiresAt: 1,
+          refreshExpiresAt: 1,
+          keyId: 'rival',
+          now: new Date().toISOString(),
+        });
+        return null;
+      }
+    }
+    const raced = await ownerConnection(fake, { repo: new RacedRepo(env.DB), logs });
+
+    await expect(raced.connect(OWNER, freshPair(fake))).resolves.toBe('user-id-changed');
+
+    expect(await storedRow()).toMatchObject({
+      user_id: rival.id,
+      access_token_enc: 'rival-access',
+      version: 1,
+    });
+    expect(fake.calls).toEqual([]);
+    expect(parsedLogs(logs)).toContainEqual(
+      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
+    );
   });
 });

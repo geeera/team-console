@@ -62,6 +62,28 @@ describe('OwnerConnectionsRepo', () => {
     });
   });
 
+  it('reports a first connect and a same-user reconnect as stored', async () => {
+    await expect(repo.connect(connection())).resolves.toBe(true);
+    await expect(repo.connect(connection({ accessTokenEnc: 'aa02' }))).resolves.toBe(true);
+  });
+
+  it('never overwrites a row that holds another GitHub user id (#889)', async () => {
+    await repo.connect(connection());
+    const before = await repo.find(ENV);
+
+    const stored = await repo.connect(
+      connection({
+        userId: 2002,
+        accessTokenEnc: 'ff01',
+        refreshTokenEnc: 'ff02',
+        now: '2026-09-30T11:00:00.000Z',
+      }),
+    );
+
+    expect(stored).toBe(false);
+    await expect(repo.find(ENV)).resolves.toEqual(before);
+  });
+
   it('grants the refresh lease to one caller only, and again once it has expired', async () => {
     await repo.connect(connection());
 

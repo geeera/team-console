@@ -52,9 +52,13 @@ export class OwnerConnectionsRepo {
       .first<OwnerConnectionRow>();
   }
 
-  /** Stores a new connection, replacing any previous one of the environment; the version moves on. */
-  async connect(connection: NewOwnerConnection): Promise<void> {
-    await this.db
+  /**
+   * Stores a new connection, replacing any previous one of the environment for the same GitHub user id; the version
+   * moves on. False when the stored row holds another user id: it is left as it was, checked inside the upsert so
+   * two callbacks racing on the first connect cannot both win (#889).
+   */
+  async connect(connection: NewOwnerConnection): Promise<boolean> {
+    const result = await this.db
       .prepare(
         `INSERT INTO owner_connections (${COLUMNS})
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 1, NULL, ?9, ?9)
@@ -69,7 +73,8 @@ export class OwnerConnectionsRepo {
            version = owner_connections.version + 1,
            refreshing_until = NULL,
            connected_at = excluded.connected_at,
-           updated_at = excluded.updated_at`,
+           updated_at = excluded.updated_at
+         WHERE owner_connections.user_id = excluded.user_id`,
       )
       .bind(
         connection.environment,
@@ -83,6 +88,7 @@ export class OwnerConnectionsRepo {
         connection.now,
       )
       .run();
+    return result.meta.changes === 1;
   }
 
   /**

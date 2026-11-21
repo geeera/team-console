@@ -25,7 +25,7 @@ import { Button, Icon, Sheet, StateBlock, StatusCard, Toaster } from '@console/s
 
 /** Why the last connect did not work: the callback's outcome, or what the client refused before leaving. */
 type ConnectError =
-  | { readonly kind: 'denied' | 'failed' | 'url' | 'start' }
+  | { readonly kind: 'denied' | 'failed' | 'url' | 'start' | 'user-id-changed' }
   | { readonly kind: 'wrong-account'; readonly who: string | null };
 
 /**
@@ -60,7 +60,8 @@ export class GitHubConnectionCard {
 
   protected readonly errorKey = computed(() => {
     const error = this.error();
-    if (error === null) {
+    // The changed account keeps the stored connection: a notice above the connected card, not this error.
+    if (error === null || error.kind === 'user-id-changed') {
       return null;
     }
     if (error.kind !== 'wrong-account') {
@@ -69,6 +70,7 @@ export class GitHubConnectionCard {
     // An unreadable `login` on the callback URL (#124 item 2): wording that names no one, not "?".
     return error.who === null ? 'settings.gh.error.accountUnknown' : 'settings.gh.error.account';
   });
+  protected readonly isUserIdChanged = computed(() => this.error()?.kind === 'user-id-changed');
   protected readonly errorParams = computed(() => {
     const error = this.error();
     return {
@@ -130,7 +132,10 @@ export class GitHubConnectionCard {
       // Reconcile with the live state first: a failure outcome from an old link or bookmark is stale
       // once the Worker says the connection is already up (#124 item 1).
       await initialLoad;
-      if (this.store.isConnected()) {
+      // `user-id-changed` is about the live connection (#890), so unlike the others it is stale once that is gone.
+      const isStale =
+        outcome.kind === 'user-id-changed' ? !this.store.isConnected() : this.store.isConnected();
+      if (isStale) {
         return;
       }
       this.error.set(
