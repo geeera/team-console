@@ -49,6 +49,8 @@ export const AUDIT_EVENT_KINDS = [
   'auth.signed-in',
   'auth.signed-out',
   'auth.identity-linked',
+  // #838 (migration 0042): the Access–GitHub link handed the owner's `access-owner` runners and projects to the user.
+  'auth.access-actor-adopted',
   'invite.created',
   'invite.accepted',
   'invite.revoked',

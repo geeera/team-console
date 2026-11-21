@@ -103,6 +103,7 @@ describe('migrations on a fresh D1', () => {
       '0038_user_display_name.sql',
       '0040_operator_stops.sql',
       '0041_actions_workflow_state.sql',
+      '0042_access_owner_link_adopts_actor.sql',
     ]);
   });
 
