@@ -255,14 +255,23 @@ export function linuxEnrolCommandOf(origin: string, image: string, intentId: str
   ].join(' ');
 }
 
-/** The Linux one command for a `container` intent, or `null` when any part cannot be built from checked values. */
+/** The local stack's own origin: the runner accepts http for a loopback host only, and so does this. */
+const LOOPBACK_HTTP_ORIGIN = /^http:\/\/(?:127\.0\.0\.1|localhost)(?::[0-9]{1,5})?$/;
+
+/**
+ * The Linux one command for a `container` intent, or `null` when any part cannot be built from checked values. An
+ * https origin everywhere; a loopback http origin on the local stack (`ENVIRONMENT=local`) as well, where the same
+ * command runs against a console on this machine.
+ */
 export function linuxInstallCommandsOf(
-  env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RUNNER_RELEASE_IMAGE_DIGEST'>,
+  env: Pick<ApiEnv, 'ENVIRONMENT' | 'RUNNER_RELEASE_VERSION' | 'RUNNER_RELEASE_IMAGE_DIGEST'>,
   origin: string | null,
   intentId: string,
 ): LinuxInstallCommandsDto | null {
   const named = namedRunnerImageOf(env);
-  if (named === null || origin === null || !HTTPS_ORIGIN.test(origin) || !isEnrolmentIntentId(intentId)) {
+  const originOk =
+    origin !== null && (HTTPS_ORIGIN.test(origin) || (env.ENVIRONMENT === 'local' && LOOPBACK_HTTP_ORIGIN.test(origin)));
+  if (named === null || origin === null || !originOk || !isEnrolmentIntentId(intentId)) {
     return null;
   }
   return {

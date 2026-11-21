@@ -60,9 +60,20 @@ async function enrolOnceWith(stack: Stack, code: string): Promise<string> {
   }
 }
 
-test.beforeEach(async ({ stack }) => {
+test.beforeEach(async ({ page, stack }) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
+  // These specs take the one-time code: as on an environment that names no runner image (#634 PR 7), the wizard's
+  // Linux choice hands over to the code dialog. add-runner.e2e.ts covers the Linux command itself.
+  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({ response, json: { ...body, linuxInstall: null } });
+  });
 });
 
 test('enrol a runner with a one-time code, see it listed, pin placement to it, narrow it and revoke it', async ({

@@ -207,6 +207,13 @@ describe('the Linux one command', () => {
     expect(linuxInstallCommandsOf(env, origin, intent)).toBeNull();
   });
 
+  it('takes a loopback http origin on the local stack only, as the runner does', () => {
+    const local = { ...env, ENVIRONMENT: 'local' };
+    expect(linuxInstallCommandsOf(local, 'http://127.0.0.1:8300', INTENT)?.enrol).toContain('setup --url http://127.0.0.1:8300 ');
+    expect(linuxInstallCommandsOf(local, 'http://console.example', INTENT)).toBeNull();
+    expect(linuxInstallCommandsOf({ ...env, ENVIRONMENT: 'dev' }, 'http://127.0.0.1:8300', INTENT)).toBeNull();
+  });
+
   it('builds the pair from the named image only', () => {
     expect(linuxInstallCommandsOf(env, 'https://console.example', INTENT)).toEqual({
       version: '0.2.0',
