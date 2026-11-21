@@ -1,5 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { httpProblemOf, isAccessSessionExpired } from '@console/shared/api';
+import { ACTIONS_NOT_READY } from '@shared/contracts';
 import { TimeoutError } from 'rxjs';
 
 /**
@@ -35,6 +36,8 @@ export interface RunnerFailure {
   readonly slug: string | null;
   /** The body member a 422 names. */
   readonly field: string | null;
+  /** 422 `actions-not-ready` (#759): the readiness items that hold the switch back, as the problem names them. */
+  readonly items?: readonly string[];
 }
 
 export type RunnerResult<T> =
@@ -58,7 +61,10 @@ export function runnerFailureOf(error: unknown): RunnerFailure {
   }
   const problem = httpProblemOf(error);
   const field = typeof problem.extensions['field'] === 'string' ? problem.extensions['field'] : null;
-  const failure = (kind: RunnerFailureKind): RunnerFailure => ({ kind, slug: problem.slug, field });
+  const failure = (kind: RunnerFailureKind): RunnerFailure =>
+    problem.slug === ACTIONS_NOT_READY
+      ? { kind, slug: problem.slug, field, items: itemIdsOf(problem.extensions['items']) }
+      : { kind, slug: problem.slug, field };
   switch (problem.status) {
     case 0:
       return failure('offline');
@@ -106,6 +112,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
         return 'runners.err.accessSourceHosted';
       case 'dispatch-repository-unverified':
         return 'runners.err.repositoryUnverified';
+      // #759: the screens that can name the items and link the setup page word it themselves.
+      case ACTIONS_NOT_READY:
+        return 'runners.err.actionsNotReadyBare';
       default:
         return 'runners.err.invalid';
     }
@@ -135,3 +144,10 @@ const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid'>, strin
   'session-expired': 'runners.err.sessionExpired',
   error: 'runners.err.error',
 };
+
+/** Item ids are short kebab-case words; anything else in the problem body is left out. */
+function itemIdsOf(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((id): id is string => typeof id === 'string' && /^[a-z][a-z-]{0,39}$/.test(id))
+    : [];
+}

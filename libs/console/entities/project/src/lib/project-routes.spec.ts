@@ -2,6 +2,7 @@ import {
   ADD_PROJECT_URL,
   projectEnvironmentGuideRouteOf,
   projectEnvironmentRouteOf,
+  projectActionsRouteOf,
   projectSetupRouteOf,
 } from './project-routes';
 
@@ -15,6 +16,7 @@ describe('project routes', () => {
   });
 
   it('puts the project environment and its guides under the setup page (#750)', () => {
+    expect(projectActionsRouteOf('storify')).toEqual(['/settings/projects', 'storify', 'actions']);
     expect(projectEnvironmentRouteOf('storify')).toEqual(['/settings/projects', 'storify', 'environment']);
     expect(projectEnvironmentGuideRouteOf('storify', 'production', 'ROUTINE_TOKEN_STORIFY')).toEqual([
       '/settings/projects',

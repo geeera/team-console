@@ -172,6 +172,13 @@ describe('runnerFailureOf', () => {
     expect(runnerFailureOf(error).kind).toBe(kind);
   });
 
+  it('keeps the items of an actions-not-ready refusal, ids only (#759)', () => {
+    const failure = runnerFailureOf(problem(422, 'actions-not-ready', { field: 'dispatch', items: ['secret', 'workflow', '<b>', 7] }));
+    expect(failure).toEqual({ kind: 'invalid', slug: 'actions-not-ready', field: 'dispatch', items: ['secret', 'workflow'] });
+    expect(runnerFailureKeyOf(failure)).toBe('runners.err.actionsNotReadyBare');
+    expect(runnerFailureOf(problem(422, 'access-source-hosted'))).not.toHaveProperty('items');
+  });
+
   it('maps a timeout and a non-HTTP error', () => {
     expect(runnerFailureOf(new TimeoutError()).kind).toBe('timeout');
     expect(runnerFailureOf(new Error('boom')).kind).toBe('error');

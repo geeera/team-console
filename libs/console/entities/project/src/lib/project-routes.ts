@@ -30,3 +30,8 @@ export function projectEnvironmentGuideRouteOf(
 ): readonly string[] {
   return [...projectEnvironmentRouteOf(slug), environment, name];
 }
+
+/** Router commands for a project's GitHub Actions setup (#759): a sibling of its environment screen. */
+export function projectActionsRouteOf(slug: string): readonly string[] {
+  return [...projectSetupRouteOf(slug), 'actions'];
+}

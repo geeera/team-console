@@ -4,7 +4,7 @@ import {
   canOpenPrOf,
   firstMissingStepOf,
   itemOf,
-  orderedItemIdsOf,
+  notReadyItemKeysOf,
   stepStateOf,
   subCheckToneOf,
   workflowStepOf,
@@ -72,8 +72,13 @@ describe('workflowStepOf', () => {
   });
 });
 
-describe('orderedItemIdsOf', () => {
-  it('orders refusal items as the page does, unknown ids last', () => {
-    expect(orderedItemIdsOf(['workflow', 'future-item', 'secret'])).toEqual(['secret', 'workflow', 'future-item']);
+describe('notReadyItemKeysOf', () => {
+  it('words refusal items in the page order, unknown ids once at the end', () => {
+    expect(notReadyItemKeysOf(['workflow', 'future-item', 'secret', 'other'])).toEqual([
+      'actions.item.secret',
+      'actions.item.workflow',
+      'actions.item.unknown',
+    ]);
+    expect(notReadyItemKeysOf([])).toEqual([]);
   });
 });

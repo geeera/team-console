@@ -140,9 +140,12 @@ export function canOpenPrOf(setup: ActionsSetupDto): boolean {
   return itemOf(setup, 'app-permissions').status === 'ok';
 }
 
-/** The items' ids in the page's order, for wording an `actions-not-ready` refusal; unknown ids are kept last. */
-export function orderedItemIdsOf(ids: readonly string[]): string[] {
-  const known = ACTIONS_SETUP_ITEMS.filter((id) => ids.includes(id));
-  const unknown = ids.filter((id) => !(ACTIONS_SETUP_ITEMS as readonly string[]).includes(id));
-  return [...known, ...unknown];
+/**
+ * The `actions.item.*` keys that word an `actions-not-ready` refusal (UX spec §5), in the page's order; ids this
+ * console does not know read as one «настройка репозитория» at the end.
+ */
+export function notReadyItemKeysOf(ids: readonly string[]): string[] {
+  const known = ACTIONS_SETUP_ITEMS.filter((id) => ids.includes(id)).map((id) => `actions.item.${id}`);
+  const hasUnknown = ids.some((id) => !(ACTIONS_SETUP_ITEMS as readonly string[]).includes(id));
+  return hasUnknown ? [...known, 'actions.item.unknown'] : known;
 }
