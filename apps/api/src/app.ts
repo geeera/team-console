@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { createWorkerApp, markAssetResponse, problem, type LogSink, type WorkerHonoEnv } from '@worker/core';
+import { accountReadLimitMiddleware } from './auth/account-read-limit.middleware';
 import { authMiddleware } from './auth/auth.middleware';
 import { csrfMiddleware } from './auth/csrf.middleware';
 import { routeScopeMiddleware } from './auth/route-scope';
@@ -99,6 +100,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   // further than the tracker's matrix routes (#444). Then the deny-by-default scope inventory (#466,
   // `route-scope.spec.ts`): a route it does not list is unreachable.
   app.use('/api/*', authMiddleware, jobScopeMiddleware, routeScopeMiddleware, csrfMiddleware);
+  // Per-identity reads of the account routes (#879); after the inventory, so an unscoped path is never counted.
+  // Hono's '/accounts/*' also matches '/accounts' itself.
+  app.use('/api/v1/accounts/*', accountReadLimitMiddleware);
 
   const v1 = new Hono<WorkerHonoEnv<ApiEnv>>();
   v1.route('/healthz', healthzRoutes);
