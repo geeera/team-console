@@ -57,9 +57,9 @@ export type EnrollerClaim = 'claimed' | 'already-set' | 'not-sole-owner' | 'revo
 
 /**
  * The claimer is the account's sole owner (#827, owner decision (a)), judged on the row aliased `runner` with the
- * claimer's user id bound as `userId`: at most one owner row (D3's own one-owner term), and none of another user. A
- * claimer with no user id (the Access owner before the link, the local bypass) owns the account by its door, so only
- * the count applies to it.
+ * claimer's user id bound as `userId`: at most one owner row (D3's own one-owner term), and none of another user. NULL
+ * is the local bypass alone, which owns the account by its door, so only the count applies to it; the Access owner
+ * before the link is refused by the route (#837), since a door owner beside one owner row would pass the count.
  */
 function claimerIsSoleOwnerSql(runner: string, userId: string): string {
   return `(${runnerAccountHasOneOwnerSql(runner)}
@@ -86,7 +86,11 @@ export interface RunnerRecord {
   /** #775: `all` serves every active project of the account (D3 applied); `selected` the list below. */
   readonly projectScope: RunnerProjectScope;
   readonly allowedProjects: readonly string[];
-  /** The audit actor who created the enrolment code (D3); `null` before 0036 and on OIDC identities. */
+  /**
+   * The audit actor who created the enrolment code (D3); `null` before 0036 and on OIDC identities. Kept once written
+   * (0036 trigger), with one exception (#838, migration 0042): `access-owner`, the Access owner before the GitHub link,
+   * becomes the linked user's id when the link is written — by a trigger on `users.access_subject`, never by this repo.
+   */
   readonly enrolledBy: string | null;
   readonly version: string;
   readonly pinnedVersion: string | null;
@@ -623,6 +627,11 @@ export class RunnersRepo {
    * so D3 and #795 treat it as theirs once a second owner joins. Only NULL→`by` (the 0036 trigger refuses any change of
    * a recorded enroller). The sole-owner rule is a term of the UPDATE itself, so an owner joining between the route's
    * read and this write leaves the row untouched; the read before it in the batch only words the refusal.
+   *
+   * `userId` NULL is the local bypass alone; the route refuses the Access owner before the link (#837), so a claim
+   * never writes `access-owner` here. Rows that hold it from before are handed to the user when the link is written
+   * (#838, migration 0042: a trigger on `users.access_subject`, audited `auth.access-actor-adopted`, the one exception
+   * to the 0036 trigger). A future link route writes the link first and writes no such audit row of its own.
    */
   async claimEnroller(
     accountId: string,
@@ -673,7 +682,11 @@ export class RunnersRepo {
     if (row.fixed === 1) {
       return 'fixed';
     }
-    return 'not-sole-owner';
+    if (row.sole !== 1) {
+      return 'not-sole-owner';
+    }
+    // The batch is one transaction: a row that passed every term in the read was not left untouched by the write.
+    throw new Error('claimEnroller: the claim wrote nothing, yet the row passes every term');
   }
 
   /** The account's runners whose enroller the claimer may claim now (#827), by the write's own terms. */

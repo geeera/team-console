@@ -1,7 +1,14 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type EnrolmentCodeDto, type RunnerDto, type RunnerListDto } from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
-import { accessEnv, uniqueTeamDomain } from '../testing/access-kit';
+import {
+  accessEnv,
+  createSigningKey,
+  fetchApi,
+  signAccessToken,
+  stubJwksServer,
+  uniqueTeamDomain,
+} from '../testing/access-kit';
 import { sha256Hex } from '@worker/core';
 import {
   createEnrolmentCode,
@@ -618,6 +625,62 @@ describe('claim a runner as its enroller', () => {
     const statuses = (await Promise.all([claim(owner, runnerId), claim(owner, runnerId)])).map((response) => response.status);
     expect(statuses.sort()).toEqual([200, 409]);
     expect(await claimAudits(runnerId)).toHaveLength(1);
+  });
+
+  // #840: the 422 a hosted runner answers, at the HTTP level.
+  it('refuses a hosted runner with 422 runner-enroller-fixed, naming the field', async () => {
+    const owner = await seedSessionUser('owner');
+    const key = await generateRunnerKey();
+    const hostedId = '01M6YSNJ00000000000000H840';
+    await env.DB.prepare(
+      `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, hosted, isolation, allowed_projects, version, enrolled_at)
+       VALUES (?1, ?2, 'hosted', ?3, '{"local":false,"maxConcurrency":1,"accessSources":["api_key"]}', 1, 'container', '[]', '0.3.0', ?4)`,
+    )
+      .bind(hostedId, owner.account.id, JSON.stringify(key.publicKeyJwk), new Date().toISOString())
+      .run();
+    const refused = await claim(owner, hostedId);
+    expect(refused.status).toBe(422);
+    expect(await slugOf(refused)).toBe('runner-enroller-fixed');
+    const { status, title, field } = (await refused.json()) as Record<string, unknown>;
+    expect({ status, title, field }).toEqual({ status: 422, title: 'Invalid request', field: 'runner' });
+    expect(await enrollerOf(hostedId)).toBeNull();
+    expect(await claimAudits(hostedId)).toEqual([]);
+  });
+
+  // #837 (option A): the Access owner before the GitHub link has no owner row, so beside one other owner's row the count
+  // alone would make them "sole". They are offered nothing and refused; and their shared audit name is nobody's "you".
+  it('refuses the Access owner before the link (403 runner-enroller-unlinked) and never says enrolled by you', async () => {
+    const jwks = stubJwksServer();
+    try {
+      const teamDomain = uniqueTeamDomain();
+      const signing = await createSigningKey();
+      jwks.set(teamDomain, { keys: [signing.publicJwk] });
+      // A subject no user row is linked to.
+      const token = await signAccessToken(signing, teamDomain, { subject: `unlinked-${crypto.randomUUID()}` });
+      const bindings = accessEnv(teamDomain);
+      const asAccess = (method: 'GET' | 'POST', path: string) =>
+        fetchApi(path, bindings, {
+          method,
+          headers: { 'Cf-Access-Jwt-Assertion': token, ...(method === 'POST' ? { 'Sec-Fetch-Site': 'same-origin' } : {}) },
+        });
+      const legacy = await legacyRunner(OWNER_ACCOUNT_ID);
+      const viaDoor = await legacyRunner(OWNER_ACCOUNT_ID);
+      await env.DB.prepare(`UPDATE runners SET enrolled_by = 'access-owner' WHERE id = ?1`).bind(viaDoor).run();
+
+      const listed = await asAccess('GET', runnersPath(OWNER_ACCOUNT_ID));
+      expect(listed.status).toBe(200);
+      const runners = ((await listed.json()) as RunnerListDto).runners;
+      expect(runners.find((runner) => runner.id === legacy)?.enroller).toBe('unrecorded');
+      expect(runners.find((runner) => runner.id === viaDoor)?.enrolledByYou).toBe(false);
+
+      const refused = await asAccess('POST', `${runnersPath(OWNER_ACCOUNT_ID)}/${legacy}/claim-enroller`);
+      expect(refused.status).toBe(403);
+      expect(await slugOf(refused)).toBe('runner-enroller-unlinked');
+      expect(await enrollerOf(legacy)).toBeNull();
+      expect(await claimAudits(legacy)).toEqual([]);
+    } finally {
+      vi.restoreAllMocks();
+    }
   });
 });
 
