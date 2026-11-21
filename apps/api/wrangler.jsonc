@@ -48,6 +48,9 @@
         // #634 PR 5 (S1): the release's SHA256SUMS text, set with RUNNER_RELEASE_VERSION; deploy.yml checks it against
         // the attested file before deploying. Empty with an empty version: no install one-liner is offered.
         "RUNNER_RELEASE_SHA256SUMS": "",
+        // #634 PR 7 (R-LNX): the runner image digest (sha256:…) of RUNNER_RELEASE_VERSION; deploy.yml verifies its attestation.
+        // Empty: the console offers no Linux command.
+        "RUNNER_RELEASE_IMAGE_DIGEST": "",
         // #759 kill switch of the Actions setup's write path: on for dev (owner decision 1 on #759), off on stage and
         // production until the write route passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "true",
@@ -84,6 +87,9 @@
         "RUNNER_RELEASE_VERSION": "",
         "RUNNER_MINIMUM_VERSION": "",
         "RUNNER_RELEASE_SHA256SUMS": "",
+        // #634 PR 7 (R-LNX): the runner image digest (sha256:…) of RUNNER_RELEASE_VERSION; deploy.yml verifies its attestation.
+        // Empty: the console offers no Linux command.
+        "RUNNER_RELEASE_IMAGE_DIGEST": "",
         // #759 kill switch: stays "false" until the write route (PR 4 of #759) passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "false",
         // #759: the origin baked into the rendered runner workflow; must equal the origin requests arrive on.
@@ -116,6 +122,9 @@
         "RUNNER_RELEASE_VERSION": "",
         "RUNNER_MINIMUM_VERSION": "",
         "RUNNER_RELEASE_SHA256SUMS": "",
+        // #634 PR 7 (R-LNX): the runner image digest (sha256:…) of RUNNER_RELEASE_VERSION; deploy.yml verifies its attestation.
+        // Empty: the console offers no Linux command.
+        "RUNNER_RELEASE_IMAGE_DIGEST": "",
         // #759 kill switch: stays "false" until the write route (PR 4 of #759) passes its security review.
         "ALLOW_ACTIONS_SETUP_WRITE": "false",
         // #759: the workers.dev origin, deterministic from the name above; a custom domain changes it here.

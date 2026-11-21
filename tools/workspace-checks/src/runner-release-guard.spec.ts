@@ -2,7 +2,7 @@ import { workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { loadDeployGuard, loadReleaseIdentity } from './support/release-tools';
+import { loadDeployGuard, loadLinuxLayout, loadReleaseIdentity } from './support/release-tools';
 
 /**
  * S1 of the #634 security note (threat model C11 R-ONE-2): deploy.yml checks `RUNNER_RELEASE_SHA256SUMS` against the
@@ -46,10 +46,22 @@ describe('the deploy-time runner release check', () => {
     expect(deploy.jobs['deploy']?.needs).toBe('guard');
   });
 
-  it('is the only source of the two vars: no deploy step overrides them with --var', () => {
+  it('is the only source of the three vars: no deploy step overrides them with --var', () => {
     const commands = Object.values(deploy.jobs).flatMap((job) => (job.steps ?? []).map((step) => JSON.stringify(step.with ?? {})));
     for (const command of commands) {
-      expect(command).not.toMatch(/RUNNER_RELEASE_(VERSION|SHA256SUMS)/);
+      expect(command).not.toMatch(/RUNNER_RELEASE_(VERSION|SHA256SUMS|IMAGE_DIGEST)/);
     }
+  });
+
+  it('verifies the image the release workflow publishes, by digest (#634 PR 7, R-LNX)', async () => {
+    const guard = await loadDeployGuard();
+    const linux = await loadLinuxLayout();
+    const release = parse(readFileSync(join(workspaceRoot, '.github/workflows/release-runner.yml'), 'utf8')) as {
+      readonly env: Readonly<Record<string, string>>;
+    };
+    expect(guard.RUNNER_IMAGE).toBe(linux.RUNNER_IMAGE);
+    expect(release.env['IMAGE']).toBe(linux.RUNNER_IMAGE);
+    const digest = `sha256:${'0'.repeat(64)}`;
+    expect(guard.imageSubjectOf(digest)).toBe(`oci://${linux.RUNNER_IMAGE}@${digest}`);
   });
 });

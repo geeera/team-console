@@ -5,6 +5,9 @@
 // all a fresh Mac can check. So before the Worker ships, the release's own `SHA256SUMS` is downloaded from the pinned
 // repository, `gh attestation verify` proves the pinned release workflow built it from that version's tag, and the
 // var must equal it byte for byte. Whoever edits the vars can then only break the deploy, never name another tarball.
+// The Linux one command (#634 PR 7, R-LNX) pulls the runner image by `RUNNER_RELEASE_IMAGE_DIGEST`: the same
+// `gh attestation verify`, against `oci://<image>@<digest>`, proves the release workflow built that digest from the
+// version's tag, so an edited digest cannot name another image either.
 //
 //   node check-runner-release.js <env> <wrangler.jsonc>              the full check (deploy.yml's guard job)
 //   node check-runner-release.js --format-only <env> <wrangler.jsonc> shape only, no network (security.yml, per PR)
@@ -29,6 +32,14 @@ const RELEASE_PREDICATE_TYPE = 'https://slsa.dev/provenance/v1';
 const PLATFORMS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'];
 const RELEASE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 const SUMS_LINE = /^[0-9a-f]{64} {2}(\S+)$/;
+// `RUNNER_IMAGE` of libs/shared/contracts/src/lib/runner-linux.ts and `IMAGE` of release-runner.yml.
+const RUNNER_IMAGE = `ghcr.io/${RELEASE_REPOSITORY}-runner`;
+const IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/;
+
+/** The image `gh attestation verify` checks: by digest, never by tag. */
+function imageSubjectOf(digest) {
+  return `oci://${RUNNER_IMAGE}@${digest}`;
+}
 
 function attestationArgs(asset, version) {
   return [
@@ -60,7 +71,7 @@ function tarballNamesOf(version) {
   return PLATFORMS.map((platform) => `team-console-runner-${version}-${platform}.tar.gz`).sort();
 }
 
-/** The two vars of `envName`, as strings; a missing one is an error, an empty one is "unset". */
+/** The three vars of `envName`, as strings; a missing one is an error, an empty one is "unset". */
 function releaseVarsOf(source, envName) {
   const vars = parseJsonc(source)?.env?.[envName]?.vars;
   if (typeof vars !== 'object' || vars === null) {
@@ -68,15 +79,27 @@ function releaseVarsOf(source, envName) {
   }
   const version = vars.RUNNER_RELEASE_VERSION;
   const sums = vars.RUNNER_RELEASE_SHA256SUMS;
-  if (typeof version !== 'string' || typeof sums !== 'string') {
-    throw new Error(`'env.${envName}.vars' must set RUNNER_RELEASE_VERSION and RUNNER_RELEASE_SHA256SUMS (both may be "")`);
+  const imageDigest = vars.RUNNER_RELEASE_IMAGE_DIGEST;
+  if (typeof version !== 'string' || typeof sums !== 'string' || typeof imageDigest !== 'string') {
+    throw new Error(
+      `'env.${envName}.vars' must set RUNNER_RELEASE_VERSION, RUNNER_RELEASE_SHA256SUMS and RUNNER_RELEASE_IMAGE_DIGEST (each may be "")`,
+    );
   }
-  return { version, sums };
+  return { version, sums, imageDigest };
 }
 
-/** `null` when no release is named; otherwise the version, after the shape of both values is checked. */
-function namedRelease({ version, sums }) {
+/**
+ * `null` when no release is named; otherwise the version, after the shape of every value is checked. The image digest
+ * is optional with a release (the Linux command is then not offered) and never set without one.
+ */
+function namedRelease({ version, sums, imageDigest = '' }) {
+  if (imageDigest !== '' && !IMAGE_DIGEST.test(imageDigest)) {
+    throw new Error(`RUNNER_RELEASE_IMAGE_DIGEST ${JSON.stringify(imageDigest)} must be sha256:<64 lower-case hex>, the digest the release notes name`);
+  }
   if (version === '' && sums === '') {
+    if (imageDigest !== '') {
+      throw new Error('RUNNER_RELEASE_IMAGE_DIGEST is set but RUNNER_RELEASE_VERSION is empty: clear it or name its release');
+    }
     return null;
   }
   if (version === '') {
@@ -120,7 +143,22 @@ function verifyAgainstRelease(version, sums, gh = execFileSync) {
   }
 }
 
-module.exports = { attestationArgs, downloadArgs, namedRelease, releaseVarsOf, tarballNamesOf, verifyAgainstRelease };
+/** Has gh verify the image digest's provenance with the same identity: built by the pinned workflow from `v<version>`. */
+function verifyImage(version, imageDigest, gh = execFileSync) {
+  gh('gh', attestationArgs(imageSubjectOf(imageDigest), version), { stdio: 'inherit' });
+}
+
+module.exports = {
+  RUNNER_IMAGE,
+  attestationArgs,
+  downloadArgs,
+  imageSubjectOf,
+  namedRelease,
+  releaseVarsOf,
+  tarballNamesOf,
+  verifyAgainstRelease,
+  verifyImage,
+};
 
 if (require.main === module) {
   const args = process.argv.slice(2);
@@ -139,6 +177,12 @@ if (require.main === module) {
     } else {
       verifyAgainstRelease(version, vars.sums);
       console.log(`::notice::${envName}: RUNNER_RELEASE_SHA256SUMS is the attested SHA256SUMS of v${version}`);
+      if (vars.imageDigest === '') {
+        console.log(`::notice::${envName}: no runner image digest named; the console offers no Linux command`);
+      } else {
+        verifyImage(version, vars.imageDigest);
+        console.log(`::notice::${envName}: RUNNER_RELEASE_IMAGE_DIGEST is the attested runner image of v${version}`);
+      }
     }
   } catch (error) {
     console.error(`::error::${error instanceof Error ? error.message : String(error)}`);

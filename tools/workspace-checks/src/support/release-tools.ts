@@ -12,6 +12,8 @@ export interface DeployGuard {
   attestationArgs(asset: string, version: string): string[];
   downloadArgs(version: string, dir: string): string[];
   tarballNamesOf(version: string): string[];
+  readonly RUNNER_IMAGE: string;
+  imageSubjectOf(digest: string): string;
 }
 
 export interface NodeRuntime {
@@ -34,3 +36,9 @@ const load = async <T>(path: string): Promise<T> => (await import(pathToFileURL(
 export const loadDeployGuard = (): Promise<DeployGuard> => load('tools/deploy-guard/check-runner-release.js');
 export const loadNodeRuntime = (): Promise<NodeRuntime> => load('tools/release/node-runtime.mjs');
 export const loadReleaseIdentity = (): Promise<ReleaseIdentity> => load('libs/shared/contracts/src/lib/runner-release.ts');
+
+export interface LinuxLayout {
+  readonly RUNNER_IMAGE: string;
+}
+
+export const loadLinuxLayout = (): Promise<LinuxLayout> => load('libs/shared/contracts/src/lib/runner-linux.ts');
