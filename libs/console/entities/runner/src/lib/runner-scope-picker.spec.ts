@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { RunnerProjectScope } from '@shared/contracts';
@@ -12,6 +12,7 @@ import { RunnerScopePicker } from './runner-scope-picker';
     [projects]="projects"
     [(scope)]="scope"
     [(selected)]="selected"
+    [ownerCount]="ownerCount()"
   />`,
 })
 class Host {
@@ -21,6 +22,7 @@ class Host {
   ];
   scope: RunnerProjectScope = 'all';
   selected: readonly string[] = ['team-console'];
+  readonly ownerCount = signal<number | null>(null);
 }
 
 describe('RunnerScopePicker (#775)', () => {
@@ -45,7 +47,7 @@ describe('RunnerScopePicker (#775)', () => {
     expect(radio('all').checked).toBe(true);
     expect(radio('all').name).toBe(radio('selected').name);
     expect(root.textContent).toContain('Все проекты аккаунта');
-    expect(root.textContent).toContain('проекты других владельцев добавьте выбором');
+    expect(root.textContent).toContain('Все текущие и будущие проекты аккаунта');
     expect(root.textContent).toContain('Только выбранные');
     expect(root.querySelector('tc-runner-projects-picker')).toBeNull();
 
@@ -66,8 +68,24 @@ describe('RunnerScopePicker (#775)', () => {
   it('describes each option by its hint for assistive technology', async () => {
     const { root, radio } = await render();
     for (const scope of ['all', 'selected'] as const) {
-      const hintId = radio(scope).getAttribute('aria-describedby') ?? '';
-      expect(root.querySelector(`#${hintId}`)?.textContent?.trim().length).toBeGreaterThan(0);
+      for (const hintId of (radio(scope).getAttribute('aria-describedby') ?? '').split(' ')) {
+        expect(root.querySelector(`#${hintId}`)?.textContent?.trim().length).toBeGreaterThan(0);
+      }
     }
+  });
+
+  it('states D3 unless the account is known to have one owner (N6, decision 5)', async () => {
+    const { root, fixture, radio } = await render();
+    const owners = (): Element | null => root.querySelector('[data-testid="runner-scope-owners"]');
+    expect(owners()?.textContent).toContain('В аккаунте несколько владельцев');
+    expect(radio('all').getAttribute('aria-describedby')).toContain(owners()?.id ?? 'missing');
+
+    fixture.componentInstance.ownerCount.set(1);
+    await fixture.whenStable();
+    expect(owners()).toBeNull();
+
+    fixture.componentInstance.ownerCount.set(2);
+    await fixture.whenStable();
+    expect(owners()).not.toBeNull();
   });
 });

@@ -178,7 +178,7 @@ describe('RunnersApi', () => {
       'POST',
       { name: 'Mac', projectScope: 'all', allowedProjects: [], isolation: 'user' },
     ]);
-    const dto = { intentId: ENROLMENT_INTENT_FIXTURE_ID, expiresAt: '2026-11-11T10:10:00.000Z', command: 'x' };
+    const dto = { intentId: ENROLMENT_INTENT_FIXTURE_ID, expiresAt: '2026-11-11T10:10:00.000Z', command: 'x', installCommands: null };
     create.flush(dto, { status: 201, statusText: 'Created' });
     expect(await created).toEqual({ ok: true, value: dto });
 

@@ -9,6 +9,7 @@ import { BREAKPOINTS } from '../../tokens/breakpoints';
 import { ConfirmDialog, ConfirmDialogData, ConfirmOptions } from './confirm-dialog';
 import { OpenSheets } from './open-sheets';
 import { SHEET_FRAME, SheetContainer, SheetFrame } from './sheet-container';
+import { SheetCloseGuard } from './sheet-close-guard';
 import { SheetFooterSlot } from './sheet-footer';
 import { SheetScrollLocks, SheetScrollStrategy } from './sheet-scroll-lock';
 
@@ -85,6 +86,7 @@ export class Sheet {
     const position = this.overlay.position().global().centerHorizontally();
     // One footer slot per sheet, shared by the frame (which renders it) and the content (which fills it).
     const footer = new SheetFooterSlot();
+    const closeGuard = new SheetCloseGuard();
     const dialogPanel = isFull
       ? ['tc-dialog-panel', 'tc-dialog-panel--full']
       : options.width === 'wide' || options.width === 'task'
@@ -105,12 +107,16 @@ export class Sheet {
       panelClass: presentation === 'sheet' ? sheetPanel : dialogPanel,
       positionStrategy: presentation === 'sheet' ? position.bottom('0') : position.centerVertically(),
       scrollStrategy: new SheetScrollStrategy(this.scrollLocks),
-      providers: [{ provide: SheetFooterSlot, useValue: footer }],
+      providers: [
+        { provide: SheetFooterSlot, useValue: footer },
+        { provide: SheetCloseGuard, useValue: closeGuard },
+      ],
       container: {
         type: SheetContainer,
         providers: () => [
           { provide: SHEET_FRAME, useValue: frame },
           { provide: SheetFooterSlot, useValue: footer },
+          { provide: SheetCloseGuard, useValue: closeGuard },
         ],
       },
     });
