@@ -418,6 +418,76 @@ describe('install --backend user: the node the daemon runs', () => {
   });
 });
 
+/** #884: `releases/` and the release `current` names are root's alone too, or whoever owns them swaps every link. */
+describe('install --backend user: the layout update leaves', () => {
+  const RELEASES = `${PREFIX}/releases`;
+  const CURRENT = `${PREFIX}/current`;
+  const RELEASE = `${RELEASES}/0.2.0`;
+  const ROOT_LINK: PathFacts = { uid: 0, mode: 0o755, kind: 'symlink' };
+  const layout = (
+    stats: Record<string, PathFacts | null> = {},
+    realpaths: Record<string, string | null> = {},
+  ): FakeHost =>
+    fakeHost({
+      stats: { [RELEASES]: ROOT_DIR, [CURRENT]: ROOT_LINK, [RELEASE]: ROOT_DIR, ...stats },
+      realpaths: { [CURRENT]: RELEASE, ...realpaths },
+    });
+
+  it('accepts root-owned releases/ and a root-owned current naming a root-owned release', async () => {
+    await expect(planInstall(userOptions(), layout())).resolves.toBeDefined();
+  });
+
+  it('accepts a flat prefix with neither', async () => {
+    await expect(planInstall(userOptions(), fakeHost())).resolves.toBeDefined();
+  });
+
+  it.each([
+    ['owned by the login user', { uid: 501, mode: 0o755, kind: 'directory' }],
+    ['writable by the group', { uid: 0, mode: 0o775, kind: 'directory' }],
+    ['not a directory', { uid: 0, mode: 0o755, kind: 'symlink' }],
+  ] as const)('refuses releases/ %s', async (_, facts) => {
+    await expect(planInstall(userOptions(), layout({ [RELEASES]: facts }))).rejects.toThrow(
+      `${RELEASES} must exist, be root-owned and writable by root only`,
+    );
+  });
+
+  it.each([
+    ['owned by the login user', { uid: 501, mode: 0o755, kind: 'symlink' }],
+    ['a directory rather than a link', ROOT_DIR],
+  ] as const)('refuses a current %s', async (_, facts) => {
+    await expect(planInstall(userOptions(), layout({ [CURRENT]: facts }))).rejects.toThrow(
+      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
+    );
+  });
+
+  it('refuses a current that leads nowhere', async () => {
+    await expect(planInstall(userOptions(), layout({}, { [CURRENT]: null }))).rejects.toThrow(
+      `${CURRENT} must exist, be root-owned`,
+    );
+  });
+
+  it.each([
+    ['owned by the login user', { uid: 501, mode: 0o755, kind: 'directory' }],
+    ['writable by others', { uid: 0, mode: 0o757, kind: 'directory' }],
+    ['a file', ROOT_FILE],
+  ] as const)('refuses a release current names that is %s', async (_, facts) => {
+    await expect(planInstall(userOptions(), layout({ [RELEASE]: facts }))).rejects.toThrow(
+      `${RELEASE} must exist, be root-owned and writable by root only`,
+    );
+  });
+
+  it('refuses a release current names in a directory the login user owns', async () => {
+    const elsewhere = '/Users/kirill/releases/0.2.0';
+    const host = layout(
+      { [elsewhere]: ROOT_DIR, '/Users/kirill/releases': { uid: 501, mode: 0o755, kind: 'directory' } },
+      { [CURRENT]: elsewhere },
+    );
+    await expect(planInstall(userOptions(), host)).rejects.toThrow(
+      '/Users/kirill/releases must exist, be root-owned and writable by root only',
+    );
+  });
+});
+
 /** #772: the node the container backend's service runs survives `brew upgrade node`. */
 describe('install --backend container: the node the service runs', () => {
   const CELLAR = '/home/linuxbrew/.linuxbrew/Cellar/node/26.0.0/bin/node';

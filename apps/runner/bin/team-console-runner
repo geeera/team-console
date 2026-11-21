@@ -5,7 +5,9 @@
 # Which node: `<prefix>/node`, the one the release ships (#634 PR 5), else `node` on PATH, else Homebrew's (sudo's
 # secure_path leaves `/opt/homebrew/bin` out). As root (#778, S2 of the #634 security note) only `<prefix>/node` runs,
 # and only when root alone can change it: the file and every directory up to `/` root-owned and not writable by group
-# or others, links resolved first. No other node is a fallback there, root-owned or not.
+# or others, links resolved first. No other node is a fallback there, root-owned or not. The same holds for the bundle
+# and the prefix (#884), on macOS no ACL entry may let anyone but root write any of them, and every NODE_* variable is
+# dropped before the exec, so the caller's environment cannot load code into root's node.
 set -eu
 prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 
@@ -29,9 +31,11 @@ physical() {
   printf '%s\n' "$p"
 }
 
+os=$(/usr/bin/uname -s)
+
 # Owner uid and permission bits of $1 (never following a link), as "uid octal-mode".
 owner_mode() {
-  case $(/usr/bin/uname -s) in
+  case $os in
     Darwin) /usr/bin/stat -f '%u %Lp' -- "$1" ;;
     *) /usr/bin/stat -c '%u %a' -- "$1" ;;
   esac
@@ -46,9 +50,29 @@ root_only() {
     mode=${facts#* }
     [ "$uid" = 0 ] || return 1
     [ $((0$mode & 022)) -eq 0 ] || return 1
+    if [ "$os" = Darwin ]; then
+      acl_root_only "$p" || return 1
+    fi
     [ "$p" = / ] && return 0
     p=$(dirname -- "$p")
   done
+}
+
+# Succeeds when no ACL entry on $1 (never following a link) lets anyone but root write, append, add, delete or take it
+# over: the mode bits say nothing about those, and `chmod +a` adds them without changing the mode.
+acl_root_only() {
+  listing=$(/bin/ls -lde -- "$1" 2>/dev/null) || return 1
+  # The first line is the entry itself, each further one an ACE: " 0: user:alice allow write,append".
+  aces=${listing#*
+}
+  [ "$aces" != "$listing" ] || return 0
+  for ace in $aces; do
+    case $ace in
+      *[0-9]': user:root '*) ;;
+      *' allow '*write* | *' allow '*append* | *' allow '*add_* | *' allow '*delete* | *' allow '*chown*) return 1 ;;
+    esac
+  done
+  return 0
 }
 
 candidates() {
@@ -62,16 +86,33 @@ node=
 set -f
 IFS='
 '
+bundle=$prefix/team-console-runner.mjs
 if [ "$(/usr/bin/id -u)" = 0 ]; then
-  if real=$(physical "$prefix/node") && root_only "$real"; then
-    # The checked physical path runs, so no link can be repointed between the check and the exec.
+  if real=$(physical "$prefix/node") && root_only "$real" && main=$(physical "$bundle") && root_only "$main" \
+    && root_only "$prefix"; then
+    # The checked physical paths run, so no link can be repointed between the check and the exec.
     node=$real
+    bundle=$main
   else
     echo "team-console-runner: as root only the release's own node runs, and only when root alone can change it:" >&2
-    echo "  $prefix/node and every directory up to / root-owned, writable by root only. Extract the release with sudo into" >&2
-    echo "  a root-owned directory and run it from there (docs/runbooks/runner.md › user backend)." >&2
+    echo "  $prefix/node, $prefix/team-console-runner.mjs and every directory up to / root-owned, writable by root only" >&2
+    echo "  (on macOS, no ACL entry that lets anyone else write). Extract the release with sudo into a root-owned" >&2
+    echo "  directory and run it from there (docs/runbooks/runner.md › user backend)." >&2
     exit 126
   fi
+  # NODE_OPTIONS (--require, --import), NODE_PATH and their kin load code or change trust; root's node needs none.
+  for line in $(export -p); do
+    case $line in
+      'export NODE_'*) name=${line#export } ;;
+      'declare -x NODE_'*) name=${line#declare -x } ;;
+      *) continue ;;
+    esac
+    name=${name%%=*}
+    case $name in
+      *[!A-Za-z0-9_]*) continue ;;
+    esac
+    unset "$name"
+  done
 else
   for candidate in $(candidates); do
     if [ -f "$candidate" ] && [ -x "$candidate" ]; then
@@ -86,4 +127,4 @@ else
 fi
 # --disable-sigusr1: a process of the same uid (on actions-ephemeral and none, the job) must not be able to open the
 # inspector with `kill -USR1` and evaluate code inside the runner, which holds its key and the job's tokens.
-exec "$node" --disable-sigusr1 "$prefix/team-console-runner.mjs" "$@"
+exec "$node" --disable-sigusr1 "$bundle" "$@"
