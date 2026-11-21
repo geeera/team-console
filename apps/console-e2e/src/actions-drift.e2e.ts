@@ -20,6 +20,16 @@ async function storeJudgement(workerIndex: number, dispatch: 'pull' | 'actions',
   );
 }
 
+async function displayNameOf(stack: Parameters<typeof apiClient>[0]): Promise<string> {
+  const api = await apiClient(stack);
+  try {
+    const projects = (await (await api.get('/api/v1/projects')).json()) as { slug: string; displayName: string }[];
+    return projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG;
+  } finally {
+    await api.dispose();
+  }
+}
+
 test.beforeEach(async ({ stack }, testInfo) => {
   requireLocalStack(stack);
   await seed(stack, [`geeera/${SLUG}`]);
@@ -31,14 +41,7 @@ test('a drifted workflow is one row on Needs you, with when it was checked, to t
   stack,
 }, testInfo) => {
   await storeJudgement(testInfo.workerIndex, 'actions', 'modified');
-  const api = await apiClient(stack);
-  let name = SLUG;
-  try {
-    const projects = (await (await api.get('/api/v1/projects')).json()) as { slug: string; displayName: string }[];
-    name = projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG;
-  } finally {
-    await api.dispose();
-  }
+  const name = await displayNameOf(stack);
 
   await page.goto('/needs-you');
   const row = page.getByTestId('actions-drift');
