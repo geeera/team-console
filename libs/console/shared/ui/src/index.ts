@@ -37,6 +37,7 @@ export * from './lib/sheet/sheet';
 export * from './lib/shortcut/letter-shortcut';
 export * from './lib/sheet/open-sheets';
 export * from './lib/sheet/sheet-footer.public';
+export * from './lib/sheet/sheet-close-guard';
 export * from './lib/sheet/sheet-scroll-lock.public';
 export * from './lib/sheet/confirm-dialog.public';
 export * from './lib/sheet/dialog.public';

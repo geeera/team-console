@@ -113,3 +113,8 @@ export function projectAccountRoleOf(
   }
   return role === 'owner' ? 'owner' : 'member';
 }
+
+/** A runner's name on one line, as the Worker stores it (`checkCreateEnrolmentCodeInput` trims). */
+export function runnerNameOf(value: string): string {
+  return value.replace(/\s+/gu, ' ').trim();
+}

@@ -5,7 +5,7 @@ import { DIALOG_DATA, DialogRef, Sheet } from '@console/shared/ui';
 import { OWNER_ACCOUNT_ID, type CreateEnrolmentCodeInput, type EnrolmentCodeDto } from '@shared/contracts';
 import { of } from 'rxjs';
 import { EnrolRunner } from './enrol-runner';
-import { EnrolRunnerDialog, runnerNameOf, type EnrolRunnerData } from './enrol-runner-dialog';
+import { EnrolRunnerDialog, type EnrolRunnerData } from './enrol-runner-dialog';
 
 const CODE = `tce_${'Ab-_'.repeat(10)}xyz`;
 const ISSUED: EnrolmentCodeDto = {
@@ -19,7 +19,10 @@ const ISSUED: EnrolmentCodeDto = {
 };
 
 describe('EnrolRunnerDialog (#464)', () => {
-  async function render(answer: () => RunnerResult<EnrolmentCodeDto> = () => ({ ok: true, value: ISSUED })) {
+  async function render(
+    answer: () => RunnerResult<EnrolmentCodeDto> = () => ({ ok: true, value: ISSUED }),
+    prefill?: NonNullable<EnrolRunnerData['prefill']>,
+  ) {
     const calls: { accountId: string; input: CreateEnrolmentCodeInput }[] = [];
     const close = vi.fn();
     const ref = { close, disableClose: false };
@@ -37,6 +40,7 @@ describe('EnrolRunnerDialog (#464)', () => {
               { slug: 'team-console', displayName: 'Team Console' },
               { slug: 'storify', displayName: 'Storify' },
             ],
+            ...(prefill === undefined ? {} : { prefill }),
           } satisfies EnrolRunnerData,
         },
         {
@@ -93,6 +97,18 @@ describe('EnrolRunnerDialog (#464)', () => {
     return { root, find, type, pick, tick, submit, calls, close, ref, hold, resume };
   }
 
+
+  it('opens filled in with what the add-runner wizard asked, and sends exactly that (#634 decision 1)', async () => {
+    const { find, calls, submit } = await render(undefined, {
+      name: 'VPS',
+      projectScope: 'selected',
+      allowedProjects: ['storify'],
+    });
+    expect((find('enrol-name') as HTMLInputElement).value).toBe('VPS');
+    expect((find('runner-scope-selected') as HTMLInputElement).checked).toBe(true);
+    await submit();
+    expect(calls[0]?.input).toEqual({ name: 'VPS', projectScope: 'selected', allowedProjects: ['storify'] });
+  });
   it('issues a code for the name and the chosen projects and shows the enrol command once, with its expiry', async () => {
     const { root, find, type, pick, tick, submit, calls } = await render();
     await type('  Mac  ');
@@ -203,12 +219,5 @@ describe('EnrolRunner', () => {
     );
     sheet.open.mockReturnValueOnce({ closed: of(undefined) } as never);
     expect(await TestBed.inject(EnrolRunner).open({ accountId: OWNER_ACCOUNT_ID, projects })).toBe(false);
-  });
-});
-
-describe('runnerNameOf', () => {
-  it('reads a name as one trimmed line', () => {
-    expect(runnerNameOf('  Mac\n mini ')).toBe('Mac mini');
-    expect(runnerNameOf(' \t ')).toBe('');
   });
 });

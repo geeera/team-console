@@ -78,14 +78,22 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
 
   // 1. The one-time code and the command to paste.
   await page.getByTestId('runners-empty').getByTestId('runners-enrol').click();
-  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
-  await expect(dialog.getByTestId('enrol-name')).toBeFocused();
-  await dialog.getByTestId('enrol-name').fill('E2E Mac');
+  // #634 PR 4: the wizard asks first; Linux hands over to the code dialog with what was typed (decision 1).
+  const wizard = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await expect(wizard.getByTestId('wizard-name')).toBeFocused();
+  await wizard.getByTestId('wizard-name').fill('E2E Mac');
   // #775: all projects of the account is preselected; the list appears for "only the chosen ones".
-  await expect(dialog.getByTestId('runner-scope-all')).toBeChecked();
-  await expect(dialog.locator('[data-slug="team-console"]')).toHaveCount(0);
-  await dialog.getByTestId('runner-scope-selected').check();
-  await dialog.locator('[data-slug="team-console"] input').check();
+  await expect(wizard.getByTestId('runner-scope-all')).toBeChecked();
+  await expect(wizard.locator('[data-slug="team-console"]')).toHaveCount(0);
+  await wizard.getByTestId('runner-scope-selected').check();
+  await wizard.locator('[data-slug="team-console"] input').check();
+  await wizard.getByTestId('wizard-platform-linux').check();
+  await expectAccessible(page, 'New runner wizard');
+  await wizard.getByTestId('wizard-submit').click();
+  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await expect(dialog.getByTestId('enrol-name')).toHaveValue('E2E Mac');
+  await expect(dialog.getByTestId('runner-scope-selected')).toBeChecked();
+  await expect(dialog.locator('[data-slug="team-console"] input')).toBeChecked();
   await expectAccessible(page, 'New runner dialog');
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.enrol.onceTitle') })).toBeFocused();
@@ -164,12 +172,16 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
  */
 async function issueCodeInDialog(page: Page, name: string, scope: 'all' | 'selected' = 'all'): Promise<string> {
   await page.getByTestId('runners-enrol').first().click();
-  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
-  await dialog.getByTestId('enrol-name').fill(name);
+  const wizard = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await wizard.getByTestId('wizard-name').fill(name);
   if (scope === 'selected') {
-    await dialog.getByTestId('runner-scope-selected').check();
-    await dialog.locator('[data-slug="team-console"] input').check();
+    await wizard.getByTestId('runner-scope-selected').check();
+    await wizard.locator('[data-slug="team-console"] input').check();
   }
+  await wizard.getByTestId('wizard-platform-linux').check();
+  await wizard.getByTestId('wizard-submit').click();
+  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  await expect(dialog.getByTestId('enrol-name')).toHaveValue(name);
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByTestId('enrol-scope')).toContainText(
     scope === 'all' ? ru('runners.enrol.scopeAll') : ru('runners.enrol.projects', { projects: 'team-console' }),

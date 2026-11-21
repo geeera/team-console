@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>#634 Add runner wizard (UX wireframe)</title>
+<style>
+/* Low-fidelity on purpose: grey boxes, system font, no Paper Desk styling. The look is the ui-designer's job.
+   Same conventions as ux/107-quick-task.html and ux/409-console-tracker.html. Spec: 634-add-runner-wizard.md. */
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.45 system-ui,-apple-system,sans-serif;color:#222;background:#eee}
+a{color:#222}
+button,input,select{font:inherit}
+:focus-visible{outline:3px solid #000;outline-offset:2px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.demo{background:#fff;border-bottom:1px solid #bbb;padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;font-size:13px}
+.demo b{font-size:14px}
+.demo label{display:flex;gap:6px;align-items:center}
+.demo p{margin:0;flex-basis:100%;color:#555}
+.stage{padding:20px;display:flex;justify-content:center;gap:24px;flex-wrap:wrap;align-items:flex-start}
+.frame{background:#fafafa;border:2px solid #999;position:relative;overflow:hidden;display:flex;flex-direction:column}
+.frame.mac{width:1180px;max-width:100%;height:780px}
+.frame.phone{width:390px;height:844px;border-radius:28px}
+.cap{font-size:12px;color:#555;text-align:center;margin:4px 0 0}
+.page{padding:20px 28px;flex:1;overflow:hidden}
+.phone .page{padding:14px}
+.page h1{font-size:21px;margin:0 0 6px}
+.page .row{border:1px solid #bbb;background:#fff;padding:10px;margin:8px 0;min-height:60px}
+.btn{min-height:44px;padding:0 14px;border:1px solid #666;background:#ddd;cursor:pointer}
+.btn.sm{min-height:36px;padding:0 10px}
+.btn.primary{background:#555;color:#fff;border-color:#555}
+.btn.danger{border:2px solid #000;background:#fff}
+.btn.link{border:0;background:none;text-decoration:underline;padding:0 4px;min-height:32px}
+.btn[aria-disabled=true]{opacity:.5;cursor:not-allowed}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;padding:16px;z-index:5}
+.phone .scrim{align-items:stretch;padding:0;padding-top:40px}
+.dialog{background:#fff;border:2px solid #333;width:100%;max-width:680px;max-height:96%;display:flex;flex-direction:column}
+.phone .dialog{max-width:none;max-height:none;border-radius:14px 14px 0 0}
+.dlg-h{padding:10px 14px;border-bottom:1px solid #bbb;background:#f0f0f0}
+.dlg-h .t{display:flex;align-items:center;gap:8px}
+.dlg-h h2{flex:1;margin:0;font-size:17px}
+.dlg-h .x{min-width:44px;min-height:44px;border:1px solid #888;background:#ddd;cursor:pointer}
+.stepline{font-size:13px;color:#444;margin:2px 0 0}
+ol.steps{display:flex;gap:6px;list-style:none;padding:0;margin:6px 0 0;font-size:12px}
+ol.steps li{border:1px solid #aaa;padding:2px 8px;background:#eee}
+ol.steps li[aria-current]{background:#bbb;font-weight:600}
+.phone ol.steps{display:none}
+.dlg-b{overflow:auto;padding:6px 18px 16px;flex:1}
+.dlg-f{display:flex;gap:8px;align-items:center;justify-content:flex-end;padding:10px 14px;border-top:1px solid #bbb;background:#f7f7f7;flex-wrap:wrap}
+.phone .dlg-f{flex-direction:column-reverse;align-items:stretch}
+.phone .dlg-f .btn{width:100%}
+h3{font-size:16px;margin:12px 0 6px}
+.field{display:flex;flex-direction:column;gap:4px;margin:12px 0}
+.field label{font-weight:600}
+.field input{min-height:44px;padding:8px 10px;border:1px solid #666;background:#fff;font-size:16px}
+[aria-invalid="true"]{border:2px solid #000 !important}
+.hint{color:#555;font-size:13px;margin:2px 0 0}
+.ferr{font-weight:600;font-size:13px;margin:0}
+.ferr::before{content:"! "}
+fieldset.f{border:1px solid #bbb;margin:12px 0;padding:6px 10px 10px}
+fieldset.f legend{font-weight:600;padding:0 4px}
+.opt{display:flex;gap:8px;align-items:flex-start;padding:6px 0;border-top:1px solid #eee;min-height:44px}
+.opt:first-of-type{border-top:0}
+.opt input{margin-top:5px}
+.opt b{display:block;font-weight:600}
+.opt small{display:block;color:#555}
+.owners{border-left:4px solid #555;background:#f2f2f2;padding:6px 10px;margin:6px 0 0 26px;font-size:13px}
+.quiet{color:#555;font-size:13px;margin:6px 0}
+.seg{display:flex;flex-wrap:wrap;border:0;padding:0;margin:10px 0}
+.seg legend{font-weight:600;margin-bottom:4px}
+.seg label{flex:1;min-width:120px;display:flex;gap:6px;align-items:center;justify-content:center;min-height:44px;border:1px solid #888;background:#eee;cursor:pointer}
+.code{border:1px solid #666;background:#f4f4f4;display:flex;align-items:stretch;margin:8px 0}
+.code pre{flex:1;margin:0;padding:10px;overflow-x:auto;font:13px/1.4 ui-monospace,Menlo,monospace;white-space:pre}
+.code .btn{border-width:0 0 0 1px}
+.callout{border-left:5px solid #555;background:#f5f5f5;padding:8px 12px;margin:10px 0}
+.callout.warn{border-left-color:#000;border-left-style:double;border-left-width:7px}
+.callout h4{margin:0 0 4px;font-size:15px}
+.callout p{margin:0}
+.banner{border:2px solid #000;background:#fff;padding:8px 10px;margin:10px 0;display:flex;gap:8px;align-items:flex-start}
+.banner::before{content:"!";font-weight:700}
+.banner.soft{border-style:dashed}
+.wait{display:flex;gap:10px;align-items:center;border:1px dashed #888;padding:10px;margin:10px 0;background:#fafafa}
+.spin{width:18px;height:18px;border:3px solid #bbb;border-top-color:#333;border-radius:50%;flex:none}
+.fp-l{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#555;margin:10px 0 0}
+.fp{font:600 32px/1.2 ui-monospace,Menlo,monospace;letter-spacing:.08em;margin:2px 0 8px}
+.phone .fp{font-size:28px}
+dl.led{display:grid;grid-template-columns:150px 1fr;gap:4px 12px;margin:8px 0}
+.phone dl.led{grid-template-columns:120px 1fr}
+dl.led dt{color:#555;font-size:13px}
+dl.led dd{margin:0;overflow-wrap:anywhere}
+details{border:1px solid #ccc;padding:6px 10px;margin:8px 0;background:#fafafa}
+summary{cursor:pointer;min-height:32px}
+.stamp{display:inline-block;border:2px dashed #555;padding:2px 8px;font-size:12px;letter-spacing:.05em;margin:8px 0 4px}
+ol.rb{padding-left:20px}
+.alertdialog{background:#fff;border:2px solid #333;padding:16px;max-width:440px;width:100%;z-index:7}
+.phone .alertdialog{max-width:none;border-radius:14px 14px 0 0;align-self:flex-end}
+.note{font-size:12px;color:#555;border:1px dotted #999;padding:4px 8px;margin:6px 0;background:#fffbe6}
+</style>
+</head>
+<body>
+<div class="demo" role="region" aria-label="Демо-панель">
+  <b>#634 PR 4 · Добавить раннер</b>
+  <label>Состояние <select id="c-state"></select></label>
+  <label>Экран <select id="c-vp"><option value="both">iPhone + Mac</option><option value="phone">iPhone</option><option value="mac">Mac</option></select></label>
+  <label>Владельцев <select id="c-own"><option value="2">2 и больше</option><option value="1">1</option><option value="?">неизвестно (не загрузилось)</option></select></label>
+  <label>Выпуск <select id="c-rel"><option value="runbook">без node → путь по инструкции</option><option value="one">с node → одна команда (PR 5)</option></select></label>
+  <p>Каждое состояние соответствует строке §6 спецификации. Notes (жёлтые) — пояснения для разработчика, в продукте их нет.</p>
+</div>
+<div class="sr-only" aria-live="polite" id="live"></div>
+<div class="stage" id="stage"></div>
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const STATES = [
+  ['params', '1 · Параметры'],
+  ['params-invalid', '2 · Параметры: пустое название'],
+  ['params-linux', '1 · Параметры: Linux (передача в код)'],
+  ['creating', '3 · Готовим команду'],
+  ['create-limit', '4 · Ошибка: 409 три открытых запроса'],
+  ['create-hourly', '4 · Ошибка: 429 за час'],
+  ['create-nocommand', '4 · Ошибка: command = null'],
+  ['create-offline', '4 · Ошибка: нет сети'],
+  ['command', '5 · Команда, ждём запрос'],
+  ['command-soon', '5 · Команда, осталась минута'],
+  ['bound', '6 · Подтверждение'],
+  ['taken', '12 · 409 занят: раскрыта подсказка'],
+  ['approving', '7 · Подтверждаем…'],
+  ['changed', '8 · 409: запрос изменился'],
+  ['suspended', '4/7 · Аккаунт приостановлен'],
+  ['rejected', '9 · Запрос отклонён'],
+  ['expired', '10 · Запрос истёк'],
+  ['withdrawn', '11 · Отозван в другой вкладке'],
+  ['approved', '13 · Подтверждено, ждём сигнал'],
+  ['slow', '14 · 5 минут, всё ещё не на связи'],
+  ['online', '15 · Раннер на связи'],
+  ['online-behind', '15 · На связи, версия ниже минимальной'],
+  ['online-noprojects', '15 · На связи, проекты не выбраны'],
+  ['poll-failing', '16 · Опрос не проходит'],
+  ['offline', '17 · Нет сети'],
+  ['session', '18 · Сессия истекла'],
+  ['noprojects', '19 · В аккаунте нет проектов'],
+  ['member', '20 · Участник, не владелец'],
+  ['close-confirm', '21 · Закрыть и отозвать?'],
+];
+const sel = $('#c-state');
+STATES.forEach(([v, l]) => sel.add(new Option(l, v)));
+['c-state', 'c-vp', 'c-own', 'c-rel'].forEach((id) => $('#' + id).addEventListener('change', render));
+
+const STEP = { params:1, 'params-invalid':1, 'params-linux':1, creating:1, 'create-limit':1, 'create-hourly':1, 'create-nocommand':1, 'create-offline':1, noprojects:1, suspended:3,
+  command:2, 'command-soon':2, 'poll-failing':2, offline:3, session:2, 'close-confirm':2,
+  bound:3, taken:3, approving:3, changed:3, rejected:3, expired:3, withdrawn:2,
+  approved:4, slow:4, online:4, 'online-behind':4, 'online-noprojects':4 };
+const STEP_NAMES = ['Параметры', 'Команда', 'Подтверждение', 'На связи'];
+const CMD_ONE = 'd="$(mktemp -d)" && curl --proto \'=https\' --tlsv1.2 -fsSLo "$d/tcr.tgz" https://github.com/geeera/team-console/releases/download/v0.3.0/team-console-runner-0.3.0-darwin-arm64.tar.gz && echo "9f2c…e41a  $d/tcr.tgz" | shasum -a 256 -c - && tar -xzf "$d/tcr.tgz" -C "$d" && sudo "$d/bin/team-console-runner" setup --url https://console.example --enrolment 01JDZ8Q7K2M9XD4T6V0B3N5PRA --release "$d/tcr.tgz" --sha256 9f2c…e41a';
+const CMD_SETUP = 'sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment 01JDZ8Q7K2M9XD4T6V0B3N5PRA';
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' })[c]);
+const btn = (label, cls = '', extra = '') => `<button type="button" class="btn ${cls}" ${extra}>${label}</button>`;
+const code = (text, aria) => `<div class="code"><pre tabindex="0" role="region" aria-label="${aria}">${esc(text)}</pre>${btn('Копировать', 'sm', `aria-label="${aria === 'Команда установки раннера' ? 'Копировать команду установки раннера' : 'Копировать'}"`)}</div>`;
+const note = (t) => `<p class="note">${t}</p>`;
+const expires = (soon) => `<p class="quiet">Запрос действует до 14:31, осталось ${soon ? 1 : 8} мин.</p>`;
+
+function params(s, vp) {
+  const own = $('#c-own').value;
+  const linux = s === 'params-linux';
+  const busy = s === 'creating';
+  const ro = busy ? 'readonly' : '';
+  const invalid = s === 'params-invalid';
+  const ownersLine = own === '1' ? '' : `<p class="owners" id="all-owners">В аккаунте несколько владельцев. Раннер с подпиской Claude по этому правилу берёт только ваши проекты. Проекты других владельцев он возьмёт, только если вы отметите их в «Только выбранные».</p>${own === '?' ? note('Число владельцев не загрузилось — показываем фразу (безопасный вариант).') : ''}`;
+  const errors = {
+    'create-limit': 'Уже открыто три запроса на подключение в других вкладках или окнах. Закройте их или подождите: каждый истекает через 10 минут.',
+    'create-hourly': 'Слишком много запросов на подключение за час. Попробуйте позже.',
+    'create-nocommand': 'Консоль сейчас не может собрать команду: это ошибка на нашей стороне. Подключите раннер по одноразовому коду. ' + btn('Подключить по коду', 'link'),
+    'create-offline': 'Нет сети. Ничего не изменилось — попробуйте, когда связь вернётся.',
+  };
+  const body = `
+    <p class="quiet">Назовите машину, выберите проекты и платформу. Консоль покажет одну команду для Терминала, коды вводить не нужно.</p>
+    <div class="field"><label for="${vp}-name">Название</label>
+      <input id="${vp}-name" ${ro} value="${invalid ? '' : 'Mac'}" ${invalid ? 'aria-invalid="true" aria-describedby="' + vp + '-ne"' : ''}>
+      ${invalid ? `<p class="ferr" id="${vp}-ne">Введите название раннера</p>` : ''}
+      <p class="hint">Например, «Mac» или «VPS в Хетцнере» — так раннер будет подписан в списке.</p></div>
+    <fieldset class="f"><legend>Какие проекты обслуживает раннер</legend>
+      <label class="opt"><input type="radio" name="${vp}-sc" checked ${busy ? 'disabled' : ''}><span><b>Все проекты аккаунта</b><small>Все текущие и будущие проекты аккаунта, в том числе те, что появятся позже.</small></span></label>
+      ${ownersLine}
+      <label class="opt"><input type="radio" name="${vp}-sc" ${busy ? 'disabled' : ''}><span><b>Только выбранные</b><small>Раннер берёт задания только отмеченных проектов. Новый проект нужно добавить вручную.</small></span></label>
+      ${s === 'noprojects' ? '<p class="quiet">Под «Только выбранные»: В аккаунте нет активных проектов.</p>' : ''}
+    </fieldset>
+    <fieldset class="f"><legend>Где будет работать раннер</legend>
+      <label class="opt"><input type="radio" name="${vp}-pl" ${linux ? '' : 'checked'} ${busy ? 'disabled' : ''}><span><b>Mac</b><small>Отдельный пользователь macOS: задания не видят ваших файлов. Понадобится пароль администратора.</small></span></label>
+      ${linux ? '' : '<p class="quiet" style="margin-left:26px">Изоляция: Отдельный пользователь macOS</p>'}
+      <label class="opt"><input type="radio" name="${vp}-pl" ${linux ? 'checked' : ''} ${busy ? 'disabled' : ''}><span><b>Linux или Docker</b><small>Пока подключается по одноразовому коду. Одна команда для Linux появится позже.</small></span></label>
+      <p class="quiet">Позже: установщик .pkg для Mac, без Терминала.</p>
+    </fieldset>
+    ${linux ? note('«Получить код» закрывает мастер; страница открывает существующий диалог кода с этим названием и проектами.') : ''}
+    ${errors[s] ? `<div class="banner" role="alert"><span>${errors[s]}</span></div>` : ''}
+    ${s === 'suspended' ? '<div class="banner" role="alert"><span>Аккаунт приостановлен: подключать раннеры сейчас нельзя.</span></div>' : ''}`;
+  const primary = busy ? btn('Готовим команду…', 'primary', 'aria-disabled="true"') : errors[s] ? btn('Повторить', 'primary') : btn(linux ? 'Получить код' : 'Показать команду', 'primary');
+  return { title: null, body, foot: btn('Отмена', '', busy ? 'aria-disabled="true"' : '') + primary };
+}
+
+function command(s, vp) {
+  const one = $('#c-rel').value === 'one';
+  const off = s === 'offline';
+  let body = `<h3 tabindex="-1">Выполните команду в Терминале на машине «Mac»</h3>`;
+  if (vp === 'phone') body += `<div class="callout"><p>Команду выполняют в Терминале на Mac. Удобнее начать прямо на нём: откройте там Настройки › Раннеры. Или скопируйте команду и перешлите себе. Подтвердить запрос можно и отсюда.</p></div>`;
+  if (one) {
+    body += `<p>Откройте Терминал на этом Mac, вставьте команду и нажмите Return. macOS спросит пароль администратора: он нужен для sudo.</p>
+      <fieldset class="seg"><legend>Процессор Mac</legend><label><input type="radio" name="${vp}-arch" checked> Apple silicon (M1 и новее)</label><label><input type="radio" name="${vp}-arch"> Intel</label></fieldset>
+      <p class="hint">Не знаете какой? Меню Apple → «Об этом Mac»: строка «Чип» значит Apple silicon, строка «Процессор» значит Intel.</p>
+      ${code(CMD_ONE, 'Команда установки раннера')}
+      ${note('Текст команды целиком приходит из API (N1). Клиент ничего не собирает; суммы и имя файла здесь условные.')}
+      <details><summary>Что делает команда</summary><p>Скачивает выпуск 0.3.0 с GitHub во временную папку, сверяет его контрольную сумму с той, что показывает консоль, и только потом распаковывает и запускает установку. Установка создаёт для раннера отдельных пользователей macOS, просит вас войти в Claude в браузере и запускает службу.</p></details>`;
+  } else {
+    body += `<p>Этот выпуск раннера пока не ставится одной командой. Сначала установите его по инструкции, затем выполните команду ниже.</p>
+      <ol class="rb"><li>Скачайте и проверьте выпуск 0.3.0. <a href="#">Инструкция: установка раннера ↗</a></li><li>Выполните в Терминале:${code(CMD_SETUP, 'Команда установки раннера')}</li></ol>
+      ${note('Путь по инструкции: выпуск без node в SHA256SUMS (S2). Строку отдаёт API; см. N3 про sudo и путь.')}`;
+  }
+  body += `<p class="quiet">В команде нет секретов: только адрес консоли и номер запроса. Она подходит для одной машины.</p>${expires(s === 'command-soon')}`;
+  if (s === 'command-soon') body += note('Озвучено один раз: «Запрос истекает через минуту.»');
+  if (s === 'poll-failing') body += `<div class="banner soft" role="status"><span>Нет связи с консолью, пробуем снова. Запрос на вашей машине продолжает ждать.</span></div>`;
+  if (s === 'session') body += `<div class="banner" role="alert"><span>Сессия истекла. Войдите снова.</span></div>`;
+  body += `<div class="wait"><span class="spin" aria-hidden="true"></span><span><b>Ждём запрос с вашей машины…</b><br><small>Когда команда дойдёт до подключения, здесь появится код для сверки.</small></span></div>`;
+  return { body, foot: btn('Отозвать запрос', '', off ? 'aria-disabled="true"' : '') };
+}
+
+function confirmStep(s, vp) {
+  const off = s === 'offline';
+  const busy = s === 'approving';
+  const fp = s === 'changed' ? 'R4TW-8HNC' : '7K2Q-M9XD';
+  const host = s === 'changed' ? 'mbp-guest' : 'Kirills-MacBook-Pro';
+  let body = `<h3 tabindex="-1">Машина просит подключения</h3>`;
+  if (s === 'changed') body += `<div class="banner" role="alert"><span>Запрос изменился, пока вы подтверждали: теперь у него другая машина и другой код. Ничего не подключено. Сверьте новый код с терминалом.</span></div>`;
+  if (s === 'suspended') body += `<div class="banner" role="alert"><span>Аккаунт приостановлен: подключать раннеры сейчас нельзя.</span></div>`;
+  if (off) body += `<div class="banner soft" role="status"><span>Нет сети. Когда связь вернётся, консоль снова проверит запрос.</span></div>`;
+  body += `<div class="callout warn"><h4>Сверьте с терминалом</h4><p>Терминал напечатал код машины. Подтверждайте, только если он совпадает с кодом ниже и это ваша машина.</p></div>
+    <p class="fp-l">Код машины</p><p class="fp" aria-label="${fp.split('').map((c) => c === '-' ? ', дефис,' : c).join(' ')}">${fp}</p>
+    <dl class="led">
+      <dt>Машина</dt><dd><bdi dir="auto">${host}</bdi></dd>
+      <dt>Система</dt><dd><bdi>macOS 15.6 · arm64</bdi></dd>
+      <dt>Версия раннера</dt><dd>0.3.0</dd>
+      <dt>Изоляция</dt><dd>Отдельный пользователь macOS</dd>
+      <dt>Откуда запрос</dt><dd>${s === 'changed' ? 'страна не определена' : 'Германия (DE)'}</dd>
+      <dt>Запрос получен</dt><dd>14:23</dd>
+    </dl>
+    <details ${s === 'taken' ? 'open' : ''}><summary>Терминал пишет, что запрос уже занят другой машиной?</summary><p>Значит, другая машина перехватила этот запрос раньше вашей. Нажмите «Отклонить» и начните заново. Ту машину подключать нельзя.</p></details>
+    ${expires(false)}
+    ${note('Ничего не в фокусе по умолчанию; Enter в окне не подтверждает. В DOM «Отклонить» раньше «Подтвердить».')}`;
+  const dis = busy || off ? 'aria-disabled="true"' : '';
+  const approveDis = busy || off || s === 'suspended' ? 'aria-disabled="true"' : '';
+  return { body, foot: btn('Отклонить', 'danger', dis) + btn(busy ? 'Подтверждаем…' : 'Подтвердить', 'primary', approveDis) };
+}
+
+function endState(s) {
+  const map = {
+    rejected: ['', 'Запрос отклонён', 'Машина не подключена, а Терминал сообщит, что запрос отклонён. Если это была ваша машина, начните заново: консоль покажет новую команду.'],
+    expired: ['warn', 'Запрос истёк', 'Прошло 10 минут, а машину так и не подтвердили. Ничего не подключено. Если Терминал ещё ждёт, остановите его (Control-C) и выполните новую команду.'],
+    withdrawn: ['', 'Запрос отозван', 'Запрос отозвали в другой вкладке или окне. Ничего не подключено.'],
+  };
+  const [tone, t, b] = map[s];
+  return { body: `<div class="callout ${tone}"><h4 tabindex="-1">${t}</h4><p>${b}</p></div>${note('«Новая команда» сохраняет название, проекты и платформу и сразу открывает шаг 2 с новым запросом.')}`, foot: btn('Закрыть') + btn('Новая команда', 'primary') };
+}
+
+function online(s) {
+  if (s === 'approved' || s === 'slow') {
+    let body = `<h3 tabindex="-1">Подтверждено — ждём первый сигнал</h3><p>Терминал продолжает установку. Сейчас он попросит войти в Claude, и вход откроется в браузере. Потом он запустит службу, и раннер выйдет на связь.</p>
+      <div class="wait"><span class="spin" aria-hidden="true"></span><b>Ждём, когда раннер выйдет на связь…</b></div>`;
+    if (s === 'slow') body += `<div class="callout warn"><h4>Раннер пока не вышел на связь</h4><p>Посмотрите в Терминал: setup называет шаг, который не прошёл, и как его исправить. Проверить всё ещё раз:</p>
+      ${code('sudo /usr/local/lib/team-console-runner/bin/team-console-runner self-check', 'Команда самопроверки раннера')}
+      <p>Журнал службы: /Users/_tcrunner/logs/runner.log</p><p>Консоль ждёт дальше. Окно можно закрыть: раннер уже в списке и сам перейдёт в «На связи».</p></div>`;
+    return { body, foot: btn('Закрыть', 'primary') };
+  }
+  let body = `<span class="stamp">✓ НА СВЯЗИ</span><h3 tabindex="-1">Раннер на связи</h3><p>Раннер «Mac» подключён и ждёт задания.</p>
+    <p class="quiet">${s === 'online-noprojects' ? 'Проекты не выбраны: раннер не возьмёт задания, пока вы их не добавите.' : 'Проекты: все проекты аккаунта, включая те, что появятся позже.'}</p>
+    <p class="quiet">Проверка на самой машине: смотрите вывод setup. Последней строкой должно быть «Готово».</p>`;
+  if (s === 'online-behind') body += `<div class="callout warn"><p>Версия 0.2.1 ниже минимальной 0.3.0: раннер не возьмёт задания, пока вы его не обновите. <a href="#">Как обновить ↗</a></p></div>`;
+  return { body, foot: (s === 'online-noprojects' ? btn('Выбрать проекты') : '') + btn('Готово', 'primary') };
+}
+
+function sheet(s, vp) {
+  const step = STEP[s] || 1;
+  let part;
+  if (step === 1) part = params(s, vp);
+  else if (['rejected', 'expired', 'withdrawn'].includes(s)) part = endState(s);
+  else if (step === 2) part = command(s, vp);
+  else if (step === 3) part = confirmStep(s, vp);
+  else part = online(s);
+  const steps = STEP_NAMES.map((n, i) => `<li ${i + 1 === step ? 'aria-current="step"' : ''}>${i + 1}. ${n}</li>`).join('');
+  return `<div class="scrim"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="${vp}-dt">
+    <div class="dlg-h"><div class="t"><h2 id="${vp}-dt">Новый раннер</h2><button class="x" type="button" aria-label="Закрыть">×</button></div>
+      <p class="stepline">Шаг ${step} из 4 · ${STEP_NAMES[step - 1]}</p><ol class="steps" aria-label="Шаги">${steps}</ol></div>
+    <div class="dlg-b">${part.body}</div><div class="dlg-f">${part.foot}</div></div></div>
+    ${s === 'close-confirm' ? `<div class="scrim" style="z-index:8"><div class="alertdialog" role="alertdialog" aria-modal="true" aria-labelledby="${vp}-cc"><h3 id="${vp}-cc">Закрыть и отозвать запрос?</h3><p>Команда перестанет работать. Если вы её уже выполнили, Терминал сообщит, что запрос отозван.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${btn('Остаться')}${btn('Отозвать и закрыть', 'danger')}</div></div></div>` : ''}`;
+}
+
+function page(s, vp) {
+  if (s === 'member') return `<div class="page"><p>‹ Настройки</p><h1>Раннеры</h1><div class="row"><b>Раннерами управляет владелец аккаунта</b><p>Вы участник этого аккаунта, но не владелец. Попросите владельца подключить раннер или изменить размещение.</p></div>${note('Кнопки «Подключить раннер» нет — как сегодня.')}</div>`;
+  return `<div class="page"><p>‹ Настройки</p><h1>Раннеры</h1><p class="quiet">Раннеры — машины, на которых команда выполняет задания…</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end">${btn('Обновить', 'sm')}${btn('+ Подключить раннер', 'sm primary')}</div>
+    <div class="row"><b>VPS</b> · На связи</div>${['online', 'online-behind', 'online-noprojects', 'approved', 'slow'].includes(s) ? '<div class="row"><b>Mac</b> · ' + (s.startsWith('online') ? 'На связи' : 'Ещё не выходил на связь') + '</div>' : ''}</div>${sheet(s, vp)}`;
+}
+
+const LIVE = { command:'Команда готова. Скопируйте её в Терминал.', bound:'Машина Kirills-MacBook-Pro просит подключения. Сверьте код 7 K 2 Q, дефис, M 9 X D с терминалом.', approved:'Подтверждено. Ждём, когда раннер выйдет на связь.', online:'Раннер Mac на связи.', expired:'Запрос истёк', rejected:'Запрос отклонён', withdrawn:'Запрос отозван', 'command-soon':'Запрос истекает через минуту.' };
+
+function render() {
+  const s = sel.value, vp = $('#c-vp').value;
+  const frames = vp === 'both' ? ['phone', 'mac'] : [vp];
+  $('#stage').innerHTML = frames.map((f) => `<div><div class="frame ${f}">${page(s, f)}</div><p class="cap">${f === 'phone' ? 'iPhone, 390 px' : 'Mac, 1180 px'}</p></div>`).join('');
+  $('#live').textContent = LIVE[s] || '';
+}
+if (matchMedia('(max-width: 700px)').matches) $('#c-vp').value = 'phone';
+render();
+</script>
+</body>
+</html>

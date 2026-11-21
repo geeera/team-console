@@ -10,6 +10,7 @@ import {
   runnerFixture,
   type RunnerResult,
 } from '@console/entities/runner';
+import { AddRunner, type AddRunnerOutcome } from '@console/features/add-runner';
 import { EnrolRunner } from '@console/features/enrol-runner';
 import {
   ManageRunner,
@@ -52,6 +53,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     clearOutcome = { kind: 'cancelled' } as ClearSuspectOutcome,
     withdrawOutcome = { kind: 'cancelled' } as WithdrawOutcome,
     claimOutcome = { kind: 'cancelled' } as ClaimEnrollerOutcome,
+    wizardOutcome = { kind: 'closed', enrolled: true } as AddRunnerOutcome,
   } = {}) {
     const api = {
       accounts: vi.fn(async () => accounts),
@@ -62,6 +64,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       setDispatch: vi.fn(),
     };
     const enrol = { open: vi.fn(async () => true) };
+    const wizard = { open: vi.fn(async () => wizardOutcome) };
     const manage = {
       revoke: vi.fn(async () => revokeOutcome),
       editProjects: vi.fn(async () => edited),
@@ -77,6 +80,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
         provideRouter([{ path: 'settings', children: settingsRoutes }]),
         { provide: RunnersApi, useValue: api },
         { provide: EnrolRunner, useValue: enrol },
+        { provide: AddRunner, useValue: wizard },
         { provide: ManageRunner, useValue: manage },
       ],
     });
@@ -88,7 +92,7 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     await settle();
     const root = harness.routeNativeElement as HTMLElement;
     const find = (id: string): HTMLElement | null => root.querySelector(`[data-testid="${id}"]`);
-    return { root, find, api, enrol, manage };
+    return { root, find, api, enrol, wizard, manage };
   }
 
   afterEach(() => {
@@ -132,14 +136,33 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     expect(api.dispatch).toHaveBeenCalledWith('storify');
   });
 
-  it('shows the empty state with the enrolment call to action, which opens enrolment for the account', async () => {
-    const { find, enrol, api } = await open({
-      list: () => ({ ok: true, value: { runners: [], pendingEnrolments: [], release: { version: null, minimumVersion: null } } }),
+  it('shows the empty state with the enrolment call to action, which opens the wizard for the account', async () => {
+    const { find, wizard, enrol, api } = await open({
+      list: () => ({ ok: true, value: { runners: [], pendingEnrolments: [], release: { version: '0.3.0', minimumVersion: null } } }),
     });
     expect(find('runners-empty')?.textContent).toContain('Раннеров пока нет');
     expect(find('runners-release')).toBeNull();
     const reads = api.list.mock.calls.length;
     (find('runners-empty')?.querySelector('[data-testid="runners-enrol"]') as HTMLButtonElement).click();
+    await settle();
+    expect(wizard.open).toHaveBeenCalledWith({
+      accountId: OWNER_ACCOUNT_ID,
+      projects: [
+        { slug: 'team-console', displayName: 'Team Console' },
+        { slug: 'storify', displayName: 'Storify' },
+      ],
+      releaseVersion: '0.3.0',
+    });
+    expect(enrol.open).not.toHaveBeenCalled();
+    // A runner was approved: the list is read again.
+    expect(api.list.mock.calls.length).toBe(reads + 1);
+  });
+
+  it('hands a Linux choice to the code dialog with the name and scope the owner typed (#634 decision 1)', async () => {
+    const { find, enrol } = await open({
+      wizardOutcome: { kind: 'code', name: 'VPS', projectScope: 'selected', allowedProjects: ['storify'] },
+    });
+    (find('runners-enrol') as HTMLButtonElement).click();
     await settle();
     expect(enrol.open).toHaveBeenCalledWith({
       accountId: OWNER_ACCOUNT_ID,
@@ -147,9 +170,15 @@ describe('RunnersPage (/settings/runners, #464)', () => {
         { slug: 'team-console', displayName: 'Team Console' },
         { slug: 'storify', displayName: 'Storify' },
       ],
+      prefill: { name: 'VPS', projectScope: 'selected', allowedProjects: ['storify'] },
     });
-    // A code was issued: the list is read again (the runner shows once it has enrolled).
-    expect(api.list.mock.calls.length).toBe(reads + 1);
+  });
+
+  it('opens the new runner’s scope editor for «Выбрать проекты»', async () => {
+    const { find, manage } = await open({ wizardOutcome: { kind: 'pick-projects', runnerId: runnerFixture().id } });
+    (find('runners-enrol') as HTMLButtonElement).click();
+    await settle();
+    expect(manage.editProjects).toHaveBeenCalledWith(expect.objectContaining({ runner: runnerFixture() }));
   });
 
   it('tells a member of the account that the owner manages runners, and reads nothing else', async () => {
