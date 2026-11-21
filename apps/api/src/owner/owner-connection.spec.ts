@@ -534,7 +534,11 @@ describe('OwnerConnection.connect', () => {
 
     await expect(raced.connect(OWNER, freshPair(fake))).resolves.toBe('user-id-changed');
 
-    expect(await storedRow()).toMatchObject({ user_id: rival.id, access_token_enc: 'rival-access', version: 1 });
+    expect(await storedRow()).toMatchObject({
+      user_id: rival.id,
+      access_token_enc: 'rival-access',
+      version: 1,
+    });
     expect(fake.calls).toEqual([]);
     expect(parsedLogs(logs)).toContainEqual(
       expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),

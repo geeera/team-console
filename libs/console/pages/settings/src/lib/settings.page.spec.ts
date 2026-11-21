@@ -248,6 +248,22 @@ describe('SettingsPage', () => {
     expect(TestBed.inject(Router).url).toBe('/settings');
   });
 
+  it('the callback’s user-id-changed outcome keeps the connection and says to disconnect first (#890)', async () => {
+    await open('/settings?github=user-id-changed', {
+      connection: {
+        state: 'connected',
+        login: 'geeera',
+        connectedAt: '2026-09-28T10:00:00.000Z',
+        appName: 'team-console-dev',
+      },
+    });
+    await settle();
+
+    expect(text('[data-testid="gh-user-id-changed"]')).toContain('Это другой аккаунт GitHub');
+    expect(root().querySelector('[data-testid="gh-connected"]')).not.toBeNull();
+    expect(TestBed.inject(Router).url).toBe('/settings');
+  });
+
   it('the callback’s generic failed outcome has its own copy (#92)', async () => {
     await open('/settings?github=failed', {
       connection: { state: 'not-connected', ownerLogin: 'geeera', appName: 'team-console-dev' },

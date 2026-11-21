@@ -186,6 +186,47 @@ describe('GitHubConnectionCard', () => {
     expect(body?.textContent).toContain('был выбран другой аккаунт');
   });
 
+  describe('a different GitHub account under the owner login (#890)', () => {
+    it('keeps the connected card and says to disconnect first, focusing the notice', async () => {
+      await render(CONNECTED);
+      fixture.componentRef.setInput('outcome', { kind: 'user-id-changed' });
+      await settle();
+
+      const notice = root.querySelector('[data-testid="gh-user-id-changed"]');
+      expect(notice?.getAttribute('role')).toBe('alert');
+      expect(notice?.querySelector('h3')?.textContent?.trim()).toBe('Это другой аккаунт GitHub');
+      expect(notice?.textContent).toContain('Под логином geeera');
+      expect(notice?.textContent).toContain('сначала нажмите «Отключить»');
+      expect(document.activeElement).toBe(notice?.querySelector('h3'));
+      expect(root.querySelector('[data-testid="gh-error"]')).toBeNull();
+      expect(root.querySelector('[data-testid="gh-connected"]')).not.toBeNull();
+    });
+
+    it('is stale without a live connection: nothing is shown', async () => {
+      await render(NONE);
+      fixture.componentRef.setInput('outcome', { kind: 'user-id-changed' });
+      await settle();
+
+      expect(root.querySelector('[data-testid="gh-user-id-changed"]')).toBeNull();
+      expect(root.querySelector('[data-testid="gh-none"]')).not.toBeNull();
+    });
+
+    it('goes away once the owner disconnects', async () => {
+      await render(CONNECTED);
+      fixture.componentRef.setInput('outcome', { kind: 'user-id-changed' });
+      await settle();
+      (root.querySelector('.gh__disconnect') as HTMLButtonElement).click();
+      await settle();
+      (overlay().querySelector('.tc-confirm__ok') as HTMLButtonElement).click();
+      await settle();
+      http.expectOne(GITHUB_CONNECTION_URL).flush(null, { status: 204, statusText: 'No Content' });
+      await settle();
+
+      expect(root.querySelector('[data-testid="gh-user-id-changed"]')).toBeNull();
+      expect(root.querySelector('[data-testid="gh-none"]')).not.toBeNull();
+    });
+  });
+
   it('a disconnect GitHub did not confirm tells the owner to revoke it there', async () => {
     await render(CONNECTED);
     (root.querySelector('.gh__disconnect') as HTMLButtonElement).click();

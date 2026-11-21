@@ -72,7 +72,12 @@ describe('OwnerConnectionsRepo', () => {
     const before = await repo.find(ENV);
 
     const stored = await repo.connect(
-      connection({ userId: 2002, accessTokenEnc: 'ff01', refreshTokenEnc: 'ff02', now: '2026-09-30T11:00:00.000Z' }),
+      connection({
+        userId: 2002,
+        accessTokenEnc: 'ff01',
+        refreshTokenEnc: 'ff02',
+        now: '2026-09-30T11:00:00.000Z',
+      }),
     );
 
     expect(stored).toBe(false);
