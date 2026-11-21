@@ -77,7 +77,7 @@ interface CreatedIntent {
 }
 
 type Phase = 'params' | 'command' | 'confirm' | 'approved' | 'ended';
-type Busy = 'creating' | 'approving' | 'rejecting' | 'withdrawing' | 'rereading';
+type Busy = 'creating' | 'approving' | 'rejecting' | 'withdrawing' | 'rereading' | 'rechecking';
 
 const STEP_OF: Readonly<Record<Exclude<Phase, 'ended'>, WizardStep>> = {
   params: 'params',
@@ -171,6 +171,9 @@ let nextWizardId = 0;
             [minimumVersion]="watch.minimumVersion()"
             [projectScope]="scope()"
             [allowedProjects]="scope() === 'all' ? [] : selected()"
+            [gaveUp]="watch.gaveUp()"
+            [rechecking]="busy() === 'rechecking'"
+            (recheck)="recheck()"
           />
           <ng-container *ngTemplateOutlet="failureBanner" />
         }
@@ -548,6 +551,19 @@ export class AddRunnerWizard {
     }
     this.withdrawnId = created.intentId;
     this.end('rejected');
+  }
+
+  /** One read on the owner's click, once the watch has stopped polling (#878). */
+  protected async recheck(): Promise<void> {
+    if (this.busy() !== null) {
+      return;
+    }
+    this.busy.set('rechecking');
+    await this.watch.checkNow();
+    this.busy.set(null);
+    if (this.watch.runner()?.online !== true) {
+      this.announce('runners.wizard.slow.stillOffline');
+    }
   }
 
   protected pickProjects(): void {

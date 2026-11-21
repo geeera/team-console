@@ -2446,6 +2446,10 @@
         "body": "Look at Terminal: setup names the step that failed and how to fix it. To check everything again:",
         "log": "Service log: {{path}}",
         "keepWaiting": "The console keeps waiting. You can close this window: the runner is already listed and turns “Online” on its own.",
+        "stopped": "The console has stopped checking on its own. When the runner starts, press “Check again”. You can close this window: the runner is already listed.",
+        "recheck": "Check again",
+        "rechecking": "Checking…",
+        "stillOffline": "The runner still isn’t online.",
         "copyAria": "Copy the runner check command",
         "region": "Runner check command"
       },

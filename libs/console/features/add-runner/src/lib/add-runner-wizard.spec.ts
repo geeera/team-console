@@ -42,6 +42,7 @@ class ManualWatch {
   readonly minimumVersion = signalOf<string | null>('0.2.0');
   readonly failedPolls = signalOf(0);
   readonly stopped = signalOf<'session-expired' | 'forbidden' | 'not-found' | null>(null);
+  readonly gaveUp = signalOf(false);
   readonly watchIntent = vi.fn();
   readonly watchRunner = vi.fn();
   readonly stop = vi.fn();
@@ -361,6 +362,23 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     await vi.advanceTimersByTimeAsync(5 * 60_000);
     await fixture.whenStable();
     expect(find('wizard-slow')?.textContent).toContain('self-check');
+  });
+
+  it('offers a manual re-check once the watch stops polling the offline runner (#878)', async () => {
+    const { toConfirm, click, find, watch, settle } = await render();
+    await toConfirm();
+    await click('wizard-approve');
+    watch.gaveUp.set(true);
+    await settle();
+    expect(find('wizard-slow')?.textContent).toContain('Раннер пока не вышел на связь');
+    expect(find('wizard-stopped')?.textContent).toContain('Консоль перестала проверять сама');
+    expect(find('wizard-approved-waiting')).toBeNull();
+    watch.checkNow.mockImplementationOnce(async () => {
+      watch.runner.set(runnerFixture({ online: true }));
+    });
+    await click('wizard-recheck');
+    expect(watch.checkNow).toHaveBeenCalledTimes(1);
+    expect(find('wizard-online')?.textContent).toContain('Раннер «Mac mini» подключён');
   });
 
   it('asks before closing a live request, withdraws it, and closes even when the withdraw fails', async () => {
