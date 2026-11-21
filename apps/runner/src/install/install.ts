@@ -89,8 +89,6 @@ export interface InstallPlan {
   readonly steps: readonly InstallStep[];
   /** What the operator does by hand afterwards. */
   readonly next: readonly string[];
-  /** Printed before the steps; nothing here stops the install. */
-  readonly warnings?: readonly string[];
 }
 
 export class InstallError extends Error {
@@ -469,7 +467,6 @@ export async function runInstall(
     throw new InstallError('install --backend user --yes changes system files: run it with sudo');
   }
   const plan = await planInstall(options, host);
-  plan.warnings?.forEach((warning) => out(warning));
   const who = options.backend === 'user' ? 'as root' : 'as you';
   if (plan.steps.length === 0) {
     out('Already installed: nothing to change.');
