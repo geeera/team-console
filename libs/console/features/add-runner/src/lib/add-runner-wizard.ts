@@ -39,6 +39,7 @@ import {
 import {
   DEFAULT_RUNNER_PROJECT_SCOPE,
   type EnrolmentIntentDto,
+  type LinuxInstallCommandsDto,
   type MacReleasePlatform,
   type RunnerInstallCommandsDto,
   type RunnerProjectScope,
@@ -74,6 +75,7 @@ interface CreatedIntent {
   readonly expiresAt: string;
   readonly setupCommand: string;
   readonly install: RunnerInstallCommandsDto | null;
+  readonly linux: LinuxInstallCommandsDto | null;
 }
 
 type Phase = 'params' | 'command' | 'confirm' | 'approved' | 'ended';
@@ -91,7 +93,8 @@ let nextWizardId = 0;
 /**
  * Settings › Runners › «Подключить раннер» (#634 PR 4, UX spec): name, scope and platform; the API's one command for
  * the Mac's Terminal; the owner compares the bound machine's fingerprint and approves it; the runner comes online.
- * Linux closes with `code` and the page opens the one-time-code dialog (decision 1). The intent id lives in this
+ * Linux gets the API's two commands for a `container` request (#634 PR 7), or, when the environment names no runner
+ * image, closes with `code` and the page opens the one-time-code dialog (decision 1). The intent id lives in this
  * sheet's memory and in the path of the owner's own calls only (R-INT-2); closing while it is live withdraws it.
  */
 @Component({
@@ -153,6 +156,7 @@ let nextWizardId = 0;
               [name]="runnerName()"
               [setupCommand]="intent.setupCommand"
               [installCommands]="intent.install"
+              [linuxInstall]="intent.linux"
               [releaseVersion]="data.releaseVersion"
               [expiresAt]="intent.expiresAt"
               [now]="now()"
@@ -177,6 +181,7 @@ let nextWizardId = 0;
             [projectScope]="scope()"
             [allowedProjects]="scope() === 'all' ? [] : selected()"
             [gaveUp]="watch.gaveUp()"
+            [platform]="platform()"
             [rechecking]="busy() === 'rechecking'"
             (recheck)="recheck()"
           />
@@ -219,8 +224,6 @@ let nextWizardId = 0;
           >
             @if (busy() === 'creating') {
               {{ 'runners.wizard.busy' | transloco }}
-            } @else if (platform() === 'linux') {
-              {{ 'runners.wizard.submitCode' | transloco }}
             } @else if (failure() !== null) {
               {{ 'ui.error.retry' | transloco }}
             } @else {
@@ -447,10 +450,6 @@ export class AddRunnerWizard {
       });
       return;
     }
-    if (this.platform() === 'linux') {
-      this.toCode();
-      return;
-    }
     await this.create();
   }
 
@@ -599,24 +598,33 @@ export class AddRunnerWizard {
     this.offerCode.set(false);
     this.suspended.set(false);
     const scope = this.scope();
+    const linux = this.platform() === 'linux';
     const result = await this.api.createEnrolmentIntent(this.data.accountId, {
       name: this.runnerName(),
       projectScope: scope,
       allowedProjects: scope === 'all' ? [] : this.selected(),
-      isolation: 'user',
+      isolation: linux ? 'container' : 'user',
     });
-    this.busy.set(null);
     if (!result.ok) {
+      this.busy.set(null);
       this.createRefused(result.failure);
       return;
     }
-    const { intentId, expiresAt, command, installCommands } = result.value;
+    const { intentId, expiresAt, command, installCommands, linuxInstall } = result.value;
+    if (linux && linuxInstall === null) {
+      // No runner image named for the one command yet: the code dialog takes over, as before #634 PR 7.
+      await this.dropUnusedIntent(intentId);
+      this.busy.set(null);
+      this.toCode();
+      return;
+    }
+    this.busy.set(null);
     if (command === null) {
       // The API would not offer a command (origin not configured): never build one here.
       this.createRefused(null);
       return;
     }
-    this.created.set({ intentId, expiresAt, setupCommand: command, install: installCommands });
+    this.created.set({ intentId, expiresAt, setupCommand: command, install: installCommands, linux: linuxInstall });
     this.shown.set(null);
     this.phase.set('command');
     this.watch.watchIntent(this.data.accountId, intentId, expiresAt);
@@ -741,6 +749,18 @@ export class AddRunnerWizard {
     // The watch keeps going: back from the back-forward cache, its next read shows «Запрос отозван».
     this.withdrawnId = created.intentId;
     void this.sendWithdrawLeftBehind(created.intentId);
+  }
+
+  /**
+   * A Linux request the environment has no command for is withdrawn at once, so it does not count against the three
+   * open requests. A failure is only logged: nobody has the id, and it expires in ten minutes.
+   */
+  private async dropUnusedIntent(intentId: string): Promise<void> {
+    this.withdrawnId = intentId;
+    const result = await this.api.withdrawEnrolmentIntent(this.data.accountId, intentId);
+    if (!result.ok && result.failure.kind !== 'not-found') {
+      console.warn(`add-runner: could not withdraw the unused Linux request (${result.failure.kind}); it expires on its own`);
+    }
   }
 
   private async sendWithdrawLeftBehind(intentId: string): Promise<void> {

@@ -1,8 +1,15 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, input, output } from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, Callout, CopyCode, Receipt, Spinner } from '@console/shared/ui';
 import type { RunnerDto, RunnerProjectScope } from '@shared/contracts';
-import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-runner.model';
+import {
+  LINUX_LOG_COMMAND,
+  LINUX_STATUS_COMMAND,
+  RUNBOOK_UPDATE_URL,
+  RUNNER_LOG_PATH,
+  SELF_CHECK_COMMAND,
+  type RunnerPlatform,
+} from '../add-runner.model';
 
 /**
  * Step 4 «На связи» (spec §3.4–3.5): after the approval, waiting for the first signal (with what to check once it
@@ -46,7 +53,9 @@ import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-
       }
     } @else {
       <h3 class="step__heading" tabindex="-1" data-step-heading>{{ 'runners.wizard.approved.title' | transloco }}</h3>
-      <p class="step__lead">{{ 'runners.wizard.approved.body' | transloco }}</p>
+      <p class="step__lead">
+        {{ (platform() === 'linux' ? 'runners.wizard.approved.bodyLinux' : 'runners.wizard.approved.body') | transloco }}
+      </p>
       @if (!gaveUp()) {
         <div class="step__wait" data-testid="wizard-approved-waiting">
           <tc-spinner />
@@ -58,14 +67,14 @@ import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-
           <p tc-callout-title>{{ 'runners.wizard.slow.title' | transloco }}</p>
           <p>{{ 'runners.wizard.slow.body' | transloco }}</p>
           <tc-copy-code
-            [code]="selfCheck"
+            [code]="selfCheck()"
             [regionLabel]="'runners.wizard.slow.region' | transloco"
             [ariaLabel]="'runners.wizard.slow.copyAria' | transloco"
             [copyLabel]="'runners.enrol.copy' | transloco"
             [copiedLabel]="'runners.enrol.copied' | transloco"
             [failedNote]="'runners.enrol.copyFailed' | transloco"
           />
-          <p>{{ 'runners.wizard.slow.log' | transloco: { path: logPath } }}</p>
+          <p>{{ 'runners.wizard.slow.log' | transloco: { path: logPath() } }}</p>
           @if (gaveUp()) {
             <p data-testid="wizard-stopped">{{ 'runners.wizard.slow.stopped' | transloco }}</p>
             <p>
@@ -108,7 +117,10 @@ export class AddRunnerOnlineStep {
   readonly rechecking = input(false);
   readonly recheck = output();
 
-  protected readonly selfCheck = SELF_CHECK_COMMAND;
-  protected readonly logPath = RUNNER_LOG_PATH;
+  /** Linux (#634 PR 7) checks both services with systemd; the Mac runs `self-check`. */
+  readonly platform = input<RunnerPlatform>('mac');
+
+  protected readonly selfCheck = computed(() => (this.platform() === 'linux' ? LINUX_STATUS_COMMAND : SELF_CHECK_COMMAND));
+  protected readonly logPath = computed(() => (this.platform() === 'linux' ? LINUX_LOG_COMMAND : RUNNER_LOG_PATH));
   protected readonly updateUrl = RUNBOOK_UPDATE_URL;
 }

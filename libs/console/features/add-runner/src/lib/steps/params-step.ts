@@ -76,9 +76,12 @@ import type { RunnerPlatform } from '../add-runner.model';
             (change)="platform.set('linux')"
           />
           {{ 'runners.wizard.platform.linux' | transloco }}
-          <small tc-choice-hint [id]="formId() + '-linux-hint'">{{
-            'runners.wizard.platform.linuxHint' | transloco
-          }}</small>
+          <small tc-choice-hint [id]="formId() + '-linux-hint'">
+            {{ 'runners.wizard.platform.linuxHint' | transloco }}
+            <span class="params__quiet">{{
+              'runners.wizard.platform.isolation' | transloco: { backend: ('runners.backend.container' | transloco) }
+            }}</span>
+          </small>
         </label>
       </fieldset>
       <p class="step__meta" data-testid="wizard-pkg-later">{{ 'runners.wizard.platform.pkgLater' | transloco }}</p>
