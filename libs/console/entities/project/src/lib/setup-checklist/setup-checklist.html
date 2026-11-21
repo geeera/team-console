@@ -1,4 +1,4 @@
-<ol class="ledger" [attr.aria-label]="'settings.setup.stepsAria' | transloco">
+<ol class="ledger tc-steps" [attr.aria-label]="'settings.setup.stepsAria' | transloco">
   @for (step of steps(); track step.id; let index = $index) {
   <li class="step" [class]="'step--' + step.state" [attr.data-step]="step.id">
     <span class="step__mark" aria-hidden="true" [attr.data-mark]="markOf(step.state)">

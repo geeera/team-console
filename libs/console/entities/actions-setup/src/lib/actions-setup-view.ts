@@ -149,3 +149,15 @@ export function notReadyItemKeysOf(ids: readonly string[]): string[] {
   const hasUnknown = ids.some((id) => !(ACTIONS_SETUP_ITEMS as readonly string[]).includes(id));
   return hasUnknown ? [...known, 'actions.item.unknown'] : known;
 }
+
+/** «GitHub Actions для {project} ещё не готов: {items}. Ничего не изменилось.» (UX spec §5), from the refusal's items. */
+export function notReadyMessageOf(
+  items: readonly string[],
+  project: string,
+  translate: (key: string, params?: Record<string, unknown>) => string,
+): string {
+  const names = notReadyItemKeysOf(items).map((key) => translate(key));
+  return names.length === 0
+    ? translate('runners.err.actionsNotReadyBare', { project })
+    : translate('runners.err.actionsNotReady', { project, items: names.join(', ') });
+}

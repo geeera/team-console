@@ -1,0 +1,33 @@
+:host {
+  display: block;
+}
+
+.wf {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.wf__fix {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.wf__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.wf__actions:empty {
+  display: none;
+}
+
+@media (max-width: 519.98px) {
+  .wf__actions > * {
+    flex: 1 1 100%;
+  }
+}

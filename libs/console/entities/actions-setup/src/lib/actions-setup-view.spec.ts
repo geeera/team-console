@@ -5,6 +5,7 @@ import {
   firstMissingStepOf,
   itemOf,
   notReadyItemKeysOf,
+  notReadyMessageOf,
   stepStateOf,
   subCheckToneOf,
   workflowStepOf,
@@ -80,5 +81,16 @@ describe('notReadyItemKeysOf', () => {
       'actions.item.unknown',
     ]);
     expect(notReadyItemKeysOf([])).toEqual([]);
+  });
+});
+
+describe('notReadyMessageOf', () => {
+  const translate = (key: string, params?: Record<string, unknown>): string => `${key}${params === undefined ? '' : JSON.stringify(params)}`;
+
+  it('names the items, or says it bare when the refusal named none', () => {
+    expect(notReadyMessageOf(['secret'], 'storify', translate)).toBe(
+      'runners.err.actionsNotReady{"project":"storify","items":"actions.item.secret"}',
+    );
+    expect(notReadyMessageOf([], 'storify', translate)).toBe('runners.err.actionsNotReadyBare{"project":"storify"}');
   });
 });

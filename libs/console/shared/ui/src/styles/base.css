@@ -329,3 +329,131 @@ select {
 [aria-expanded='true'] .tc-disclosure-chevron {
   transform: rotate(180deg);
 }
+
+/*
+ * A numbered setup ledger (#24 project setup, #759 GitHub Actions setup): an `ol.tc-steps` of `li.step` rows, each
+ * with a round mark, a title and its state word, a fix line and a «Как сделать» disclosure. Global because two
+ * slices render it with their own templates; the class names stay the checklist's.
+ */
+.tc-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.tc-steps .step {
+  display: grid;
+  grid-template-columns: var(--avatar-size) minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.tc-steps .step + .step {
+  border-top: var(--border-w) solid var(--border);
+}
+
+.tc-steps .step__mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: var(--r-round);
+  background: var(--bg-sunken);
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+}
+
+.tc-steps .step--done .step__mark {
+  background: var(--success-soft);
+  color: var(--success-text);
+}
+
+.tc-steps .step--missing .step__mark {
+  background: var(--warning-soft);
+  color: var(--warning-text);
+}
+
+.tc-steps .step__body {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.tc-steps .step__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+}
+
+.tc-steps .step__title {
+  margin: 0;
+  font-size: var(--fs-md);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  overflow-wrap: anywhere;
+}
+
+.tc-steps .step__state {
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+.tc-steps .step--done .step__state {
+  color: var(--success-text);
+}
+
+.tc-steps .step--missing .step__state {
+  color: var(--warning-text);
+}
+
+.tc-steps .step__fix,
+.tc-steps .step__how p {
+  margin: 0;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-body);
+  color: var(--text-2);
+  overflow-wrap: anywhere;
+}
+
+.tc-steps .step__how-toggle {
+  justify-self: start;
+  margin-left: calc(-1 * var(--space-3));
+  color: var(--accent-text);
+}
+
+.tc-steps .step__chevron--open {
+  transform: rotate(180deg);
+}
+
+.tc-steps .step__how {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.tc-steps .step__how[hidden] {
+  display: none;
+}
+
+.tc-steps .step__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: var(--control-h);
+  color: var(--accent-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+}

@@ -1,0 +1,112 @@
+<div class="wf" data-testid="workflow-step" [attr.data-state]="shown()">
+  <tc-copy-code
+    [code]="path"
+    [ariaLabel]="'actions.file.pathAria' | transloco"
+    [copyLabel]="'settings.common.copy' | transloco"
+    [copiedLabel]="'settings.common.copied' | transloco"
+    [failedNote]="'settings.common.copyFailed' | transloco"
+  />
+
+  <p class="wf__fix" data-testid="workflow-fix">
+    @switch (shown()) {
+      @case ('ok') { {{ 'actions.wf.ok' | transloco }} }
+      @case ('leftover') { {{ 'actions.wf.ok' | transloco }} {{ 'actions.pr.leftover' | transloco: { n: pr()?.number } }} }
+      @case ('missing') { {{ 'actions.wf.missing' | transloco: { branch: branchLabel() } }} }
+      @case ('outdated') { {{ 'actions.wf.outdated' | transloco }} }
+      @case ('modified') { {{ 'actions.wf.modified' | transloco: { branch: branchLabel() } }} }
+      @case ('pr-open') { {{ 'actions.pr.opened' | transloco: { n: pr()?.number } }} }
+      @case ('pr-foreign') { {{ 'actions.pr.foreign' | transloco: { n: pr()?.number } }} }
+      @default { {{ 'actions.wf.unknown' | transloco: { branch: branchLabel() } }} }
+    }
+  </p>
+  @if (action() !== null && !canOpenPr()) {
+    <p class="wf__fix" data-testid="workflow-copy-reason">
+      {{ (isPrPathOff() ? 'actions.wf.prOff' : 'actions.wf.noPermission') | transloco }}
+    </p>
+  }
+
+  @if (refusalText(); as text) {
+    <div tc-banner tone="danger" role="alert" data-testid="workflow-pr-error" [attr.data-refusal]="refusal()?.kind">
+      <tc-icon tc-banner-icon name="alert" size="sm" />
+      <p tc-banner-text>{{ text }}</p>
+      @if (refusalLink(); as link) {
+        <div tc-banner-actions>
+          <a tc-button size="sm" data-testid="workflow-pr-error-link" [href]="link.url" target="_blank" rel="noopener noreferrer">
+            {{ link.key | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
+            <tc-icon name="external" size="sm" />
+          </a>
+        </div>
+      }
+    </div>
+  }
+  @if (retryAt(); as time) {
+    <p class="wf__fix" role="status" data-testid="workflow-pr-rate">
+      {{ 'actions.pr.err.rate' | transloco: { time: (time | localTime) } }}
+    </p>
+  }
+
+  <div class="wf__actions">
+    @if (pr(); as pr) {
+      @if (shown() === 'pr-open' || shown() === 'pr-foreign' || shown() === 'leftover') {
+        <a
+          #prLink
+          tc-button
+          data-testid="workflow-pr-link"
+          [variant]="shown() === 'pr-open' ? 'primary' : 'secondary'"
+          [href]="pr.url"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {{ 'actions.pr.view' | transloco: { n: pr.number } }}<span class="tc-sr-only">
+            {{ 'settings.common.external' | transloco }}</span
+          >
+          <tc-icon name="external" size="sm" />
+        </a>
+      }
+    }
+    @if (action(); as action) {
+      @if (canOpenPr()) {
+        <button
+          tc-button
+          type="button"
+          variant="primary"
+          data-testid="workflow-open-pr"
+          [loading]="opening()"
+          [attr.aria-disabled]="opening() || !network.online() ? 'true' : null"
+          [attr.aria-describedby]="network.online() ? null : 'wf-offline-' + slug()"
+          (click)="openPr()"
+        >
+          {{ (opening() ? 'actions.pr.busy' : 'actions.pr.' + action) | transloco }}
+        </button>
+      }
+    }
+    @if (shown() !== 'ok') {
+      <button
+        tc-button
+        type="button"
+        data-testid="workflow-show-file"
+        [variant]="isCopyPrimary() ? 'primary' : 'secondary'"
+        [attr.aria-expanded]="isFileOpen()"
+        [attr.aria-controls]="'wf-file-' + slug()"
+        (click)="toggleFile()"
+      >
+        {{ (isFileOpen() ? 'actions.file.hide' : 'actions.file.show') | transloco }}
+      </button>
+    }
+    @if (shown() === 'modified' && view().link; as blob) {
+      <a tc-button variant="quiet" data-testid="workflow-blob" [href]="blob" target="_blank" rel="noopener noreferrer">
+        {{ 'actions.file.blob' | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
+        <tc-icon name="external" size="sm" />
+      </a>
+    }
+  </div>
+  @if (!network.online()) {
+    <p class="wf__fix" [id]="'wf-offline-' + slug()">{{ 'actions.err.offlineWhy' | transloco }}</p>
+  }
+
+  <div [id]="'wf-file-' + slug()">
+    @if (isFileOpen()) {
+      <tc-workflow-file [slug]="slug()" [repo]="repo()" [branch]="branch()" [branchLabel]="branchLabel()" />
+    }
+  </div>
+</div>
