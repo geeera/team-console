@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { fakePost, seed } from './support/stack';
+import { clearFakePulls, fakePost, seed } from './support/stack';
 
 /**
  * The design question card with no screens (#852, state of #276 §3): design #90006 has no folder under docs/design,
@@ -20,6 +20,12 @@ const note = (page: Page): Locator => card(page).getByTestId('question-previews-
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
   await seed(stack, [REPO]);
+});
+
+test.afterAll(async ({ stack }) => {
+  if (stack.fakeURL !== null) {
+    await clearFakePulls(stack, REPO);
+  }
 });
 
 test('a design with no screens and no pull request shows the note alone', async ({ page }) => {
