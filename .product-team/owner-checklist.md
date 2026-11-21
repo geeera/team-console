@@ -245,7 +245,7 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    отказ (сам тег потом не нужен — удали его, если создал).
 2. **Environment `release`.** Settings → Environments → New environment → `release`. Deployment branches and tags →
    **Selected branches and tags** → Add deployment branch or tag rule → Ref type **Tag**, pattern `v*` (ветки — ни
-   одной). Этот environment указан у каждой задачи workflow (сборка, аттестация, образ, релиз), поэтому правило
+   одной). Этот environment указан у каждой задачи workflow (сборка, упаковка с Node.js, аттестация, образ, релиз), поэтому правило
    действует на каждую публикацию. По желанию **Required reviewers** = ты: тогда релиз ждёт твоего «Approve» в
    Actions на каждом этапе: сборка, затем аттестация и образ (одним «Review deployments»), затем релиз.
    Секретов и переменных в нём нет и не нужно.
@@ -259,6 +259,13 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
    `RUNNER_RELEASE_VERSION` и `RUNNER_MINIMUM_VERSION` в `apps/api/wrangler.jsonc` (см.
    `.product-team/environment-manifest.yml`). После релиза команда меняет их обычным PR; от тебя ничего не нужно,
    кроме go на выкладку. `update` никогда не ставит версию ниже установленной или ниже минимума.
+   **Команда установки на Mac (#634 PR 5).** Вместе с `RUNNER_RELEASE_VERSION` задаётся `RUNNER_RELEASE_SHA256SUMS` —
+   точный текст файла `SHA256SUMS` этого релиза. Перед go на такой PR проверьте файл у себя:
+   `gh release download v<v> --repo geeera/team-console --pattern SHA256SUMS` и
+   `gh attestation verify SHA256SUMS --repo geeera/team-console --signer-workflow github.com/geeera/team-console/.github/workflows/release-runner.yml --source-ref refs/tags/v<v> --deny-self-hosted-runners`,
+   затем сравните его с значением в PR. Деплой делает ту же проверку сам и не выкладывает консоль при расхождении,
+   поэтому ваша проверка — вторая. Команду установки консоль показывает только для релиза 0.2.0 и новее: в них уже
+   есть свой Node.js.
 6. **Установка на твой Mac** — `docs/runbooks/runner.md` (#576, `needs:local`).
 
 ## Раннер: GitHub Actions (#671 — первый настоящий запуск на dev)
