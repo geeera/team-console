@@ -34,7 +34,13 @@ export type ConnectOutcome =
   | { readonly kind: Exclude<GitHubConnectOutcome, 'wrong-account'> }
   | { readonly kind: 'wrong-account'; readonly login: string | null };
 
-const OUTCOMES: readonly GitHubConnectOutcome[] = ['connected', 'denied', 'wrong-account', 'failed'];
+const OUTCOMES: readonly GitHubConnectOutcome[] = [
+  'connected',
+  'denied',
+  'wrong-account',
+  'user-id-changed',
+  'failed',
+];
 
 function isOutcome(value: unknown): value is GitHubConnectOutcome {
   return typeof value === 'string' && (OUTCOMES as readonly string[]).includes(value);

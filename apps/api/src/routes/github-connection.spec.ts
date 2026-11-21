@@ -664,7 +664,7 @@ describe('GET /api/v1/github/callback', () => {
 
     const { response } = await connectAs(h, { login: OWNER.login, id: 4242 });
 
-    expectBackToSettings(response, '/settings?github=failed');
+    expectBackToSettings(response, '/settings?github=user-id-changed');
     expect(await storedRow()).toEqual(before);
     expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/grant`]);
     expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption

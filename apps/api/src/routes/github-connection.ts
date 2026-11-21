@@ -245,7 +245,7 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
           // Another GitHub account under the owner's login: its grant is not the stored connection's, so it goes.
           const revoked = await revokeUnwanted(c, oauth, pair.accessToken, 'grant');
           logger.warn('owner connect refused: the GitHub user id is not the connected one', { revoked });
-          return backToSettings('failed');
+          return backToSettings('user-id-changed');
         }
         logger.info('owner connected', { login: user.login });
         await refreshOwnerDisplayName(c, user);

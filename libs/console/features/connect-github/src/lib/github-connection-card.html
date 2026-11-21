@@ -6,7 +6,12 @@
     {{ 'settings.common.retry' | transloco }}
   </button>
 </tc-state-block>
-} @default { @if (errorKey(); as key) {
+} @default { @if (isUserIdChanged()) {
+<div tc-status-card tone="warning" role="alert" data-testid="gh-user-id-changed">
+  <h3 #title tc-status-card-title tabindex="-1">{{ 'settings.gh.idChanged.title' | transloco }}</h3>
+  <p tc-status-card-body>{{ 'settings.gh.idChanged.body' | transloco: { login: store.login() } }}</p>
+</div>
+} @if (errorKey(); as key) {
 <div tc-status-card tone="danger" role="alert" data-testid="gh-error">
   <h3 #title tc-status-card-title tabindex="-1">{{ 'settings.gh.error.title' | transloco }}</h3>
   <p tc-status-card-body>{{ key | transloco: errorParams() }}</p>

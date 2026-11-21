@@ -1093,6 +1093,10 @@
         "title": "The GitHub connection was lost",
         "body": "Access was revoked or has expired. Until you connect again, answers from the console aren’t sent and projects can’t be added. Your projects and their setup are still here."
       },
+      "idChanged": {
+        "title": "That’s a different GitHub account",
+        "body": "The login {{login}} on GitHub now belongs to a different account than the one connected to the console. The connection wasn’t replaced, and access for the new account is already revoked. To switch accounts, select Disconnect first, then connect GitHub again."
+      },
       "error": {
         "title": "Couldn’t connect GitHub",
         "url": "The console returned an unexpected sign-in address, so the app didn’t open it. Nothing changed.",

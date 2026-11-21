@@ -30,10 +30,11 @@ export interface GitHubConnectStartDto {
 
 /**
  * The callback's result in the Settings URL: `connected`; `denied` (cancelled on GitHub); `wrong-account` (another
- * login authorized — its grant is already revoked; `login` names it); `failed` (anything else: expired or
- * tampered request, GitHub unavailable, app misconfigured).
+ * login authorized — its grant is already revoked; `login` names it); `user-id-changed` (the owner login, but another
+ * GitHub account than the connected one — refused, its grant revoked; switching needs Disconnect first, #890);
+ * `failed` (anything else: expired or tampered request, GitHub unavailable, app misconfigured).
  */
-export type GitHubConnectOutcome = 'connected' | 'denied' | 'wrong-account' | 'failed';
+export type GitHubConnectOutcome = 'connected' | 'denied' | 'wrong-account' | 'user-id-changed' | 'failed';
 
 /** Where the owner revokes the app by hand when the console could not (GitHub's authorized-apps settings). */
 export const GITHUB_AUTHORIZED_APPS_URL = 'https://github.com/settings/applications';
