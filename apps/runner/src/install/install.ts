@@ -10,6 +10,7 @@ import {
 } from '../backends/user';
 import { PINNED_IMAGE, type ContainerRuntime } from '../config/config';
 import type { Exec } from '../host/exec';
+import { CURRENT_LINK, RELEASES_DIR } from '../update/install-layout';
 import {
   LAUNCH_DAEMON_PATH,
   LAUNCH_LABEL,
@@ -195,12 +196,13 @@ export async function stableNodeOf(given: string, host: Pick<InstallHost, 'realp
 }
 
 const isRootOnly = (facts: PathFacts | null): boolean => facts !== null && facts.uid === 0 && (facts.mode & 0o022) === 0;
+const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
 
 /**
  * The bundle, `job-exec` and `node` the sudoers rule and the daemon name must be root's alone, or the rule hands them
  * out (S2 of the #634 security note: the daemon runs `<prefix>/node` as `_tcrunner`). An entry `update` turned into a
  * link through `current` is judged by what it resolves to as well, and that file's directory, since a link's own mode
- * says nothing.
+ * says nothing; so are `releases/` and the release `current` names, with the directory that holds it (#884).
  */
 export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
   const refuse = (path: string): never => {
@@ -222,11 +224,40 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
       if (targetFacts?.kind !== 'file' || !isRootOnly(targetFacts)) {
         refuse(target);
       }
-      const dir = target.slice(0, target.lastIndexOf('/')) || '/';
+      const dir = parentOf(target);
       if (!isRootOnly(await host.stat(dir))) {
         refuse(dir);
       }
     }
+  }
+  // #884: in the layout `update` leaves, whoever can write `releases/` or repoint `current` changes what every link
+  // above resolves to. A tarball extracted by hand is flat and has neither.
+  const releases = `${prefix}/${RELEASES_DIR}`;
+  const releasesFacts = await host.stat(releases);
+  if (releasesFacts !== null && (releasesFacts.kind !== 'directory' || !isRootOnly(releasesFacts))) {
+    refuse(releases);
+  }
+  const current = `${prefix}/${CURRENT_LINK}`;
+  const currentFacts = await host.stat(current);
+  if (currentFacts === null) {
+    return;
+  }
+  // A link's own mode says nothing; its owner and the directory it sits in (the prefix, checked above) do.
+  if (currentFacts.kind !== 'symlink' || currentFacts.uid !== 0) {
+    throw new InstallError(
+      `${current} must be a root-owned link to a release under ${releases}: extract the release with sudo (docs/runbooks/runner.md)`,
+    );
+  }
+  const release = await host.realpath(current);
+  if (release === null) {
+    return refuse(current);
+  }
+  const releaseFacts = await host.stat(release);
+  if (releaseFacts?.kind !== 'directory' || !isRootOnly(releaseFacts)) {
+    refuse(release);
+  }
+  if (!isRootOnly(await host.stat(parentOf(release)))) {
+    refuse(parentOf(release));
   }
 }
 

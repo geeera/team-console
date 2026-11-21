@@ -48,10 +48,14 @@ Which node the launcher runs: `<prefix>/node`, else `node` on `PATH`, else `/opt
 `/usr/local/bin/node`. **Run as root** (`sudo …/bin/team-console-runner …`), it runs only `<prefix>/node`, and only when
 root alone can change it: the file and every directory up to `/` root-owned and not writable by group or others,
 after every link is resolved. It runs that resolved path and never falls back to another node, root-owned or not; it
-stops with exit 126 (#778, S2). A release older than 0.2.0 ships no node and so cannot run as root: update it first.
+stops with exit 126 (#778, S2). The same holds for `team-console-runner.mjs` and the release directory itself; on macOS
+no ACL entry on any of them, or on a directory above, may let anyone but root write (`ls -le` shows them; remove one
+with `sudo chmod -a# <n> <path>`). As root it also drops every `NODE_*` variable (`NODE_OPTIONS`, `NODE_PATH`, …)
+before it starts node (#884). A release older than 0.2.0 ships no node and so cannot run as root: update it first.
 
 `install --backend user` refuses a directory, bundle, `job-exec` or `node` that is not root-owned or that anyone else
-can write, because the sudoers rule and the LaunchDaemon name those files. Run `install --dry-run` first. It lists every step and changes
+can write, and, once `update` has run, a `releases/` directory or a `current` link (and the release it names) that is
+not root's alone (#884), because the sudoers rule and the LaunchDaemon name those files. Run `install --dry-run` first. It lists every step and changes
 nothing. Then run the same command with `--yes`. Run the launcher by its full path, or put
 `/usr/local/lib/team-console-runner/bin` on `PATH`. Do not symlink the launcher elsewhere, because it finds the bundle
 relative to its own path.
