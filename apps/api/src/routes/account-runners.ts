@@ -89,15 +89,20 @@ export function servedProjectsDtoOf(runner: RunnerRecord, served: readonly Serve
     }));
 }
 
-/** Who reads a runner (#775): their audit actor, and the account owners' display names by user id. */
+/**
+ * Who reads a runner (#775): their user id, and the account owners' display names by user id. `userId` is NULL for a
+ * door with no user row (the Access owner before the link, the local bypass): its shared audit name is no person, so
+ * "enrolled by you" never matches it (#837).
+ */
 export interface RunnerReader {
-  readonly actor: string;
+  readonly userId: string | null;
   readonly ownerNames: ReadonlyMap<string, string>;
 }
 
 async function runnerReaderOf(c: Context, account: AccountRecord): Promise<RunnerReader> {
+  const identity = c.get('identity');
   return {
-    actor: auditActorOf(c.get('identity')).actor,
+    userId: identity.kind === 'user' ? identity.userId : null,
     ownerNames: await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(account.id),
   };
 }
@@ -116,10 +121,25 @@ function enrollerStateOf(runner: RunnerRecord, claimable: readonly string[]): Ru
   return claimable.includes(runner.id) ? 'claimable' : 'unrecorded';
 }
 
-/** The user id the sole-owner rule compares (#827); the Access owner before the link and the local bypass have none. */
-function claimerUserIdOf(c: Context): string | null {
+/**
+ * Who may claim a runner's enroller (#827, #837): a user by the id the sole-owner rule compares, the local bypass by
+ * its door (`null`, the owner count alone). Everyone else is `unlinked` — above all the Access owner before the GitHub
+ * link, who has no owner row, so beside one other owner's row the count alone would let them pass.
+ */
+type EnrollerClaimer = { readonly userId: string | null } | 'unlinked';
+
+function enrollerClaimerOf(c: Context): EnrollerClaimer {
   const identity = c.get('identity');
-  return identity.kind === 'user' ? identity.userId : null;
+  if (identity.kind === 'user') {
+    return identity.userId === null ? 'unlinked' : { userId: identity.userId };
+  }
+  return identity.kind === 'local' ? { userId: null } : 'unlinked';
+}
+
+/** The runners the caller may claim now; none for an unlinked caller, whose claim the route refuses. */
+async function claimableIdsOf(c: Context, runners: RunnersRepo, accountId: string): Promise<readonly string[]> {
+  const claimer = enrollerClaimerOf(c);
+  return claimer === 'unlinked' ? [] : runners.enrollerClaimableIdsOf(accountId, claimer.userId);
 }
 
 export function runnerDtoOf(
@@ -158,8 +178,8 @@ export function runnerDtoOf(
     belowMinimum: isRunnerVersionBelow(runner.version, minimumVersion),
     // A revoked runner claims nothing anyway; its last pause is history, not a state.
     pause: runner.revokedAt === null ? runnerPauseOf(runner, now) : null,
-    // `enrolled_by` is the audit actor of the code's creator; compared, never sent (R-RUN).
-    enrolledByYou: runner.enrolledBy !== null && runner.enrolledBy === reader.actor,
+    // `enrolled_by` is the audit actor of the code's creator; compared with a real user id only, never sent (R-RUN).
+    enrolledByYou: reader.userId !== null && runner.enrolledBy === reader.userId,
     // The enroller's display name only, and only while they own the account; their id never leaves (#804 condition 2).
     enrolledByName: runner.enrolledBy === null ? null : (reader.ownerNames.get(runner.enrolledBy) ?? null),
     enroller: enrollerStateOf(runner, claimable),
@@ -214,7 +234,7 @@ async function currentRunnerDtoOf(
     runnerReleaseOf(c.env).minimumVersion,
     await runnerReaderOf(c, account),
     await runners.servedProjectsOf(account.id, before.id),
-    await runners.enrollerClaimableIdsOf(account.id, claimerUserIdOf(c)),
+    await claimableIdsOf(c, runners, account.id),
   );
 }
 
@@ -334,7 +354,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const runners = new RunnersRepo(c.env.DB);
       // One read for every runner's effective projects (#775), the claim's own term.
       const served = await runners.servedProjectsOf(account.id);
-      const claimable = await runners.enrollerClaimableIdsOf(account.id, claimerUserIdOf(c));
+      const claimable = await claimableIdsOf(c, runners, account.id);
       const reader = await runnerReaderOf(c, account);
       const body: RunnerListDto = {
         // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
@@ -477,14 +497,23 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       if (runner === null) {
         return runnerNotFound(c);
       }
+      const claimer = enrollerClaimerOf(c);
+      if (claimer === 'unlinked') {
+        c.get('logger').warn('runner enroller claim refused', { reason: 'runner-enroller-unlinked', runnerId: runner.id });
+        return problem(c, {
+          type: 'runner-enroller-unlinked',
+          title: 'Forbidden',
+          status: 403,
+          detail: 'Link your GitHub account to the console before you claim a runner as yours',
+        });
+      }
       const now = new Date();
-      const by = auditActorOf(c.get('identity')).actor;
-      // Every rule is judged inside the write; the outcome only picks the answer.
+      // Every other rule is judged inside the write; the outcome only picks the answer.
       const claim = await runners.claimEnroller(
         account.id,
         runner.id,
-        by,
-        claimerUserIdOf(c),
+        auditActorOf(c.get('identity')).actor,
+        claimer.userId,
         auditOf(c, account, now.toISOString(), 'runner.enroller-claimed', runner.id, { basis: 'sole-owner' }),
       );
       switch (claim) {
