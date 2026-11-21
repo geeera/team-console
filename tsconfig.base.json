@@ -65,6 +65,7 @@
       "@console/entities/github-connection": ["./libs/console/entities/github-connection/src/index.ts"],
       "@console/features/connect-github": ["./libs/console/features/connect-github/src/index.ts"],
       "@console/features/add-project": ["./libs/console/features/add-project/src/index.ts"],
+      "@console/features/add-runner": ["./libs/console/features/add-runner/src/index.ts"],
       "@console/features/archive-project": ["./libs/console/features/archive-project/src/index.ts"],
       "@console/entities/artifact": ["./libs/console/entities/artifact/src/index.ts"],
       "@console/entities/sprint": ["./libs/console/entities/sprint/src/index.ts"],

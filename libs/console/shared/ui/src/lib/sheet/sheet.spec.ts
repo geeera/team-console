@@ -8,6 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { ConfirmFailure } from './confirm-dialog';
 import { OpenSheets } from './open-sheets';
 import { Sheet } from './sheet';
+import { SheetCloseGuard } from './sheet-close-guard';
 import { SheetFooter } from './sheet-footer';
 
 @Component({
@@ -16,6 +17,17 @@ import { SheetFooter } from './sheet-footer';
 })
 class Content {
   readonly data = inject<{ text: string }>(DIALOG_DATA);
+}
+
+@Component({ template: `<p>guarded</p>` })
+class Guarded {
+  readonly ref = inject(DialogRef);
+  readonly asked = signal(0);
+
+  constructor() {
+    this.ref.disableClose = true;
+    inject(SheetCloseGuard).intercept(() => this.asked.update((count) => count + 1));
+  }
 }
 
 @Component({ template: `<button type="button" class="opener">Open</button>` })
@@ -133,6 +145,23 @@ describe('Sheet', () => {
     expect(closed).toBe(true);
     expect(document.activeElement).toBe(opener);
     fixture.nativeElement.remove();
+  });
+
+  it('hands the close button, Escape and the scrim to a close guard instead of closing (#634 PR 4)', async () => {
+    const ref = sheet.open<unknown, unknown>(Guarded, { title: 'Wizard' });
+    await settle();
+    const guarded = ref.componentInstance as Guarded;
+    const container = overlay().querySelector('tc-sheet-container') as HTMLElement;
+
+    (container.querySelector('.tc-sheet__close') as HTMLButtonElement).click();
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }));
+    (overlay().querySelector('.cdk-overlay-backdrop') as HTMLElement).click();
+    await settle();
+    expect(guarded.asked()).toBe(3);
+    expect(overlay().querySelector('tc-sheet-container')).not.toBeNull();
+
+    ref.close();
+    await settle();
   });
 
   it('confirm() resolves true on Confirm and false on Cancel, focusing Cancel first', async () => {

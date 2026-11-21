@@ -3,11 +3,13 @@ import type { RunnerProjectOption } from '@console/entities/runner';
 import { TranslocoService } from '@console/shared/i18n';
 import { Sheet } from '@console/shared/ui';
 import { firstValueFrom } from 'rxjs';
-import { EnrolRunnerDialog, type EnrolRunnerData } from './enrol-runner-dialog';
+import { EnrolRunnerDialog, type EnrolRunnerData, type EnrolRunnerPrefill } from './enrol-runner-dialog';
 
 export interface EnrolRunnerTarget {
   readonly accountId: string;
   readonly projects: readonly RunnerProjectOption[];
+  /** What the add-runner wizard already asked (#634 PR 4, Linux handover): the form opens filled in. */
+  readonly prefill?: EnrolRunnerPrefill;
 }
 
 /**
@@ -24,7 +26,11 @@ export class EnrolRunner {
       title: this.transloco.translate('runners.enrol.title'),
       width: 'wide',
       autoFocus: '[data-testid="enrol-name"]',
-      data: { accountId: target.accountId, projects: target.projects },
+      data: {
+        accountId: target.accountId,
+        projects: target.projects,
+        ...(target.prefill === undefined ? {} : { prefill: target.prefill }),
+      },
     });
     return (await firstValueFrom(ref.closed)) === true;
   }

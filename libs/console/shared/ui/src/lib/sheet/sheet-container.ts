@@ -20,6 +20,7 @@ import {
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, IconButton } from '../button/button';
 import { Icon } from '../icon/icon';
+import { SheetCloseGuard } from './sheet-close-guard';
 import { SheetFooterSlot } from './sheet-footer';
 
 export interface SheetFrame {
@@ -86,6 +87,7 @@ export class SheetContainer extends CdkDialogContainer {
     );
   });
   private readonly ref = inject(DialogRef);
+  private readonly closeGuard = inject(SheetCloseGuard, { optional: true });
   private readonly injector = inject(Injector);
   private readonly foot = viewChild<ElementRef<HTMLElement>>('foot');
   private readonly body = viewChild.required<ElementRef<HTMLElement>>('body');
@@ -102,6 +104,21 @@ export class SheetContainer extends CdkDialogContainer {
   constructor() {
     super();
     const destroyRef = inject(DestroyRef);
+    // With `disableClose` the CDK ignores Escape and the scrim; content holding a close guard decides instead.
+    const guarded = this.ref.keydownEvents.subscribe((event) => {
+      if (event.key === 'Escape' && this.ref.disableClose && this.closeGuard?.request() === true) {
+        event.preventDefault();
+      }
+    });
+    const scrim = this.ref.backdropClick.subscribe(() => {
+      if (this.ref.disableClose) {
+        this.closeGuard?.request();
+      }
+    });
+    destroyRef.onDestroy(() => {
+      guarded.unsubscribe();
+      scrim.unsubscribe();
+    });
     effect((onCleanup) => {
       const foot = this.foot()?.nativeElement;
       if (
@@ -157,6 +174,9 @@ export class SheetContainer extends CdkDialogContainer {
   }
 
   protected close(): void {
+    if (this.closeGuard?.request() === true) {
+      return;
+    }
     // Honour the same lock as Escape and the scrim (a confirm dialog sets it while its action runs).
     if (this.ref.disableClose) {
       return;

@@ -2345,12 +2345,13 @@
       "legend": "Which projects the runner serves",
       "editLegend": "Projects of “{{name}}”",
       "all": "All projects of the account",
-      "allHint": "Every current and future project of the account. In an account with several owners, a runner signed in with a Claude subscription takes only your own projects under this rule; add the other owners’ projects by choosing them.",
+      "allHint": "Every current and future project of the account, including ones added later.",
       "selected": "Only the chosen ones",
       "selectedHint": "The runner takes jobs of the ticked projects only. A new project has to be added by hand.",
       "title": "Runner projects",
       "edit": "Projects",
-      "editAria": "Change the projects of runner {{name}}"
+      "editAria": "Change the projects of runner {{name}}",
+      "allOwners": "This account has several owners. Under this rule a runner signed in with a Claude subscription takes only your projects. It takes other owners’ projects only if you tick them under “Only the chosen ones”."
     },
     "enroller": {
       "open": "Claim as mine",
@@ -2362,6 +2363,134 @@
       "confirm": "Claim",
       "busy": "Claiming…",
       "done": "Runner {{name}} is claimed as yours"
+    },
+    "wizard": {
+      "step": "Step {{n}} of 4 · {{name}}",
+      "steps": {
+        "params": "Settings",
+        "command": "Command",
+        "confirm": "Confirmation",
+        "online": "Online"
+      },
+      "lead": "Name the machine, choose its projects and platform. The console shows one command for Terminal; there are no codes to type.",
+      "platform": {
+        "legend": "Where the runner will work",
+        "mac": "Mac",
+        "macHint": "A separate macOS user: jobs cannot see your files. You will need an administrator password.",
+        "isolation": "Isolation: {{backend}}",
+        "linux": "Linux or Docker",
+        "linuxHint": "Enrols with a one-time code for now. One command for Linux comes later.",
+        "pkgLater": "Later: a .pkg installer for Mac, without Terminal."
+      },
+      "submit": "Show the command",
+      "submitCode": "Get a code",
+      "busy": "Preparing the command…",
+      "err": {
+        "limit": "Three enrolment requests are already open in other tabs or windows. Close them or wait: each expires after 10 minutes.",
+        "hourly": "Too many enrolment requests this hour. Try again later.",
+        "noCommand": "The console can’t build the command right now: that’s a fault on our side. Enrol the runner with a one-time code.",
+        "toCode": "Enrol with a code",
+        "suspended": "The account is suspended: runners can’t be enrolled right now.",
+        "changed": "The request changed while you were confirming: it now has another machine and another code. Nothing was enrolled. Compare the new code with Terminal."
+      },
+      "command": {
+        "title": "Run the command in Terminal on “{{name}}”",
+        "leadOneLiner": "Open Terminal on this Mac, paste the command and press Return. macOS asks for an administrator password: sudo needs it.",
+        "arch": "Mac processor",
+        "archArm": "Apple silicon (M1 and later)",
+        "archIntel": "Intel",
+        "archHint": "Not sure which? Apple menu → “About This Mac”: a “Chip” line means Apple silicon, a “Processor” line means Intel.",
+        "what": "What the command does",
+        "whatBody": "It downloads release {{version}} from GitHub into a temporary folder, checks its checksum against the one the console shows, and only then unpacks it and starts the install. The install creates separate macOS users for the runner, asks you to sign in to Claude in the browser and starts the service.",
+        "leadRunbook": "This runner release can’t be installed with one command yet. Install it by the guide first, then run the command below.",
+        "runbookStep1": "Download and verify release {{version}}.",
+        "runbookLink": "Guide: installing the runner",
+        "runbookStep2": "Run in Terminal:",
+        "copyAria": "Copy the runner install command",
+        "region": "Runner install command",
+        "noSecrets": "The command holds no secrets: only the console address and the request number. It works for one machine.",
+        "phone": "The command is run in Terminal on a Mac. It’s easier to start right there: open Settings › Runners on it. Or copy the command and send it to yourself. You can confirm the request from here too."
+      },
+      "expires": "The request is valid until {{time}}, {{minutes}} min left.",
+      "expiresSoon": "The request expires in a minute.",
+      "waiting": "Waiting for the request from your machine…",
+      "waitingSub": "When the command reaches enrolment, a code to compare appears here.",
+      "withdraw": "Withdraw the request",
+      "withdrawn": {
+        "self": "Request withdrawn",
+        "title": "Request withdrawn",
+        "body": "The request was withdrawn in another tab or window. Nothing was enrolled."
+      },
+      "confirm": {
+        "title": "A machine asks to enrol",
+        "compareTitle": "Compare with Terminal",
+        "compareBody": "Terminal printed the machine’s code. Confirm only if it matches the code below and this is your machine.",
+        "fingerprint": "Machine code",
+        "host": "Machine",
+        "system": "System",
+        "version": "Runner version",
+        "isolation": "Isolation",
+        "country": "Request from",
+        "countryUnknown": "country unknown",
+        "boundAt": "Request received",
+        "takenQ": "Terminal says the request is already taken by another machine?",
+        "takenA": "Then another machine grabbed this request before yours. Press “Reject” and start again. That machine must not be enrolled.",
+        "approve": "Confirm",
+        "approving": "Confirming…",
+        "reject": "Reject",
+        "rejecting": "Rejecting…"
+      },
+      "approved": {
+        "title": "Confirmed — waiting for the first signal",
+        "body": "Terminal carries on with the install. It will now ask you to sign in to Claude, in the browser. Then it starts the service, and the runner comes online.",
+        "waiting": "Waiting for the runner to come online…"
+      },
+      "slow": {
+        "title": "The runner isn’t online yet",
+        "body": "Look at Terminal: setup names the step that failed and how to fix it. To check everything again:",
+        "log": "Service log: {{path}}",
+        "keepWaiting": "The console keeps waiting. You can close this window: the runner is already listed and turns “Online” on its own.",
+        "copyAria": "Copy the runner check command",
+        "region": "Runner check command"
+      },
+      "online": {
+        "title": "The runner is online",
+        "body": "Runner “{{name}}” is enrolled and waiting for jobs.",
+        "selfCheck": "The check on the machine itself: see the setup output. Its last line should be “Done”.",
+        "behind": "Version {{version}} is below the minimum {{minimum}}: the runner takes no jobs until you update it.",
+        "update": "How to update",
+        "pickProjects": "Choose projects"
+      },
+      "rejected": {
+        "title": "Request rejected",
+        "body": "The machine isn’t enrolled, and Terminal will say the request was rejected. If it was your machine, start again: the console shows a new command."
+      },
+      "expired": {
+        "title": "Request expired",
+        "body": "10 minutes passed and the machine was never confirmed. Nothing was enrolled. If Terminal is still waiting, stop it (Control-C) and run the new command."
+      },
+      "again": "New command",
+      "close": "Close",
+      "done": "Done",
+      "pollFailing": "No connection to the console, trying again. The request on your machine keeps waiting.",
+      "offline": "You’re offline. When the connection is back, the console checks the request again.",
+      "offlineReason": "You’re offline",
+      "closeConfirm": {
+        "title": "Close and withdraw the request?",
+        "message": "The command stops working. If you already ran it, Terminal will say the request was withdrawn.",
+        "confirm": "Withdraw and close",
+        "stay": "Stay"
+      },
+      "closeFailed": "Couldn’t withdraw the request. It expires on its own in 10 minutes.",
+      "live": {
+        "command": "The command is ready. Copy it into Terminal.",
+        "bound": "Machine {{host}} asks to enrol. Compare the code {{fingerprint}} with Terminal.",
+        "approved": "Confirmed. Waiting for the runner to come online.",
+        "online": "Runner {{name}} is online."
+      },
+      "fingerprintDash": "dash",
+      "newTab": "(opens in a new tab)",
+      "stepsLabel": "Enrolment steps"
     }
   },
   "jobs": {
