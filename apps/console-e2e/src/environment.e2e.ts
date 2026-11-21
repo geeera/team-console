@@ -46,11 +46,12 @@ test('the manifest and the Home Screen icons carry the environment', async ({ re
   for (const [path, type] of [
     ['/brand/apple-touch-icon.png', 'image/png'],
     ['/brand/favicon.ico', 'image/vnd.microsoft.icon'],
+    ['/favicon.ico', 'image/vnd.microsoft.icon'],
   ] as const) {
     const icon = await request.get(path);
     expect(icon.status(), path).toBe(200);
     expect(icon.headers()['content-type'], path).toBe(type);
-    const original = await request.get(`/icons/${environment}/${path.slice('/brand/'.length)}`);
+    const original = await request.get(`/icons/${environment}/${path.slice(path.lastIndexOf('/') + 1)}`);
     expect(Buffer.compare(await icon.body(), await original.body()), path).toBe(0);
   }
 });

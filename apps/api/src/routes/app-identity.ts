@@ -17,6 +17,8 @@ import type { ApiEnv } from '../env';
  */
 export const MANIFEST_PATH = '/manifest.webmanifest';
 /** Icons index.html links to; each answers the environment's copy from `apps/console/public/icons/<env>/`. */
+/** Where browsers look for a favicon when the page names none; answered like /brand/favicon.ico. */
+export const ROOT_FAVICON_PATH = '/favicon.ico';
 export const BRAND_ICONS = ['favicon.ico', 'apple-touch-icon.png'] as const;
 
 // Icons only change with a deploy; an hour keeps tab reloads off the Worker without pinning a stale icon for long.
@@ -86,26 +88,32 @@ appIdentityRoutes.get(MANIFEST_PATH, (c) => {
   });
 });
 
-for (const icon of BRAND_ICONS) {
-  appIdentityRoutes.get(`/brand/${icon}`, async (c) => {
-    const environment = environmentOf(c);
-    if (environment instanceof Response) {
-      return environment;
-    }
-    const url = new URL(`${appIconDirOf(environment)}/${icon}`, c.req.url);
-    const asset = await c.env.ASSETS.fetch(new Request(url, { method: 'GET', headers: c.req.raw.headers }));
-    // The assets layer answers a missing file with the SPA shell (200, text/html): only an image counts.
-    const isImage = asset.headers.get('Content-Type')?.startsWith('image/') === true;
-    if (asset.status !== 304 && !(asset.ok && isImage)) {
-      return problem(c, { type: 'not-found', title: 'Not Found', status: 404 });
-    }
-    // A fetched response's headers are immutable; the copy takes the Worker's nosniff and deny-all CSP like any
-    // response it builds — an image needs nothing the console's page policy allows.
-    const response = new Response(asset.body, asset);
-    response.headers.set('Cache-Control', ICON_CACHE_CONTROL);
-    return response;
-  });
+async function serveIcon(c: WorkerContext<ApiEnv>, icon: (typeof BRAND_ICONS)[number]): Promise<Response> {
+  const environment = environmentOf(c);
+  if (environment instanceof Response) {
+    return environment;
+  }
+  const url = new URL(`${appIconDirOf(environment)}/${icon}`, c.req.url);
+  const asset = await c.env.ASSETS.fetch(new Request(url, { method: 'GET', headers: c.req.raw.headers }));
+  // The assets layer answers a missing file with the SPA shell (200, text/html): only an image counts.
+  const isImage = asset.headers.get('Content-Type')?.startsWith('image/') === true;
+  if (asset.status !== 304 && !(asset.ok && isImage)) {
+    return problem(c, { type: 'not-found', title: 'Not Found', status: 404 });
+  }
+  // A fetched response's headers are immutable; the copy takes the Worker's nosniff and deny-all CSP like any
+  // response it builds — an image needs nothing the console's page policy allows.
+  const response = new Response(asset.body, asset);
+  response.headers.set('Cache-Control', ICON_CACHE_CONTROL);
+  return response;
 }
+
+for (const icon of BRAND_ICONS) {
+  appIdentityRoutes.get(`/brand/${icon}`, (c) => serveIcon(c, icon));
+}
+
+// Browsers and crawlers probe the root path regardless of the <link>; without a route here the assets layer answers
+// it with the SPA shell (#251).
+appIdentityRoutes.get(ROOT_FAVICON_PATH, (c) => serveIcon(c, 'favicon.ico'));
 
 // run_worker_first sends all of /brand/* here; anything else under it is a 404, never the SPA shell.
 appIdentityRoutes.all('/brand/*', (c) => problem(c, { type: 'not-found', title: 'Not Found', status: 404 }));
