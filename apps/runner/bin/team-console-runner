@@ -130,6 +130,7 @@ if [ "$is_root" = true ]; then
   # The allowlist of the header. Names come from `export -p` (bash says `declare -x`); a line that only looks like one,
   # inside a value that spans lines, names a variable that is checked to exist like any other.
   keep=
+  value=
   for line in $(export -p); do
     case $line in
       'export '*) name=${line#export } ;;
