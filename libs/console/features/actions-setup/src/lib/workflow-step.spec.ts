@@ -66,7 +66,7 @@ describe('WorkflowStep (#759 step 4)', () => {
     expect(find('workflow-open-pr')?.textContent?.trim()).toBe('Открыть PR с файлом');
     await click('workflow-open-pr');
     expect(calls).toEqual(['storify']);
-    const link = find<HTMLAnchorElement>('workflow-pr-link');
+    const link = find<HTMLAnchorElement>('workflow-link-pr');
     expect(link?.getAttribute('href')).toBe(PR_URL);
     expect(document.activeElement).toBe(link);
     expect(find('workflow-fix')?.textContent).toContain('PR #42 открыт. Смержите его');
@@ -79,7 +79,7 @@ describe('WorkflowStep (#759 step 4)', () => {
       problem: { kind: 'pr-open', pr: { number: 7, url: PR_URL, provenance: 'console' } },
     }));
     await click('workflow-open-pr');
-    expect(find('workflow-pr-link')?.textContent).toContain('Открыть PR #7 на GitHub');
+    expect(find('workflow-link-pr')?.textContent).toContain('Открыть PR #7 на GitHub');
     expect(announce).toHaveBeenCalledWith('PR #7 уже открыт', 'polite');
   });
 
@@ -95,9 +95,9 @@ describe('WorkflowStep (#759 step 4)', () => {
     const link = 'https://github.com/geeera/storify/branches/all?query=team-console%2Frunner-';
     const { find, click } = await render(MISSING, () => ({ ok: false, problem: { kind: 'branch-exists', link } }));
     await click('workflow-open-pr');
-    expect(find('workflow-pr-error')?.getAttribute('role')).toBe('alert');
-    expect(find('workflow-pr-error')?.textContent).toContain('удалите эту ветку на GitHub');
-    expect(find<HTMLAnchorElement>('workflow-pr-error-link')?.getAttribute('href')).toBe(link);
+    expect(find('workflow-refusal')?.getAttribute('role')).toBe('alert');
+    expect(find('workflow-refusal')?.textContent).toContain('удалите эту ветку на GitHub');
+    expect(find<HTMLAnchorElement>('workflow-refusal-link')?.getAttribute('href')).toBe(link);
     expect(find('workflow-file')).not.toBeNull();
   });
 
@@ -121,20 +121,20 @@ describe('WorkflowStep (#759 step 4)', () => {
   ] as [WorkflowPrRefusal, string][])('words the %o refusal', async (problem, text) => {
     const { find, click } = await render(MISSING, () => ({ ok: false, problem }));
     await click('workflow-open-pr');
-    expect(find('workflow-pr-error')?.textContent).toContain(text);
+    expect(find('workflow-refusal')?.textContent).toContain(text);
   });
 
   it('re-checks when the file is already current', async () => {
     const { find, click, rechecks } = await render(MISSING, () => ({ ok: false, problem: { kind: 'ready' } }));
     await click('workflow-open-pr');
-    expect(find('workflow-pr-error')?.textContent).toContain('Файл уже на месте');
+    expect(find('workflow-refusal')?.textContent).toContain('Файл уже на месте');
     expect(rechecks).toHaveLength(1);
   });
 
   it('says when a PR can be opened again after a 429', async () => {
     const { find, click } = await render(MISSING, () => ({ ok: false, problem: { kind: 'rate', retryAt: '2026-11-21T13:00:00.000Z' } }));
     await click('workflow-open-pr');
-    expect(find('workflow-pr-rate')?.textContent).toContain('PR можно открыть ещё раз позже');
+    expect(find('workflow-rate')?.textContent).toContain('PR можно открыть ещё раз позже');
   });
 
   it('leads with the Copy path while the app lacks its permissions', async () => {

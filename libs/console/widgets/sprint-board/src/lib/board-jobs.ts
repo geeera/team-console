@@ -267,11 +267,11 @@ export function isolatedName(name: string): string {
     }
 
     /*
-     * #848: the quiet button's own inset is pulled out on both sides, so its icon lines up with the title when the
-     * button wraps under it and with the list's right edge when it sits beside it.
+     * #848: the quiet button's leading inset is pulled out, so its icon lines up with the title when the button wraps
+     * under it; beside the title it only narrows the gap. The trailing side stays inside the runs column.
      */
     .board-jobs__refresh {
-      margin-inline: calc(-1 * var(--space-3));
+      margin-inline-start: calc(-1 * var(--space-3));
     }
 
     .board-jobs__title {

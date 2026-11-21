@@ -148,7 +148,7 @@ test('Open PR: the PR opens and is focused; a foreign PR is never called mergeab
   await openPage(page);
   const step = page.getByTestId('workflow-step');
   await step.getByTestId('workflow-open-pr').click();
-  const link = step.getByTestId('workflow-pr-link');
+  const link = step.getByTestId('workflow-link-pr');
   await expect(link).toBeFocused();
   await expect(link).toHaveAttribute('href', PR_URL);
   await expect(step.getByTestId('workflow-fix')).toHaveText(ru('actions.pr.opened', { n: 42 }));
@@ -170,36 +170,36 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
     {
       answer: problem(409, 'actions-setup-pr-open', { number: 7, url: `https://github.com/${REPO}/pull/7`, provenance: 'console' }),
       check: async (step) => {
-        await expect(step.getByTestId('workflow-pr-link')).toHaveText(new RegExp(ru('actions.pr.view', { n: 7 })));
-        await expect(step.getByTestId('workflow-pr-link')).toBeFocused();
+        await expect(step.getByTestId('workflow-link-pr')).toHaveText(new RegExp(ru('actions.pr.view', { n: 7 })));
+        await expect(step.getByTestId('workflow-link-pr')).toBeFocused();
       },
     },
     {
       answer: problem(409, 'actions-setup-branch-exists', { link: branches }),
       check: async (step) => {
-        await expect(step.getByTestId('workflow-pr-error')).toContainText(ru('actions.pr.err.branchExists'));
-        await expect(step.getByTestId('workflow-pr-error-link')).toHaveAttribute('href', branches);
+        await expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.branchExists'));
+        await expect(step.getByTestId('workflow-refusal-link')).toHaveAttribute('href', branches);
         await expect(step.getByTestId('workflow-file')).toBeVisible();
       },
     },
     {
       answer: problem(409, 'actions-setup-pr-tampered'),
-      check: (step) => expect(step.getByTestId('workflow-pr-error')).toContainText(ru('actions.pr.err.tampered')),
+      check: (step) => expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.tampered')),
     },
     {
       answer: problem(422, 'actions-permission-missing', { permissions: ['workflows', 'pull_requests'], link: INSTALLATION_URL }),
       check: async (step) => {
-        await expect(step.getByTestId('workflow-pr-error')).toContainText(ru('actions.pr.err.permission', { permissions: 'workflows, pull_requests' }));
-        await expect(step.getByTestId('workflow-pr-error-link')).toHaveAttribute('href', INSTALLATION_URL);
+        await expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.permission', { permissions: 'workflows, pull_requests' }));
+        await expect(step.getByTestId('workflow-refusal-link')).toHaveAttribute('href', INSTALLATION_URL);
       },
     },
     {
       answer: problem(422, 'actions-setup-ready'),
-      check: (step) => expect(step.getByTestId('workflow-pr-error')).toContainText(ru('actions.pr.err.ready')),
+      check: (step) => expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.ready')),
     },
     {
       answer: problem(422, 'actions-setup-downgrade', { pins: ['runner'] }),
-      check: (step) => expect(step.getByTestId('workflow-pr-error')).toContainText(ru('actions.pr.err.downgrade', { branch: 'по умолчанию', pins: 'runner' })),
+      check: (step) => expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.downgrade', { branch: 'по умолчанию', pins: 'runner' })),
     },
     {
       answer: problem(503, 'github-write-disabled'),
@@ -211,7 +211,7 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
     },
     {
       answer: { ...problem(429, 'rate-limited'), headers: { 'Retry-After': '1800' } } as ReturnType<typeof problem>,
-      check: (step) => expect(step.getByTestId('workflow-pr-rate')).toBeVisible(),
+      check: (step) => expect(step.getByTestId('workflow-rate')).toBeVisible(),
     },
   ];
   for (const { answer, check } of cases) {

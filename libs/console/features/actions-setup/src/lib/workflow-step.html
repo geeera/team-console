@@ -26,12 +26,12 @@
   }
 
   @if (refusalText(); as text) {
-    <div tc-banner tone="danger" role="alert" data-testid="workflow-pr-error" [attr.data-refusal]="refusal()?.kind">
+    <div tc-banner tone="danger" role="alert" data-testid="workflow-refusal" [attr.data-refusal]="refusal()?.kind">
       <tc-icon tc-banner-icon name="alert" size="sm" />
       <p tc-banner-text>{{ text }}</p>
       @if (refusalLink(); as link) {
         <div tc-banner-actions>
-          <a tc-button size="sm" data-testid="workflow-pr-error-link" [href]="link.url" target="_blank" rel="noopener noreferrer">
+          <a tc-button size="sm" data-testid="workflow-refusal-link" [href]="link.url" target="_blank" rel="noopener noreferrer">
             {{ link.key | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
             <tc-icon name="external" size="sm" />
           </a>
@@ -40,7 +40,7 @@
     </div>
   }
   @if (retryAt(); as time) {
-    <p class="wf__fix" role="status" data-testid="workflow-pr-rate">
+    <p class="wf__fix" role="status" data-testid="workflow-rate">
       {{ 'actions.pr.err.rate' | transloco: { time: (time | localTime) } }}
     </p>
   }
@@ -51,7 +51,7 @@
         <a
           #prLink
           tc-button
-          data-testid="workflow-pr-link"
+          data-testid="workflow-link-pr"
           [variant]="shown() === 'pr-open' ? 'primary' : 'secondary'"
           [href]="pr.url"
           target="_blank"
