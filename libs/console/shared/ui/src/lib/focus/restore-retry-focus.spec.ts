@@ -6,7 +6,8 @@ import { injectRetryFocus } from './restore-retry-focus';
 @Component({
   template: `<h1 #heading tabindex="-1">Title</h1>
     <tc-state-block class="tc-state-block--error"
-      ><a tc-state-action href="#setup">Setup</a><button tc-state-action type="button">Retry</button></tc-state-block
+      ><a tc-state-action href="#setup">Setup</a
+      ><button tc-state-action type="button">Retry</button></tc-state-block
     >`,
 })
 class Host {

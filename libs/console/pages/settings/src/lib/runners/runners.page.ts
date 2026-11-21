@@ -83,7 +83,9 @@ export class RunnersPage {
   protected readonly projectSlug = computed(() => {
     const picked = this.pickedSlug();
     const projects = this.projects();
-    return picked !== null && projects.some((project) => project.slug === picked) ? picked : (projects[0]?.slug ?? null);
+    return picked !== null && projects.some((project) => project.slug === picked)
+      ? picked
+      : (projects[0]?.slug ?? null);
   });
   protected readonly projectScope = computed((): RunnerPolicyScope | null => {
     const slug = this.projectSlug();
@@ -129,7 +131,11 @@ export class RunnersPage {
     if (account === null) {
       return;
     }
-    const updated = await this.manage.editProjects({ accountId: account.id, runner, projects: this.projects() });
+    const updated = await this.manage.editProjects({
+      accountId: account.id,
+      runner,
+      projects: this.projects(),
+    });
     if (updated !== null) {
       this.store.apply(updated);
     }

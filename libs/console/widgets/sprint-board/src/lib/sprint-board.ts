@@ -386,7 +386,11 @@ export class SprintBoard {
   protected readonly teamIcon = computed(() => {
     if (this.isJobsBoard()) {
       const state = this.jobsTileShown();
-      return state === 'paused' ? 'pause' : state === 'unknown' ? TEAM_RUN_ICONS.unknown : JOBS_TILE_ICONS[state];
+      return state === 'paused'
+        ? 'pause'
+        : state === 'unknown'
+          ? TEAM_RUN_ICONS.unknown
+          : JOBS_TILE_ICONS[state];
     }
     return TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown'];
   });
@@ -402,13 +406,18 @@ export class SprintBoard {
     this.lang();
     const pause = this.jobsPause();
     if (this.isJobsBoard() && pause !== null && this.jobsTileShown() === 'paused') {
-      return this.transloco.translate(`jobs.tile.paused.${pause.reason}`, { time: localTimeOf(pause.until, this.lang()) });
+      return this.transloco.translate(`jobs.tile.paused.${pause.reason}`, {
+        time: localTimeOf(pause.until, this.lang()),
+      });
     }
     if (this.isJobsBoard()) {
       const state = this.jobsTileState();
       const tile = this.jobs.tile();
       const kind = tile.kind === null ? '' : this.transloco.translate(`jobs.kind.${tile.kind}`);
-      return this.transloco.translate(`jobs.tile.${state}`, { kind, n: localNumberOf(tile.count, this.lang()) });
+      return this.transloco.translate(`jobs.tile.${state}`, {
+        kind,
+        n: localNumberOf(tile.count, this.lang()),
+      });
     }
     return this.transloco.translate(`board.team.${this.board()?.team.state ?? 'unknown'}`);
   });
@@ -759,7 +768,9 @@ export class SprintBoard {
    * A console-tracker project's sprint and its tasks come from the tracker (#556), so moves made in the console show
    * here; its pull requests (and the run log, unused beside the jobs) still come from `/sprint`.
    */
-  private async boardOf(slug: string): Promise<{ board: SprintBoardModel; tracker: TrackerSprintRead | null }> {
+  private async boardOf(
+    slug: string,
+  ): Promise<{ board: SprintBoardModel; tracker: TrackerSprintRead | null }> {
     if (!this.isJobsBoard()) {
       return { board: await this.api.current(slug), tracker: null };
     }
