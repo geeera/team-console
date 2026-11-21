@@ -31,6 +31,7 @@ export interface RunnerHalfReport {
   readonly failure: { readonly stage: 'config' | 'key' | 'identity'; readonly message: string } | null;
   readonly config: {
     readonly name: string;
+    readonly apiUrl: string;
     readonly backend: string;
     readonly credential: { readonly kind: CredentialKind; readonly file: string | null } | null;
     readonly toolchain: { readonly path: string; readonly claude: string | null } | null;
@@ -70,6 +71,7 @@ export function parseRunnerHalfReport(text: string): RunnerHalfReport | null {
     config === null ||
     (isRecord(config) &&
       typeof config['name'] === 'string' &&
+      typeof config['apiUrl'] === 'string' &&
       typeof config['backend'] === 'string' &&
       (credential === null ||
         (isRecord(credential) &&
@@ -122,7 +124,7 @@ async function uidOf(host: SetupHost, user: string): Promise<number | null> {
   return code === 0 && /^\d+$/.test(stdout.trim()) ? Number(stdout.trim()) : null;
 }
 
-async function runnerHalf(host: SetupHost): Promise<RunnerHalfReport | null> {
+export async function runnerHalfOf(host: SetupHost): Promise<RunnerHalfReport | null> {
   const { code, stdout } = await host.queryAsRunner(['self-check', '--runner-half']);
   return code === null ? null : parseRunnerHalfReport(stdout);
 }
@@ -345,7 +347,7 @@ const MARKS: Readonly<Record<CheckStatus, string>> = { ok: 'ok  ', warn: 'warn',
 export async function selfCheck(host: SetupHost, context: SelfCheckContext): Promise<boolean> {
   const { home, prefix, out } = context;
   const runnerUid = await uidOf(host, RUNNER_USER);
-  const report = await runnerHalf(host);
+  const report = await runnerHalfOf(host);
   const lines: CheckLine[] = [...identityLines(report)];
   if (report !== null && report.version !== RUNNER_VERSION) {
     lines.push(fail('L3-8 release files', `the installed bundle reports ${report.version}, this setup is ${RUNNER_VERSION}`));

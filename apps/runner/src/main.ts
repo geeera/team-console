@@ -5,6 +5,7 @@ import { runJobExec } from './backends/job-exec';
 import { runCli } from './cli/cli';
 import { readFirstLine, stdinCodeReader } from './cli/enrol-code';
 import { REQUEST_TOKEN_MAX_BYTES } from './cli/run-once-oidc';
+import { hiddenLineReader } from './setup/hidden-input';
 import { installRootOf } from './update/install-layout';
 
 if (process.argv[2] === 'job-exec') {
@@ -40,6 +41,7 @@ if (process.argv[2] === 'job-exec') {
     shutdown: shutdown.signal,
     readCodeLine: stdinCodeReader(process.stdin, (text) => process.stderr.write(text)),
     readRequestTokenLine: () => readFirstLine(process.stdin, REQUEST_TOKEN_MAX_BYTES, '--request-token -'),
+    readHiddenLine: hiddenLineReader(process.stdin, (text) => process.stderr.write(text)),
     // `bin/job-exec` sits next to the bundle (the release tarball and the image keep that layout); a prefix `update`
     // has converted runs the bundle from `releases/<version>/`, which maps back to the prefix.
     prefix: installRootOf(dirname(fileURLToPath(import.meta.url))),

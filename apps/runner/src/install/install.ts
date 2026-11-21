@@ -474,6 +474,8 @@ export async function runInstall(
   options: InstallOptions,
   host: InstallHost,
   out: (line: string) => void,
+  /** `setup` does the by-hand steps itself, so it leaves them out. */
+  display: { readonly showNext: boolean } = { showNext: true },
 ): Promise<InstallPlan> {
   if (options.apply && options.backend === 'user' && host.uid !== 0) {
     throw new InstallError('install --backend user --yes changes system files: run it with sudo');
@@ -502,8 +504,10 @@ export async function runInstall(
       }
     }
   }
-  out('Then, by hand:');
-  plan.next.forEach((line) => out(`  ${line}`));
+  if (display.showNext) {
+    out('Then, by hand:');
+    plan.next.forEach((line) => out(`  ${line}`));
+  }
   return plan;
 }
 

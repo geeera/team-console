@@ -136,7 +136,7 @@ describe('SetupTokenFilter', () => {
   });
 
   it('does not let a zero-width or backspace character hide the key start', () => {
-    const { forwarded, outcome } = run([['stdout', `s​k\b-${TOKEN.slice(3)}\n`]]);
+    const { forwarded, outcome } = run([['stdout', `s\u200bk\b-${TOKEN.slice(3)}\n`]]);
     expect(outcome).toEqual({ kind: 'token', value: TOKEN });
     expectNoFragment(forwarded, TOKEN);
   });
