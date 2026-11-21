@@ -46,6 +46,11 @@ describe('apps/runner/Dockerfile', () => {
     expect(runtime).not.toMatch(/node_modules\/\.bin|npm (ci|install)/);
   });
 
+  it('ships the podman client for the Linux one command, and no Docker daemon or socket (#634 PR 7)', () => {
+    expect(runtime).toMatch(/apt-get install --yes --no-install-recommends git ca-certificates podman \\/);
+    expect(runtime).not.toMatch(/docker\.io|docker-ce|containerd|docker\.sock|podman\.sock|VOLUME/);
+  });
+
   it('makes the managed-settings directory traversable before copying into it', () => {
     const made = runtime.indexOf('install -d -m 0755 /etc/claude-code');
     expect(made).toBeGreaterThan(-1);

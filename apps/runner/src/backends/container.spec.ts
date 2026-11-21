@@ -121,6 +121,14 @@ describe('container backend', () => {
     ]);
   });
 
+  it('keeps the runner’s own uid inside a rootless podman job, and only there (#634 PR 7)', async () => {
+    const podman = backend({ settings: { image: IMAGE, runtime: 'podman' } });
+    const sandbox = await podman.prepare({ jobId: JOB_ID, projectSlug: 'team-console' });
+    const args = podman.runArgs(sandbox, spec(sandbox));
+    expect(args.slice(args.indexOf('--user'), args.indexOf('--read-only'))).toEqual(['--user', '1001:1001', '--userns', 'keep-id']);
+    expect(backend().runArgs(sandbox, spec(sandbox))).not.toContain('--userns');
+  });
+
   it('mounts the clone as the only writable volume and never TC_RUNNER_HOME or its secrets', async () => {
     const user = backend({ credential: { kind: 'claude-config-dir', path: '/Users/me/.claude' } });
     const sandbox = await user.prepare({ jobId: JOB_ID, projectSlug: 'team-console' });
