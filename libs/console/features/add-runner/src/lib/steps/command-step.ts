@@ -146,6 +146,12 @@ let nextCommandId = 0;
       padding-inline-start: var(--space-5);
     }
 
+    /* min-width: 0 keeps a long command scrolling inside its own region instead of widening the sheet. */
+    .command__steps,
+    .command__steps li {
+      min-width: 0;
+    }
+
     .command__steps li {
       display: grid;
       gap: var(--space-2);

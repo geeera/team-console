@@ -2,6 +2,8 @@
 :host {
   display: grid;
   gap: var(--space-4);
+  /* A grid item of the wizard: without this, a command region as wide as its longest line widens the sheet. */
+  min-width: 0;
 }
 
 .step__heading {

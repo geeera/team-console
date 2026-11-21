@@ -2,6 +2,8 @@
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+  /* One column that may be narrower than a file's longest line: the file then scrolls inside its own region. */
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* A command is never truncated: it wraps anywhere, a cut command would be useless. */
@@ -40,6 +42,7 @@
 
 .tc-copy-code__file {
   margin: 0;
+  max-width: 100%;
   max-height: var(--yml-max);
   overflow: auto;
   overflow-wrap: normal;
