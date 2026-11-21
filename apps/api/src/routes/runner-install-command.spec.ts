@@ -119,7 +119,7 @@ describe('macInstallCommandsOf', () => {
 describe('the Linux one command', () => {
   const DIGEST = `sha256:${'d'.repeat(64)}`;
   const IMAGE = `ghcr.io/geeera/team-console-runner:0.2.0@${DIGEST}`;
-  const env = { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_IMAGE_DIGEST: DIGEST };
+  const env = { ENVIRONMENT: 'production', RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_IMAGE_DIGEST: DIGEST };
   const unitLines = (unit: string): string[] => unit.split('\n');
   const execStartOf = (unit: string): string => unitLines(unit).find((line) => line.startsWith('ExecStart=')) ?? '';
 
@@ -238,6 +238,6 @@ describe('the Linux one command', () => {
       prepare: linuxPrepareCommandOf(IMAGE),
       enrol: linuxEnrolCommandOf('https://console.example', IMAGE, INTENT),
     });
-    expect(linuxInstallCommandsOf({}, 'https://console.example', INTENT)).toBeNull();
+    expect(linuxInstallCommandsOf({ ENVIRONMENT: 'production' }, 'https://console.example', INTENT)).toBeNull();
   });
 });
