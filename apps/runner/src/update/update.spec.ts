@@ -150,6 +150,7 @@ const sha256 = (text: string): string => createHash('sha256').update(text).diges
 function releaseTree(version: string): TreeFiles {
   const files: TreeFiles = {
     'team-console-runner.mjs': `bundle ${version}\n`,
+    node: `#!/bin/sh\n# node for ${version}\n`,
     'bin/job-exec': '#!/bin/sh\n# job-exec\n',
     'bin/team-console-runner': '#!/bin/sh\n# launcher\n',
   };
@@ -225,7 +226,8 @@ describe('update: installing a release (C11 row 1)', () => {
         }
         return { code: 0, stdout: '' };
       }
-      if (command === process.execPath && args[1] === 'version') {
+      // The release's own node reads the new bundle's version, never the node that runs the update.
+      if (command.endsWith('/tree/node') && args[0] === '--disable-sigusr1' && args[2] === 'version') {
         return { code: 0, stdout: `${host.reportedVersion ?? TARGET}\n` };
       }
       throw new Error(`unexpected command ${command} ${args.join(' ')}`);
@@ -238,7 +240,6 @@ describe('update: installing a release (C11 row 1)', () => {
       prefix,
       platform: 'darwin',
       arch: 'arm64',
-      node: process.execPath,
       exec: fakeExec(host),
       ghEnv: { PATH: '/usr/bin:/bin', HOME: home },
       uid: process.getuid?.() ?? null,
@@ -264,8 +265,11 @@ describe('update: installing a release (C11 row 1)', () => {
       'gh release download',
       'gh attestation verify',
       'tar -xzf --no-same-owner',
-      `${process.execPath} version`,
+      `${join(calls[4]?.command ?? '', '..')}/node --disable-sigusr1`,
     ]);
+    expect(calls[4]?.command.startsWith(join(home, 'updates'))).toBe(true);
+    expect(await readFile(join(prefix, 'node'), 'utf8')).toBe(`#!/bin/sh\n# node for ${TARGET}\n`);
+    expect((await stat(join(prefix, 'node'))).mode & 0o777).toBe(0o555);
     const download = calls[1]?.args ?? [];
     expect(download).toEqual([
       'release',
@@ -302,6 +306,7 @@ describe('update: installing a release (C11 row 1)', () => {
       expect(await link('bin/team-console-runner')).toBe('../current/bin/team-console-runner');
       expect(await link('team-console-runner.mjs')).toBe('current/team-console-runner.mjs');
       expect(await link('SHA256SUMS')).toBe('current/SHA256SUMS');
+      expect(await link('node')).toBe('current/node');
       expect(await readFile(join(prefix, 'SHA256SUMS'), 'utf8')).toBe(releaseTree(TARGET)['SHA256SUMS']);
       expect(await readdir(join(prefix, 'releases'))).toEqual([TARGET]);
       expect((await lstat(join(prefix, 'releases', TARGET, 'bin/job-exec'))).isFile()).toBe(true);
@@ -317,6 +322,8 @@ describe('update: installing a release (C11 row 1)', () => {
 
       expect(await link('current')).toBe('releases/0.4.0');
       expect(await installedBundle()).toBe(`bundle ${NEXT}\n`);
+      // The bundle and the node that runs it switch in the same rename of current.
+      expect(await readFile(join(prefix, 'node'), 'utf8')).toBe(`#!/bin/sh\n# node for ${NEXT}\n`);
       expect(await readFile(join(prefix, 'releases', TARGET, 'team-console-runner.mjs'), 'utf8')).toBe(
         `bundle ${TARGET}\n`,
       );
@@ -367,8 +374,8 @@ describe('update: installing a release (C11 row 1)', () => {
       });
 
       // Renames of one conversion, in order: release into place, current, SHA256SUMS, bin/job-exec,
-      // bin/team-console-runner, the bundle.
-      const STEPS = 6;
+      // bin/team-console-runner, node, the bundle.
+      const STEPS = 7;
 
       it.each(Array.from({ length: STEPS }, (_, index) => index + 1))(
         'before rename #%i: the prefix still runs, and the next update finishes it',
@@ -389,6 +396,7 @@ describe('update: installing a release (C11 row 1)', () => {
           expect(await link('current')).toBe('releases/0.3.0');
           expect(await link('team-console-runner.mjs')).toBe('current/team-console-runner.mjs');
           expect(await link('SHA256SUMS')).toBe('current/SHA256SUMS');
+          expect(await link('node')).toBe('current/node');
           expect(await link('bin/job-exec')).toBe('../current/bin/job-exec');
           expect(await link('bin/team-console-runner')).toBe('../current/bin/team-console-runner');
           expect(await readFile(join(prefix, 'bin/job-exec'), 'utf8')).toBe('#!/bin/sh\n# job-exec\n');
@@ -466,6 +474,20 @@ describe('update: installing a release (C11 row 1)', () => {
     delete tree['bin/team-console-runner'];
     const links = { 'bin/team-console-runner': '/etc/passwd' };
     expect(await refusal(applyUpdate(TARGET, depsOf({ tree, links })))).toBe('unpack-failed');
+    expect(await installedBundle()).toBe(OLD_BUNDLE);
+  });
+
+  it('refuses a release whose node is missing from the tree', async () => {
+    const tree: TreeFiles = { ...releaseTree(TARGET) };
+    delete tree['node'];
+    expect(await refusal(applyUpdate(TARGET, depsOf({ tree })))).toBe('unpack-failed');
+    expect(await installedBundle()).toBe(OLD_BUNDLE);
+  });
+
+  it('refuses a node that does not match SHA256SUMS', async () => {
+    const tree = { ...releaseTree(TARGET), node: '#!/bin/sh\nexec evil\n' };
+    expect(await refusal(applyUpdate(TARGET, depsOf({ tree })))).toBe('verification-failed');
+    expect(calls.some((call) => call.command.endsWith('/node'))).toBe(false);
     expect(await installedBundle()).toBe(OLD_BUNDLE);
   });
 

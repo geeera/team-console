@@ -2,10 +2,10 @@
 # team-console-runner: the launcher the release tarball puts on PATH (ADR 0008 decision 10). It runs the bundle next
 # to it with node; the bundle reads its own directory, so `bin/job-exec` and `update` find the prefix.
 #
-# Which node: `<prefix>/node` when the release ships one, else `node` on PATH, else Homebrew's (sudo's secure_path
-# leaves `/opt/homebrew/bin` out). As root (#778, S2 of the #634 security note) only a node that root alone can change
-# runs: the file and every directory up to `/` root-owned and not writable by group or others, links resolved first.
-# Homebrew's prefix belongs to the admin login user, so its node is refused there.
+# Which node: `<prefix>/node`, the one the release ships (#634 PR 5), else `node` on PATH, else Homebrew's (sudo's
+# secure_path leaves `/opt/homebrew/bin` out). As root (#778, S2 of the #634 security note) only `<prefix>/node` runs,
+# and only when root alone can change it: the file and every directory up to `/` root-owned and not writable by group
+# or others, links resolved first. No other node is a fallback there, root-owned or not.
 set -eu
 prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 
@@ -58,27 +58,18 @@ candidates() {
 }
 
 node=
-refused=
 # One candidate per line, whatever spaces a path holds, and no globbing of them.
 set -f
 IFS='
 '
 if [ "$(/usr/bin/id -u)" = 0 ]; then
-  for candidate in $(candidates); do
-    case $candidate in /*) ;; *) continue ;; esac
-    real=$(physical "$candidate") || continue
-    if root_only "$real"; then
-      # The checked physical path runs, so no link can be repointed between the check and the exec.
-      node=$real
-      break
-    fi
-    refused="${refused:+$refused, }$candidate"
-  done
-  if [ -z "$node" ]; then
-    echo "team-console-runner: as root only a node that root alone can change runs (the file and every directory up to /" >&2
-    echo "  root-owned, writable by root only).${refused:+ Refused: $refused.} Homebrew's node belongs to your login user." >&2
-    echo "  Install Node.js 22.14 or later from nodejs.org (root-owned /usr/local/bin/node), or follow" >&2
-    echo "  docs/runbooks/runner.md › user backend." >&2
+  if real=$(physical "$prefix/node") && root_only "$real"; then
+    # The checked physical path runs, so no link can be repointed between the check and the exec.
+    node=$real
+  else
+    echo "team-console-runner: as root only the release's own node runs, and only when root alone can change it:" >&2
+    echo "  $prefix/node and every directory up to / root-owned, writable by root only. Extract the release with sudo into" >&2
+    echo "  a root-owned directory and run it from there (docs/runbooks/runner.md › user backend)." >&2
     exit 126
   fi
 else
