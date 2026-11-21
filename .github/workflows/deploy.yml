@@ -41,6 +41,10 @@ jobs:
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    # Read-only: `gh` downloads the named runner release's SHA256SUMS and reads its attestation (S1, #634 PR 5).
+    permissions:
+      contents: read
+      attestations: read
     outputs:
       env_name: ${{ steps.resolve.outputs.name }}
       sha: ${{ steps.resolve.outputs.sha }}
@@ -138,6 +142,17 @@ jobs:
           esac
           node tools/deploy-guard/check-d1-placeholder.js "${ENV_NAME}" "${placeholder}" \
             apps/api/wrangler.jsonc apps/hooks/wrangler.jsonc
+
+      # S1 of the #634 security note (threat model C11 R-ONE-2): the console's first-install command carries the
+      # checksum in RUNNER_RELEASE_SHA256SUMS, a repo var any merged PR could change. Before the Worker ships, the
+      # release's own SHA256SUMS is downloaded, `gh attestation verify` proves the pinned release workflow built it
+      # from the version's tag, and the var must equal it byte for byte; a version without sums fails too. Both vars
+      # are read from this exact checkout's wrangler.jsonc, the file `deploy` ships (no `--var` overrides them).
+      - name: Verify the runner release the console names against its attestation
+        env:
+          ENV_NAME: ${{ steps.resolve.outputs.name }}
+          GH_TOKEN: ${{ github.token }}
+        run: node tools/deploy-guard/check-runner-release.js "${ENV_NAME}" apps/api/wrangler.jsonc
 
   deploy:
     needs: guard
