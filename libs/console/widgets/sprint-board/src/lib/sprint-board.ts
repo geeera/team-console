@@ -371,7 +371,9 @@ export class SprintBoard {
   protected readonly ownsAccount = computed(
     () => projectAccountRoleOf(this.runners.memberships(), this.project().accountId) === 'owner',
   );
-  protected readonly jobsPause = computed(() => projectPauseOf(this.runners.runners(), this.project().slug));
+  /** The project's own account's runners: a slug is only unique inside an account (#847). */
+  private readonly projectRunners = computed(() => this.runners.runnersOfAccount(this.project().accountId));
+  protected readonly jobsPause = computed(() => projectPauseOf(this.projectRunners(), this.project().slug));
   /** The owner's paused line (#775): only when the Worker says this caller may Run now here, so it reads its runners. */
   protected readonly jobsPauseLine = computed((): JobsPauseLine | null => {
     const pause = this.jobsPause();
@@ -381,7 +383,7 @@ export class SprintBoard {
   });
   /** The runner D3 holds back from the project, for the owner's `other-owner-subscription` copy (#775). */
   protected readonly d3Runner = computed(() =>
-    this.jobs.canRunNow() ? d3RunnerOf(this.runners.runners(), this.project().slug) : null,
+    this.jobs.canRunNow() ? d3RunnerOf(this.projectRunners(), this.project().slug) : null,
   );
   /** The tile's state as shown: `paused` over everything but a running job. */
   protected readonly jobsTileShown = computed(() => {
