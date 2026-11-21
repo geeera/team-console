@@ -91,7 +91,12 @@ function stepsOf(options: SetupOptions): readonly SetupStep[] {
  * R-ONE-1: the tarball the operator downloaded is copied into a root-owned 0700 directory, hashed there against the
  * sum the console named, and unpacked from that copy, so nothing the login user can still change is installed.
  */
-async function installRelease(release: NonNullable<SetupOptions['release']>, deps: SetupDeps, node: string, prefix: string): Promise<void> {
+export async function installRelease(
+  release: NonNullable<SetupOptions['release']>,
+  deps: Pick<SetupDeps, 'host' | 'out' | 'tmpRoot'>,
+  node: string,
+  prefix: string,
+): Promise<void> {
   if (!SHA256.test(release.sha256)) {
     throw new SetupError('--sha256 must be the 64 hex characters the console showed for this release');
   }
