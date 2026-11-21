@@ -43,6 +43,7 @@ class ManualWatch {
   readonly failedPolls = signalOf(0);
   readonly stopped = signalOf<'session-expired' | 'forbidden' | 'not-found' | null>(null);
   readonly gaveUp = signalOf(false);
+  readonly rateLimitedFor = signalOf<number | null>(null);
   readonly watchIntent = vi.fn();
   readonly watchRunner = vi.fn();
   readonly stop = vi.fn();
@@ -462,6 +463,19 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     await settle();
     expect(sheet.confirm).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith({ kind: 'closed', enrolled: false });
+  });
+
+  it('says the console asked to slow down on a 429, not that it is unreachable (#879)', async () => {
+    const { toCommand, watch, settle, find } = await render();
+    await toCommand();
+    watch.rateLimitedFor.set(30);
+    await settle();
+    expect(find('wizard-poll-limited')?.getAttribute('role')).toBe('status');
+    expect(find('wizard-poll-limited')?.textContent).toContain('Проверим снова через 30 с');
+    expect(find('wizard-poll-failing')).toBeNull();
+    watch.rateLimitedFor.set(null);
+    await settle();
+    expect(find('wizard-poll-limited')).toBeNull();
   });
 
   it('says so after two failed polls and when the session expired', async () => {

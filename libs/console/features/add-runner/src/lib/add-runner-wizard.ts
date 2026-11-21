@@ -119,6 +119,11 @@ let nextWizardId = 0;
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>{{ 'runners.wizard.offline' | transloco }}</p>
         </div>
+      } @else if (watch.rateLimitedFor(); as seconds) {
+        <div tc-banner tone="warning" role="status" data-testid="wizard-poll-limited">
+          <tc-icon tc-banner-icon name="alert" size="sm" />
+          <p tc-banner-text>{{ 'runners.wizard.pollRateLimited' | transloco: { seconds } }}</p>
+        </div>
       } @else if (pollFailing()) {
         <div tc-banner tone="warning" role="status" data-testid="wizard-poll-failing">
           <tc-icon tc-banner-icon name="alert" size="sm" />
@@ -323,30 +328,7 @@ let nextWizardId = 0;
       }
     }
   `,
-  styles: `
-    .wizard {
-      display: grid;
-      gap: var(--space-5);
-    }
-
-    .wizard__decide {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-      gap: var(--space-3);
-      width: 100%;
-    }
-
-    @media (max-width: 519.98px) {
-      .wizard__decide {
-        flex-direction: column-reverse;
-      }
-
-      .wizard__decide > * {
-        width: 100%;
-      }
-    }
-  `,
+  styleUrl: './add-runner-wizard.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AddRunnerWizard {

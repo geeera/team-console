@@ -1,0 +1,23 @@
+/* The wizard's frame: the step column and the step 3 footer (spec §7: «Подтвердить» on top on the phone). */
+.wizard {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.wizard__decide {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+@media (max-width: 519.98px) {
+  .wizard__decide {
+    flex-direction: column-reverse;
+  }
+
+  .wizard__decide > * {
+    width: 100%;
+  }
+}

@@ -41,6 +41,8 @@ export interface RunnerFailure {
   readonly field: string | null;
   /** 422 `actions-not-ready` (#759): the readiness items that hold the switch back, as the problem names them. */
   readonly items?: readonly string[];
+  /** 429 (#879): seconds from `Retry-After`, `null` when the answer named none. */
+  readonly retryAfterSeconds?: number | null;
 }
 
 export type RunnerResult<T> =
@@ -95,7 +97,7 @@ export function runnerFailureOf(error: unknown): RunnerFailure {
     case 422:
       return failure('invalid');
     case 429:
-      return failure('rate-limited');
+      return { ...failure('rate-limited'), retryAfterSeconds: problem.retryAfterSeconds };
     default:
       return failure('error');
   }

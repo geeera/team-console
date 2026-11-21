@@ -10,7 +10,8 @@ import { apiClient, seed, type Stack } from './support/stack';
  * Settings › Runners › «Подключить раннер» (#634 PR 4) end to end: the wizard shows the API's `setup` command (the
  * local stack has no https origin, so the release one-liner is off and the runbook path shows), a runner binds its key
  * with the runner's own `POST /runner/enrol/start` (no browser), the owner compares the fingerprint and approves, and
- * the runner comes online. Plus the expired, withdrawn-elsewhere and fingerprint-reject paths.
+ * the runner comes online. Plus the expired, withdrawn-elsewhere and fingerprint-reject paths, the mis-click guard,
+ * a 409 "changed" on approve and the D3 line while the owner count is unknown (#878).
  */
 
 const INTENTS = `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
@@ -62,6 +63,24 @@ async function bindAsRunner(stack: Stack, intentId: string): Promise<Bound> {
   }
 }
 
+/**
+ * #878: a click that was aimed at «Отозвать запрос» and lands the moment the poll swaps in «Подтвердить». Clicks the
+ * approve button as soon as it exists, from inside the page, so no Playwright wait can make it late.
+ */
+async function armMisClick(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const observer = new MutationObserver(() => {
+      const approve = document.querySelector<HTMLButtonElement>('[data-testid="wizard-approve"]');
+      if (approve !== null) {
+        observer.disconnect();
+        approve.click();
+        document.body.dataset['e2eMisClick'] = 'done';
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
+}
+
 async function withApi<T>(stack: Stack, run: (api: APIRequestContext) => Promise<T>): Promise<T> {
   const api = await apiClient(stack);
   try {
@@ -81,8 +100,13 @@ test('add a Mac runner: the command, the fingerprint compared and approved, then
   await expect(dialog.getByTestId('wizard-waiting')).toContainText(ru('runners.wizard.waiting'));
   await expectAccessible(page, 'Add runner wizard, command');
 
+  await armMisClick(page);
   const bound = await bindAsRunner(stack, intentId);
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.confirm.title') })).toBeFocused();
+  // #878: the click that landed on the freshly swapped-in button approved nothing.
+  await expect(page.locator('body')).toHaveAttribute('data-e2e-mis-click', 'done');
+  const afterMisClick = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  expect(afterMisClick).toBe('bound');
   await expect(dialog.getByTestId('wizard-fingerprint')).toHaveText(bound.fingerprint);
   await expect(dialog.getByTestId('wizard-hostname')).toHaveText('e2e-wizard.local');
   // Decision 6: Enter on the step does not approve.
@@ -90,6 +114,7 @@ test('add a Mac runner: the command, the fingerprint compared and approved, then
   await expect(dialog.getByTestId('wizard-fingerprint')).toBeVisible();
   await expectAccessible(page, 'Add runner wizard, confirmation');
 
+  await expect(dialog.getByTestId('wizard-approve')).not.toHaveAttribute('aria-disabled', 'true');
   await dialog.getByTestId('wizard-approve').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.approved.title') })).toBeFocused();
   const intent = await withApi(stack, async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto);
@@ -164,3 +189,59 @@ test('closing while the request is live asks first and withdraws it', async ({ p
   const state = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
   expect(state).toBe('withdrawn');
 });
+
+test('a 409 "changed" on approve shows the server’s code again and never approves on its own', async ({ page, stack }) => {
+  // The first bound read the page sees carries a code the key does not have, so the API's compare-and-set refuses it.
+  let tamper = true;
+  let approvals = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/approve')) {
+      approvals += 1;
+    }
+  });
+  await page.route(`**${INTENTS}/*`, async (route) => {
+    if (route.request().method() !== 'GET' || !tamper) {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as EnrolmentIntentDto;
+    if (body.state !== 'bound' || body.fingerprint === null) {
+      await route.fulfill({ response, json: body });
+      return;
+    }
+    tamper = false;
+    await route.fulfill({ response, json: { ...body, fingerprint: body.fingerprint.split('-').reverse().join('-') } });
+  });
+  const { dialog, intentId } = await commandFor(page, 'E2E Changed');
+  const bound = await bindAsRunner(stack, intentId);
+  const approve = dialog.getByTestId('wizard-approve');
+  await expect(dialog.getByTestId('wizard-fingerprint')).not.toHaveText(bound.fingerprint);
+  await expect(approve).not.toHaveAttribute('aria-disabled', 'true');
+  await approve.click();
+
+  await expect(dialog.getByTestId('wizard-error')).toContainText(ru('runners.wizard.err.changed'));
+  await expect(dialog.getByTestId('wizard-fingerprint')).toHaveText(bound.fingerprint);
+  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.confirm.title') })).toBeFocused();
+  expect(approvals).toBe(1);
+  const state = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  expect(state).toBe('bound');
+  await expectAccessible(page, 'Add runner wizard, changed on approve');
+
+  await expect(approve).not.toHaveAttribute('aria-disabled', 'true');
+  await approve.click();
+  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.approved.title') })).toBeFocused();
+  expect(approvals).toBe(2);
+});
+
+test('the D3 line keeps its conditional wording while the owner count is unknown', async ({ page }) => {
+  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`, (route) => route.fulfill({ status: 503, json: {} }));
+  await page.goto('/settings/runners');
+  await page.getByTestId('runners-empty').getByTestId('runners-enrol').click();
+  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
+  const owners = dialog.getByTestId('runner-scope-owners');
+  await expect(owners).toHaveText(ru('runners.scope.allOwnersUnknown'));
+  await expect(owners).not.toContainText(ru('runners.scope.allOwners'));
+  await expect(dialog.getByTestId('runner-scope-all')).toHaveAttribute('aria-describedby', /-all-owners/);
+});
+

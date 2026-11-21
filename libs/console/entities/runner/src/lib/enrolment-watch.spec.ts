@@ -199,4 +199,39 @@ describe('EnrolmentWatch', () => {
     expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
     expect(watch.failedPolls()).toBe(0);
   });
+
+  it('waits out Retry-After on a 429 and says rate-limited, not unreachable (#879)', async () => {
+    const limited: RunnerResult<EnrolmentIntentDto> = {
+      ok: false,
+      failure: { kind: 'rate-limited', slug: 'rate-limited', field: null, retryAfterSeconds: 30 },
+    };
+    const { watch, api } = setup([limited, limited]);
+    watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(watch.rateLimitedFor()).toBe(30);
+    expect(watch.failedPolls()).toBe(0);
+
+    // Neither the 3 s timer nor a wake-up reads inside the 30 s.
+    document.dispatchEvent(new Event('visibilitychange'));
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
+    expect(watch.failedPolls()).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(3);
+    expect(watch.rateLimitedFor()).toBeNull();
+  });
+
+  it('waits a minute on a 429 without Retry-After', async () => {
+    const { watch, api } = setup([{ ok: false, failure: { kind: 'rate-limited', slug: null, field: null, retryAfterSeconds: null } }]);
+    watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
+    await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
+    expect(watch.rateLimitedFor()).toBe(60);
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(api.enrolmentIntent).toHaveBeenCalledTimes(2);
+  });
 });

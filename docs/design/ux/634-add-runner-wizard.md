@@ -296,6 +296,7 @@ API's, and so is the text.
 | 14 | **Poll timing out** (approved, still offline after 5 min) | §3.4 «Раннер пока не вышел на связь». Waiting goes on until 15 min after the approval, then a manual «Проверить снова» (#878). |
 | 15 | **On line** | §3.5, with the below-minimum variant |
 | 16 | **Network error while polling** | After 2 failed polls in a row: banner warning `role="status"` «Нет связи с консолью, пробуем снова. Запрос на вашей машине продолжает ждать.» It goes away on the next success. The step keeps its last content. |
+| 16a | **429 while polling** (#879: per-user limit on account GETs) | Banner warning `role="status"` `runners.wizard.pollRateLimited` with the `Retry-After` seconds (60 when none); no read before then, wake-ups included. It is not counted as a failed poll and goes away on the next success. |
 | 17 | **Offline** (`navigator.onLine` false) | Banner «Нет сети. Когда связь вернётся, консоль снова проверит запрос.». «Подтвердить», «Отклонить», «Новая команда» `aria-disabled` with the reason «Нет сети». The copy button still works. |
 | 18 | **Session expired (401) while polling** | Banner `runners.err.sessionExpired`; polling stops |
 | 19 | **Empty: no projects in the account** | Scope keeps working: «Все проекты аккаунта» covers future ones. Under «Только выбранные» the picker shows `runners.projects.none`. |
@@ -431,6 +432,7 @@ New keys under `runners.wizard.*`, plus one changed and one new key under `runne
 | `runners.wizard.close` | Закрыть |
 | `runners.wizard.done` | Готово |
 | `runners.wizard.pollFailing` | Нет связи с консолью, пробуем снова. Запрос на вашей машине продолжает ждать. |
+| `runners.wizard.pollRateLimited` (#878/#879) | Консоль просит проверять реже. Проверим снова через {{seconds}} с, запрос на вашей машине продолжает ждать. |
 | `runners.wizard.offline` | Нет сети. Когда связь вернётся, консоль снова проверит запрос. |
 | `runners.wizard.offlineReason` | Нет сети |
 | `runners.wizard.closeConfirm.title` | Закрыть и отозвать запрос? |

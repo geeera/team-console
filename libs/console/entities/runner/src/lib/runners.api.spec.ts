@@ -258,6 +258,17 @@ describe('runnerFailureOf', () => {
     expect(runnerFailureOf(problem(422, 'access-source-hosted'))).not.toHaveProperty('items');
   });
 
+  it('keeps the Retry-After of a 429, and null when there is none (#879)', () => {
+    const limited = new HttpErrorResponse({
+      status: 429,
+      error: { type: problemTypeOf('rate-limited'), title: 'x', status: 429 },
+      headers: new HttpHeaders({ 'Content-Type': 'application/problem+json', 'Retry-After': '17' }),
+      url: '/api/v1/x',
+    });
+    expect(runnerFailureOf(limited)).toMatchObject({ kind: 'rate-limited', retryAfterSeconds: 17 });
+    expect(runnerFailureOf(problem(429, 'rate-limited')).retryAfterSeconds).toBeNull();
+  });
+
   it('maps a timeout and a non-HTTP error', () => {
     expect(runnerFailureOf(new TimeoutError()).kind).toBe('timeout');
     expect(runnerFailureOf(new Error('boom')).kind).toBe('error');

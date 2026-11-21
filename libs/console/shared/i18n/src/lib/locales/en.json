@@ -2473,6 +2473,7 @@
       "close": "Close",
       "done": "Done",
       "pollFailing": "No connection to the console, trying again. The request on your machine keeps waiting.",
+      "pollRateLimited": "The console asks us to check less often. Checking again in {{seconds}} s; the request on your machine keeps waiting.",
       "offline": "You’re offline. When the connection is back, the console checks the request again.",
       "offlineReason": "You’re offline",
       "closeConfirm": {
