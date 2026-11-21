@@ -66,27 +66,39 @@ test('Retry on the board error keeps focus on the new Retry button (#135)', asyn
   await expectAccessible(page, 'Board error after Retry');
 });
 
-test('Resume from the paused banner leaves focus on the Commands button (#144)', async ({ page, stack }) => {
-  await seedFakeRunLog(stack, { author: BOT, labels: ['team:paused'] });
-  const comment = (body: string, author: string, createdAt: number): Promise<unknown> =>
-    fakePost(stack, '/_fake/comment', { repo: REPO, number: LOG, body, author, createdAt });
-  await comment('<!-- pt-paused -->\n**Team paused**: 3 failed runs in a row.', BOT, Date.now() - 11 * DAY);
-  await comment('/resume', 'geeera', Date.now() - 10 * DAY);
-  await comment(OWNER_PAUSE, 'geeera', Date.now() - DAY);
+// Set explicitly, not left to the Playwright project: both layouts must keep focus on «Commands» (#862).
+const RESUME_VIEWPORTS = [
+  { name: 'phone', size: { width: 390, height: 844 } },
+  { name: 'desktop', size: { width: 1440, height: 900 } },
+] as const;
 
-  await page.goto(`/p/${SLUG}/questions`);
-  const banner = page.getByTestId('paused-banner');
-  await expect(banner).toBeVisible();
-  await banner.getByTestId('banner-resume').focus();
-  await page.keyboard.press('Enter');
-  const confirm = page.getByRole('alertdialog');
-  await confirm.locator('.tc-confirm__ok').click();
-  await expect(confirm).toHaveCount(0);
-  await expect(banner).toHaveCount(0);
+for (const viewport of RESUME_VIEWPORTS) {
+  test(`Resume from the paused banner leaves focus on the Commands button on the ${viewport.name} (#144)`, async ({
+    page,
+    stack,
+  }) => {
+    await page.setViewportSize(viewport.size);
+    await seedFakeRunLog(stack, { author: BOT, labels: ['team:paused'] });
+    const comment = (body: string, author: string, createdAt: number): Promise<unknown> =>
+      fakePost(stack, '/_fake/comment', { repo: REPO, number: LOG, body, author, createdAt });
+    await comment('<!-- pt-paused -->\n**Team paused**: 3 failed runs in a row.', BOT, Date.now() - 11 * DAY);
+    await comment('/resume', 'geeera', Date.now() - 10 * DAY);
+    await comment(OWNER_PAUSE, 'geeera', Date.now() - DAY);
 
-  await expect(page.getByTestId('commands-open')).toBeFocused();
-  expect(await focusedElement(page)).toMatchObject({ testId: 'commands-open' });
-});
+    await page.goto(`/p/${SLUG}/questions`);
+    const banner = page.getByTestId('paused-banner');
+    await expect(banner).toBeVisible();
+    await banner.getByTestId('banner-resume').focus();
+    await page.keyboard.press('Enter');
+    const confirm = page.getByRole('alertdialog');
+    await confirm.locator('.tc-confirm__ok').click();
+    await expect(confirm).toHaveCount(0);
+    await expect(banner).toHaveCount(0);
+
+    await expect(page.getByTestId('commands-open')).toBeFocused();
+    expect(await focusedElement(page)).toMatchObject({ testId: 'commands-open' });
+  });
+}
 
 test('Settings loads with focus on a heading that can be seen (#212)', async ({ page }) => {
   await page.goto('/settings');
