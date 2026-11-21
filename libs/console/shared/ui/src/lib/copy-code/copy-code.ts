@@ -21,8 +21,18 @@ export const COPY_CODE_CONFIRM_MS = 2000;
   selector: 'tc-copy-code',
   imports: [Button, Icon],
   template: `
-    <div class="tc-code-row">
-      <code class="tc-code-row__code tc-copy-code__code" data-testid="copy-code-text">{{ code() }}</code>
+    <div class="tc-code-row" [class.tc-copy-code__row--file]="regionLabel() !== ''">
+      @if (regionLabel(); as label) {
+        <pre
+          class="tc-copy-code__code tc-copy-code__file"
+          data-testid="copy-code-text"
+          role="region"
+          tabindex="0"
+          [attr.aria-label]="label"
+        ><code>{{ code() }}</code></pre>
+      } @else {
+        <code class="tc-code-row__code tc-copy-code__code" data-testid="copy-code-text">{{ code() }}</code>
+      }
       <button
         tc-button
         size="sm"
@@ -57,6 +67,11 @@ export class CopyCode {
   readonly copyLabel = input.required<string>();
   readonly copiedLabel = input.required<string>();
   readonly failedNote = input.required<string>();
+  /**
+   * A whole file instead of one command (#759): kept as written (no wrapping, a YAML indent matters) in its own
+   * scrollable region, at most `--yml-max` tall, named by this label and reachable by keyboard for scrolling.
+   */
+  readonly regionLabel = input('');
 
   protected readonly copied = signal(false);
   protected readonly failed = signal(false);

@@ -15,6 +15,18 @@ import { COPY_CODE_CONFIRM_MS, CopyCode } from './copy-code';
 })
 class Host {}
 
+@Component({
+  imports: [CopyCode],
+  template: `<tc-copy-code
+    code="on:\n  workflow_dispatch:"
+    regionLabel="The workflow file"
+    copyLabel="Copy"
+    copiedLabel="Copied"
+    failedNote="Couldn't copy"
+  />`,
+})
+class FileHost {}
+
 describe('CopyCode', () => {
   let writeText: ReturnType<typeof vi.fn>;
   let announce: ReturnType<typeof vi.fn>;
@@ -50,6 +62,19 @@ describe('CopyCode', () => {
     expect(root.querySelector('code')?.textContent).toBe('setup --env stage');
     expect(button.getAttribute('aria-label')).toBe('Copy the command for OWNER_EMAIL');
     expect(button.textContent?.trim()).toBe('Copy');
+  });
+
+  it('shows a file as a named, focusable region that keeps its lines', async () => {
+    await TestBed.configureTestingModule({
+      imports: [FileHost],
+      providers: [{ provide: LiveAnnouncer, useValue: { announce: vi.fn() } }],
+    }).compileComponents();
+    const fixture = TestBed.createComponent(FileHost);
+    await fixture.whenStable();
+    const region = (fixture.nativeElement as HTMLElement).querySelector('pre[role="region"]');
+    expect(region?.getAttribute('aria-label')).toBe('The workflow file');
+    expect(region?.getAttribute('tabindex')).toBe('0');
+    expect(region?.textContent).toBe('on:\n  workflow_dispatch:');
   });
 
   it('copies, announces Copied and reads Copy again after two seconds', async () => {

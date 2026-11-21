@@ -27,3 +27,27 @@
   font-size: var(--fs-xs);
   color: var(--danger-text);
 }
+
+/* A file: the button sits above it, the text keeps its lines and scrolls inside its own region. */
+.tc-copy-code__row--file {
+  flex-direction: column-reverse;
+  align-items: stretch;
+}
+
+.tc-copy-code__row--file .tc-copy-code__button {
+  align-self: flex-end;
+}
+
+.tc-copy-code__file {
+  margin: 0;
+  max-height: var(--yml-max);
+  overflow: auto;
+  overflow-wrap: normal;
+  white-space: pre;
+  user-select: text;
+}
+
+.tc-copy-code__file:focus-visible {
+  outline: var(--focus-w) solid var(--focus);
+  outline-offset: var(--focus-offset);
+}
