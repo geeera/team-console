@@ -529,6 +529,24 @@ describe('enqueue of an Actions job', () => {
     fixture.world.dispatch = () => json(404, { message: 'Not Found' });
     const job = await runNow(fixture);
     expect(job.result?.['summary']).toBe('dispatch-failed: workflow missing');
+    // #874: Needs you says so before the next readiness check; no rendering was judged, so no sha256.
+    const stored = await env.DB.prepare(
+      `SELECT actions_workflow_status AS status, actions_workflow_sha256 AS sha256 FROM projects WHERE slug = ?1`,
+    )
+      .bind(fixture.slug)
+      .first<{ status: string; sha256: string | null }>();
+    expect(stored).toEqual({ status: 'missing', sha256: null });
+  });
+
+  it('keeps the stored judgement on any other dispatch failure (#874)', async () => {
+    const fixture = await seedProject();
+    expect((await switchTo(fixture, 'actions')).status).toBe(200);
+    fixture.world.dispatch = () => json(403, { message: 'Resource not accessible by integration' });
+    await runNow(fixture);
+    const stored = await env.DB.prepare(`SELECT actions_workflow_status AS status FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ status: string | null }>();
+    expect(stored?.status).toBe('ok');
   });
 
   it('refuses a token GitHub minted for another repository, revokes it and never dispatches with it', async () => {

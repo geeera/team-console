@@ -13,6 +13,7 @@ import {
   type ActionsSetupItemId,
   type ActionsSetupStatus,
 } from '@shared/contracts';
+import { ActionsWorkflowStateRepo } from '@worker/db';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import {
@@ -675,5 +676,57 @@ describe('a PR left open for an earlier rendering (#870)', () => {
     const response = await check(fixture);
     expect(response.status).toBe(502);
     expect(await slugOf(response)).toBe('github-unavailable');
+  });
+});
+
+describe('the workflow judgement kept for Needs you (#874)', () => {
+  const storedOf = (slug: string) =>
+    env.DB.prepare(
+      `SELECT actions_workflow_status AS status, actions_workflow_sha256 AS sha256, actions_workflow_checked_at AS checkedAt
+       FROM projects WHERE slug = ?1`,
+    )
+      .bind(slug)
+      .first<{ status: string | null; sha256: string | null; checkedAt: string | null }>();
+
+  it('records the workflow item’s status, the rendering’s sha256 and the check’s time, and nothing else', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.workflow = `${rendering.text} `;
+    const setup = await setupOf(fixture);
+    expect(await storedOf(fixture.slug)).toEqual({ status: 'modified', sha256: rendering.sha256, checkedAt: setup.checkedAt });
+
+    fixture.world.workflow = rendering.text;
+    const again = await setupOf(fixture);
+    expect(await storedOf(fixture.slug)).toEqual({ status: 'ok', sha256: rendering.sha256, checkedAt: again.checkedAt });
+  });
+
+  it('records nothing when the check could not read the file', async () => {
+    const fixture = await seedReadyProject();
+    fixture.world.suspended = true;
+    await setupOf(fixture);
+    expect(await storedOf(fixture.slug)).toEqual({ status: null, sha256: null, checkedAt: null });
+  });
+
+  it('never lets an older judgement replace a later one', async () => {
+    const fixture = await seedReadyProject();
+    await env.DB.prepare(
+      `UPDATE projects SET actions_workflow_status = 'missing', actions_workflow_checked_at = '2999-01-01T00:00:00.000Z' WHERE slug = ?1`,
+    )
+      .bind(fixture.slug)
+      .run();
+    await setupOf(fixture);
+    expect(await storedOf(fixture.slug)).toEqual({ status: 'missing', sha256: null, checkedAt: '2999-01-01T00:00:00.000Z' });
+  });
+
+  it('answers the check even when the write fails, and logs it', async () => {
+    const fixture = await seedReadyProject();
+    const logs: string[] = [];
+    const record = vi
+      .spyOn(ActionsWorkflowStateRepo.prototype, 'record')
+      .mockRejectedValueOnce(new Error('D1 unavailable'));
+    const setup = await setupOf(fixture, logs);
+    expect(setup.ready).toBe(true);
+    expect(record).toHaveBeenCalledOnce();
+    expect(logs.some((line) => line.includes('actions workflow judgement not recorded'))).toBe(true);
+    record.mockRestore();
   });
 });
