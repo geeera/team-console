@@ -79,7 +79,10 @@ export class ProjectActionsPage {
     const snapshot = this.snapshot();
     return snapshot === null ? null : actionsSummaryOf(snapshot);
   });
-  protected readonly branch = signal<string | null>(null);
+  /** `GET …/dispatch`'s branch, for before the first check answers or when it could not read the repository. */
+  private readonly dispatchBranch = signal<string | null>(null);
+  /** The check names the default branch it read (#870); a first-time project has none recorded yet. */
+  protected readonly branch = computed(() => this.snapshot()?.defaultBranch ?? this.dispatchBranch());
   protected readonly isSlow = signal(false);
   protected readonly justSwitched = signal(false);
   /** Step 6; `null` until the jobs were read, and when they cannot be (a member, an error): the step then stays out. */
@@ -192,7 +195,7 @@ export class ProjectActionsPage {
   protected onSwitched(dto: ProjectDispatchDto): void {
     this.status().applyDispatch(dto.dispatch);
     if (dto.defaultBranch !== null) {
-      this.branch.set(dto.defaultBranch);
+      this.dispatchBranch.set(dto.defaultBranch);
     }
     this.justSwitched.set(true);
     focusAfterRender(() => this.result(), { injector: this.injector });
@@ -250,7 +253,7 @@ export class ProjectActionsPage {
   private async loadBranch(slug: string): Promise<void> {
     const result = await this.runners.dispatch(slug);
     if (result.ok && this.slug() === slug) {
-      this.branch.set(result.value.defaultBranch);
+      this.dispatchBranch.set(result.value.defaultBranch);
     }
   }
 }

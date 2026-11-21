@@ -1,6 +1,7 @@
 import {
   ACTIONS_SETUP_ADVISORY_ITEMS,
   ACTIONS_SETUP_ITEMS,
+  ACTIONS_SETUP_PASSING_STATUSES,
   isGitHubUiUrl,
   type ActionsSetupDto,
   type ActionsSetupItemDto,
@@ -27,8 +28,11 @@ const STEP_ITEMS: Readonly<Record<Exclude<ActionsSetupStepId, 'switch'>, readonl
 export const ACTIONS_CHECKED_STEPS = ['access', 'permissions', 'environment', 'workflow'] as const;
 export type ActionsCheckedStepId = (typeof ACTIONS_CHECKED_STEPS)[number];
 
-/** `pending`: no answer yet (the ledger shows its titles without state words). */
-export type ActionsStepState = 'done' | 'missing' | 'pending';
+/**
+ * `pending`: no answer yet (the ledger shows its titles without state words). `outdated` (#870): done, but the file
+ * is an earlier rendering, «Можно обновить».
+ */
+export type ActionsStepState = 'done' | 'outdated' | 'missing' | 'pending';
 
 const isAdvisory = (id: ActionsSetupItemId): boolean => ACTIONS_SETUP_ADVISORY_ITEMS.includes(id);
 
@@ -37,13 +41,19 @@ export function itemOf(setup: ActionsSetupDto, id: ActionsSetupItemId): ActionsS
   return setup.items.find((item) => item.id === id) ?? { id, status: 'unknown' };
 }
 
-/** A step is done when every item it holds is ok; the advisory `protection-rules` warns and never holds it back. */
+/**
+ * A step is done when every item it holds passes (`ok`, or `outdated`, which still runs); the advisory
+ * `protection-rules` warns and never holds it back. The server's `blockingItemsOf` judges the same way.
+ */
 export function stepStateOf(setup: ActionsSetupDto | null, step: ActionsCheckedStepId): ActionsStepState {
   if (setup === null) {
     return 'pending';
   }
-  const blocked = STEP_ITEMS[step].some((id) => !isAdvisory(id) && itemOf(setup, id).status !== 'ok');
-  return blocked ? 'missing' : 'done';
+  const statuses = STEP_ITEMS[step].filter((id) => !isAdvisory(id)).map((id) => itemOf(setup, id).status);
+  if (statuses.some((status) => !ACTIONS_SETUP_PASSING_STATUSES.includes(status))) {
+    return 'missing';
+  }
+  return statuses.includes('outdated') ? 'outdated' : 'done';
 }
 
 export function missingStepsOf(setup: ActionsSetupDto): ActionsCheckedStepId[] {
@@ -95,13 +105,25 @@ export function linkOf(item: ActionsSetupItemDto): string | null {
 /**
  * Step 4 (UX spec §3.4), from the `workflow` item, its PR, and whether the app may open a PR at all:
  * - `ok` — the file on the default branch is the console's; `leftover` — and a console PR is still open;
- * - `missing` / `outdated` / `modified` — the file is absent, older, or changed: «Открыть PR …» (setup, bump, restore);
- * - `pr-open` — the console's own PR is open: merge it; `pr-foreign` — a PR on the console's branch it cannot vouch
- *   for (`foreign` or `changed`): never "merge it";
+ * - `missing` / `outdated` / `unsupported` / `modified` — the file is absent, an earlier rendering (still running, or
+ *   below the environment's minimum runner), or changed: «Открыть PR …» (setup, bump, restore);
+ * - `pr-open` — the console's own PR is open: merge it; `pr-foreign` — a PR on a console branch it cannot vouch for
+ *   (`foreign` or `changed`): never "merge it"; `pr-stale` — the console's PR for an earlier rendering: close it, and
+ *   a new one can be opened beside it;
  * - `unknown` — the console could not read the file.
  * `canOpenPr` is false while step 2 is not done or the operator switched the PR path off: the Copy path is primary.
  */
-export type WorkflowStepKind = 'ok' | 'leftover' | 'missing' | 'outdated' | 'modified' | 'pr-open' | 'pr-foreign' | 'unknown';
+export type WorkflowStepKind =
+  | 'ok'
+  | 'leftover'
+  | 'missing'
+  | 'outdated'
+  | 'unsupported'
+  | 'modified'
+  | 'pr-open'
+  | 'pr-stale'
+  | 'pr-foreign'
+  | 'unknown';
 
 export interface WorkflowStepView {
   readonly kind: WorkflowStepKind;
@@ -115,6 +137,7 @@ export interface WorkflowStepView {
 const ACTION_OF: Partial<Record<ActionsSetupStatus, WorkflowStepView['action']>> = {
   missing: 'open',
   outdated: 'bump',
+  unsupported: 'bump',
   modified: 'restore',
 };
 
@@ -125,19 +148,36 @@ export function workflowStepOf(setup: ActionsSetupDto): WorkflowStepView {
   if (item.status === 'ok') {
     return { kind: pr === null ? 'ok' : 'leftover', pr, link, action: null };
   }
-  if (pr !== null) {
-    return { kind: pr.provenance === 'console' ? 'pr-open' : 'pr-foreign', pr, link, action: null };
-  }
   const action = ACTION_OF[item.status] ?? null;
+  if (pr !== null) {
+    if (pr.provenance !== 'console') {
+      return { kind: 'pr-foreign', pr, link, action: null };
+    }
+    // A PR for an earlier rendering does not stand in the way: the new one opens from another branch.
+    return pr.stale === true ? { kind: 'pr-stale', pr, link, action } : { kind: 'pr-open', pr, link, action: null };
+  }
   if (action === null) {
     return { kind: 'unknown', pr: null, link, action: null };
   }
-  return { kind: item.status as 'missing' | 'outdated' | 'modified', pr: null, link, action };
+  return { kind: item.status as 'missing' | 'outdated' | 'unsupported' | 'modified', pr: null, link, action };
 }
 
-/** Whether the app has the permissions the PR needs; until then step 4 offers the Copy path first. */
+/**
+ * Whether the console can open the PR from here: the app has the permissions it needs and the PR path is on (#870,
+ * `workflowPr`); otherwise step 4 offers the Copy path first.
+ */
 export function canOpenPrOf(setup: ActionsSetupDto): boolean {
-  return itemOf(setup, 'app-permissions').status === 'ok';
+  return itemOf(setup, 'app-permissions').status === 'ok' && setup.workflowPr === 'enabled';
+}
+
+/** The runner versions step 4 names for an earlier rendering: the file's and this console's (#870). */
+export interface WorkflowVersionsView {
+  readonly old: string | null;
+  readonly new: string;
+}
+
+export function workflowVersionsOf(setup: ActionsSetupDto): WorkflowVersionsView {
+  return { old: setup.versions.current?.runner ?? null, new: setup.versions.expected.runner };
 }
 
 /**

@@ -9,6 +9,7 @@ import {
   stepStateOf,
   subCheckToneOf,
   workflowStepOf,
+  workflowVersionsOf,
 } from './actions-setup-view';
 
 const PR = { number: 42, url: 'https://github.com/geeera/storify/pull/42', provenance: 'console' } as const;
@@ -35,6 +36,23 @@ describe('actions setup steps', () => {
     expect(canOpenPrOf(setup)).toBe(false);
   });
 
+  it('counts an outdated workflow as passing, with its own state, and an unsupported one as missing (#870)', () => {
+    const outdated = actionsSetupFixture({ items: { workflow: { status: 'outdated' } } });
+    expect(outdated.ready).toBe(true);
+    expect(stepStateOf(outdated, 'workflow')).toBe('outdated');
+    expect(firstMissingStepOf(outdated)).toBeNull();
+    expect(actionsSummaryOf(outdated)).toEqual({ kind: 'ready' });
+    const unsupported = actionsSetupFixture({ items: { workflow: { status: 'unsupported' } } });
+    expect(stepStateOf(unsupported, 'workflow')).toBe('missing');
+    expect(actionsSummaryOf(unsupported)).toEqual({ kind: 'missing', n: 1 });
+  });
+
+  it('can open a PR only with the app’s permissions and the PR path on (#870)', () => {
+    expect(canOpenPrOf(actionsSetupFixture())).toBe(true);
+    expect(canOpenPrOf(actionsSetupFixture({ workflowPr: 'disabled' }))).toBe(false);
+    expect(canOpenPrOf(actionsSetupFixture({ items: { 'app-permissions': { status: 'missing' } } }))).toBe(false);
+  });
+
   it('shows drift when switched on and no longer ready, and on when ready', () => {
     expect(actionsSummaryOf(actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }))).toEqual({ kind: 'drift', n: 1 });
     expect(actionsSummaryOf(actionsSetupFixture({ dispatch: 'actions' }))).toEqual({ kind: 'on' });
@@ -45,6 +63,7 @@ describe('workflowStepOf', () => {
   it.each([
     ['missing', 'open'],
     ['outdated', 'bump'],
+    ['unsupported', 'bump'],
     ['modified', 'restore'],
   ] as const)('offers a PR for a %s file', (status, action) => {
     const view = workflowStepOf(actionsSetupFixture({ items: { workflow: { status } } }));
@@ -56,6 +75,26 @@ describe('workflowStepOf', () => {
     for (const provenance of ['foreign', 'changed'] as const) {
       expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { ...PR, provenance } } } })).kind).toBe('pr-foreign');
     }
+  });
+
+  it('calls the console’s PR for an earlier rendering stale, and still offers a new one (#870)', () => {
+    const stale = { ...PR, stale: true } as const;
+    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'outdated', pr: stale } } }))).toMatchObject({
+      kind: 'pr-stale',
+      pr: stale,
+      action: 'bump',
+    });
+    expect(
+      workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { ...stale, provenance: 'changed' } } } })),
+    ).toMatchObject({ kind: 'pr-foreign', action: null });
+  });
+
+  it('names the file’s runner and the console’s (#870)', () => {
+    const setup = actionsSetupFixture({
+      versions: { current: { runner: '0.1.0', node: '22.1.0', claudeCode: null } },
+    });
+    expect(workflowVersionsOf(setup)).toEqual({ old: '0.1.0', new: '0.2.0' });
+    expect(workflowVersionsOf(actionsSetupFixture({ versions: { current: null } }))).toEqual({ old: null, new: '0.2.0' });
   });
 
   it('calls an open PR left over once the file is ok', () => {

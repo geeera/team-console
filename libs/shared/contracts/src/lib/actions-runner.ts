@@ -227,9 +227,11 @@ export const isActionsSetupItemId = (value: unknown): value is ActionsSetupItemI
 
 /**
  * `unknown`: the console could not look (the app has not been granted the permission yet); it never counts as ok.
- * `outdated`: the file equals an earlier release's rendering (none is kept yet: the first one is this release's).
+ * `outdated` (#870): the file is this console's rendering with older version pins (and their checksums) and nothing
+ * else changed; jobs still run on it, so it does not hold the switch back. `unsupported`: the same, but its runner is
+ * below the environment's `RUNNER_MINIMUM_VERSION`, so it does.
  */
-export const ACTIONS_SETUP_STATUSES = ['ok', 'missing', 'wrong', 'outdated', 'modified', 'unknown'] as const;
+export const ACTIONS_SETUP_STATUSES = ['ok', 'missing', 'wrong', 'outdated', 'unsupported', 'modified', 'unknown'] as const;
 export type ActionsSetupStatus = (typeof ACTIONS_SETUP_STATUSES)[number];
 export const isActionsSetupStatus = (value: unknown): value is ActionsSetupStatus =>
   (ACTIONS_SETUP_STATUSES as readonly unknown[]).includes(value);
@@ -239,6 +241,9 @@ export const isActionsSetupStatus = (value: unknown): value is ActionsSetupStatu
  * the Environment are the customer's stronger control; every run then waits for them and may hit the no-show limit.
  */
 export const ACTIONS_SETUP_ADVISORY_ITEMS: readonly ActionsSetupItemId[] = Object.freeze(['protection-rules']);
+
+/** Statuses that never hold the switch back, whatever the item: an older but supported rendering still runs. */
+export const ACTIONS_SETUP_PASSING_STATUSES: readonly ActionsSetupStatus[] = Object.freeze(['ok', 'outdated']);
 
 /**
  * The console's pull request on its own head branch. `foreign`: someone else opened a PR from that branch (or in
@@ -253,6 +258,11 @@ export interface ActionsSetupPrDto {
   /** GitHub's `html_url` of the PR; always `https://github.com/…`. */
   readonly url: string;
   readonly provenance: ActionsSetupPrProvenance;
+  /**
+   * #870: the PR is from the branch of an earlier rendering, not this console's current one; present only then. A
+   * stale PR is `console` only when its file is an earlier rendering of the console's own template.
+   */
+  readonly stale?: true;
 }
 
 export interface ActionsSetupItemDto {
@@ -264,13 +274,50 @@ export interface ActionsSetupItemDto {
   readonly pr?: ActionsSetupPrDto;
 }
 
+/** The three versions a runner workflow pins (#870), as the rendering names them. */
+export interface ActionsWorkflowPinsDto {
+  readonly runner: string;
+  readonly node: string;
+  readonly claudeCode: string;
+}
+
+/** The pins read from the file on the default branch: `null` for a pin not found exactly once as `NAME: x.y.z`. */
+export type ActionsWorkflowReadPinsDto = { readonly [K in keyof ActionsWorkflowPinsDto]: string | null };
+
+/**
+ * The file's `RUNNER_VERSION` against the environment's `RUNNER_MINIMUM_VERSION` (#464, judged by
+ * `isRunnerVersionBelow`). `unknown`: no file was read, or it names no runner version the console could read.
+ */
+export const ACTIONS_RUNNER_SUPPORTS = ['supported', 'unsupported', 'unknown'] as const;
+export type ActionsRunnerSupport = (typeof ACTIONS_RUNNER_SUPPORTS)[number];
+
+export interface ActionsSetupVersionsDto {
+  /** This console's rendering. */
+  readonly expected: ActionsWorkflowPinsDto;
+  /** The file on the default branch; `null` when there is none or it was not read. */
+  readonly current: ActionsWorkflowReadPinsDto | null;
+  /** The environment's `RUNNER_MINIMUM_VERSION`; `null` when it is unset (then no version is below it). */
+  readonly minRunner: string | null;
+  /** The file's runner against `minRunner`. */
+  readonly runnerSupport: ActionsRunnerSupport;
+}
+
 export interface ActionsSetupDto {
   readonly dispatch: ProjectDispatch;
   readonly accessSource: AccessSource;
-  /** Every item `ok`, the advisory ones aside: what `PUT …/dispatch {actions}` requires. */
+  /** Every item `ok` or `outdated`, the advisory ones aside: what `PUT …/dispatch {actions}` requires. */
   readonly ready: boolean;
   readonly checkedAt: string;
   readonly items: readonly ActionsSetupItemDto[];
+  /** #870: GitHub's `default_branch` as this check read it; `null` when the repository was not read. */
+  readonly defaultBranch: string | null;
+  /**
+   * #870: whether `POST …/workflow-pr` may write right now (`ALLOW_ACTIONS_SETUP_WRITE` and no operator stop), so the
+   * page leads with the Copy path before a click meets 503 `github-write-disabled`. Availability only: the route
+   * judges it again on every click.
+   */
+  readonly workflowPr: 'enabled' | 'disabled';
+  readonly versions: ActionsSetupVersionsDto;
 }
 
 /**
@@ -323,22 +370,74 @@ export type ActionsWorkflowPrRefusal = (typeof ACTIONS_WORKFLOW_PR_REFUSALS)[num
 /** 422 `actions-not-ready` of `PUT …/dispatch {actions}`: `extensions.items` names the items that hold it back. */
 export const ACTIONS_NOT_READY = 'actions-not-ready';
 
-/** Every link the readiness answers points at GitHub's own UI. */
-export const isGitHubUiUrl = (value: unknown): value is string =>
-  isString(value) && value.startsWith('https://github.com/') && !/[\s"'<>\\]/.test(value);
+/** A GitHub UI address is short; anything far longer is not one the console hands out. */
+const GITHUB_UI_URL_MAX_LENGTH = 2048;
 
-/** The items that hold the switch back: not ok, and not advisory. */
+/**
+ * Every link the readiness answers points at GitHub's own UI (#870): parsed, `https:` on exactly `github.com` with no
+ * port or userinfo, and spelled with that origin (the parser, not a prefix, judges the host). No quote, angle
+ * bracket, backslash or whitespace either: the page puts the string into an attribute as it is.
+ */
+export function isGitHubUiUrl(value: unknown): value is string {
+  if (!isString(value) || value.length > GITHUB_UI_URL_MAX_LENGTH || /[\s"'<>\\]/.test(value) || !URL.canParse(value)) {
+    return false;
+  }
+  const url = new URL(value);
+  return (
+    url.protocol === 'https:' &&
+    url.hostname === 'github.com' &&
+    url.port === '' &&
+    url.username === '' &&
+    url.password === '' &&
+    url.origin === 'https://github.com' &&
+    value.startsWith('https://github.com/')
+  );
+}
+
+/** The items that hold the switch back: neither ok nor outdated, and not advisory. */
 export function blockingItemsOf(items: readonly ActionsSetupItemDto[]): ActionsSetupItemId[] {
   return items
-    .filter((item) => item.status !== 'ok' && !ACTIONS_SETUP_ADVISORY_ITEMS.includes(item.id))
+    .filter((item) => !ACTIONS_SETUP_PASSING_STATUSES.includes(item.status) && !ACTIONS_SETUP_ADVISORY_ITEMS.includes(item.id))
     .map((item) => item.id);
 }
 
+const VERSION = /^\d{1,5}\.\d{1,5}\.\d{1,5}$/;
+const isVersion = (value: unknown): value is string => isString(value) && VERSION.test(value);
+const PIN_KEYS = ['runner', 'node', 'claudeCode'] as const;
+
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const own = Object.keys(value);
+  return own.length === keys.length && keys.every((key) => own.includes(key));
+}
+
+function isPins(value: unknown, nullable: boolean): boolean {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, PIN_KEYS) &&
+    PIN_KEYS.every((key) => isVersion(value[key]) || (nullable && value[key] === null))
+  );
+}
+
+function isActionsSetupVersionsDto(value: unknown): value is ActionsSetupVersionsDto {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ['expected', 'current', 'minRunner', 'runnerSupport']) &&
+    isPins(value['expected'], false) &&
+    (value['current'] === null || isPins(value['current'], true)) &&
+    (value['minRunner'] === null || isRunnerVersion(value['minRunner'])) &&
+    (ACTIONS_RUNNER_SUPPORTS as readonly unknown[]).includes(value['runnerSupport'])
+  );
+}
+
 function isActionsSetupPrDto(value: unknown): value is ActionsSetupPrDto {
-  if (!isRecord(value) || Object.keys(value).length !== 3) {
+  if (!isRecord(value)) {
     return false;
   }
-  const { number, url, provenance } = value;
+  const { number, url, provenance, stale } = value;
+  const keys = stale === true ? ['number', 'url', 'provenance', 'stale'] : ['number', 'url', 'provenance'];
+  if (!hasExactKeys(value, keys)) {
+    return false;
+  }
   return (
     Number.isSafeInteger(number) &&
     (number as number) > 0 &&
@@ -363,13 +462,28 @@ function isActionsSetupItemDto(value: unknown): value is ActionsSetupItemDto {
   );
 }
 
+/** The readiness answer's keys, exactly (#870 added the last three). */
+export const ACTIONS_SETUP_DTO_KEYS = [
+  'dispatch',
+  'accessSource',
+  'ready',
+  'checkedAt',
+  'items',
+  'defaultBranch',
+  'workflowPr',
+  'versions',
+] as const;
+
 /** The answer's exact key set: no names, dates, lengths or reviewer identities can ride along. */
 export function isActionsSetupDto(value: unknown): value is ActionsSetupDto {
-  if (!isRecord(value) || Object.keys(value).length !== 5) {
+  if (!isRecord(value) || !hasExactKeys(value, ACTIONS_SETUP_DTO_KEYS)) {
     return false;
   }
-  const { dispatch, accessSource, ready, checkedAt, items } = value;
+  const { dispatch, accessSource, ready, checkedAt, items, defaultBranch, workflowPr, versions } = value;
   if (
+    (defaultBranch !== null && (!isString(defaultBranch) || defaultBranch === '')) ||
+    (workflowPr !== 'enabled' && workflowPr !== 'disabled') ||
+    !isActionsSetupVersionsDto(versions) ||
     !isProjectDispatch(dispatch) ||
     !isAccessSource(accessSource) ||
     typeof ready !== 'boolean' ||

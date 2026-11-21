@@ -190,6 +190,7 @@
     <span class="step__mark" aria-hidden="true">
       @switch (stateOf('workflow')) {
         @case ('done') { <tc-icon name="check" size="sm" /> }
+        @case ('outdated') { <tc-icon name="check" size="sm" /> }
         @case ('missing') { <tc-icon name="alert" size="sm" /> }
         @default { 4 }
       }

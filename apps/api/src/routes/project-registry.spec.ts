@@ -178,6 +178,7 @@ describe('GET /api/v1/projects', () => {
         snooze: { snoozed: false },
         tracker: 'github',
         keyPrefix: null,
+        accountId: OWNER_ACCOUNT_ID,
       },
     ]);
 

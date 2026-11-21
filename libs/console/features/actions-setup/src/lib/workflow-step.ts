@@ -17,6 +17,7 @@ import {
   ActionsSetupApi,
   canOpenPrOf,
   workflowStepOf,
+  workflowVersionsOf,
   type WorkflowPrRefusal,
 } from '@console/entities/actions-setup';
 import { NetworkStatus } from '@console/shared/api';
@@ -31,16 +32,19 @@ type WorkflowStepShown =
   | 'leftover'
   | 'missing'
   | 'outdated'
+  | 'unsupported'
   | 'modified'
   | 'unknown'
   | 'pr-open'
+  | 'pr-stale'
   | 'pr-foreign';
 
 /**
  * Step 4 of the Actions setup page: the workflow file on the default branch, the console's PR, and the Copy path
  * beside it. «Открыть PR» calls `POST …/workflow-pr` with no body; every answer of that route has its own words
  * (#759 PR 5 scope), and the page and its other steps stay usable whatever it says. While the app lacks the
- * permissions or the operator switched the PR path off, «Показать файл» is the primary action.
+ * permissions or the operator switched the PR path off (the check's `workflowPr`, #870, or a 503 on click),
+ * «Показать файл» is the primary action.
  */
 @Component({
   selector: 'tc-workflow-step',
@@ -71,11 +75,14 @@ export class WorkflowStep {
   protected readonly refusal = signal<WorkflowPrRefusal | null>(null);
   /** The PR this page just opened or was told about; a fresh check replaces it with what GitHub says. */
   protected readonly knownPr = signal<ActionsSetupPrDto | null>(null);
-  /** The operator's kill switch answered once: the Copy path leads from then on. */
-  protected readonly isPrPathOff = signal(false);
+  /** The operator's kill switch answered a click: the Copy path leads until a reload. */
+  private readonly isPrPathRefused = signal(false);
+  /** The check says the PR path is off, or a click met the kill switch. */
+  protected readonly isPrPathOff = computed(() => this.setup().workflowPr === 'disabled' || this.isPrPathRefused());
   protected readonly isFileOpen = signal(false);
 
   protected readonly view = computed(() => workflowStepOf(this.setup()));
+  protected readonly versions = computed(() => workflowVersionsOf(this.setup()));
   protected readonly pr = computed(() => this.knownPr() ?? this.view().pr);
   protected readonly shown = computed<WorkflowStepShown>(() => {
     const known = this.knownPr();
@@ -84,8 +91,12 @@ export class WorkflowStep {
     }
     return this.view().kind;
   });
-  protected readonly canOpenPr = computed(() => canOpenPrOf(this.setup()) && !this.isPrPathOff());
+  protected readonly canOpenPr = computed(() => canOpenPrOf(this.setup()) && !this.isPrPathRefused());
   protected readonly action = computed(() => (this.knownPr() === null ? this.view().action : null));
+  /** Whether the Copy path's reason names the PR path being off rather than the app's permissions. */
+  protected readonly copyReasonKey = computed(() =>
+    this.isPrPathOff() ? 'actions.wf.prOff' : 'actions.wf.noPermission',
+  );
   /** The Copy path leads when no PR can be opened from here. */
   protected readonly isCopyPrimary = computed(() => this.action() !== null && !this.canOpenPr());
 
@@ -147,7 +158,7 @@ export class WorkflowStep {
         this.recheck.emit();
         return;
       case 'write-disabled':
-        this.isPrPathOff.set(true);
+        this.isPrPathRefused.set(true);
         this.isFileOpen.set(true);
         this.refusal.set(refusal);
         return;

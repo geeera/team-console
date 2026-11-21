@@ -38,6 +38,10 @@ export interface SetupWorld {
   workflow: string | null;
   /** The open PR from the console's head branch, if any. */
   pull: Record<string, unknown> | null;
+  /** #870: the branch `pull` is open from; `null` is the current rendering's. */
+  pullBranch: string | null;
+  /** #870: the refs `GET …/git/matching-refs/heads/team-console/runner-` lists, as branch names. */
+  setupBranches: string[];
   pullFiles: string[];
   /** The workflow file at the PR's head commit. */
   pullWorkflow: string | null;
@@ -92,11 +96,27 @@ export function readyWorld(repoId: number, rendering: RunnerWorkflowRendering): 
     secrets: [ACTIONS_INFERENCE_KEY_SECRET],
     workflow: rendering.text,
     pull: null,
+    pullBranch: null,
+    setupBranches: [],
     pullFiles: [],
     pullWorkflow: null,
     unavailable: null,
     write: { headSha: HEAD_SHA, branchExists: false, commitSha: COMMIT_SHA, pullHeadSha: null, failing: null },
   };
+}
+
+/**
+ * #870: the rendering at an earlier release, every version pin and checksum line given another value with the layout
+ * kept, the way an older console wrote the file. `runner` overrides the runner pin (default `0.0.9`, lower than any
+ * rendering's).
+ */
+export function earlierRelease(text: string, runner = '0.0.9'): string {
+  return text
+    .replace(/^(\s+RUNNER_VERSION: ).*$/m, `$1${runner}`)
+    .replace(/^(\s+NODE_VERSION: ).*$/m, '$122.1.0')
+    .replace(/^(\s+NODE_SHA256: ).*$/m, `$1${'0'.repeat(64)}`)
+    .replace(/^(\s+CLAUDE_CODE_VERSION: ).*$/m, '$12.0.0')
+    .replace(/^(\s+CLAUDE_CODE_SHA512: ).*$/m, `$1${'1'.repeat(128)}`);
 }
 
 /** The console's own setup PR, as GitHub answers it, opened by the app's bot in the project's repository. */
@@ -188,9 +208,12 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
     }
     return world.pullWorkflow === null ? notFound() : raw(world.pullWorkflow);
   }
+  if (path === `/repos/${repo}/git/matching-refs/heads/team-console/runner-`) {
+    return json(200, world.setupBranches.map((branch) => ({ ref: `refs/heads/${branch}`, object: { sha: HEAD_SHA, type: 'commit' } })));
+  }
   if (path === `/repos/${repo}/pulls`) {
     const [owner = ''] = repo.split('/');
-    const head = `${owner}:${actionsSetupBranchOf(rendering.sha256)}`;
+    const head = `${owner}:${world.pullBranch ?? actionsSetupBranchOf(rendering.sha256)}`;
     return json(200, world.pull !== null && call.url.searchParams.get('head') === head ? [world.pull] : []);
   }
   if (world.pull !== null && path === `/repos/${repo}/pulls/${String(world.pull['number'])}`) {
@@ -266,6 +289,7 @@ export function isAllowedSetupPath(repo: string, call: GitHubCall): boolean {
     path === `${environment}/deployment-branch-policies` ||
     path === `${environment}/secrets/${ACTIONS_INFERENCE_KEY_SECRET}` ||
     path === `/repos/${repo}/contents/.github/workflows/team-console-runner.yml` ||
+    path === `/repos/${repo}/git/matching-refs/heads/team-console/runner-` ||
     /^\/repos\/[^/]+\/[^/]+\/pulls(\/\d+(\/files)?)?$/.test(path)
   );
 }

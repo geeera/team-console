@@ -14,7 +14,7 @@ import { ProjectActionsPage } from './project-actions.page';
 type CheckAnswer = { ok: true; value: ActionsSetupDto } | { ok: false; problem: ActionsCheckProblem };
 
 describe('ProjectActionsPage (#759)', () => {
-  async function render(answers: CheckAnswer[], jobs: readonly JobDto[] = []) {
+  async function render(answers: CheckAnswer[], jobs: readonly JobDto[] = [], dispatchBranch: string | null = 'main') {
     const checks: string[] = [];
     TestBed.configureTestingModule({
       providers: [
@@ -40,7 +40,10 @@ describe('ProjectActionsPage (#759)', () => {
           },
         },
         { provide: JobsApi, useValue: { list: async () => ({ ok: true, value: { jobs } }) } },
-        { provide: RunnersApi, useValue: { dispatch: async () => ({ ok: true, value: { dispatch: 'pull', defaultBranch: 'main' } }) } },
+        {
+          provide: RunnersApi,
+          useValue: { dispatch: async () => ({ ok: true, value: { dispatch: 'pull', defaultBranch: dispatchBranch } }) },
+        },
       ],
     });
     const fixture = TestBed.createComponent(ProjectActionsPage);
@@ -68,6 +71,16 @@ describe('ProjectActionsPage (#759)', () => {
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Запуск на GitHub Actions');
     expect(find('actions-summary')?.textContent).toContain('Не хватает 2 шагов');
     expect(root.textContent).toContain('Файл workflow в ветке main');
+  });
+
+  it('names the branch the check read before any switch recorded one (#870)', async () => {
+    const { root } = await render(
+      [{ ok: true, value: actionsSetupFixture({ defaultBranch: 'trunk', items: { workflow: { status: 'missing' } } }) }],
+      [],
+      null,
+    );
+    expect(root.textContent).toContain('Файл workflow в ветке trunk');
+    expect(root.textContent).not.toContain('по умолчанию');
   });
 
   it('says all set when ready', async () => {

@@ -434,7 +434,8 @@ const ROW: ProjectRow = {
 const NOW = Date.parse('2026-10-05T12:00:00Z');
 
 describe('toProjectDto', () => {
-  it('exposes only the client-facing fields (no cache epoch, no installation id, no account)', () => {
+  // #870: the account id is one of the caller's own (`GET /accounts`), so the console can tell its role there.
+  it('exposes only the client-facing fields and the account id (no cache epoch, no installation id)', () => {
     expect(toProjectDto(ROW, NOW)).toEqual({
       slug: 'tc',
       repo: 'geeera/team-console',
@@ -443,6 +444,7 @@ describe('toProjectDto', () => {
       addedAt: '2026-09-01T00:00:00Z',
       archivedAt: null,
       snooze: { snoozed: false },
+      accountId: ROW.account_id,
     });
   });
 });
