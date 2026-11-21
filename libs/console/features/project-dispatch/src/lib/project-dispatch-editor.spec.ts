@@ -1,17 +1,19 @@
 import { HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { ActionsSetupApi, actionsSetupFixture } from '@console/entities/actions-setup';
+import { ProjectsStore } from '@console/entities/project';
 import { RunnersApi, runnerFailureOf, type RunnerResult } from '@console/entities/runner';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { PROBLEM_TYPE_PREFIX, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
+import { PROBLEM_TYPE_PREFIX, type ActionsSetupDto, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
 import { ProjectDispatchEditor } from './project-dispatch-editor';
 
 const PULL: ProjectDispatchDto = { dispatch: 'pull', defaultBranch: null };
 
-function problem(status: number, slug: string): RunnerResult<ProjectDispatchDto> {
+function problem(status: number, slug: string, extra: Record<string, unknown> = {}): RunnerResult<ProjectDispatchDto> {
   const error = new HttpErrorResponse({
     status,
-    error: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status, field: 'dispatch' },
+    error: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status, field: 'dispatch', ...extra },
     headers: new HttpHeaders({ 'Content-Type': 'application/problem+json' }),
   });
   return { ok: false, failure: runnerFailureOf(error) };
@@ -24,12 +26,24 @@ describe('ProjectDispatchEditor (#670)', () => {
       ok: true,
       value: { dispatch, defaultBranch: dispatch === 'actions' ? 'main' : null },
     }),
+    readiness = (): ActionsSetupDto => actionsSetupFixture(),
   } = {}) {
     const writes: { slug: string; dispatch: ProjectDispatch }[] = [];
+    const checks: string[] = [];
     TestBed.configureTestingModule({
       providers: [
         provideConsoleI18n(),
         provideRouter([]),
+        {
+          provide: ActionsSetupApi,
+          useValue: {
+            check: async (slug: string) => {
+              checks.push(slug);
+              return { ok: true, value: readiness() };
+            },
+          },
+        },
+        { provide: ProjectsStore, useValue: { bySlug: () => ({ displayName: 'Team Console' }) } },
         {
           provide: RunnersApi,
           useValue: {
@@ -65,7 +79,7 @@ describe('ProjectDispatchEditor (#670)', () => {
       find<HTMLFormElement>('project-dispatch-form')?.dispatchEvent(new Event('submit'));
       await settle();
     };
-    return { root, find, choose, save, writes, fixture };
+    return { root, find, choose, save, writes, checks, fixture, settle };
   }
 
   it('shows the stored dispatch and says plainly that the Actions minutes are the owner’s spend', async () => {
@@ -115,6 +129,49 @@ describe('ProjectDispatchEditor (#670)', () => {
     await other.save();
     expect(other.find('project-dispatch-error')).not.toBeNull();
     expect(other.find('project-dispatch-team')).toBeNull();
+  });
+
+  it('checks readiness only once GitHub Actions is chosen, and says the repository is ready (#759)', async () => {
+    const { find, choose, settle, checks } = await render();
+    expect(find('project-dispatch-readiness')).toBeNull();
+    expect(checks).toEqual([]);
+    await choose('actions');
+    await settle();
+    expect(checks).toEqual(['team-console']);
+    expect(find('project-dispatch-readiness')?.getAttribute('role')).toBe('status');
+    expect(find('project-dispatch-readiness')?.textContent).toContain('Репозиторий готов к GitHub Actions.');
+    expect(find('project-dispatch-save')?.getAttribute('aria-disabled')).toBeNull();
+  });
+
+  it('holds Save back while the repository is not ready and sends focus to «Подготовить репозиторий»', async () => {
+    const { find, choose, save, settle, writes } = await render({
+      readiness: () => actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }),
+    });
+    await choose('actions');
+    await settle();
+    expect(find('project-dispatch-readiness')?.textContent).toContain('не хватает 2 шагов');
+    const link = find<HTMLAnchorElement>('project-dispatch-prepare');
+    expect(link?.getAttribute('href')).toBe('/settings/projects/team-console/actions?from=runners');
+    const button = find('project-dispatch-save');
+    expect(button?.getAttribute('aria-disabled')).toBe('true');
+    expect(button?.getAttribute('aria-describedby')).toBe(find('project-dispatch-readiness')?.id);
+    await save();
+    expect(writes).toEqual([]);
+    expect(document.activeElement).toBe(link);
+  });
+
+  it('names the items of an actions-not-ready refusal and links the setup page', async () => {
+    const { find, choose, save } = await render({
+      write: () => problem(422, 'actions-not-ready', { items: ['workflow', 'secret'] }),
+    });
+    await choose('actions');
+    await save();
+    expect(find('project-dispatch-error')?.textContent).toContain(
+      'GitHub Actions для Team Console ещё не готов: ключ TC_INFERENCE_API_KEY, файл workflow. Ничего не изменилось.',
+    );
+    expect(find<HTMLAnchorElement>('project-dispatch-prepare-refusal')?.getAttribute('href')).toBe(
+      '/settings/projects/team-console/actions?from=runners',
+    );
   });
 
   it('offers a retry when the dispatch cannot be read', async () => {
