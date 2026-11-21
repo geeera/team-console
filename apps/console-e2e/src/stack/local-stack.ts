@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { startCloseRelay, type CloseRelay } from './close-relay';
 
@@ -295,6 +295,8 @@ export class LocalStack {
   };
   private readonly pastIncidents: string[] = [];
   private readonly vapid = throwawayVapidPair();
+  /** Settles once per stack; a failed migration stays failed, so every reset reports it instead of retrying. */
+  private template: Promise<string> | null = null;
 
   private constructor(
     private readonly name: string,
@@ -477,25 +479,41 @@ export class LocalStack {
     }
   }
 
+  /** A local D1 with every migration applied and nothing else; wrangler has exited, so its files are at rest. */
+  private migratedTemplate(): Promise<string> {
+    this.template ??= (async () => {
+      const template = join(this.dir, 'api-state-template');
+      rmSync(template, { recursive: true, force: true });
+      await run(
+        [
+          'd1',
+          'migrations',
+          'apply',
+          'team-console-dev',
+          '--local',
+          '--config',
+          API_CONFIG,
+          '--env',
+          'dev',
+          '--persist-to',
+          template,
+        ],
+        join(this.dir, 'migrate.log'),
+      );
+      return template;
+    })();
+    return this.template;
+  }
+
+  /**
+   * Every reset starts from a copy of this worker's migrated template instead of re-running all migrations: the
+   * `wrangler d1 migrations apply` subprocess took ~15 s per test on CI and pushed long specs past the 30 s timeout
+   * (#864). The template is migrated once per stack, so a run still tests the migrations it was started with.
+   */
   private async startApi(): Promise<void> {
     const persist = join(this.dir, 'api-state');
     rmSync(persist, { recursive: true, force: true });
-    await run(
-      [
-        'd1',
-        'migrations',
-        'apply',
-        'team-console-dev',
-        '--local',
-        '--config',
-        API_CONFIG,
-        '--env',
-        'dev',
-        '--persist-to',
-        persist,
-      ],
-      join(this.dir, 'migrate.log'),
-    );
+    cpSync(await this.migratedTemplate(), persist, { recursive: true });
     this.api = StackProcess.spawn(
       `${this.name} api`,
       [
