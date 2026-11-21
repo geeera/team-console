@@ -82,14 +82,13 @@ export async function runContainerSetup(options: ContainerSetupOptions, deps: Co
   }
   const image = options.image;
   const enrolled = await enrolStep(options, deps);
-  if (enrolled.container?.image !== image) {
-    throw new SetupError(
-      `config.json runs jobs from ${enrolled.container?.image ?? 'no image'}, not ${image}: revoke the runner and enrol it again`,
-    );
+  if (enrolled.container !== undefined && enrolled.container.image !== image) {
+    // A new release's command: jobs follow the image the service now runs, by its digest.
+    deps.out(`config: jobs now run from ${image} (was ${enrolled.container.image})`);
   }
   // Jobs start through tcrunner's rootless podman, so their mounts and uid map onto the host as the runner's own.
   const config =
-    enrolled.container.runtime === 'podman'
+    enrolled.container?.image === image && enrolled.container.runtime === 'podman'
       ? enrolled
       : await updateRunnerConfig(deps.home, (current) => ({ ...current, container: { ...current.container, image, runtime: 'podman' } }));
 

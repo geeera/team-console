@@ -166,6 +166,10 @@ describe('the Linux one command', () => {
     );
   });
 
+  it('caps the jobs together at the podman unit, where rootless podman cannot cap each one', () => {
+    expect(unitLines(podmanUnitOf())).toEqual(expect.arrayContaining(['TasksMax=4096', 'MemoryMax=6G']));
+  });
+
   it('runs the runner by digest with that socket only, never a docker.sock', () => {
     const unit = runnerUnitOf(IMAGE);
     expect(execStartOf(unit)).toBe(
@@ -190,7 +194,7 @@ describe('the Linux one command', () => {
   it('enrols interactively as tcrunner with the request id as the only value passed in', () => {
     const enrol = linuxEnrolCommandOf('https://console.example', IMAGE, INTENT);
     expect(enrol).toBe(
-      `sudo -u tcrunner -H podman --remote --url=unix:///var/lib/team-console-runner/podman.sock run -it --rm --userns=keep-id --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs=/tmp:rw,nosuid,nodev,mode=1777 -e HOME=/tmp -e TC_RUNNER_HOME=/var/lib/team-console-runner/home --mount=type=bind,src=/var/lib/team-console-runner/home,dst=/var/lib/team-console-runner/home --hostname="$(hostname)" -e TC_ENROLMENT=${INTENT} ${IMAGE} setup --url https://console.example --image ${IMAGE} && sudo systemctl enable --now team-console-runner.service`,
+      `sudo -u tcrunner -H podman --remote --url=unix:///var/lib/team-console-runner/podman.sock run -it --rm --userns=keep-id --read-only --cap-drop=ALL --security-opt=no-new-privileges --tmpfs=/tmp:rw,nosuid,nodev,mode=1777 -e HOME=/tmp -e TC_RUNNER_HOME=/var/lib/team-console-runner/home --mount=type=bind,src=/var/lib/team-console-runner/home,dst=/var/lib/team-console-runner/home --hostname="$(hostname)" -e TC_ENROLMENT=${INTENT} ${IMAGE} setup --url https://console.example --image ${IMAGE} && sudo systemctl enable team-console-runner.service && sudo systemctl restart team-console-runner.service`,
     );
     expect(enrol).not.toContain('\n');
     const passed = [...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1]);

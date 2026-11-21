@@ -129,11 +129,19 @@ describe('setup in the runner’s container (Linux)', () => {
     await expect(runContainerSetup(options({ enrolment: undefined }), deps())).rejects.toThrow(/TC_ENROLMENT=<request id>/);
   });
 
+  it('moves an enrolled runner’s jobs to the image of a new release’s command', async () => {
+    const old = `ghcr.io/geeera/team-console-runner:0.2.0@sha256:${'f'.repeat(64)}`;
+    await saveRunnerConfig(home, enrolledConfig({ container: { image: old, runtime: 'podman' } }));
+    expect(await runContainerSetup(options(), deps())).toBe(true);
+    expect((await loadRunnerConfig(home)).container).toEqual({ image: IMAGE, runtime: 'podman' });
+    expect(out).toContain(`config: jobs now run from ${IMAGE} (was ${old})`);
+    expect(enrolled).toEqual([]);
+  });
+
   const { credential: _credential, container: _container, ...bare } = enrolledConfig();
   it.each<[string, RunnerConfig, RegExp]>([
     ['another console', enrolledConfig({ apiUrl: 'https://other.example' }), /enrolled with https:\/\/other\.example/],
     ['another backend', { ...bare, backend: 'none' }, /holds a none runner/],
-    ['another image', enrolledConfig({ container: { image: `ghcr.io/x/y@sha256:${'f'.repeat(64)}` } }), /runs jobs from ghcr\.io\/x\/y/],
   ])('refuses a home enrolled with %s', async (_, config, reason) => {
     await saveRunnerConfig(home, config);
     await expect(runContainerSetup(options(), deps())).rejects.toThrow(reason);

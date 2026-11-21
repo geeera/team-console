@@ -114,7 +114,7 @@ const LINUX = {
     'EOF',
     'sudo systemctl daemon-reload && sudo systemctl enable --now team-console-runner-podman.service',
   ].join('\n'),
-  enrol: `sudo -u tcrunner -H podman --remote … run -it --rm … -e TC_ENROLMENT=01M6YSNJ00000000000000N001 ${LINUX_IMAGE} setup --url https://console.example --image ${LINUX_IMAGE} && sudo systemctl enable --now team-console-runner.service`,
+  enrol: `sudo -u tcrunner -H podman --remote … run -it --rm … -e TC_ENROLMENT=01M6YSNJ00000000000000N001 ${LINUX_IMAGE} setup --url https://console.example --image ${LINUX_IMAGE} && sudo systemctl enable team-console-runner.service && sudo systemctl restart team-console-runner.service`,
 };
 
 /** Step 2 on Linux (#634 PR 7): prepare the machine once, then the interactive enrol step; no docker.sock. */

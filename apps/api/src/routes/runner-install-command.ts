@@ -160,6 +160,10 @@ export function podmanUnitOf(): string {
     `ExecStartPre=/usr/bin/install -d -m 0700 ${LINUX_RUNNER_HOME}`,
     `ExecStart=/usr/bin/podman system service --time=0 unix://${LINUX_PODMAN_SOCKET}`,
     'Restart=on-failure',
+    // Rootless podman on cgroupfs ignores a job's --memory and --pids-limit; every job container lives in this
+    // unit's cgroup, so the caps that hold are these, for the runner's jobs together.
+    'TasksMax=4096',
+    'MemoryMax=6G',
     '',
     '[Install]',
     'WantedBy=multi-user.target',
@@ -251,7 +255,8 @@ export function linuxEnrolCommandOf(origin: string, image: string, intentId: str
     `${ENROLMENT_INTENT_ENV}=${intentId}`,
     image,
     `setup --url ${origin} --image ${image}`,
-    `&& sudo systemctl enable --now ${LINUX_RUNNER_UNIT}`,
+    // restart, not --now: a new release's command must replace the running container with the new image.
+    `&& sudo systemctl enable ${LINUX_RUNNER_UNIT} && sudo systemctl restart ${LINUX_RUNNER_UNIT}`,
   ].join(' ');
 }
 
