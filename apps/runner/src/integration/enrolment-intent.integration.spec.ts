@@ -1,13 +1,17 @@
 import { OWNER_ACCOUNT_ID, isEnrolmentIntentCreatedDto, isEnrolmentIntentDto, isStartEnrolmentResponse, runnerKeyFingerprintOf } from '@shared/contracts';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { enrol } from '../cli/enrol';
 import { RunnerClient } from '../client/runner-client';
-import { generateRunnerKey } from '../config/runner-key';
+import { loadRunnerKey, generateRunnerKey } from '../config/runner-key';
 import { startLocalStack, type LocalStack } from '../testing/local-stack';
 
 /**
  * #634 PR 3's integration: the api Worker as the e2e local stack runs it (`wrangler dev`, a fresh local D1 with every
  * migration applied, 0037 among them), driven over real HTTP. The owner makes an enrolment intent, a runner key made
  * the way the runner makes one binds to it, the owner approves the fingerprint, the runner collects its enrolment
- * and its JWT is accepted. The runner's own `setup` verb (PR 2) will replace the hand-made calls here.
+ * and its JWT is accepted. The second case drives the runner's own side, `enrol --enrolment` as `setup` runs it (PR 2).
  */
 
 const json = { 'Content-Type': 'application/json' };
@@ -111,5 +115,59 @@ describe('integration: an enrolment intent against the local stack', () => {
       runner: { id: enrolment.runnerId, name: 'Integration intent', accountId: OWNER_ACCOUNT_ID, projectScope: 'all' },
     });
     await expect(client.claim()).resolves.toMatchObject({ kind: 'idle' });
+  }, 60_000);
+
+  it('enrol --enrolment binds, waits for the owner and writes a home whose key the console accepts', async () => {
+    const { origin } = stack;
+    const intents = `${origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
+    const created: unknown = await (
+      await fetch(intents, { method: 'POST', headers: owner, body: JSON.stringify({ name: 'Setup intent', isolation: 'none' }) })
+    ).json();
+    if (!isEnrolmentIntentCreatedDto(created)) {
+      throw new Error('the answer is not an EnrolmentIntentCreatedDto');
+    }
+    const home = join(await mkdtemp(join(tmpdir(), 'tcr-intent-it-')), 'home');
+    const printed: string[] = [];
+    try {
+      const enrolled = enrol(
+        { url: origin, enrolment: created.intentId, backend: 'none' },
+        {
+          home,
+          fetch: (url, init) => fetch(url, init),
+          host: { os: process.platform, arch: process.arch, hostname: 'setup.local' },
+          out: (line) => printed.push(line),
+        },
+      );
+      // The owner's wizard: wait for the bind, then approve the fingerprint the terminal printed.
+      let shown: unknown = null;
+      for (let attempt = 0; attempt < 50; attempt += 1) {
+        shown = await (await fetch(`${intents}/${created.intentId}`)).json();
+        if (isEnrolmentIntentDto(shown) && shown.state === 'bound') {
+          break;
+        }
+        await new Promise<void>((done) => setTimeout(done, 200));
+      }
+      if (!isEnrolmentIntentDto(shown) || shown.fingerprint === null) {
+        throw new Error('the intent was never bound');
+      }
+      expect(printed.at(-1)).toContain(shown.fingerprint);
+      const approved = await fetch(`${intents}/${created.intentId}/approve`, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ fingerprint: shown.fingerprint }),
+      });
+      expect(approved.status).toBe(200);
+      const config = await enrolled;
+      expect(config).toMatchObject({ name: 'Setup intent', apiUrl: origin, projectScope: 'all' });
+      const client = new RunnerClient({
+        apiUrl: origin,
+        runnerId: config.runnerId,
+        audience: config.audience,
+        privateKey: await loadRunnerKey(home, { platform: 'linux', exec: () => Promise.reject(new Error('no exec')), env: {} }),
+      });
+      await expect(client.self()).resolves.toMatchObject({ runner: { id: config.runnerId, name: 'Setup intent' } });
+    } finally {
+      await rm(join(home, '..'), { recursive: true, force: true });
+    }
   }, 60_000);
 });

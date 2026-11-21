@@ -1,8 +1,16 @@
 import { join } from 'node:path';
 import { ENROLMENT_CODE_PREFIX, OPAQUE_TOKEN_TAIL } from '@shared/redaction';
-import type { EnrolRunnerInput, RunnerHostDto } from '@shared/contracts';
-import { postEnrolment } from '../client/enrolment';
-import type { FetchLike } from '../client/runner-client';
+import {
+  ENROLMENT_INTENT_COLLECT_SECONDS,
+  isEnrolmentIntentId,
+  runnerKeyFingerprintOf,
+  type EnrolRunnerInput,
+  type EnrolRunnerResponse,
+  type Ed25519PublicJwk,
+  type RunnerHostDto,
+} from '@shared/contracts';
+import { pollEnrolment, postEnrolment, startEnrolment } from '../client/enrolment';
+import { RunnerApiError, type FetchLike } from '../client/runner-client';
 import {
   CONFIG_SCHEMA_VERSION,
   PINNED_IMAGE,
@@ -51,7 +59,9 @@ export class EnrolUsageError extends Error {
 
 export interface EnrolOptions {
   readonly url: string;
-  readonly code: string;
+  /** Exactly one of the two doors: the one-time `tce_…` code, or the id of the owner's enrolment intent (#634). */
+  readonly code?: string | undefined;
+  readonly enrolment?: string | undefined;
   readonly backend: string;
   /** `api-key`, `setup-token` (user only) or `claude-config-dir` (container only); decision 5. */
   readonly credential?: string | undefined;
@@ -72,11 +82,17 @@ export interface EnrolDeps {
   readonly host: RunnerHostDto;
   /** Where the key is stored; the host's keychain or file when absent. */
   readonly keys?: RunnerKeyDeps;
+  /** The intent door's lines for the operator: the account and the fingerprint to compare. */
+  readonly out?: (line: string) => void;
+  readonly sleep?: (ms: number) => Promise<void>;
+  readonly now?: () => Date;
 }
+
+export type EnrolDoor = { readonly kind: 'code'; readonly code: string } | { readonly kind: 'intent'; readonly intentId: string };
 
 export interface EnrolCheckedOptions {
   readonly apiUrl: string;
-  readonly code: string;
+  readonly door: EnrolDoor;
   readonly backend: EnrolBackend;
   readonly credential?: CredentialConfig;
   readonly image?: string;
@@ -113,17 +129,31 @@ function checkCredential(options: EnrolOptions, backend: EnrolBackend): Credenti
   return parsed;
 }
 
+function doorOf(options: EnrolOptions): EnrolDoor {
+  if ((options.code === undefined) === (options.enrolment === undefined)) {
+    throw new EnrolUsageError('enrol takes either the one-time code or --enrolment <request id>, not both or neither');
+  }
+  if (options.enrolment !== undefined) {
+    if (!isEnrolmentIntentId(options.enrolment)) {
+      throw new EnrolUsageError('--enrolment must be the request id the console showed (26 characters)');
+    }
+    return { kind: 'intent', intentId: options.enrolment };
+  }
+  if (options.code === undefined || !ENROLMENT_CODE.test(options.code)) {
+    throw new EnrolUsageError(
+      `the code must be the one-time ${ENROLMENT_CODE_PREFIX}… code from Settings › Runners`,
+    );
+  }
+  return { kind: 'code', code: options.code };
+}
+
 /** Validates the flags before anything touches the disk or the network; the code is never echoed back. */
 export function checkEnrolOptions(options: EnrolOptions): EnrolCheckedOptions {
   const apiUrl = apiOriginOf(options.url);
   if (apiUrl === null) {
     throw new EnrolUsageError('--url must be the console origin, https://… (http only for a loopback host)');
   }
-  if (!ENROLMENT_CODE.test(options.code)) {
-    throw new EnrolUsageError(
-      `the code must be the one-time ${ENROLMENT_CODE_PREFIX}… code from Settings › Runners`,
-    );
-  }
+  const door = doorOf(options);
   if (!isEnrolBackend(options.backend)) {
     throw new EnrolUsageError('--backend must be container, user or none');
   }
@@ -135,7 +165,7 @@ export function checkEnrolOptions(options: EnrolOptions): EnrolCheckedOptions {
   }
   return {
     apiUrl,
-    code: options.code,
+    door,
     backend: options.backend,
     ...(credential === undefined ? {} : { credential }),
     ...(options.image === undefined ? {} : { image: options.image }),
@@ -162,8 +192,7 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
   }
 
   const key = generateRunnerKey();
-  const input: EnrolRunnerInput = {
-    code: checked.code,
+  const described = {
     publicKey: key.publicJwk,
     host: {
       os: hostFieldOf(deps.host.os),
@@ -175,8 +204,11 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
     capabilities: { local: true, maxConcurrency: 1, accessSources: accessSourcesOf(checked.credential) },
     isolation: checked.backend,
     version: RUNNER_VERSION,
-  };
-  const enrolled = await postEnrolment(checked.apiUrl, input, deps.fetch);
+  } satisfies Omit<EnrolRunnerInput, 'code'>;
+  const enrolled =
+    checked.door.kind === 'code'
+      ? await postEnrolment(checked.apiUrl, { code: checked.door.code, ...described }, deps.fetch)
+      : await enrolByIntent(checked.apiUrl, checked.door.intentId, described, deps);
 
   // Judged before anything is written, so a surprising answer leaves the home as it was.
   const config = parseRunnerConfig({
@@ -200,4 +232,86 @@ export async function enrol(options: EnrolOptions, deps: EnrolDeps): Promise<Run
   await saveRunnerKey(deps.home, key.privateKey, deps.keys);
   await saveRunnerConfig(deps.home, config);
   return config;
+}
+
+/** Refusals of the intent door, worded for the operator at the terminal. */
+export class EnrolIntentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EnrolIntentError';
+  }
+}
+
+/** Text from the console printed to a terminal: no control or format character can move the cursor or recolour it. */
+const terminalText = (value: string): string => value.replace(/[\p{Cc}\p{Cf}]/gu, '').slice(0, 128);
+
+const sleepFor = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+function intentRefusalOf(error: unknown): never {
+  if (error instanceof RunnerApiError) {
+    switch (error.problem) {
+      case 'enrolment-intent-bound':
+        // R-INT-1: someone else bound first; the owner must not approve that request.
+        throw new EnrolIntentError(
+          'THIS REQUEST IS ALREADY TAKEN BY ANOTHER MACHINE. Press «Отклонить» (Reject) in the console, then start again with a new command.',
+        );
+      case 'enrolment-not-found':
+        throw new EnrolIntentError(
+          'the console does not know this request any more (expired, rejected or already used): start again from Settings › Runners › Add runner',
+        );
+      case 'enrolment-isolation-mismatch':
+        throw new EnrolIntentError('this request was made in the console for another backend; start again with the right one');
+    }
+  }
+  throw error;
+}
+
+/**
+ * The intent door (#634, architect note section 2, R-INT-1): bind this key to the owner's request, check that the
+ * console names the fingerprint this host computes from its own key, show it for the owner to compare, then poll
+ * until the owner approved. Nothing is written before the answer, as with a code.
+ */
+async function enrolByIntent(
+  apiUrl: string,
+  intentId: string,
+  described: Omit<EnrolRunnerInput, 'code'> & { readonly publicKey: Ed25519PublicJwk },
+  deps: EnrolDeps,
+): Promise<EnrolRunnerResponse> {
+  const out = deps.out ?? ((): void => undefined);
+  const sleep = deps.sleep ?? sleepFor;
+  const now = deps.now ?? ((): Date => new Date());
+  const start = await startEnrolment(apiUrl, { intentId, ...described }, deps.fetch).catch(intentRefusalOf);
+  const fingerprint = await runnerKeyFingerprintOf(described.publicKey);
+  if (start.fingerprint !== fingerprint) {
+    throw new EnrolIntentError(
+      `the console names another key (${start.fingerprint}) than this machine's (${fingerprint}): do not approve; press «Отклонить» (Reject) in the console`,
+    );
+  }
+  out(`Request sent to account «${terminalText(start.accountName)}».`);
+  out(`Compare this code with the one in the console, then press «Подтвердить» (Approve) there: ${fingerprint}`);
+  const deadline = Date.parse(start.expiresAt) + ENROLMENT_INTENT_COLLECT_SECONDS * 1000;
+  let interval = start.intervalSeconds;
+  for (;;) {
+    await sleep(interval * 1000);
+    if (now().getTime() > deadline) {
+      throw new EnrolIntentError('the request expired before it was approved: start again from Settings › Runners › Add runner');
+    }
+    try {
+      const outcome = await pollEnrolment(apiUrl, { intentId, pollToken: start.pollToken }, deps.fetch);
+      if (outcome.kind === 'enrolled') {
+        return outcome.enrolment;
+      }
+      interval = outcome.intervalSeconds;
+    } catch (error: unknown) {
+      if (error instanceof RunnerApiError && error.problem === 'slow-down') {
+        continue;
+      }
+      if (error instanceof RunnerApiError && error.problem === 'enrolment-not-found') {
+        throw new EnrolIntentError(
+          'the request was rejected in the console, expired or was already used: nothing was written; start again from Settings › Runners › Add runner',
+        );
+      }
+      throw error;
+    }
+  }
 }

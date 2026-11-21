@@ -1,5 +1,7 @@
 import { constants, type Stats } from 'node:fs';
-import { chmod, lstat, mkdir, open } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
+import { chmod, link, lstat, mkdir, open, rename, unlink } from 'node:fs/promises';
+import { basename, dirname, join } from 'node:path';
 
 /**
  * File-system rules for what the runner keeps under `TC_RUNNER_HOME` (ADR 0008 decision 2, threat model C4 row 1):
@@ -110,6 +112,48 @@ export async function writePrivateFile(path: string, content: string): Promise<v
     await handle.sync();
   } finally {
     await handle.close();
+  }
+}
+
+/**
+ * Writes `content` to a fresh 0600 file next to `path` (`O_CREAT | O_EXCL | O_NOFOLLOW`), then puts it in place in one
+ * step: `rename` over an existing file with `replace`, else `link`, which refuses an existing one (`file-exists`). A
+ * reader sees the old file or the new one, never half of either, and a planted link at `path` is replaced, never
+ * followed. The directory must pass `assertPrivateDir` first.
+ */
+export async function replacePrivateFile(path: string, content: string, options: { replace: boolean }): Promise<void> {
+  const dir = dirname(path);
+  await assertPrivateDir(dir);
+  const existing = await lstatOrNull(path);
+  if (existing !== null && !options.replace) {
+    throw new RunnerFileError('file-exists', `${path} already exists`);
+  }
+  if (existing?.isDirectory() === true) {
+    throw new RunnerFileError('file-unsafe', `${path} is a directory`);
+  }
+  const staged = join(dir, `.${basename(path)}.${randomBytes(6).toString('hex')}.partial`);
+  try {
+    await writePrivateFile(staged, content);
+    if (options.replace) {
+      await rename(staged, path);
+      return;
+    }
+    try {
+      await link(staged, path);
+    } catch (error: unknown) {
+      if (isErrnoException(error, 'EEXIST')) {
+        throw new RunnerFileError('file-exists', `${path} already exists`);
+      }
+      throw error;
+    }
+  } finally {
+    await unlink(staged).catch((error: unknown) => {
+      // Renamed into place: nothing left to remove. Any other failure leaves a 0600 file of ours, never a secret
+      // anyone else can read, so it is reported rather than thrown over the real outcome.
+      if (!isErrnoException(error, 'ENOENT')) {
+        process.emitWarning(`could not remove ${staged}`);
+      }
+    });
   }
 }
 

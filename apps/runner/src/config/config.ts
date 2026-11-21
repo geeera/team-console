@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path';
 import { isRunnerId, isRunnerProjectScope, isUlid, isValidSlug, type RunnerIsolation, type RunnerProjectScope } from '@shared/contracts';
-import { RunnerFileError, assertPrivateDir, readPrivateFile, writePrivateFile } from './private-files';
+import { RunnerFileError, assertPrivateDir, readPrivateFile, replacePrivateFile, writePrivateFile } from './private-files';
 import { isCredentialAllowed, parseCredentialConfig, type CredentialConfig } from '../env/credential';
 
 /**
@@ -388,4 +388,19 @@ export async function loadRunnerConfig(home: string): Promise<RunnerConfig> {
 export async function saveRunnerConfig(home: string, config: RunnerConfig): Promise<void> {
   await assertPrivateDir(home);
   await writePrivateFile(configPathOf(home), `${JSON.stringify(parseRunnerConfig(config), null, 2)}\n`);
+}
+
+/**
+ * The one way to change an existing `config.json` (#634 PR 2: `setup` records the toolchain and the credential it
+ * set up). Read and judged as `loadRunnerConfig` does, changed, judged again by `parseRunnerConfig`, and put in place
+ * whole (`replacePrivateFile`: 0600, never through a link). `saveRunnerConfig` keeps refusing to overwrite, so
+ * `enrol` can never replace an enrolled home by accident.
+ */
+export async function updateRunnerConfig(
+  home: string,
+  change: (config: RunnerConfig) => RunnerConfig,
+): Promise<RunnerConfig> {
+  const next = parseRunnerConfig(change(await loadRunnerConfig(home)));
+  await replacePrivateFile(configPathOf(home), `${JSON.stringify(next, null, 2)}\n`, { replace: true });
+  return next;
 }

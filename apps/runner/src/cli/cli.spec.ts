@@ -245,7 +245,7 @@ describe('team-console-runner CLI', () => {
     expect(await run(['--help']).exit).toBe(EXIT_OK);
     expect(await run([]).exit).toBe(EXIT_USAGE);
     expect(out.join('\n')).toContain(
-      'enrol --url <console origin> --backend container|user|none [--code -]',
+      'enrol --url <console origin> --backend container|user|none [--code -] [--enrolment <request id>]',
     );
   });
 
