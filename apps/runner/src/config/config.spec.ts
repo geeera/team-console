@@ -1,4 +1,4 @@
-import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ACCOUNT_ID, RUNNER_ID } from '../testing/fake-console';
@@ -11,6 +11,7 @@ import {
   runnerKeyPathOf,
   saveRunnerConfig,
   updatePolicyOf,
+  updateRunnerConfig,
   type RunnerConfig,
 } from './config';
 import { RunnerFileError, readPrivateFile, writePrivateFile } from './private-files';
@@ -99,6 +100,32 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
         problem: 'file-exists',
       });
       expect(JSON.parse(await readFile(configPathOf(home), 'utf8'))).toMatchObject({ name: 'Owner Mac' });
+    });
+
+    it('is changed in place by updateRunnerConfig: judged again, 0600, nothing left beside it', async () => {
+      await saveRunnerConfig(home, config);
+      const toolchain = { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' };
+      await expect(updateRunnerConfig(home, (current) => ({ ...current, toolchain }))).resolves.toMatchObject({ toolchain });
+      await expect(loadRunnerConfig(home)).resolves.toEqual({ ...config, toolchain });
+      expect(await modeOf(configPathOf(home))).toBe(0o600);
+      expect(await readdir(home)).toEqual(['config.json']);
+    });
+
+    it('refuses an update the parser would refuse, leaving the file as it was', async () => {
+      await saveRunnerConfig(home, config);
+      await expect(
+        updateRunnerConfig(home, (current) => ({ ...current, toolchain: { path: 'relative' } })),
+      ).rejects.toMatchObject({ problem: 'config-invalid' });
+      await expect(loadRunnerConfig(home)).resolves.toEqual(config);
+    });
+
+    it('updateRunnerConfig refuses a config that is a symlink and never writes through it', async () => {
+      const elsewhere = join(parent, 'elsewhere.json');
+      await writeFile(elsewhere, JSON.stringify(config), { mode: 0o600 });
+      await symlink(elsewhere, configPathOf(home));
+      await expect(updateRunnerConfig(home, (current) => current)).rejects.toMatchObject({ problem: 'file-unsafe' });
+      expect(JSON.parse(await readFile(elsewhere, 'utf8'))).toEqual(config);
+      expect((await lstat(configPathOf(home))).isSymbolicLink()).toBe(true);
     });
 
     it.each([0o640, 0o604, 0o644, 0o660, 0o666])('refuses a config with mode %o', async (mode) => {
