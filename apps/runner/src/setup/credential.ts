@@ -139,7 +139,14 @@ async function captureSetupToken(deps: CredentialSetupDeps, options: CredentialS
     const links =
       deps.openRequests === undefined
         ? null
-        : new SignInLinks((url) => appendOpenRequest(deps.openRequests ?? '', url));
+        : new SignInLinks(async (url) => {
+            try {
+              await appendOpenRequest(deps.openRequests ?? '', url);
+            } catch (error: unknown) {
+              // Opening the page is a convenience: the CLI printed the URL, so the sign-in goes on without it.
+              deps.log(`credential: could not ask setup to open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`);
+            }
+          });
     const filter = new SetupTokenFilter({
       stdout: (text) => {
         deps.terminal.stdout(text);

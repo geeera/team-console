@@ -202,7 +202,12 @@ async function credentialStep(options: SetupOptions, deps: SetupDeps, home: stri
       // Judged again here: the child is another user, so its request is data, never trusted.
       if (line !== '' && !opened.has(line) && isSignInUrl(line)) {
         opened.add(line);
-        await deps.openForUser(line);
+        try {
+          await deps.openForUser(line);
+        } catch (error: unknown) {
+          // The CLI printed the URL as well; the sign-in goes on in the operator's own browser.
+          deps.out(`credential: could not open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`);
+        }
       }
     }
   };
