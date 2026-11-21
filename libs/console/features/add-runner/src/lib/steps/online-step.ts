@@ -1,0 +1,87 @@
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { TranslocoPipe } from '@console/shared/i18n';
+import { Callout, CopyCode, Receipt, Spinner } from '@console/shared/ui';
+import type { RunnerDto, RunnerProjectScope } from '@shared/contracts';
+import { RUNBOOK_UPDATE_URL, RUNNER_LOG_PATH, SELF_CHECK_COMMAND } from '../add-runner.model';
+
+/**
+ * Step 4 «На связи» (spec §3.4–3.5): after the approval, waiting for the first signal (with what to check once it
+ * takes longer than five minutes, decision 4), then the runner on line. The console cannot see `self-check`'s
+ * output, so the step says where to look on the machine.
+ */
+@Component({
+  selector: 'tc-add-runner-online-step',
+  imports: [Callout, CopyCode, Receipt, Spinner, TranslocoPipe],
+  template: `
+    @if (runner()?.online) {
+      <tc-receipt tone="positive" flush>
+        <h3 tc-receipt-verb class="step__heading" tabindex="-1" data-step-heading>
+          {{ 'runners.wizard.online.title' | transloco }}
+        </h3>
+      </tc-receipt>
+      <p class="step__lead" data-testid="wizard-online">{{ 'runners.wizard.online.body' | transloco: { name: name() } }}</p>
+      <p class="step__meta" data-testid="wizard-online-scope">
+        @if (projectScope() === 'all') {
+          {{ 'runners.enrol.scopeAll' | transloco }}
+        } @else if (allowedProjects().length > 0) {
+          {{ 'runners.enrol.projects' | transloco: { projects: allowedProjects().join(', ') } }}
+        } @else {
+          {{ 'runners.enrol.noProjects' | transloco }}
+        }
+      </p>
+      <p class="step__meta">{{ 'runners.wizard.online.selfCheck' | transloco }}</p>
+      @if (runner()?.belowMinimum) {
+        <section tc-callout tone="warning" data-testid="wizard-behind">
+          <p>
+            {{ 'runners.wizard.online.behind' | transloco: { version: runner()?.version, minimum: minimumVersion() ?? '' } }}
+          </p>
+          <p>
+            <a [href]="updateUrl" target="_blank" rel="noopener noreferrer"
+              >{{ 'runners.wizard.online.update' | transloco }} ↗<span class="tc-sr-only">
+                {{ 'runners.wizard.newTab' | transloco }}</span
+              ></a
+            >
+          </p>
+        </section>
+      }
+    } @else {
+      <h3 class="step__heading" tabindex="-1" data-step-heading>{{ 'runners.wizard.approved.title' | transloco }}</h3>
+      <p class="step__lead">{{ 'runners.wizard.approved.body' | transloco }}</p>
+      <div class="step__wait" data-testid="wizard-approved-waiting">
+        <tc-spinner />
+        <span>{{ 'runners.wizard.approved.waiting' | transloco }}</span>
+      </div>
+      @if (slow()) {
+        <section tc-callout tone="warning" data-testid="wizard-slow">
+          <p tc-callout-title>{{ 'runners.wizard.slow.title' | transloco }}</p>
+          <p>{{ 'runners.wizard.slow.body' | transloco }}</p>
+          <tc-copy-code
+            [code]="selfCheck"
+            [regionLabel]="'runners.wizard.slow.region' | transloco"
+            [ariaLabel]="'runners.wizard.slow.copyAria' | transloco"
+            [copyLabel]="'runners.enrol.copy' | transloco"
+            [copiedLabel]="'runners.enrol.copied' | transloco"
+            [failedNote]="'runners.enrol.copyFailed' | transloco"
+          />
+          <p>{{ 'runners.wizard.slow.log' | transloco: { path: logPath } }}</p>
+          <p>{{ 'runners.wizard.slow.keepWaiting' | transloco }}</p>
+        </section>
+      }
+    }
+  `,
+  styleUrl: './add-runner-step.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
+})
+export class AddRunnerOnlineStep {
+  readonly name = input.required<string>();
+  /** The runner as `GET …/runners` last showed it; `null` until the list has it. */
+  readonly runner = input<RunnerDto | null>(null);
+  readonly slow = input(false);
+  readonly minimumVersion = input<string | null>(null);
+  readonly projectScope = input<RunnerProjectScope>('all');
+  readonly allowedProjects = input<readonly string[]>([]);
+
+  protected readonly selfCheck = SELF_CHECK_COMMAND;
+  protected readonly logPath = RUNNER_LOG_PATH;
+  protected readonly updateUrl = RUNBOOK_UPDATE_URL;
+}

@@ -1,0 +1,8 @@
+{
+  "name": "console-features-add-runner",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/console/features/add-runner/src",
+  "prefix": "tc",
+  "projectType": "library",
+  "tags": ["type:lib", "scope:console", "layer:features"]
+}

@@ -21,6 +21,8 @@ const config: StorybookConfig = {
     '../../../features/budget-stop/src/**/*.stories.ts',
     // The runner card's states (#464, Settings › Runners).
     '../../../entities/runner/src/**/*.stories.ts',
+    // The add-runner wizard's steps (#634 PR 4, Settings › Runners).
+    '../../../features/add-runner/src/**/*.stories.ts',
     // The job card's states (#464, the board's runs section).
     '../../../entities/job/src/**/*.stories.ts',
     // The GitHub Actions setup ledger's states (#759).
