@@ -36,9 +36,23 @@ export class RunnersStore {
   readonly pendingEnrolments = signal<readonly PendingEnrolmentDto[]>([]);
   readonly release = signal<RunnerReleaseDto>({ version: null, minimumVersion: null });
 
+  /** The other owned accounts' runners by account id (#847): a project's board reads its own account's, not the first's. */
+  private readonly otherAccountRunners = signal<ReadonlyMap<string, readonly RunnerDto[]>>(new Map());
+
   readonly runners = computed(() => runnersInDisplayOrder(this.list()));
   readonly liveRunners = computed(() => liveRunnersOf(this.list()));
   readonly isEmpty = computed(() => this.status() === 'ready' && this.list().length === 0);
+
+  /**
+   * The runners of one owned account, in display order. Without an `accountId` (a project DTO built elsewhere) the
+   * managed account's. An account whose runners are not read (not owned, or its read failed) has none.
+   */
+  runnersOfAccount(accountId: string | undefined): readonly RunnerDto[] {
+    if (accountId === undefined || accountId === this.account()?.id) {
+      return this.runners();
+    }
+    return runnersInDisplayOrder(this.otherAccountRunners().get(accountId) ?? []);
+  }
 
   ready(): Promise<void> {
     return this.status() === 'idle' ? this.load() : (this.pending ?? Promise.resolve());
@@ -62,6 +76,13 @@ export class RunnersStore {
   /** A runner the Worker answered after a change (allowed projects, revoke): replaces its row in place. */
   apply(runner: RunnerDto): void {
     this.list.update((runners) => runners.map((row) => (row.id === runner.id ? runner : row)));
+    this.otherAccountRunners.update((byAccount) => {
+      const next = new Map(byAccount);
+      for (const [accountId, runners] of byAccount) {
+        next.set(accountId, runners.map((row) => (row.id === runner.id ? runner : row)));
+      }
+      return next;
+    });
   }
 
   /** A pending code the Worker withdrew: it leaves the list. */
@@ -80,13 +101,23 @@ export class RunnersStore {
     if (managed.kind !== 'owner') {
       this.account.set(null);
       this.list.set([]);
+      this.otherAccountRunners.set(new Map());
       this.pendingEnrolments.set([]);
       this.forbidden.set(managed.kind);
       this.status.set('forbidden');
       return;
     }
     this.account.set(managed.account);
-    const read = await this.api.list(managed.account.id);
+    const others = accounts.value.filter((account) => account.role === 'owner' && account.id !== managed.account.id);
+    const [read, otherReads] = await Promise.all([
+      this.api.list(managed.account.id),
+      Promise.all(others.map(async (account) => [account.id, await this.api.list(account.id)] as const)),
+    ]);
+    // A failed read of a further account leaves it without runners: the board falls back to its generic copy, and the
+    // Settings screen (the managed account) is not blocked by it.
+    this.otherAccountRunners.set(
+      new Map(otherReads.flatMap(([id, result]) => (result.ok ? [[id, result.value.runners] as const] : []))),
+    );
     if (!read.ok) {
       this.fail(read.failure);
       return;
@@ -104,6 +135,7 @@ export class RunnersStore {
     // A 403 (`account-owner-only`) or a 404 for the account is the same thing to the owner: not theirs to manage.
     if (failure.kind === 'forbidden' || failure.kind === 'not-found') {
       this.list.set([]);
+      this.otherAccountRunners.set(new Map());
       this.pendingEnrolments.set([]);
       this.forbidden.set('member');
       this.status.set('forbidden');

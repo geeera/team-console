@@ -13,9 +13,9 @@ const RELEASE = { version: '0.3.0', minimumVersion: '0.2.0' };
 describe('RunnersStore', () => {
   function setup(
     accounts: RunnerResult<readonly AccountMembershipDto[]>,
-    list: () => RunnerResult<RunnerListDto> = () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
+    list: (accountId: string) => RunnerResult<RunnerListDto> = () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
   ) {
-    const api = { accounts: vi.fn(async () => accounts), list: vi.fn(async () => list()) };
+    const api = { accounts: vi.fn(async () => accounts), list: vi.fn(async (accountId: string) => list(accountId)) };
     TestBed.configureTestingModule({ providers: [{ provide: RunnersApi, useValue: api }] });
     return { store: TestBed.inject(RunnersStore), api };
   }
@@ -29,6 +29,22 @@ describe('RunnersStore', () => {
     expect(store.runners()).toEqual([runnerFixture()]);
     expect(store.release()).toEqual(RELEASE);
     expect(store.isEmpty()).toBe(false);
+  });
+
+  it("reads every owned account's runners and answers by account (#847)", async () => {
+    const second: AccountMembershipDto = { id: '01M6YSNJ0000000000000000A3', slug: 'two', name: 'Two', role: 'owner' };
+    const theirs = runnerFixture({ id: RUNNER_FIXTURE_IDS.vps, name: 'Other account' });
+    const { store } = setup({ ok: true, value: [OWNER, second] }, (id) => ({
+      ok: true,
+      value: { runners: id === second.id ? [theirs] : [runnerFixture()], pendingEnrolments: [], release: RELEASE },
+    }));
+    await store.load();
+    expect(store.account()).toEqual(OWNER);
+    expect(store.runners()).toEqual([runnerFixture()]);
+    expect(store.runnersOfAccount(second.id)).toEqual([theirs]);
+    expect(store.runnersOfAccount(OWNER_ACCOUNT_ID)).toEqual([runnerFixture()]);
+    expect(store.runnersOfAccount(MEMBER.id)).toEqual([]);
+    expect(store.runnersOfAccount(undefined)).toEqual([runnerFixture()]);
   });
 
   it('is empty, not an error, for an account with no runners', async () => {
