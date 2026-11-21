@@ -60,6 +60,8 @@ function fakeHost(
     /** Where a path leads once its links are resolved; a path not listed leads to itself. */
     realpaths?: Record<string, string | null>;
     realpath?: InstallHost['realpath'];
+    /** ACE lines `ls -lde` lists under a path (macOS); a path not listed has none. */
+    acls?: Record<string, string[]>;
   } = {},
 ): FakeHost {
   const applied: InstallStep[] = [];
@@ -78,6 +80,10 @@ function fakeHost(
   const exec: Exec = async (command, args) => {
     const line = [command, ...args].join(' ');
     queries.push(line);
+    const path = args[1];
+    if (command === '/bin/ls' && args[0] === '-lde' && path !== undefined) {
+      return { code: 0, stdout: [`drwxr-xr-x  2 root  wheel  64 Nov 22 00:00 ${path}`, ...(overrides.acls?.[path] ?? [])].join('\n') };
+    }
     return answers[line] ?? { code: 1, stdout: '' };
   };
   const stats: Record<string, PathFacts | null> = {
@@ -255,8 +261,10 @@ describe('install --backend user (macOS)', () => {
       /enrol --url <console origin> --backend user --credential setup-token --code - \(paste the tce_… code/,
     );
     expect(lines.join('\n')).toMatch(/claude setup-token/);
-    // Hosts queries only: dscl lists and nothing that changes the machine.
-    expect(host.queries.every((query) => query.startsWith('/usr/bin/dscl . -list'))).toBe(true);
+    // Hosts queries only: dscl lists, `ls -lde` for the release's ACLs (#894), and nothing that changes the machine.
+    expect(
+      host.queries.every((query) => query.startsWith('/usr/bin/dscl . -list') || query.startsWith('/bin/ls -lde ')),
+    ).toBe(true);
   });
 
   it('--yes applies the same steps in order, as root', async () => {
@@ -476,15 +484,82 @@ describe('install --backend user: the layout update leaves', () => {
     );
   });
 
-  it('refuses a release current names in a directory the login user owns', async () => {
-    const elsewhere = '/Users/kirill/releases/0.2.0';
+  // #894: the error always said "a release under releases/"; now that is enforced, whoever owns the target.
+  it.each([
+    ['a directory the login user owns', '/Users/kirill/releases/0.2.0'],
+    ['a root-owned directory outside the prefix', '/opt/elsewhere/0.2.0'],
+    ['the prefix itself', PREFIX],
+    ['a directory below a release', `${RELEASE}/bin`],
+  ])('refuses a current that points into %s', async (_, target) => {
     const host = layout(
-      { [elsewhere]: ROOT_DIR, '/Users/kirill/releases': { uid: 501, mode: 0o755, kind: 'directory' } },
-      { [CURRENT]: elsewhere },
+      { [target]: ROOT_DIR, '/Users/kirill/releases': { uid: 501, mode: 0o755, kind: 'directory' }, '/opt/elsewhere': ROOT_DIR },
+      { [CURRENT]: target },
     );
     await expect(planInstall(userOptions(), host)).rejects.toThrow(
-      '/Users/kirill/releases must exist, be root-owned and writable by root only',
+      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
     );
+  });
+
+  it('refuses a current when there is no releases/', async () => {
+    await expect(planInstall(userOptions(), layout({ [RELEASES]: null }))).rejects.toThrow(
+      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
+    );
+  });
+
+  it('compares physical paths, so a prefix under a link still has its release under releases/', async () => {
+    const physical = `/private${RELEASES}`;
+    const host = layout({ [`${physical}/0.2.0`]: ROOT_DIR, [physical]: ROOT_DIR }, {
+      [CURRENT]: `${physical}/0.2.0`,
+      [RELEASES]: physical,
+    });
+    await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
+  });
+});
+
+/** #894: Node's lstat cannot see ACLs, so on macOS install asks `ls -lde`; `chmod +a` leaves the mode alone. */
+describe('install --backend user: macOS ACLs on the release', () => {
+  const JOB_EXEC = `${PREFIX}/bin/job-exec`;
+
+  it.each([
+    ['bin/job-exec, which the sudoers rule hands out', JOB_EXEC, ' 0: user:kirill allow write,append'],
+    ['bin/', `${PREFIX}/bin`, ' 0: group:staff allow add_file,delete_child'],
+    ['the prefix', PREFIX, ' 0: group:everyone inherited allow delete'],
+    ['the bundle', `${PREFIX}/team-console-runner.mjs`, ' 0: user:kirill allow chown'],
+  ])('refuses an entry on %s that lets someone else write', async (_, path, ace) => {
+    await expect(planInstall(userOptions(), fakeHost({ acls: { [path]: [ace] } }))).rejects.toThrow(
+      `${path} must exist, be root-owned and writable by root only (on macOS, no ACL entry that lets anyone else write)`,
+    );
+  });
+
+  it('refuses a job-exec link whose target carries such an entry', async () => {
+    const target = `${PREFIX}/releases/0.2.0/bin/job-exec`;
+    const host = fakeHost({
+      realpaths: { [JOB_EXEC]: target },
+      stats: { [JOB_EXEC]: { uid: 0, mode: 0o755, kind: 'symlink' }, [target]: ROOT_FILE, [`${PREFIX}/releases/0.2.0/bin`]: ROOT_DIR },
+      acls: { [target]: [' 0: user:kirill allow write'] },
+    });
+    await expect(planInstall(userOptions(), host)).rejects.toThrow(`${target} must exist, be root-owned`);
+  });
+
+  it('accepts entries that only deny, only read, or grant root', async () => {
+    const host = fakeHost({
+      acls: {
+        [JOB_EXEC]: [' 0: group:everyone deny write,delete', ' 1: user:kirill allow read,execute', ' 2: user:root allow write'],
+      },
+    });
+    await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
+    expect(host.queries).toContain(`/bin/ls -lde ${JOB_EXEC}`);
+  });
+
+  it('refuses a path it cannot list, since then it cannot tell', async () => {
+    const host = fakeHost();
+    const listing = host.exec;
+    const failing: FakeHost = {
+      ...host,
+      exec: async (command, args, options) =>
+        command === '/bin/ls' && args[1] === JOB_EXEC ? { code: 1, stdout: '' } : await listing(command, args, options),
+    };
+    await expect(planInstall(userOptions(), failing)).rejects.toThrow(`${JOB_EXEC} must exist, be root-owned`);
   });
 });
 

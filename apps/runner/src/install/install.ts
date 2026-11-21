@@ -198,21 +198,46 @@ export async function stableNodeOf(given: string, host: Pick<InstallHost, 'realp
 const isRootOnly = (facts: PathFacts | null): boolean => facts !== null && facts.uid === 0 && (facts.mode & 0o022) === 0;
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
 
+const LS = '/bin/ls';
+/** An ACE that lets its holder write, append, add or delete entries, or take the file over; the mode says nothing of it. */
+const FOREIGN_WRITE_ACE = / allow \S*(?:write|append|add_|delete|chown)/;
+const ROOT_ACE = /^\s*\d+: user:root /;
+
+/**
+ * True when `ls -lde` (macOS; never following a link) lists an ACE that lets anyone but root write `path`, or cannot
+ * list it at all. Node's `lstat` cannot see ACLs, and `chmod +a` adds them without changing the mode (#894).
+ */
+export async function hasForeignWriteAcl(exec: Exec, path: string): Promise<boolean> {
+  const { code, stdout } = await exec(LS, ['-lde', path]);
+  if (code !== 0) {
+    return true;
+  }
+  // The first line is the entry itself, each further one an ACE: " 0: user:alice allow write,append".
+  return stdout
+    .split('\n')
+    .slice(1)
+    .some((ace) => !ROOT_ACE.test(ace) && FOREIGN_WRITE_ACE.test(ace));
+}
+
 /**
  * The bundle, `job-exec` and `node` the sudoers rule and the daemon name must be root's alone, or the rule hands them
  * out (S2 of the #634 security note: the daemon runs `<prefix>/node` as `_tcrunner`). An entry `update` turned into a
  * link through `current` is judged by what it resolves to as well, and that file's directory, since a link's own mode
- * says nothing; so are `releases/` and the release `current` names, with the directory that holds it (#884).
+ * says nothing; so are `releases/` and the release `current` names, with the directory that holds it (#884). That
+ * release must sit directly in `releases/`, and on macOS no ACL entry on any of these may let anyone but root write
+ * (#894): the launcher refuses such a prefix too, so install refusing it means it never fails at first start.
  */
 export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
   const refuse = (path: string): never => {
     throw new InstallError(
-      `${path} must exist, be root-owned and writable by root only: extract the release with sudo (docs/runbooks/runner.md)`,
+      `${path} must exist, be root-owned and writable by root only (on macOS, no ACL entry that lets anyone else write): extract the release with sudo (docs/runbooks/runner.md)`,
     );
   };
+  const rootOnly = async (path: string, facts: PathFacts | null): Promise<boolean> =>
+    isRootOnly(facts) && (host.platform !== 'darwin' || !(await hasForeignWriteAcl(host.exec, path)));
   for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix), nodeOf(prefix)]) {
     const facts = await host.stat(path);
-    if (!isRootOnly(facts)) {
+    if (!(await rootOnly(path, facts))) {
       refuse(path);
     }
     if (facts?.kind === 'symlink') {
@@ -221,11 +246,11 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
         return refuse(path);
       }
       const targetFacts = await host.stat(target);
-      if (targetFacts?.kind !== 'file' || !isRootOnly(targetFacts)) {
+      if (targetFacts?.kind !== 'file' || !(await rootOnly(target, targetFacts))) {
         refuse(target);
       }
       const dir = parentOf(target);
-      if (!isRootOnly(await host.stat(dir))) {
+      if (!(await rootOnly(dir, await host.stat(dir)))) {
         refuse(dir);
       }
     }
@@ -234,7 +259,7 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
   // above resolves to. A tarball extracted by hand is flat and has neither.
   const releases = `${prefix}/${RELEASES_DIR}`;
   const releasesFacts = await host.stat(releases);
-  if (releasesFacts !== null && (releasesFacts.kind !== 'directory' || !isRootOnly(releasesFacts))) {
+  if (releasesFacts !== null && (releasesFacts.kind !== 'directory' || !(await rootOnly(releases, releasesFacts)))) {
     refuse(releases);
   }
   const current = `${prefix}/${CURRENT_LINK}`;
@@ -242,21 +267,28 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
   if (currentFacts === null) {
     return;
   }
-  // A link's own mode says nothing; its owner and the directory it sits in (the prefix, checked above) do.
-  if (currentFacts.kind !== 'symlink' || currentFacts.uid !== 0) {
+  const outsideReleases = (): never => {
     throw new InstallError(
       `${current} must be a root-owned link to a release under ${releases}: extract the release with sudo (docs/runbooks/runner.md)`,
     );
+  };
+  // A link's own mode says nothing; its owner and the directory it sits in (the prefix, checked above) do.
+  if (currentFacts.kind !== 'symlink' || currentFacts.uid !== 0 || releasesFacts === null) {
+    return outsideReleases();
   }
   const release = await host.realpath(current);
   if (release === null) {
     return refuse(current);
   }
+  // Physical paths on both sides: the prefix itself may sit under a link (/tmp, /var on macOS).
+  if (parentOf(release) !== (await host.realpath(releases))) {
+    outsideReleases();
+  }
   const releaseFacts = await host.stat(release);
-  if (releaseFacts?.kind !== 'directory' || !isRootOnly(releaseFacts)) {
+  if (releaseFacts?.kind !== 'directory' || !(await rootOnly(release, releaseFacts))) {
     refuse(release);
   }
-  if (!isRootOnly(await host.stat(parentOf(release)))) {
+  if (!(await rootOnly(parentOf(release), await host.stat(parentOf(release))))) {
     refuse(parentOf(release));
   }
 }

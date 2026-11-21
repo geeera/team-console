@@ -223,6 +223,10 @@ describe('setup (#634 PR 2)', () => {
       if (line.startsWith('/usr/bin/sudo -n -u _tcjob -- /usr/bin/env -i')) {
         return { code: [CLAUDE, '/usr/bin/git', NODE].includes(args.at(-2) ?? '') ? 0 : 1, stdout: '' };
       }
+      if (command === '/bin/ls' && args[0] === '-lde') {
+        // The release's files carry no ACL entry (#894): the entry's own line and nothing under it.
+        return { code: 0, stdout: `-r-xr-xr-x  1 root  wheel  0 Nov 22 00:00 ${args[1] ?? ''}\n` };
+      }
       if (line === '/usr/bin/sudo -n -l -U _tcrunner') {
         return { code: 0, stdout: `User _tcrunner may run the following commands on owner-mac:\n${state.sudoRules}` };
       }
