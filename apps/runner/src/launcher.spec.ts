@@ -1,13 +1,14 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
 /**
  * The release launcher `bin/team-console-runner` (#778, S2 of the #634 security note), run for real by /bin/sh. As
  * root it runs only the release's own `<prefix>/node` (#634 PR 5), and only when root alone can change it: the file and
- * every directory up to `/`, links resolved, and it execs the checked physical path; the same for the bundle (#884), with
- * no macOS ACL entry that lets anyone else write and no `NODE_*` variable left. `/usr/bin/id`, `/usr/bin/stat`,
+ * every directory up to `/`, links resolved, and it execs the checked physical path; the same for the bundle (#884) and
+ * `bin/job-exec` (#894), with no macOS ACL entry that lets anyone else write, and node starts through `env -i` with an
+ * allowlisted environment and a fixed PATH (#894). `/usr/bin/id`, `/usr/bin/stat`,
  * `/usr/bin/uname` and `/bin/ls` are swapped for fakes in a copy of the script, so the spec plays root on either OS and
  * decides which paths count as root-owned and which carry an ACL without needing root itself.
  */
@@ -50,6 +51,7 @@ describe('bin/team-console-runner', () => {
     acls.push(`${path}\t${ace}`);
   };
   const bundle = (): string => join(prefix, 'team-console-runner.mjs');
+  const jobExec = (): string => join(prefix, 'bin', 'job-exec');
 
   beforeEach(() => {
     root = realpathSync(mkdtempSync(join(tmpdir(), 'launcher-')));
@@ -58,6 +60,7 @@ describe('bin/team-console-runner', () => {
     mkdirSync(join(prefix, 'bin'), { recursive: true });
     mkdirSync(userBin, { recursive: true });
     writeFileSync(join(prefix, 'team-console-runner.mjs'), '');
+    writeFileSync(join(prefix, 'bin', 'job-exec'), '');
     table = [];
     acls = [];
     // Everything above the temp directory is root's, as on a real host (on CI, /tmp itself is 1777).
@@ -199,6 +202,8 @@ describe('bin/team-console-runner', () => {
     fakeNode(node);
     rootOwned(node, '555');
     rootOwned(bundle(), '444');
+    rootOwned(jobExec(), '555');
+    rootOwned(join(prefix, 'bin'));
     rootOwned(prefix);
     rootOwned(root);
     return node;
@@ -225,11 +230,31 @@ describe('bin/team-console-runner', () => {
     rootOwned(join(release, 'team-console-runner.mjs'), '444');
     rootOwned(release);
     rootOwned(join(prefix, 'releases'));
+    rootOwned(jobExec(), '555');
+    rootOwned(join(prefix, 'bin'));
     rootOwned(prefix);
     rootOwned(root);
     const result = run(0);
     expect(result.status).toBe(0);
     expect(argsOf(result)).toEqual([target, '--disable-sigusr1', join(release, 'team-console-runner.mjs'), 'version']);
+  });
+
+  // #894: the sudoers rule hands out <prefix>/bin/job-exec, so whoever can change it runs code as _tcjob.
+  it.each([
+    ['the login user owns', '501 555'],
+    ['others can write', '0 757'],
+  ])('as root, refuses a bin/job-exec %s', (_, facts) => {
+    rootOnlyRelease();
+    table.unshift(`${facts} ${jobExec()}`);
+    const result = run(0);
+    expectRefused(result);
+    expect(result.stderr).toContain(jobExec());
+  });
+
+  it('as root, refuses a missing bin/job-exec', () => {
+    rootOnlyRelease();
+    rmSync(jobExec());
+    expectRefused(run(0));
   });
 
   it.each([
@@ -276,6 +301,8 @@ describe('bin/team-console-runner', () => {
     fakeNode(node);
     rootOwned(node, '555');
     rootOwned(bundle(), '444');
+    rootOwned(jobExec(), '555');
+    rootOwned(join(prefix, 'bin'));
     rootOwned(prefix);
     // `root`, the prefix's parent, stays the developer's: they could rename the prefix away and plant their own.
     expectRefused(run(0));
@@ -291,6 +318,8 @@ describe('bin/team-console-runner', () => {
     it.each([
       ['the prefix', (): string => prefix, 'user:kirill allow add_file,delete_child'],
       ['the bundle', bundle, 'user:kirill allow write,append'],
+      ['bin/job-exec', jobExec, 'user:kirill allow write,append'],
+      ['bin/', (): string => join(prefix, 'bin'), 'user:kirill allow add_file'],
       ['the node', (): string => join(prefix, 'node'), 'group:staff inherited allow writeattr,writeextattr'],
       ['a directory above', (): string => root, 'group:everyone allow chown'],
     ])('refuses an entry on %s that lets someone else write', (_, pathOf, ace) => {
@@ -318,22 +347,100 @@ describe('bin/team-console-runner', () => {
     });
   });
 
-  it('as root, drops every NODE_* variable before the exec and keeps the rest', () => {
-    const node = rootOnlyRelease();
-    exe(
-      node,
-      '#!/bin/sh\nprintf \'%s\\n\' "${NODE_OPTIONS-unset}" "${NODE_PATH-unset}" "${NODE_TLS_REJECT_UNAUTHORIZED-unset}" "${TC_KEEP-unset}"\n',
-    );
-    const result = run(0, {
-      env: {
-        NODE_OPTIONS: `--require ${join(root, 'home', 'evil.js')}`,
-        NODE_PATH: join(root, 'home'),
-        NODE_TLS_REJECT_UNAUTHORIZED: '0',
-        TC_KEEP: 'kept',
-      },
+  describe('as root, the environment node starts with (#894)', () => {
+    /** A node that prints every variable it was given, `NAME=value` per line. */
+    const envNode = (): void => {
+      exe(join(prefix, 'node'), '#!/bin/sh\nexec /usr/bin/env\n');
+    };
+    const envOf = (result: Run): Map<string, string> =>
+      new Map(argsOf(result).map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+    const hostile = {
+      OPENSSL_CONF: '/tmp/evil.cnf',
+      LD_PRELOAD: '/tmp/evil.so',
+      LD_LIBRARY_PATH: '/tmp',
+      DYLD_INSERT_LIBRARIES: '/tmp/evil.dylib',
+      NODE_OPTIONS: '--require /tmp/evil.js',
+      NODE_PATH: '/tmp',
+      NODE_TLS_REJECT_UNAUTHORIZED: '0',
+      BASH_ENV: '/tmp/evil.sh',
+      GH_TOKEN: 'ghp_not_for_root',
+    };
+
+    it('drops OPENSSL_CONF, LD_PRELOAD, NODE_* and every other variable off the allowlist', () => {
+      rootOnlyRelease();
+      envNode();
+      const result = run(0, { env: { ...hostile, TC_RUNNER_HOME: '/var/tc' } });
+      expect(result.status).toBe(0);
+      const env = envOf(result);
+      for (const name of Object.keys(hostile)) {
+        expect(env.has(name)).toBe(false);
+      }
+      // What the shell that plays node exports by itself (PWD, SHLVL, _) is not the caller's.
+      const shellOwn = new Set(['PWD', 'OLDPWD', 'SHLVL', '_']);
+      expect([...env.keys()].filter((name) => !shellOwn.has(name)).sort()).toEqual(['PATH', 'TC_RUNNER_HOME']);
     });
+
+    it('keeps the allowlisted variables and sets PATH to the fixed one', () => {
+      rootOnlyRelease();
+      envNode();
+      const kept = {
+        HOME: '/var/root',
+        TC_RUNNER_HOME: '/Users/_tcrunner',
+        TC_ENROL_CODE: 'tce_x=y',
+        LANG: 'en_US.UTF-8',
+        LC_ALL: 'C',
+        TERM: 'xterm-256color',
+        SUDO_USER: 'kirill',
+        SUDO_UID: '501',
+        SUDO_GID: '20',
+      };
+      const env = envOf(run(0, { env: { ...kept, ...hostile } }));
+      for (const [name, value] of Object.entries(kept)) {
+        expect(env.get(name)).toBe(value);
+      }
+      expect(env.get('PATH')).toBe('/usr/sbin:/usr/bin:/sbin:/bin');
+    });
+
+    it('drops an allowlisted variable whose value holds a newline, and a look-alike line inside it', () => {
+      rootOnlyRelease();
+      envNode();
+      const env = envOf(run(0, { env: { TC_NOTE: "one\nexport TC_FAKE='x'", LANG: 'C' } }));
+      expect(env.has('TC_NOTE')).toBe(false);
+      expect(env.has('TC_FAKE')).toBe(false);
+      expect(env.get('LANG')).toBe('C');
+    });
+
+    it('as a user, passes the environment through untouched', () => {
+      exe(join(userBin, 'node'), '#!/bin/sh\nprintf \'%s\\n\' "${OPENSSL_CONF-unset}" "${GH_TOKEN-unset}" "$PATH"\n');
+      const result = run(501, { env: { OPENSSL_CONF: '/etc/ssl/custom.cnf', GH_TOKEN: 'kept' } });
+      expect(argsOf(result)).toEqual(['/etc/ssl/custom.cnf', 'kept', `${userBin}:${join(root, 'tools')}`]);
+    });
+  });
+
+  it('as root, runs no command through the PATH it was given', () => {
+    // The layout `update` leaves, so readlink and basename have links to follow.
+    const release = join(prefix, 'releases', '0.2.0');
+    const target = join(release, 'node');
+    fakeNode(target);
+    writeFileSync(join(release, 'team-console-runner.mjs'), '');
+    symlinkSync(join('releases', '0.2.0'), join(prefix, 'current'));
+    symlinkSync(join('current', 'node'), join(prefix, 'node'));
+    rmSync(bundle());
+    symlinkSync(join('current', 'team-console-runner.mjs'), bundle());
+    for (const path of [target, join(release, 'team-console-runner.mjs'), jobExec()]) {
+      rootOwned(path, '555');
+    }
+    for (const dir of [release, join(prefix, 'releases'), join(prefix, 'bin'), prefix, root]) {
+      rootOwned(dir);
+    }
+    const marker = join(root, 'path-used');
+    for (const tool of ['readlink', 'basename', 'dirname', 'env', 'ls', 'stat', 'uname', 'id', 'printf', 'test', '[', 'pwd']) {
+      exe(join(userBin, tool), `#!/bin/sh\necho ${tool} >> '${marker}'\nexit 1\n`);
+    }
+    const result = run(0);
     expect(result.status).toBe(0);
-    expect(argsOf(result)).toEqual(['unset', 'unset', 'unset', 'kept']);
+    expect(argsOf(result)[0]).toBe(target);
+    expect(existsSync(marker)).toBe(false);
   });
 
   it('as a user, leaves NODE_OPTIONS to the user', () => {

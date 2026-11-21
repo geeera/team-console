@@ -5,10 +5,27 @@
 # Which node: `<prefix>/node`, the one the release ships (#634 PR 5), else `node` on PATH, else Homebrew's (sudo's
 # secure_path leaves `/opt/homebrew/bin` out). As root (#778, S2 of the #634 security note) only `<prefix>/node` runs,
 # and only when root alone can change it: the file and every directory up to `/` root-owned and not writable by group
-# or others, links resolved first. No other node is a fallback there, root-owned or not. The same holds for the bundle
-# and the prefix (#884), on macOS no ACL entry may let anyone but root write any of them, and every NODE_* variable is
-# dropped before the exec, so the caller's environment cannot load code into root's node.
+# or others, links resolved first. No other node is a fallback there, root-owned or not. The same holds for the bundle,
+# the prefix (#884) and `bin/job-exec`, which the sudoers rule hands out (#894), and on macOS no ACL entry may let
+# anyone but root write any of them.
+#
+# As root, node starts through `/usr/bin/env -i` (#894): OPENSSL_CONF, LD_PRELOAD, LD_LIBRARY_PATH, NODE_OPTIONS and
+# their kin load code into root's node, so it gets only this allowlist, and only values without a newline:
+#   PATH                          always /usr/sbin:/usr/bin:/sbin:/bin, whatever the caller's (the installer's own
+#                                 SYSTEM_PATH; `gh` for a root `update` is not on it, which refuses as "gh missing")
+#   HOME                          where node's os.homedir() and so the default TC_RUNNER_HOME point; sudo sets it
+#   TC_*                          the runner's own: TC_RUNNER_HOME, TC_ENROL_CODE, TC_ENROLMENT, TC_RUNNER_KEY_STORE, …
+#   LANG, LC_*, TERM              the locale and the terminal `setup` and `claude setup-token` draw on
+#   SUDO_USER, SUDO_UID, SUDO_GID who ran sudo: `setup` opens the sign-in page in that user's browser
+# The root branch also sets PATH to that value first and runs every command by absolute path. The non-root branch
+# passes the caller's environment through and finds node on PATH, as before.
 set -eu
+safe_path=/usr/sbin:/usr/bin:/sbin:/bin
+is_root=false
+if [ "$(/usr/bin/id -u)" = 0 ]; then
+  is_root=true
+  PATH=$safe_path
+fi
 # Absolute, like id, stat, uname and ls below: under sudo the caller's PATH must not decide which directories get checked.
 dirname=/usr/bin/dirname
 basename=/usr/bin/basename
@@ -91,43 +108,63 @@ set -f
 IFS='
 '
 bundle=$prefix/team-console-runner.mjs
-if [ "$(/usr/bin/id -u)" = 0 ]; then
+if [ "$is_root" = true ]; then
   if real=$(physical "$prefix/node") && root_only "$real" && main=$(physical "$bundle") && root_only "$main" \
-    && root_only "$prefix"; then
+    && root_only "$prefix" && job_exec=$(physical "$prefix/bin/job-exec") && root_only "$job_exec"; then
     # The checked physical paths run, so no link can be repointed between the check and the exec.
     node=$real
     bundle=$main
   else
     echo "team-console-runner: as root only the release's own node runs, and only when root alone can change it:" >&2
-    echo "  $prefix/node, $prefix/team-console-runner.mjs and every directory up to / root-owned, writable by root only" >&2
-    echo "  (on macOS, no ACL entry that lets anyone else write). Extract the release with sudo into a root-owned" >&2
-    echo "  directory and run it from there (docs/runbooks/runner.md › user backend)." >&2
+    echo "  $prefix/node, $prefix/team-console-runner.mjs, $prefix/bin/job-exec and every directory up to / root-owned," >&2
+    echo "  writable by root only (on macOS, no ACL entry that lets anyone else write). Extract the release with sudo into" >&2
+    echo "  a root-owned directory and run it from there (docs/runbooks/runner.md › user backend)." >&2
     exit 126
   fi
-  # NODE_OPTIONS (--require, --import), NODE_PATH and their kin load code or change trust; root's node needs none.
+  # env would read a node path holding "=" as one more assignment, not as the program.
+  case $node in
+    *=*)
+      echo "team-console-runner: as root the release directory must not hold \"=\" in its path ($node)" >&2
+      exit 126 ;;
+  esac
+  # The allowlist of the header. Names come from `export -p` (bash says `declare -x`); a line that only looks like one,
+  # inside a value that spans lines, names a variable that is checked to exist like any other.
+  keep=
+  value=
   for line in $(export -p); do
     case $line in
-      'export NODE_'*) name=${line#export } ;;
-      'declare -x NODE_'*) name=${line#declare -x } ;;
+      'export '*) name=${line#export } ;;
+      'declare -x '*) name=${line#declare -x } ;;
       *) continue ;;
     esac
     name=${name%%=*}
     case $name in
-      *[!A-Za-z0-9_]*) continue ;;
+      *[!A-Za-z0-9_]* | '') continue ;;
+      HOME | TC_* | LANG | LC_* | TERM | SUDO_USER | SUDO_UID | SUDO_GID) ;;
+      *) continue ;;
     esac
-    unset "$name"
+    eval "[ -n \"\${$name+set}\" ]" || continue
+    eval "value=\${$name}"
+    case $value in
+      *'
+'*) continue ;;
+    esac
+    keep="$keep$name=$value
+"
   done
-else
-  for candidate in $(candidates); do
-    if [ -f "$candidate" ] && [ -x "$candidate" ]; then
-      node=$candidate
-      break
-    fi
-  done
-  if [ -z "$node" ]; then
-    echo "team-console-runner: node not found (Node.js 22.14 or later; on PATH or in /opt/homebrew/bin)" >&2
-    exit 127
+  # Unquoted $keep splits on newlines only (IFS above) and is not globbed (set -f): one assignment per variable.
+  # shellcheck disable=SC2086
+  exec /usr/bin/env -i "PATH=$safe_path" $keep "$node" --disable-sigusr1 "$bundle" "$@"
+fi
+for candidate in $(candidates); do
+  if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+    node=$candidate
+    break
   fi
+done
+if [ -z "$node" ]; then
+  echo "team-console-runner: node not found (Node.js 22.14 or later; on PATH or in /opt/homebrew/bin)" >&2
+  exit 127
 fi
 # --disable-sigusr1: a process of the same uid (on actions-ephemeral and none, the job) must not be able to open the
 # inspector with `kill -USR1` and evaluate code inside the runner, which holds its key and the job's tokens.

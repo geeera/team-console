@@ -347,8 +347,12 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
 it('the launcher in the release starts node with SIGUSR1 off as well, whatever NODE_OPTIONS holds', () => {
   const launcher = readFileSync(join(app, 'bin', 'team-console-runner'), 'utf8');
   const execs = launcher.split('\n').filter((line) => /^\s*exec /.test(line));
-  // One exec, whichever node the launcher picked (launcher.spec.ts covers the choice).
-  expect(execs).toEqual(['exec "$node" --disable-sigusr1 "$bundle" "$@"']);
+  // One exec per branch, whichever node the launcher picked (launcher.spec.ts covers the choice); root's goes through
+  // `env -i` with its allowlist (#894).
+  expect(execs.map((line) => line.trim())).toEqual([
+    'exec /usr/bin/env -i "PATH=$safe_path" $keep "$node" --disable-sigusr1 "$bundle" "$@"',
+    'exec "$node" --disable-sigusr1 "$bundle" "$@"',
+  ]);
   expect(launcher).not.toMatch(/--inspect/);
 });
 

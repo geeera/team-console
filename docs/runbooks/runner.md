@@ -48,14 +48,32 @@ Which node the launcher runs: `<prefix>/node`, else `node` on `PATH`, else `/opt
 `/usr/local/bin/node`. **Run as root** (`sudo …/bin/team-console-runner …`), it runs only `<prefix>/node`, and only when
 root alone can change it: the file and every directory up to `/` root-owned and not writable by group or others,
 after every link is resolved. It runs that resolved path and never falls back to another node, root-owned or not; it
-stops with exit 126 (#778, S2). The same holds for `team-console-runner.mjs` and the release directory itself; on macOS
-no ACL entry on any of them, or on a directory above, may let anyone but root write (`ls -le` shows them; remove one
-with `sudo chmod -a# <n> <path>`). As root it also drops every `NODE_*` variable (`NODE_OPTIONS`, `NODE_PATH`, …)
-before it starts node (#884). A release older than 0.2.0 ships no node and so cannot run as root: update it first.
+stops with exit 126 (#778, S2). The same holds for `team-console-runner.mjs`, the release directory itself and
+`bin/job-exec`, which the sudoers rule hands out (#894); on macOS no ACL entry on any of them, or on a directory above,
+may let anyone but root write (`ls -le` shows them; remove one with `sudo chmod -a# <n> <path>`).
+
+As root it starts node through `/usr/bin/env -i` with only this environment (#894), so `OPENSSL_CONF`, `LD_PRELOAD`,
+`LD_LIBRARY_PATH`, `NODE_OPTIONS` and the like from the caller cannot load code into root's node:
+
+| Variable | Why root's node keeps it |
+| --- | --- |
+| `PATH` | Always `/usr/sbin:/usr/bin:/sbin:/bin`, whatever the caller's. The launcher itself runs every command by full path. |
+| `HOME` | The default `TC_RUNNER_HOME` is under it. sudo sets it. |
+| `TC_*` | The runner's own settings: `TC_RUNNER_HOME`, `TC_ENROL_CODE`, `TC_ENROLMENT`, `TC_RUNNER_KEY_STORE`, … |
+| `LANG`, `LC_*`, `TERM` | The locale and the terminal of `setup` and `claude setup-token`. |
+| `SUDO_USER`, `SUDO_UID`, `SUDO_GID` | `setup` opens the sign-in page in the browser of the user who ran sudo. |
+
+A value that holds a newline is dropped. Because `PATH` is fixed, `sudo … team-console-runner update` finds no
+Homebrew `gh` and refuses ("gh missing"); a root-owned `user` backend install is updated by hand anyway (see
+"Update (decision 10, RR13)"). Run as your own user, the launcher passes your environment through unchanged. A release older than 0.2.0
+ships no node and so cannot run as root: update it first.
 
 `install --backend user` refuses a directory, bundle, `job-exec` or `node` that is not root-owned or that anyone else
 can write, and, once `update` has run, a `releases/` directory or a `current` link (and the release it names) that is
-not root's alone (#884), because the sudoers rule and the LaunchDaemon name those files. Run `install --dry-run` first. It lists every step and changes
+not root's alone (#884), because the sudoers rule and the LaunchDaemon name those files. `current` must name a release
+directly in `releases/` (#894). On macOS it also refuses any of them that carries an ACL entry letting anyone but root
+write (#894, read with `ls -lde`), so a bad prefix fails at install and not at the service's first start; `self-check`
+reports the same as L3-8. Run `install --dry-run` first. It lists every step and changes
 nothing. Then run the same command with `--yes`. Run the launcher by its full path, or put
 `/usr/local/lib/team-console-runner/bin` on `PATH`. Do not symlink the launcher elsewhere, because it finds the bundle
 relative to its own path.
