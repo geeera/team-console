@@ -444,7 +444,10 @@ export class AddRunnerWizard {
     }
     this.touched.set(true);
     if (this.runnerName() === '') {
-      this.host.nativeElement.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+      // The field marks itself invalid on the next render.
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="wizard-name"]')?.focus(), {
+        injector: this.injector,
+      });
       return;
     }
     if (this.platform() === 'linux') {

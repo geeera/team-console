@@ -320,7 +320,7 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
   });
 
   it('says what to check after five minutes offline, and keeps waiting (decision 4)', async () => {
-    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
     try {
       const { toConfirm, click, find, fixture } = await render();
       await toConfirm();
