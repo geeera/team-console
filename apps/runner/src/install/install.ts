@@ -54,6 +54,8 @@ export interface PathFacts {
   readonly mode: number;
   /** From `lstat`: a symlink is reported as one, never as what it points to. */
   readonly kind: 'directory' | 'file' | 'symlink' | 'other';
+  /** Bytes, for a file: `self-check` reports a credential's length without opening it. */
+  readonly size?: number;
 }
 
 /** The host as the installer sees it; the spec drives a fake and asserts the steps. */
@@ -229,7 +231,7 @@ async function nodeOwnerWarning(node: string, host: InstallHost): Promise<string
 }
 
 /** The bundle and `job-exec` the sudoers rule and the daemon name must be root's alone, or the rule hands them out. */
-async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
+export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
   for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix)]) {
     const facts = await host.stat(path);
     if (facts === null || facts.uid !== 0 || (facts.mode & 0o022) !== 0) {
@@ -588,7 +590,7 @@ export function systemInstallHost(base: {
     stat: async (path) => {
       try {
         const stats = await lstat(path);
-        return { uid: stats.uid, mode: stats.mode & 0o7777, kind: kindOf(stats) };
+        return { uid: stats.uid, mode: stats.mode & 0o7777, kind: kindOf(stats), size: stats.size };
       } catch (error: unknown) {
         if (isErrno(error, 'ENOENT')) {
           return null;

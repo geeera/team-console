@@ -315,7 +315,7 @@ async function isFullyLinked(prefix: string): Promise<boolean> {
 }
 
 /** The version `current` names, or `null` in a flat prefix. */
-async function liveReleaseOf(prefix: string): Promise<string | null> {
+export async function liveReleaseOf(prefix: string): Promise<string | null> {
   const current = join(prefix, CURRENT_LINK);
   return (await lstatOrNull(current))?.isSymbolicLink() === true ? basename(await readlink(current)) : null;
 }
@@ -359,6 +359,33 @@ async function swapInto(tree: string, prefix: string, target: string): Promise<v
 }
 
 /**
+ * Unpacks a tarball whose bytes were already verified into `staging/tree`, checks the tree and its sums, confirms the
+ * bundle reports `target`, then switches `prefix` to it. Shared by `update` (after `gh attestation verify`) and by
+ * `setup --release` (after the root-owned copy matched the sum the console named, R-ONE-1).
+ */
+export async function installTarball(
+  tarball: string,
+  staging: string,
+  prefix: string,
+  target: string,
+  deps: Pick<ApplyDeps, 'exec' | 'node'>,
+): Promise<void> {
+  const tree = join(staging, 'tree');
+  await mkdir(tree, { mode: 0o700 });
+  const unpacked = await deps.exec('tar', ['-xzf', tarball, '--no-same-owner', '-C', tree]);
+  if (unpacked.code !== 0) {
+    throw new UpdateError('unpack-failed', `tar could not extract ${basename(tarball)} (exit ${String(unpacked.code)})`);
+  }
+  await assertReleaseTree(tree);
+  await assertSums(tree);
+  const reported = await deps.exec(deps.node, [join(tree, BUNDLE_FILE), 'version']);
+  if (reported.code !== 0 || reported.stdout.trim() !== target) {
+    throw new UpdateError('verification-failed', `the downloaded bundle does not report version ${target}`);
+  }
+  await swapInto(tree, prefix, target);
+}
+
+/**
  * Downloads `target` for this platform, has `gh attestation verify` check it against the pinned identity, checks the
  * tree and its sums, confirms the bundle reports `target`, then switches the prefix to it (`install-layout.ts`).
  * Nothing in the prefix changes before every check has passed; the staging directory is removed either way.
@@ -399,19 +426,7 @@ export async function applyUpdate(target: string, deps: ApplyDeps): Promise<void
       );
     }
     deps.log(`verified ${asset}: built by the pinned release workflow from ${target}'s tag`);
-    const tree = join(staging, 'tree');
-    await mkdir(tree, { mode: 0o700 });
-    const unpacked = await deps.exec('tar', ['-xzf', tarball, '--no-same-owner', '-C', tree]);
-    if (unpacked.code !== 0) {
-      throw new UpdateError('unpack-failed', `tar could not extract ${asset} (exit ${String(unpacked.code)})`);
-    }
-    await assertReleaseTree(tree);
-    await assertSums(tree);
-    const reported = await deps.exec(deps.node, [join(tree, BUNDLE_FILE), 'version']);
-    if (reported.code !== 0 || reported.stdout.trim() !== target) {
-      throw new UpdateError('verification-failed', `the downloaded bundle does not report version ${target}`);
-    }
-    await swapInto(tree, deps.prefix, target);
+    await installTarball(tarball, staging, deps.prefix, target, deps);
   } finally {
     await rm(staging, { recursive: true, force: true });
   }
