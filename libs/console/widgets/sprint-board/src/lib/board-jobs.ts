@@ -1,9 +1,17 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, viewChild } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  viewChild,
+} from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { JobCard, jobFailureKeyOf, JobsStore, runnerLabelOf, type JobFailure } from '@console/entities/job';
 import { RunNow } from '@console/features/run-now';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Icon, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import type { JobDto, RunnerDto, RunnerPauseReason } from '@shared/contracts';
 import { withoutInvisibles } from '@shared/plain-text';
 import { BoardJobsNone, type JobsNoneKind } from './board-jobs-none';
@@ -48,13 +56,19 @@ export function isolatedName(name: string): string {
         <tc-board-jobs-none [kind]="none" [projectName]="projectLabel()" [runnerName]="d3RunnerLabel()" />
       } @else {
         <!-- One polite region: a change from ready to offline on refresh is announced once. -->
-        <div class="board-jobs__availability" role="status" data-testid="jobs-availability" [attr.data-availability]="store.availability()">
+        <div
+          class="board-jobs__availability"
+          role="status"
+          data-testid="jobs-availability"
+          [attr.data-availability]="store.availability()"
+        >
           @switch (store.availability()) {
             @case ('offline') {
               <div tc-callout tone="warning" class="board-jobs__line">
                 <p>
                   <tc-icon name="offline" size="sm" />
-                  <strong>{{ 'jobs.availability.offlineLead' | transloco }}</strong>&ngsp;
+                  <strong>{{ 'jobs.availability.offlineLead' | transloco }}</strong
+                  >&ngsp;
                   @if (canRun()) {
                     {{ 'jobs.availability.offlineOwner' | transloco }}&ngsp;<a
                       routerLink="/settings/runners"
@@ -72,10 +86,14 @@ export function isolatedName(name: string): string {
                 <p>
                   <tc-icon name="pause" size="sm" />
                   @if (ownerPause(); as pause) {
-                    <strong>{{ 'jobs.availability.pausedUntil.' + pause.reason | transloco: { time: pause.time } }}</strong>&ngsp;
+                    <strong>{{
+                      'jobs.availability.pausedUntil.' + pause.reason | transloco: { time: pause.time }
+                    }}</strong
+                    >&ngsp;
                     {{ 'jobs.availability.pausedOwner' | transloco }}
                   } @else {
-                    <strong>{{ 'jobs.availability.pausedLead' | transloco }}</strong>&ngsp;
+                    <strong>{{ 'jobs.availability.pausedLead' | transloco }}</strong
+                    >&ngsp;
                     {{ 'jobs.availability.pausedMember' | transloco }}
                   }
                 </p>
@@ -84,7 +102,12 @@ export function isolatedName(name: string): string {
           }
         </div>
         @if (canRun()) {
-          <tc-run-now class="board-jobs__run-now" [slug]="slug()" [waiting]="isWaiting()" (enqueued)="onEnqueued($event)" />
+          <tc-run-now
+            class="board-jobs__run-now"
+            [slug]="slug()"
+            [waiting]="isWaiting()"
+            (enqueued)="onEnqueued($event)"
+          />
         } @else if (store.status() === 'ready') {
           <p class="board-jobs__member" data-testid="jobs-member-line">
             <tc-icon name="lock" size="sm" />
@@ -157,7 +180,10 @@ export function isolatedName(name: string): string {
               compact
               data-testid="jobs-empty"
               [title]="'jobs.view.empty' | transloco"
-              [description]="(canRun() && noneKind() === null ? 'jobs.view.emptyHint' : 'jobs.view.emptyHintMember') | transloco"
+              [description]="
+                (canRun() && noneKind() === null ? 'jobs.view.emptyHint' : 'jobs.view.emptyHintMember')
+                  | transloco
+              "
             />
           }
           <h4 class="board-jobs__title">{{ 'jobs.view.recent' | transloco }}</h4>
@@ -276,6 +302,7 @@ export class BoardJobs {
   readonly d3Runner = input<RunnerDto | null>(null);
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+  private readonly restoreRetryFocus = injectRetryFocus(() => this.heading());
   private readonly runNow = viewChild(RunNow);
   private readonly none = viewChild(BoardJobsNone);
 
@@ -340,7 +367,8 @@ export class BoardJobs {
     void this.store.refresh();
   }
 
-  protected refresh(): void {
-    void this.store.refresh();
+  protected async refresh(): Promise<void> {
+    await this.store.refresh();
+    this.restoreRetryFocus();
   }
 }

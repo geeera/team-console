@@ -17,6 +17,7 @@ export * from './lib/copy-code/copy-code';
 export * from './lib/date-picker/date-picker';
 export * from './lib/field/field';
 export * from './lib/focus/focus-after-render';
+export * from './lib/focus/restore-retry-focus';
 export * from './lib/frame/frame';
 export * from './lib/frame/frame-src.public';
 export * from './lib/home-screen-guide/home-screen-guide';

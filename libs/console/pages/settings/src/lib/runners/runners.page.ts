@@ -24,7 +24,7 @@ import { ProjectDispatchEditor } from '@console/features/project-dispatch';
 import { RunnerPolicyEditor } from '@console/features/runner-policy';
 import { teamSettingsUrlOf } from '@console/features/team-config';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Button, Field, FieldControl, Icon, StateBlock } from '@console/shared/ui';
+import { Button, Field, FieldControl, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
 
 /**
@@ -60,6 +60,7 @@ export class RunnersPage {
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+  private readonly restoreRetryFocus = injectRetryFocus(() => this.heading());
 
   protected readonly projects = computed((): readonly RunnerProjectOption[] =>
     this.projectsStore.active().map((project) => ({ slug: project.slug, displayName: project.displayName })),
@@ -82,7 +83,9 @@ export class RunnersPage {
   protected readonly projectSlug = computed(() => {
     const picked = this.pickedSlug();
     const projects = this.projects();
-    return picked !== null && projects.some((project) => project.slug === picked) ? picked : (projects[0]?.slug ?? null);
+    return picked !== null && projects.some((project) => project.slug === picked)
+      ? picked
+      : (projects[0]?.slug ?? null);
   });
   protected readonly projectScope = computed((): RunnerPolicyScope | null => {
     const slug = this.projectSlug();
@@ -98,8 +101,9 @@ export class RunnersPage {
     afterNextRender(() => this.heading().nativeElement.focus());
   }
 
-  protected reload(): void {
-    void this.store.load();
+  protected async reload(): Promise<void> {
+    await this.store.load();
+    this.restoreRetryFocus();
   }
 
   protected accountPolicySaved(): void {
@@ -127,7 +131,11 @@ export class RunnersPage {
     if (account === null) {
       return;
     }
-    const updated = await this.manage.editProjects({ accountId: account.id, runner, projects: this.projects() });
+    const updated = await this.manage.editProjects({
+      accountId: account.id,
+      runner,
+      projects: this.projects(),
+    });
     if (updated !== null) {
       this.store.apply(updated);
     }

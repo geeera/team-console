@@ -22,16 +22,16 @@
 <section class="board__status" [attr.aria-labelledby]="board.milestone ? titleId : null">
   @if (board.milestone; as milestone) {
   <header class="board__head">
-    <h2 class="board__title" [id]="titleId" dir="auto" tabindex="-1">{{ milestone.title }}</h2>
+    <h2 #boardTitle class="board__title" [id]="titleId" dir="auto" tabindex="-1">{{ milestone.title }}</h2>
     @if (demoLine()) {
-      <tc-chip class="board__demo" tone="accent" data-testid="demo"
-        ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
-      >
-    }
-    @if (isJobsBoard()) {
-      <span class="board__open" data-testid="open-count">{{ 'board.sections.open' | translocoPlural: openCount() }}</span>
-    }
-    @if (sprintActions() || jobs.canRunNow()) {
+    <tc-chip class="board__demo" tone="accent" data-testid="demo"
+      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
+    >
+    } @if (isJobsBoard()) {
+    <span class="board__open" data-testid="open-count"
+      >{{ 'board.sections.open' | translocoPlural: openCount() }}</span
+    >
+    } @if (sprintActions() || jobs.canRunNow()) {
     <div class="board__actions">
       @if (jobs.canRunNow()) {
       <!-- #775: the owner's way to Run now from the top; it opens the runs and lands on the form. -->
@@ -39,8 +39,7 @@
         <tc-icon name="play" size="sm" />
         {{ 'board.runNow' | transloco }}
       </button>
-      }
-      @if (sprintActions()) {
+      } @if (sprintActions()) {
       <button
         tc-button
         size="sm"
@@ -126,8 +125,7 @@
     </div>
   </dl>
 </section>
-}
-@if (!board.milestone && compact()) {
+} @if (!board.milestone && compact()) {
 <ng-container *ngTemplateOutlet="noSprint" />
 }
 
@@ -147,8 +145,7 @@
   >
     @if (moveFailure(); as failed) {
     <tc-tracker-failure [failure]="failed.failure" (retry)="retryMove()" (refresh)="refreshAfterFailure()" />
-    }
-    @if (board.issues.length === 0) {
+    } @if (board.issues.length === 0) {
     <tc-state-block
       kind="empty"
       data-testid="empty-sprint"

@@ -52,6 +52,7 @@ import {
   Icon,
   markArrival,
   Receipt,
+  injectRetryFocus,
   StateBlock,
 } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
@@ -83,7 +84,11 @@ const CHIP_TONES: Readonly<Record<CardStamp, ChipTone>> = {
 };
 
 // A glyph beside the word, so the status never rests on colour alone.
-const STATUS_ICONS: Readonly<Record<CardStamp, IconName>> = { positive: 'check', negative: 'x', neutral: 'minus' };
+const STATUS_ICONS: Readonly<Record<CardStamp, IconName>> = {
+  positive: 'check',
+  negative: 'x',
+  neutral: 'minus',
+};
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -128,6 +133,7 @@ export class QuestionList {
   private readonly transloco = inject(TranslocoService);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+  private readonly restoreRetryFocus = injectRetryFocus();
   private readonly projects = inject(ProjectsStore);
   private readonly viewer = inject(DesignViewer);
 
@@ -211,7 +217,10 @@ export class QuestionList {
   /** Projects that need the owner outside a card: a setup to finish, or an inbox that could not be read (#205). */
   protected readonly attentionCount = computed(
     () =>
-      this.setups().length + this.problems().length + this.budgetStops().length + this.concurrencyStops().length,
+      this.setups().length +
+      this.problems().length +
+      this.budgetStops().length +
+      this.concurrencyStops().length,
   );
   /** The lead's project count: projects with a waiting card and projects with a row above the cards alike. */
   protected readonly projectCount = computed(
@@ -259,6 +268,11 @@ export class QuestionList {
 
   async reload(): Promise<void> {
     await this.load(this.project());
+  }
+
+  protected async retry(): Promise<void> {
+    await this.reload();
+    this.restoreRetryFocus();
   }
 
   protected toneOf(command: AnswerCommand): CardStamp {

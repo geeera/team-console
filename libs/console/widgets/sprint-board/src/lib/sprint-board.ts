@@ -62,6 +62,7 @@ import {
   Button,
   Chip,
   focusAfterRender,
+  injectRetryFocus,
   Icon,
   Lane,
   markArrival,
@@ -303,6 +304,8 @@ export class SprintBoard {
   protected readonly tileColumns = computed(() => TILE_COLUMNS[this.tileLayout()]);
   private readonly tabs = viewChild(Tabs);
   private readonly boardJobs = viewChild(BoardJobs);
+  private readonly boardTitle = viewChild<ElementRef<HTMLElement>>('boardTitle');
+  private readonly restoreRetryFocus = injectRetryFocus(() => this.boardTitle());
   private readonly pullsHeading = viewChild<ElementRef<HTMLElement>>('pullsHeading');
   private readonly runsHeading = viewChild<ElementRef<HTMLElement>>('runsHeading');
   private ring: Arrival | null = null;
@@ -383,7 +386,11 @@ export class SprintBoard {
   protected readonly teamIcon = computed(() => {
     if (this.isJobsBoard()) {
       const state = this.jobsTileShown();
-      return state === 'paused' ? 'pause' : state === 'unknown' ? TEAM_RUN_ICONS.unknown : JOBS_TILE_ICONS[state];
+      return state === 'paused'
+        ? 'pause'
+        : state === 'unknown'
+          ? TEAM_RUN_ICONS.unknown
+          : JOBS_TILE_ICONS[state];
     }
     return TEAM_RUN_ICONS[this.board()?.team.state ?? 'unknown'];
   });
@@ -399,13 +406,18 @@ export class SprintBoard {
     this.lang();
     const pause = this.jobsPause();
     if (this.isJobsBoard() && pause !== null && this.jobsTileShown() === 'paused') {
-      return this.transloco.translate(`jobs.tile.paused.${pause.reason}`, { time: localTimeOf(pause.until, this.lang()) });
+      return this.transloco.translate(`jobs.tile.paused.${pause.reason}`, {
+        time: localTimeOf(pause.until, this.lang()),
+      });
     }
     if (this.isJobsBoard()) {
       const state = this.jobsTileState();
       const tile = this.jobs.tile();
       const kind = tile.kind === null ? '' : this.transloco.translate(`jobs.kind.${tile.kind}`);
-      return this.transloco.translate(`jobs.tile.${state}`, { kind, n: localNumberOf(tile.count, this.lang()) });
+      return this.transloco.translate(`jobs.tile.${state}`, {
+        kind,
+        n: localNumberOf(tile.count, this.lang()),
+      });
     }
     return this.transloco.translate(`board.team.${this.board()?.team.state ?? 'unknown'}`);
   });
@@ -705,17 +717,7 @@ export class SprintBoard {
   /** Retry: the owner's action, so it may earn one more automatic retry. */
   async reload(): Promise<void> {
     await this.retry(true);
-    // The Retry button was replaced by the loading block, so focus fell to <body> (#135): back to the new Retry
-    // button, or to the board's heading once it loaded.
-    const root = this.host.nativeElement;
-    focusAfterRender(
-      () =>
-        elementRefOf(
-          root.querySelector<HTMLElement>('[data-testid="load-error"] button') ??
-            root.querySelector<HTMLElement>('.board__title'),
-        ),
-      { injector: this.injector, onlyIfFocusLost: true },
-    );
+    this.restoreRetryFocus();
   }
 
   protected laneName(status: string): string {
@@ -766,7 +768,9 @@ export class SprintBoard {
    * A console-tracker project's sprint and its tasks come from the tracker (#556), so moves made in the console show
    * here; its pull requests (and the run log, unused beside the jobs) still come from `/sprint`.
    */
-  private async boardOf(slug: string): Promise<{ board: SprintBoardModel; tracker: TrackerSprintRead | null }> {
+  private async boardOf(
+    slug: string,
+  ): Promise<{ board: SprintBoardModel; tracker: TrackerSprintRead | null }> {
     if (!this.isJobsBoard()) {
       return { board: await this.api.current(slug), tracker: null };
     }

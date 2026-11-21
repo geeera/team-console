@@ -9,7 +9,7 @@
   [title]="'questions.loadFailed' | transloco"
   [description]="'questions.loadFailedHint' | transloco"
 >
-  <button tc-button tc-state-action type="button" (click)="reload()">
+  <button tc-button tc-state-action type="button" (click)="retry()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>
@@ -23,7 +23,7 @@
 </p>
 } @if (refreshFailed()) {
 <tc-state-block kind="error" compact data-testid="refresh-error" [title]="'questions.loadFailed' | transloco">
-  <button tc-button tc-state-action size="sm" type="button" (click)="reload()">
+  <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
     {{ 'ui.error.retry' | transloco }}
   </button>
 </tc-state-block>
@@ -52,13 +52,13 @@
       [attr.data-project]="stop.project.slug"
     >
       <tc-icon tc-banner-icon name="alert" size="sm" />
-      <span tc-banner-text>{{
-        'needsYou.attention.noConcurrency' | transloco: { name: stop.project.name, n: stop.queuedJobs }
-      }}</span>
+      <span tc-banner-text
+        >{{ 'needsYou.attention.noConcurrency' | transloco: { name: stop.project.name, n: stop.queuedJobs }
+        }}</span
+      >
     </div>
   </li>
-  }
-  @for (setup of setups(); track setup.project.slug) {
+  } @for (setup of setups(); track setup.project.slug) {
   <li>
     @if (setup.url; as url) {
     <a
@@ -169,16 +169,18 @@
     } @else {
     <tc-receipt [tone]="toneOf(row.answer.command)" flush [hasGlyph]="false" [attr.data-receipt]="row.key">
       <tc-chip tc-receipt-verb [tone]="chipToneOf(row.answer.command)" data-testid="receipt-status"
-        ><tc-icon [name]="statusIconOf(row.answer.command)" size="sm" />{{ statusOf(row.answer.command) }}</tc-chip
+        ><tc-icon [name]="statusIconOf(row.answer.command)" size="sm" />{{ statusOf(row.answer.command)
+        }}</tc-chip
       >
-      <span tc-receipt-detail dir="auto" [class.questions__receipt-fallback]="!row.item.context?.summary">{{
-        row.item.context?.summary || row.item.title
-      }}</span>
+      <span tc-receipt-detail dir="auto" [class.questions__receipt-fallback]="!row.item.context?.summary"
+        >{{ row.item.context?.summary || row.item.title }}</span
+      >
       <span tc-receipt-meta>
         {{ 'answer.receipt.meta' | transloco: { n: row.item.number, time: timeOf(row.answer) } }} · {{
         'answer.receipt.waiting' | transloco }} @if (receiptUrl(row.answer); as url) { ·
         <a class="questions__receipt-link" [href]="url" target="_blank" rel="noopener noreferrer"
-          >{{ 'answer.receipt.open' | transloco }}<span class="tc-sr-only"> {{ 'push.arrive.external' | transloco }}</span
+          >{{ 'answer.receipt.open' | transloco }}<span class="tc-sr-only">
+            {{ 'push.arrive.external' | transloco }}</span
           ><tc-icon name="external" size="sm"
         /></a>
         } @else if (row.item.key) { ·
