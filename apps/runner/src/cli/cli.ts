@@ -24,7 +24,7 @@ import { runLoop } from '../jobs/loop';
 import { RUNNER_VERSION } from '../version';
 import { autoUpdater } from '../update/auto-update';
 import { UpdateError, applyUpdate, checkForUpdate, type ApplyDeps } from '../update/update';
-import { EnrolUsageError, enrol } from './enrol';
+import { EnrolIntentError, EnrolUsageError, enrol } from './enrol';
 import { ENROL_CODE_STDIN, enrolCodeOf, type ReadCodeLine } from './enrol-code';
 import { REQUEST_TOKEN_STDIN, runOnceOidc } from './run-once-oidc';
 
@@ -63,6 +63,8 @@ export interface CliDeps {
   readonly exec?: Exec;
   /** One line of stdin for `run-once --oidc --request-token -`; absent when the process has no stdin to read. */
   readonly readRequestTokenLine?: () => Promise<string>;
+  /** Waits between enrolment polls; real time when absent. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 export const EXIT_OK = 0;
@@ -75,11 +77,12 @@ const USAGE = [
   'Commands:',
   '  install --backend user|container (--dry-run | --yes) [--home <dir>] [--image <name@sha256:…>] [--runtime docker|podman|container]',
   '        List (--dry-run) or make (--yes) the job users, sudoers rule and service; user needs sudo, container must not.',
-  '  enrol --url <console origin> --backend container|user|none [--code -]',
+  '  enrol --url <console origin> --backend container|user|none [--code -] [--enrolment <request id>]',
   '        [--credential api-key|setup-token|claude-config-dir] [--claude-config-dir <dir>] [--image <name@sha256:…>]',
   `        Enrol this host with the one-time code from Settings › Runners, read from ${ENROL_CODE_ENV} or, with`,
   '        --code -, from one line of stdin (prompted on a terminal). --code <tce_…> works too, but any local user',
-  '        can read an argument with ps while enrol runs.',
+  '        can read an argument with ps while enrol runs. --enrolment <request id> (Add runner) needs no code: the',
+  '        console shows the fingerprint printed here, and the owner approves there.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
   '  run-once --oidc [--request-token -]  Inside a GitHub Actions run: exchange the run\'s OIDC token for the job in',
   '        TC_JOB_ID, run it and exit. Reads only its env (TC_CONSOLE_URL, TC_JOB_ID, TC_CONSOLE_AUDIENCE,',
@@ -112,6 +115,7 @@ function describeFailure(error: unknown): string {
   if (
     error instanceof RunnerFileError ||
     error instanceof EnrolUsageError ||
+    error instanceof EnrolIntentError ||
     error instanceof BackendError ||
     error instanceof InstallError ||
     error instanceof UpdateError ||
@@ -153,6 +157,7 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     credential?: string;
     'claude-config-dir'?: string;
     image?: string;
+    enrolment?: string;
   };
   try {
     ({ values } = parseArgs({
@@ -160,6 +165,7 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
       options: {
         url: { type: 'string' },
         code: { type: 'string' },
+        enrolment: { type: 'string' },
         backend: { type: 'string' },
         credential: { type: 'string' },
         'claude-config-dir': { type: 'string' },
@@ -182,9 +188,10 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
     return EXIT_USAGE;
   }
   try {
-    // Read only once the flags are complete, so a usage slip never swallows a piped code.
-    const code = await enrolCodeOf(values.code, deps.env, deps.readCodeLine);
-    if (code === undefined) {
+    // Read only once the flags are complete, so a usage slip never swallows a piped code. The intent door has none.
+    const code =
+      values.enrolment === undefined ? await enrolCodeOf(values.code, deps.env, deps.readCodeLine) : values.code;
+    if (code === undefined && values.enrolment === undefined) {
       deps.stderr(missing);
       return EXIT_USAGE;
     }
@@ -198,12 +205,21 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
       {
         url,
         code,
+        enrolment: values.enrolment,
         backend,
         credential: values.credential,
         claudeConfigDir: values['claude-config-dir'],
         image: values.image,
       },
-      { home, fetch: deps.fetch, host: deps.host, ...(deps.keys === undefined ? {} : { keys: deps.keys }) },
+      {
+        home,
+        fetch: deps.fetch,
+        host: deps.host,
+        out: deps.stdout,
+        ...(deps.keys === undefined ? {} : { keys: deps.keys }),
+        ...(deps.sleep === undefined ? {} : { sleep: deps.sleep }),
+        ...(deps.now === undefined ? {} : { now: deps.now }),
+      },
     );
     const projects =
       config.projectScope === 'all'

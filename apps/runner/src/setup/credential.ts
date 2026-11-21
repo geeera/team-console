@@ -29,6 +29,8 @@ export const CREDENTIAL_FILE_OF: Readonly<Record<SetUpCredentialKind, string>> =
   'api-key': `${CREDENTIALS_DIR}/anthropic.key`,
 };
 
+type FileCredential = Extract<CredentialConfig, { readonly file: string }>;
+
 export class CredentialSetupError extends Error {
   constructor(message: string) {
     super(message);
@@ -195,11 +197,11 @@ function nextCredential(
   config: RunnerConfig,
   kind: SetUpCredentialKind,
   replace: boolean,
-): { credential: CredentialConfig; changed: boolean } {
+): { credential: FileCredential; changed: boolean } {
   if (!CREDENTIAL_BACKENDS[kind].includes(config.backend)) {
     throw new CredentialSetupError(`a ${kind} credential is not allowed on the ${config.backend} backend`);
   }
-  const wanted: CredentialConfig = { kind, file: CREDENTIAL_FILE_OF[kind] };
+  const wanted = { kind, file: CREDENTIAL_FILE_OF[kind] } as FileCredential;
   const current = config.credential;
   const same = current !== undefined && current.kind === kind && 'file' in current && current.file === wanted.file;
   if (current !== undefined && !same && !replace) {
