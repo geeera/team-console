@@ -47,6 +47,21 @@ describe('RunnersStore', () => {
     expect(store.runnersOfAccount(undefined)).toEqual([runnerFixture()]);
   });
 
+  it('logs a failed read of another owned account and leaves it without runners (#891)', async () => {
+    const second: AccountMembershipDto = { id: '01M6YSNJ0000000000000000A3', slug: 'two', name: 'Two', role: 'owner' };
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { store } = setup({ ok: true, value: [OWNER, second] }, (id) =>
+      id === second.id
+        ? { ok: false, failure: { kind: 'offline', slug: null, field: null } }
+        : { ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } },
+    );
+    await store.load();
+    expect(store.status()).toBe('ready');
+    expect(store.runnersOfAccount(second.id)).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining(second.id));
+    warn.mockRestore();
+  });
+
   it('is empty, not an error, for an account with no runners', async () => {
     const { store } = setup({ ok: true, value: [OWNER] }, () => ({
       ok: true,
