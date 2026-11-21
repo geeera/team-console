@@ -3,7 +3,7 @@ import type { DesignManifestDto } from '@shared/contracts';
 import { animationsSettled } from './support/axe';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { seed } from './support/stack';
+import { clearFakePulls, seed } from './support/stack';
 
 /**
  * The design viewer (#277) on the fixture repository: design issue #90004 carries phone and Mac renders under
@@ -41,6 +41,13 @@ async function openViewer(page: Page): Promise<void> {
 test.beforeAll(async ({ stack }) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
+});
+
+// The commit-move test takes over the pull request list; later files on this worker expect the mock's again.
+test.afterAll(async ({ stack }) => {
+  if (stack.fakeURL !== null) {
+    await clearFakePulls(stack, 'geeera/team-console');
+  }
 });
 
 test('the api lists the raster screens at the pull request head, never the SVG, and serves them safely', async ({

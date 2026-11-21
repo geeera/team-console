@@ -318,6 +318,14 @@ export class FakeGitHubOAuth {
     this.pulls.set(repo.toLowerCase(), pulls);
   }
 
+  /**
+   * Forgets the repository's seeded pull requests (#858): its pulls read answers 404 again, so the api's mock serves
+   * its default list. An empty seed would not do: it answers `[]` and hides the mock's pull request.
+   */
+  clearPulls(repo: string): void {
+    this.pulls.delete(repo.toLowerCase());
+  }
+
   /** The repository's milestones as they are now, for assertions; empty when none were seeded. */
   milestonesOf(repo: string): readonly FakeMilestone[] {
     return this.milestones.get(repo.toLowerCase()) ?? [];
