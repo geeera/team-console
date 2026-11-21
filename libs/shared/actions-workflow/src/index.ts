@@ -16,6 +16,7 @@ export {
   RUNNER_WORKFLOW_PINS,
   RUNNER_WORKFLOW_PIN_NAMES,
   compareVersions,
+  differsOnlyInReleaseValues,
   loweredPinsOf,
   readRunnerWorkflowPins,
   type ReadRunnerWorkflowPins,

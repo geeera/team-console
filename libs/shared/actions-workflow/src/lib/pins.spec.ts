@@ -1,4 +1,4 @@
-import { compareVersions, loweredPinsOf, readRunnerWorkflowPins } from './pins';
+import { compareVersions, differsOnlyInReleaseValues, loweredPinsOf, readRunnerWorkflowPins } from './pins';
 import { renderRunnerWorkflow } from './render';
 
 // #759 PR 4: the pins of the file on a default branch, read without parsing the customer's YAML.
@@ -50,5 +50,41 @@ describe('compareVersions and loweredPinsOf', () => {
     expect(loweredPinsOf({ runner: '0.1.0', node: '22.23.5', claudeCode: '2.1.325' }, next)).toEqual([]);
     expect(loweredPinsOf({ runner: '0.3.0', node: '22.23.5', claudeCode: '2.2.0' }, next)).toEqual(['runner', 'claudeCode']);
     expect(loweredPinsOf({ runner: null, node: null, claudeCode: null }, next)).toEqual([]);
+  });
+});
+
+describe('differsOnlyInReleaseValues (#870)', () => {
+  /** The rendering at another release: every pin and checksum line given a different value, layout kept. */
+  const olderRelease = (text: string): string =>
+    text
+      .replace(/^(\s+RUNNER_VERSION: ).*$/m, '$10.0.9')
+      .replace(/^(\s+NODE_VERSION: ).*$/m, '$122.1.0')
+      .replace(/^(\s+NODE_SHA256: ).*$/m, `$1${'0'.repeat(64)}`)
+      .replace(/^(\s+CLAUDE_CODE_VERSION: ).*$/m, '$12.0.0')
+      .replace(/^(\s+CLAUDE_CODE_SHA512: ).*$/m, `$1${'1'.repeat(128)}`);
+
+  it('is true for the rendering itself and for the rendering at another release', async () => {
+    const { text } = await rendering();
+    expect(differsOnlyInReleaseValues(text, text)).toBe(true);
+    const older = olderRelease(text);
+    expect(older).not.toBe(text);
+    expect(differsOnlyInReleaseValues(older, text)).toBe(true);
+  });
+
+  it.each<[string, (text: string) => string]>([
+    ['one more line', (text) => `${text}# appended\n`],
+    ['another step command', (text) => text.replace('--deny-self-hosted-runners', '')],
+    ['a pin line repeated', (text) => text.replace(/^(\s+RUNNER_VERSION: .*)$/m, '$1\n$1')],
+    ['a pin line missing', (text) => text.replace(/^\s+NODE_SHA256: .*\n/m, '')],
+    ['a checksum of the wrong length', (text) => text.replace(/^(\s+NODE_SHA256: ).*$/m, `$1${'0'.repeat(63)}`)],
+    ['a pin that is an expression', (text) => text.replace(/^(\s+RUNNER_VERSION: ).*$/m, '$1${{ vars.V }}')],
+  ])('is false with %s', async (_case, change) => {
+    const { text } = await rendering();
+    expect(differsOnlyInReleaseValues(change(olderRelease(text)), text)).toBe(false);
+  });
+
+  it('is false for a text far larger than a workflow', async () => {
+    const { text } = await rendering();
+    expect(differsOnlyInReleaseValues(`${text}${'#'.repeat(70 * 1024)}`, text)).toBe(false);
   });
 });

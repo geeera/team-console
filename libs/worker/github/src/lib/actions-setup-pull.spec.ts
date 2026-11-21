@@ -1,4 +1,12 @@
-import { RUNNER_WORKFLOW_PATH, judgePullProvenance, readActionsSetupPull, sameWorkflowBytes, type ActionsSetupPull } from './actions-setup-pull';
+import {
+  RUNNER_WORKFLOW_PATH,
+  SETUP_BRANCHES_MAX,
+  judgePullProvenance,
+  readActionsSetupPull,
+  readSetupBranches,
+  sameWorkflowBytes,
+  type ActionsSetupPull,
+} from './actions-setup-pull';
 import { GitHubAppAuth } from './app-auth';
 import { GitHubClient } from './client';
 import { MOCK_FIXTURES, createMockGitHub, type MockFixtures } from './mock';
@@ -86,6 +94,70 @@ describe('readActionsSetupPull', () => {
 
   it('answers null when no PR is open from the branch', async () => {
     await expect(readActionsSetupPull(client, parseRepoName(REPO), 'team-console/runner-ffffffffffff')).resolves.toBeNull();
+  });
+});
+
+describe('readSetupBranches (#870)', () => {
+  let refs: () => Response;
+  let client: GitHubClient;
+  const paths: string[] = [];
+
+  beforeAll(async () => {
+    const mock = await createMockGitHub(FIXTURES);
+    const fetch: FetchLike = async (input, init) => {
+      const url = new URL(input);
+      if (url.pathname.includes('/git/matching-refs/')) {
+        paths.push(`${init.method ?? 'GET'} ${url.pathname}`);
+        return refs();
+      }
+      return mock.fetch(input, init);
+    };
+    const auth = new GitHubAppAuth(mock.credentials, { fetch });
+    client = new GitHubClient(fetch, auth.tokenSourceFor(parseRepoName(REPO)));
+  });
+
+  beforeEach(() => {
+    paths.length = 0;
+  });
+
+  const answer = (status: number, body: unknown) => (): Response =>
+    new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
+
+  it('reads the refs under the setup prefix and keeps only exact setup branch names', async () => {
+    refs = answer(200, [
+      { ref: `refs/heads/${BRANCH}` },
+      { ref: 'refs/heads/team-console/runner-0123456789ab-extra' },
+      { ref: 'refs/heads/team-console/runner-XYZ' },
+      { ref: 'refs/tags/team-console/runner-aaaaaaaaaaaa' },
+      { ref: 42 },
+      'not a ref',
+      { ref: 'refs/heads/team-console/runner-ffffffffffff' },
+    ]);
+    await expect(readSetupBranches(client, parseRepoName(REPO))).resolves.toEqual([BRANCH, 'team-console/runner-ffffffffffff']);
+    expect(paths).toEqual([`GET /repos/${REPO}/git/matching-refs/heads/team-console/runner-`]);
+  });
+
+  it(`keeps at most ${String(SETUP_BRANCHES_MAX)} branches`, async () => {
+    const many = Array.from({ length: SETUP_BRANCHES_MAX + 5 }, (_, index) => ({
+      ref: `refs/heads/team-console/runner-${index.toString(16).padStart(12, '0')}`,
+    }));
+    refs = answer(200, many);
+    await expect(readSetupBranches(client, parseRepoName(REPO))).resolves.toHaveLength(SETUP_BRANCHES_MAX);
+  });
+
+  it('answers none on GitHub’s 404', async () => {
+    refs = answer(404, { message: 'Not Found' });
+    await expect(readSetupBranches(client, parseRepoName(REPO))).resolves.toEqual([]);
+  });
+
+  it('throws any other failure, so the check answers github-unavailable instead of a guess', async () => {
+    refs = answer(503, { message: 'Service Unavailable' });
+    await expect(readSetupBranches(client, parseRepoName(REPO))).rejects.toThrow();
+  });
+
+  it('throws on an answer that is not a list', async () => {
+    refs = answer(200, { ref: `refs/heads/${BRANCH}` });
+    await expect(readSetupBranches(client, parseRepoName(REPO))).rejects.toThrow();
   });
 });
 

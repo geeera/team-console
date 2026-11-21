@@ -3,6 +3,7 @@ export {
   RUNNER_WORKFLOW_PATH,
   judgePullProvenance,
   readActionsSetupPull,
+  readSetupBranches,
   sameWorkflowBytes,
 } from './lib/actions-setup-pull';
 export type { ActionsSetupPull, PullProvenance, PullProvenanceExpectation } from './lib/actions-setup-pull';

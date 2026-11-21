@@ -61,3 +61,42 @@ export function loweredPinsOf(current: ReadRunnerWorkflowPins, next: RunnerWorkf
     return now !== null && compareVersions(next[pin], now) < 0;
   });
 }
+
+/**
+ * The lines a release changes besides the pins: each pin's checksum. A version line is `x.y.z`, a checksum line the
+ * exact hex length of its digest, so neither pattern can swallow anything else on the line.
+ */
+const RELEASE_LINES: readonly { readonly name: string; readonly value: string }[] = [
+  { name: RUNNER_WORKFLOW_PIN_NAMES.runner, value: '\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}' },
+  { name: RUNNER_WORKFLOW_PIN_NAMES.node, value: '\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}' },
+  { name: 'NODE_SHA256', value: '[0-9a-f]{64}' },
+  { name: RUNNER_WORKFLOW_PIN_NAMES.claudeCode, value: '\\d{1,5}\\.\\d{1,5}\\.\\d{1,5}' },
+  { name: 'CLAUDE_CODE_SHA512', value: '[0-9a-f]{128}' },
+];
+
+/** The text with every release line's value blanked, or `null` when a line is missing, repeated or malformed. */
+function withoutReleaseValues(text: string): string | null {
+  if (text.length > MAX_LENGTH) {
+    return null;
+  }
+  let blanked = text;
+  for (const line of RELEASE_LINES) {
+    const pattern = new RegExp(`^([ \\t]+${line.name}:[ \\t]*)(['"]?)${line.value}\\2([ \\t]*)$`, 'gm');
+    if ([...blanked.matchAll(pattern)].length !== 1) {
+      return null;
+    }
+    // A callback, not a replacement string: `$` in a pattern-built replacement would be interpreted.
+    blanked = blanked.replace(pattern, (_match, head: string, _quote: string, tail: string) => `${head}<${line.name}>${tail}`);
+  }
+  return blanked;
+}
+
+/**
+ * Whether `file` is `rendering` with other release values (#870, `outdated`): the same text once each version pin
+ * and checksum line is blanked on both sides. Anything else that differs, a line moved, repeated or reformatted
+ * included, makes it `false`, so only the console's own template, at another release, counts.
+ */
+export function differsOnlyInReleaseValues(file: string, rendering: string): boolean {
+  const left = withoutReleaseValues(file);
+  return left !== null && left === withoutReleaseValues(rendering);
+}

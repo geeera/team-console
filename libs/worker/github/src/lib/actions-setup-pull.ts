@@ -1,6 +1,8 @@
-import { ACTIONS_WORKFLOW_FILE } from '@shared/contracts';
+import { ACTIONS_SETUP_BRANCH_PREFIX } from '@shared/actions-workflow';
+import { ACTIONS_WORKFLOW_FILE, isGitHubUiUrl } from '@shared/contracts';
 import { readRunnerWorkflowFile, type RunnerWorkflowFile } from './actions-setup-reads';
 import type { GitHubClient } from './client';
+import { GitHubError } from './errors';
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
 
@@ -13,7 +15,6 @@ import type { RepoName } from './repo-name';
  */
 
 export const RUNNER_WORKFLOW_PATH = `.github/workflows/${ACTIONS_WORKFLOW_FILE}`;
-const GITHUB_UI_URL = /^https:\/\/github\.com\/[^\s"'<>\\]*$/;
 const SHA = /^[0-9a-f]{40}$/;
 
 export interface ActionsSetupPull {
@@ -100,7 +101,7 @@ export async function readActionsSetupPull(
     return null;
   }
   const pull = await client.getJson(githubPath`/repos/${repo}/pulls/${number}`, isPullAnswer);
-  const htmlUrl = typeof pull.html_url === 'string' && GITHUB_UI_URL.test(pull.html_url) ? pull.html_url : null;
+  const htmlUrl = isGitHubUiUrl(pull.html_url) ? pull.html_url : null;
   let files: string[] = [];
   let headFile: RunnerWorkflowFile | null = null;
   if (pull.commits === 1 && pull.changed_files === 1) {
@@ -119,6 +120,43 @@ export async function readActionsSetupPull(
     files,
     headFile,
   };
+}
+
+/** A setup branch as the console names it: the prefix and 12 hex characters of a rendering's sha256. */
+const SETUP_BRANCH_STEM = /^[0-9a-f]{12}$/;
+const isSetupBranch = (branch: string): boolean =>
+  branch.startsWith(ACTIONS_SETUP_BRANCH_PREFIX) && SETUP_BRANCH_STEM.test(branch.slice(ACTIONS_SETUP_BRANCH_PREFIX.length));
+/** More setup branches than this are not the console's doing; the rest are not looked at. */
+export const SETUP_BRANCHES_MAX = 20;
+
+const isRefList = (value: unknown): value is unknown[] => Array.isArray(value);
+
+/**
+ * The console's setup branches in the repository (#870, a stale PR): `GET …/git/matching-refs/heads/<prefix>`, one
+ * read with the cached read token (Contents: read), refs only. Names that are not exactly a setup branch are
+ * dropped; GitHub's 404 (an empty repository) is none. At most `SETUP_BRANCHES_MAX`, in GitHub's order.
+ */
+export async function readSetupBranches(client: GitHubClient, repo: RepoName): Promise<string[]> {
+  const [area, stem, ...rest] = ACTIONS_SETUP_BRANCH_PREFIX.split('/');
+  if (area === undefined || stem === undefined || rest.length > 0) {
+    throw new Error('the setup branch prefix is one directory and a stem');
+  }
+  let refs: unknown[];
+  try {
+    refs = await client.getJson(githubPath`/repos/${repo}/git/matching-refs/heads/${area}/${stem}`, isRefList);
+  } catch (error: unknown) {
+    if (error instanceof GitHubError && error.problem.type === 'github-not-found') {
+      return [];
+    }
+    throw error;
+  }
+  return refs
+    .flatMap((ref) => {
+      const name = isRecord(ref) && typeof ref['ref'] === 'string' ? ref['ref'] : '';
+      const branch = name.startsWith('refs/heads/') ? name.slice('refs/heads/'.length) : '';
+      return isSetupBranch(branch) ? [branch] : [];
+    })
+    .slice(0, SETUP_BRANCHES_MAX);
 }
 
 export interface PullProvenanceExpectation {

@@ -1,5 +1,7 @@
 import {
+  ACTIONS_SETUP_DTO_KEYS,
   ACTIONS_SETUP_ITEMS,
+  MIN_RUNNER_VERSION,
   actionsRunIdOf,
   actionsRunnerNameOf,
   blockingItemsOf,
@@ -92,6 +94,14 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     ready: true,
     checkedAt: '2026-11-18T00:00:00.000Z',
     items: okItems(),
+    defaultBranch: 'main',
+    workflowPr: 'enabled',
+    versions: {
+      expected: { runner: '0.2.0', node: '22.23.5', claudeCode: '2.1.325' },
+      current: { runner: '0.2.0', node: '22.23.5', claudeCode: '2.1.325' },
+      minRunner: MIN_RUNNER_VERSION,
+      runnerSupport: 'supported',
+    },
   };
   const withItem = (item: Record<string, unknown>): Record<string, unknown> => ({
     ...ready,
@@ -107,6 +117,43 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     expect(isActionsSetupDto(withItem({ id: 'secret', status: 'ok', updatedAt: '2026-11-01' }))).toBe(false);
     expect(isActionsSetupDto(withItem({ id: 'protection-rules', status: 'wrong', reviewers: ['someone'] }))).toBe(false);
     expect(isActionsSetupDto({ ...ready, checkedAt: 'yesterday' })).toBe(false);
+  });
+
+  it('has exactly the documented top-level keys (#870)', () => {
+    expect(Object.keys(ready).sort()).toEqual([...ACTIONS_SETUP_DTO_KEYS].sort());
+    for (const key of ACTIONS_SETUP_DTO_KEYS) {
+      const { [key]: _dropped, ...rest } = ready;
+      expect(isActionsSetupDto(rest), `without ${key}`).toBe(false);
+    }
+    expect(isActionsSetupDto({ ...ready, installationId: 1 })).toBe(false);
+  });
+
+  it('takes a default branch or null, and the PR path as enabled or disabled (#870)', () => {
+    expect(isActionsSetupDto({ ...ready, defaultBranch: null })).toBe(true);
+    expect(isActionsSetupDto({ ...ready, defaultBranch: '' })).toBe(false);
+    expect(isActionsSetupDto({ ...ready, defaultBranch: 7 })).toBe(false);
+    expect(isActionsSetupDto({ ...ready, workflowPr: 'disabled' })).toBe(true);
+    expect(isActionsSetupDto({ ...ready, workflowPr: true })).toBe(false);
+  });
+
+  it('takes versions with exactly their keys, versions as x.y.z and current pins nullable (#870)', () => {
+    const versions = ready.versions;
+    const withVersions = (patch: Record<string, unknown>): Record<string, unknown> => ({ ...ready, versions: { ...versions, ...patch } });
+    expect(isActionsSetupDto(withVersions({ current: null, runnerSupport: 'unknown' }))).toBe(true);
+    expect(isActionsSetupDto(withVersions({ current: { runner: null, node: '22.1.0', claudeCode: null } }))).toBe(true);
+    expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: null } }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: '1.2.3-rc.1' } }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ current: { ...versions.current, sha: 'x' } }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ minRunner: 'latest' }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ runnerSupport: 'maybe' }))).toBe(false);
+    expect(isActionsSetupDto(withVersions({ fileText: 'name: x' }))).toBe(false);
+  });
+
+  it('takes a stale flag on a PR only as true (#870)', () => {
+    const pr = { number: 3, url: 'https://github.com/acme/x/pull/3', provenance: 'console' };
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: true } }))).toBe(true);
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: false } }))).toBe(false);
+    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: 'yes' } }))).toBe(false);
   });
 
   it('refuses a ready flag that disagrees with the items', () => {
@@ -133,6 +180,15 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     expect(blockingItemsOf(okItems())).toEqual([]);
   });
 
+  it('lets an outdated workflow through and holds an unsupported one back (#870)', () => {
+    const withWorkflow = (status: ActionsSetupItemDto['status']): ActionsSetupItemDto[] =>
+      okItems().map((entry) => (entry.id === 'workflow' ? { ...entry, status } : entry));
+    expect(blockingItemsOf(withWorkflow('outdated'))).toEqual([]);
+    expect(blockingItemsOf(withWorkflow('unsupported'))).toEqual(['workflow']);
+    expect(isActionsSetupDto({ ...ready, items: withWorkflow('outdated'), ready: true })).toBe(true);
+    expect(isActionsSetupDto({ ...ready, items: withWorkflow('unsupported'), ready: true })).toBe(false);
+  });
+
   it.each([
     ['https://github.com/acme/x', true],
     ['https://github.com.evil.example/x', false],
@@ -141,6 +197,24 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     ['https://github.com/acme/<x>', false],
     ['https://github.com/acme/x y', false],
     [42, false],
+    // #870: the host is the parser's, not a prefix's.
+    ['https://github.com/acme/x/pull/3?diff=split#files', true],
+    ['https://github.com', false],
+    ['https://user@github.com/acme/x', false],
+    ['https://user:pass@github.com/acme/x', false],
+    ['https://github.com@evil.example/x', false],
+    ['https://github.com:8443/acme/x', false],
+    ['https://github.com:443/acme/x', false],
+    ['https://GITHUB.com/acme/x', false],
+    ['https://github.com./acme/x', false],
+    ['https://api.github.com/repos/acme/x', false],
+    ['https://evil.example/https://github.com/', false],
+    ['javascript:alert(1)//https://github.com/', false],
+    ['https://github.com/acme/x\\..\\evil', false],
+    ['https://github.com/acme/x\n', false],
+    [`https://github.com/${'a'.repeat(2100)}`, false],
+    ['', false],
+    [null, false],
   ])('isGitHubUiUrl(%j) is %s', (value, expected) => {
     expect(isGitHubUiUrl(value)).toBe(expected);
   });
