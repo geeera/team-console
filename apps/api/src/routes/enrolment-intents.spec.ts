@@ -167,7 +167,9 @@ describe('the owner’s enrolment intents', () => {
     expect(response.status).toBe(201);
     const body = (await response.json()) as EnrolmentIntentCreatedDto;
     expect(isEnrolmentIntentCreatedDto(body)).toBe(true);
-    expect(Object.keys(body).sort()).toEqual(['command', 'expiresAt', 'intentId']);
+    expect(Object.keys(body).sort()).toEqual(['command', 'expiresAt', 'installCommands', 'intentId']);
+    // No release named in the test env: no one-liner (#634 PR 5).
+    expect(body.installCommands).toBeNull();
     expect(Date.parse(body.expiresAt) - Date.now()).toBeGreaterThan(9 * 60 * 1000);
     expect(Date.parse(body.expiresAt) - Date.now()).toBeLessThanOrEqual(10 * 60 * 1000);
 
@@ -221,7 +223,9 @@ describe('the owner’s enrolment intents', () => {
     const configured = (await (
       await create(accessEnv(uniqueTeamDomain(), { CONSOLE_PUBLIC_ORIGIN: 'https://console.example' }), 'https://evil.example')
     ).json()) as EnrolmentIntentCreatedDto;
-    expect(configured.command).toBe(`team-console-runner setup --url https://console.example --enrolment ${configured.intentId}`);
+    expect(configured.command).toBe(
+      `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment ${configured.intentId}`,
+    );
 
     // No origin configured on a deployed environment: no command, rather than one that names whatever host was asked.
     const unconfigured = (await (await create(accessEnv(uniqueTeamDomain(), { CONSOLE_PUBLIC_ORIGIN: undefined }), 'https://evil.example')).json()) as EnrolmentIntentCreatedDto;
@@ -243,7 +247,42 @@ describe('the owner’s enrolment intents', () => {
       localEnv({ AUTH_MODE: undefined, CONSOLE_PUBLIC_ORIGIN: 'https://team-console-dev.example' }),
     );
     const body = (await response.json()) as EnrolmentIntentCreatedDto;
-    expect(body.command).toBe(`team-console-runner setup --url http://api.test --enrolment ${body.intentId}`);
+    expect(body.command).toBe(
+      `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url http://api.test --enrolment ${body.intentId}`,
+    );
+    // The one-liner needs https: the local stack's http origin gets none.
+    expect(body.installCommands).toBeNull();
+  });
+
+  it('carries the Mac one-liners when the environment names a release that ships node, built from the configured vars', async () => {
+    const sums = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']
+      .map((platform, index) => `${String(index + 1).repeat(64)}  team-console-runner-0.2.0-${platform}.tar.gz\n`)
+      .join('');
+    const vars = { CONSOLE_PUBLIC_ORIGIN: 'https://console.example', RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sums };
+    // A fresh owner each time: an account holds at most three open intents.
+    const create = async (bindings: Record<string, string>): Promise<EnrolmentIntentCreatedDto> => {
+      const owner = await seedSessionUser('owner');
+      const body = { name: 'x', isolation: 'user' };
+      const env = accessEnv(uniqueTeamDomain(), bindings);
+      const response = await sendAsSession(owner, 'POST', intentsPath(owner.account.id), body, { origin: 'https://evil.example' }, env);
+      expect(response.status).toBe(201);
+      return (await response.json()) as EnrolmentIntentCreatedDto;
+    };
+
+    const body = await create(vars);
+    expect(isEnrolmentIntentCreatedDto(body)).toBe(true);
+    expect(body.installCommands?.version).toBe('0.2.0');
+    const arm = body.installCommands?.['darwin-arm64'] ?? '';
+    expect(arm).toContain('https://github.com/geeera/team-console/releases/download/v0.2.0/team-console-runner-0.2.0-darwin-arm64.tar.gz');
+    expect(arm).toContain(`echo "${'1'.repeat(64)}  $d/tcr.tgz"`);
+    expect(arm).toContain(`--url https://console.example --enrolment ${body.intentId}`);
+    expect(arm).not.toContain('evil.example');
+    expect(body.installCommands?.['darwin-x64']).toContain(`--sha256 ${'2'.repeat(64)}`);
+
+    // Malformed sums, a release before the bundled node, or no version: no one-liner.
+    expect((await create({ ...vars, RUNNER_RELEASE_SHA256SUMS: sums.replace('\n', '') })).installCommands).toBeNull();
+    expect((await create({ ...vars, RUNNER_RELEASE_VERSION: '0.1.0', RUNNER_RELEASE_SHA256SUMS: sums.replaceAll('0.2.0', '0.1.0') })).installCommands).toBeNull();
+    expect((await create({ ...vars, RUNNER_RELEASE_VERSION: '' })).installCommands).toBeNull();
   });
 
   it.each([

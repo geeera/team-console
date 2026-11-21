@@ -59,6 +59,12 @@ export interface ApiEnv extends WorkerBaseEnv {
   readonly RUNNER_RELEASE_VERSION?: string;
   readonly RUNNER_MINIMUM_VERSION?: string;
   /**
+   * Non-secret var (#634 PR 5, S1): the named release's `SHA256SUMS` text, the sums the macOS install one-liner checks
+   * a download against. deploy.yml refuses to deploy unless it equals the attested file of `RUNNER_RELEASE_VERSION`;
+   * the Worker still refuses any value that is not exactly that release's four lines (`releaseSumsOf`).
+   */
+  readonly RUNNER_RELEASE_SHA256SUMS?: string;
+  /**
    * Non-secret var, the kill switch of the Actions setup's write path (#759, security note): only the exact value
    * `true` lets the `workflow-pr` mint (Contents, Workflows and Pull requests write) run. `false` on stage and
    * production until a reviewed change turns each on; unset is off. Set by `wrangler.jsonc` alone, never by `--var`

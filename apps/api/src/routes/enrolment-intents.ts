@@ -47,6 +47,7 @@ import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { auditOf, foreignSlugsOf } from './account-runners';
 import { ownedAccountOf } from './accounts';
+import { macInstallCommandsOf } from './runner-install-command';
 import {
   ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE,
   ENROL_RATE_LIMIT_PER_MINUTE,
@@ -182,6 +183,7 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
         intentId,
         expiresAt,
         command: origin === null ? null : setupCommandOf(origin, intentId),
+        installCommands: macInstallCommandsOf(c.env, origin, intentId),
       };
       return c.json(body, 201);
     })

@@ -4,6 +4,7 @@ import {
   checkPollEnrolmentInput,
   checkStartEnrolmentInput,
   isEnrolmentIntentCreatedDto,
+  isRunnerInstallCommandsDto,
   isEnrolmentIntentDto,
   isPollEnrolmentPendingDto,
   isRunnerKeyFingerprint,
@@ -147,8 +148,9 @@ describe('checkPollEnrolmentInput and checkApproveEnrolmentIntentInput', () => {
 
 describe('setupCommandOf', () => {
   it('names the origin and the intent', () => {
+    // N3 of the wizard spec: exactly the runbook's invocation, with sudo and the installed launcher.
     expect(setupCommandOf('https://console.example', INTENT)).toBe(
-      `team-console-runner setup --url https://console.example --enrolment ${INTENT}`,
+      `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment ${INTENT}`,
     );
     expect(setupCommandOf('http://localhost:8787', INTENT)).toContain('--url http://localhost:8787 ');
   });
@@ -192,8 +194,14 @@ describe('the DTO guards', () => {
 
   it('narrow the creation, the bind and the pending poll', () => {
     const expiresAt = '2026-11-18T10:10:00.000Z';
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null })).toBe(true);
-    expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, command: null })).toBe(false);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null })).toBe(true);
+    expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, command: null, installCommands: null })).toBe(false);
+    const installCommands = { version: '0.2.0', 'darwin-arm64': 'curl …', 'darwin-x64': 'curl …' };
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands })).toBe(true);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null })).toBe(false);
+    expect(isRunnerInstallCommandsDto({ ...installCommands, 'linux-x64': 'x' })).toBe(false);
+    expect(isRunnerInstallCommandsDto({ ...installCommands, 'darwin-x64': '' })).toBe(false);
+    expect(isRunnerInstallCommandsDto({ ...installCommands, version: 'v0.2.0' })).toBe(false);
     const bind = { pollToken: 'tcep_x', fingerprint: 'J3XC-NZN9', intervalSeconds: 5, expiresAt, accountName: 'Acme' };
     expect(isStartEnrolmentResponse(bind)).toBe(true);
     expect(isStartEnrolmentResponse({ ...bind, intervalSeconds: 0 })).toBe(false);

@@ -1,4 +1,4 @@
-import { NODE_FILE } from '@shared/contracts';
+import { NODE_FILE, RUNNER_INSTALL_PREFIX } from '@shared/contracts';
 import { JOB_USER, RUNNER_USER } from '../backends/user';
 import { RUNNER_HOME_ENV } from '../config/config';
 
@@ -26,11 +26,9 @@ export interface ServiceFiles {
   readonly home: string;
 }
 
-const DOCUMENTED_PREFIX = '/usr/local/lib/team-console-runner';
-
 export const DOCUMENTED_DEFAULTS: ServiceFiles = {
-  node: `${DOCUMENTED_PREFIX}/${NODE_FILE}`,
-  prefix: DOCUMENTED_PREFIX,
+  node: `${RUNNER_INSTALL_PREFIX}/${NODE_FILE}`,
+  prefix: RUNNER_INSTALL_PREFIX,
   home: '/Users/_tcrunner',
 };
 

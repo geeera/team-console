@@ -44,6 +44,11 @@ export const tarballNameOf = (version: string, platform: ReleasePlatform): strin
 export const tarballUrlOf = (version: string, platform: ReleasePlatform): string =>
   `https://${RELEASE_HOST}/${RELEASE_REPOSITORY}/releases/download/${releaseTagOf(version)}/${tarballNameOf(version, platform)}`;
 
+/** Where `setup` installs a release on macOS (ADR 0008 decision 11): root-owned, named by the plist and sudoers. */
+export const RUNNER_INSTALL_PREFIX = '/usr/local/lib/team-console-runner';
+/** The installed launcher: what the runbook and the console's `setup` command run with sudo. */
+export const RUNNER_INSTALLED_LAUNCHER = `${RUNNER_INSTALL_PREFIX}/bin/${RUNNER_BINARY}`;
+
 export const BUNDLE_FILE = `${RUNNER_BINARY}.mjs`;
 /**
  * The Node.js binary each tarball ships for its platform (#634 PR 5, R-NODE-1): pinned and verified in the release
