@@ -101,7 +101,7 @@ export function isolatedName(name: string): string {
             }
           }
         </div>
-        @if (canRun()) {
+        @if (showsRunNow()) {
           <tc-run-now
             class="board-jobs__run-now"
             [slug]="slug()"
@@ -148,6 +148,7 @@ export function isolatedName(name: string): string {
               size="sm"
               variant="quiet"
               type="button"
+              class="board-jobs__refresh"
               data-testid="jobs-refresh"
               [loading]="store.refreshing()"
               (click)="refresh()"
@@ -265,6 +266,14 @@ export function isolatedName(name: string): string {
       gap: var(--space-2);
     }
 
+    /*
+     * #848: the quiet button's own inset is pulled out on both sides, so its icon lines up with the title when the
+     * button wraps under it and with the list's right edge when it sits beside it.
+     */
+    .board-jobs__refresh {
+      margin-inline: calc(-1 * var(--space-3));
+    }
+
     .board-jobs__title {
       margin: 0;
       font-size: var(--fs-md);
@@ -300,6 +309,12 @@ export class BoardJobs {
   readonly pause = input<JobsPauseLine | null>(null);
   /** The runner D3 holds back from the project, from the owner's own runner list; `null` when none fits. */
   readonly d3Runner = input<RunnerDto | null>(null);
+  /**
+   * The caller owns an account (the runners read found one), for the one case the jobs answer cannot say it: a failed
+   * first read. Run now then stays beside the error block (#848, #775 UX spec "error"); a member's press is refused by
+   * the Worker and worded by Run now itself.
+   */
+  readonly ownsAccount = input(false);
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
   private readonly restoreRetryFocus = injectRetryFocus(() => this.heading());
@@ -311,6 +326,9 @@ export class BoardJobs {
     return status === 'idle' || status === 'loading';
   });
   protected readonly canRun = computed(() => this.store.canRunNow());
+  protected readonly showsRunNow = computed(
+    () => this.canRun() || (this.store.status() === 'error' && this.ownsAccount()),
+  );
   /** A job queued now waits for a runner: the outcome line says so instead of «queued». */
   protected readonly isWaiting = computed(() => {
     const availability = this.store.availability();
