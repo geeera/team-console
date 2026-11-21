@@ -8,6 +8,7 @@ import {
   type GitHubUser,
   type OwnerAccount,
   type OwnerTokenSource,
+  type TokenEndpointResult,
   type UserTokenPair,
 } from '@worker/github';
 import { ownerFlowMisconfigured, type OwnerKeys } from './owner-keys';
@@ -23,6 +24,14 @@ export const LEASE_WAIT_MS = 200;
 const MAX_PASSES = LEASE_WAIT_ATTEMPTS + 4;
 
 type TokenColumn = 'access_token_enc' | 'refresh_token_enc';
+
+/** `user-id-changed`: refused, nothing stored or revoked (#831). */
+export type ConnectOutcome = 'connected' | 'user-id-changed';
+
+interface PreviousPair {
+  readonly accessToken: string | null;
+  readonly refreshToken: string | null;
+}
 
 export type DisconnectOutcome =
   | { readonly kind: 'revoked' | 'not-connected' }
@@ -145,23 +154,26 @@ export class OwnerConnection implements OwnerTokenSource {
   }
 
   /**
-   * Stores a fresh pair from the callback, replacing any previous connection of the environment. The previous
-   * access token is revoked first (#86); a failed revoke is logged and the connect goes on. Only the access token:
-   * GitHub does not document that this ends its refresh token too, so a reconnect is not a remediation for a leaked
-   * pair — that stays "Revoke all user tokens" (ADR 0003 decision 7). The connection keeps the login and id only;
-   * the profile name goes to the user row, not here (#775).
+   * Stores a fresh pair from the callback, replacing any previous connection of the environment (#86, #831).
+   *
+   * A different GitHub user id than the stored one is refused and nothing changes: the login was renamed or taken
+   * over, and swapping the account silently would hand the owner's writes to someone else. A deliberate switch goes
+   * through Disconnect first. The caller revokes the fresh pair. The connection keeps the login and id only; the
+   * profile name goes to the user row, not here (#775).
+   *
+   * The previous pair is read before the write and retired only after it succeeds, so a failed write leaves the
+   * old connection working. Retiring is best effort and logged; see `retirePrevious`.
    */
-  async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<void> {
+  async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<ConnectOutcome> {
     const previous = await this.repo.find(this.environment);
-    if (previous !== null) {
-      if (previous.user_id !== user.id) {
-        this.logger.warn('owner connection: the GitHub user id changed since the last connect', {
-          securitySignal: 'owner-user-id-changed',
-          login: user.login,
-        });
-      }
-      await this.revokePrevious(previous);
+    if (previous !== null && previous.user_id !== user.id) {
+      this.logger.warn('owner connect refused: the GitHub user id changed since the last connect', {
+        securitySignal: 'owner-user-id-changed',
+        login: user.login,
+      });
+      return 'user-id-changed';
     }
+    const retired = previous === null ? null : await this.previousPair(previous);
     await this.repo.connect({
       environment: this.environment,
       login: user.login,
@@ -169,6 +181,10 @@ export class OwnerConnection implements OwnerTokenSource {
       now: new Date(this.now()).toISOString(),
       ...(await this.seal(pair)),
     });
+    if (retired !== null) {
+      await this.retirePrevious(retired);
+    }
+    return 'connected';
   }
 
   /**
@@ -215,29 +231,89 @@ export class OwnerConnection implements OwnerTokenSource {
     }
   }
 
-  /** Best effort: the reconnect must not fail because the pair it replaces cannot be revoked. */
-  private async revokePrevious(row: OwnerConnectionRow): Promise<void> {
-    const token = await this.storedAccessToken(row);
-    if (token === null) {
-      this.logger.warn('owner reconnect: the previous access token was not revoked', {
+  /** The previous row's tokens that can still be used: decrypted under the current key and not expired. */
+  private async previousPair(row: OwnerConnectionRow): Promise<PreviousPair> {
+    const accessToken = await this.storedAccessToken(row);
+    let refreshToken: string | null = null;
+    if (row.key_id === this.keys.keyId && row.refresh_expires_at > this.nowSeconds()) {
+      try {
+        refreshToken = await openText(
+          this.keys.tokenKey,
+          row.refresh_token_enc,
+          this.aad('refresh_token_enc'),
+        );
+      } catch (error: unknown) {
+        if (!(error instanceof UnsealError)) {
+          throw error;
+        }
+      }
+    }
+    return { accessToken, refreshToken };
+  }
+
+  /**
+   * Best effort: the reconnect must not fail because the pair it replaces cannot be retired. The access token is
+   * revoked. The refresh chain is ended by redeeming its refresh token once (GitHub refresh tokens are single-use)
+   * and revoking the access token that redemption issues; a token revoke alone is not documented to end the chain.
+   * The redemption also yields a new refresh token: it is dropped in memory, never stored or logged, so nobody
+   * holds it and it lapses at GitHub. That is accepted over the credential revocation API, which is meant for
+   * leaked secrets and notifies the user on every reconnect. A full remediation for a leaked pair is still
+   * "Revoke all user tokens" (ADR 0003 decision 7).
+   */
+  private async retirePrevious(previous: PreviousPair): Promise<void> {
+    await this.revokeRetired(previous.accessToken, 'access token');
+    if (previous.refreshToken === null) {
+      this.logger.warn('owner reconnect: the previous refresh chain was not ended', {
         reason: 'no-usable-token',
       });
+      return;
+    }
+    let result: TokenEndpointResult;
+    try {
+      result = await this.oauth.refresh(previous.refreshToken);
+    } catch (error: unknown) {
+      if (!(error instanceof GitHubError)) {
+        throw error;
+      }
+      this.logger.warn('owner reconnect: the previous refresh chain was not ended', {
+        reason: 'refresh-failed',
+        problem: error.problem.type,
+        githubStatus: error.githubStatus,
+      });
+      return;
+    }
+    if (result.kind === 'refused') {
+      // Already redeemed or revoked: the chain is gone either way.
+      this.logger.info('owner reconnect: the previous refresh token was already dead', {
+        error: result.error,
+      });
+      return;
+    }
+    await this.revokeRetired(
+      result.kind === 'issued' ? result.pair.accessToken : result.accessToken,
+      'redeemed access token',
+    );
+    this.logger.info('owner reconnect: the previous refresh chain was ended');
+  }
+
+  private async revokeRetired(token: string | null, what: string): Promise<void> {
+    const notRevoked = `owner reconnect: the previous ${what} was not revoked`;
+    if (token === null) {
+      this.logger.warn(notRevoked, { reason: 'no-usable-token' });
       return;
     }
     try {
       const outcome = await this.oauth.revokeToken(token);
       if (outcome === 'revoked') {
-        this.logger.info('owner reconnect: the previous access token was revoked');
+        this.logger.info(`owner reconnect: the previous ${what} was revoked`);
       } else {
-        this.logger.warn('owner reconnect: the previous access token was not revoked', {
-          reason: 'token-rejected',
-        });
+        this.logger.warn(notRevoked, { reason: 'token-rejected' });
       }
     } catch (error: unknown) {
       if (!(error instanceof GitHubError)) {
         throw error;
       }
-      this.logger.warn('owner reconnect: the previous access token was not revoked', {
+      this.logger.warn(notRevoked, {
         reason: 'revoke-failed',
         problem: error.problem.type,
         githubStatus: error.githubStatus,

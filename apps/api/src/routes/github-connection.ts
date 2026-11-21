@@ -10,7 +10,13 @@ import {
 } from '@shared/contracts';
 import { randomHex, timingSafeEqualText, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import { OwnerConnectionsRepo, UsersRepo } from '@worker/db';
-import { GitHubError, pkceChallengeOf, type GitHubOAuth, type GitHubUser, type UserTokenPair } from '@worker/github';
+import {
+  GitHubError,
+  pkceChallengeOf,
+  type GitHubOAuth,
+  type GitHubUser,
+  type UserTokenPair,
+} from '@worker/github';
 import { ownerOnlyMiddleware } from '../auth/owner-only.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -235,7 +241,12 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
           return backToSettings('wrong-account', user.login);
         }
         const connection = await github.ownerConnection(c.env, logger);
-        await connection.connect(user, pair);
+        if ((await connection.connect(user, pair)) === 'user-id-changed') {
+          // Another GitHub account under the owner's login: its grant is not the stored connection's, so it goes.
+          const revoked = await revokeUnwanted(c, oauth, pair.accessToken, 'grant');
+          logger.warn('owner connect refused: the GitHub user id is not the connected one', { revoked });
+          return backToSettings('failed');
+        }
         logger.info('owner connected', { login: user.login });
         await refreshOwnerDisplayName(c, user);
         return backToSettings('connected');
