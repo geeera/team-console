@@ -587,7 +587,7 @@ describe('GET /api/v1/github/callback', () => {
       expectBackToSettings(response, '/settings?github=failed');
       // Only the fresh token's revoke: the previous pair is retired after a successful write, never before.
       expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`]);
-      expect(h.fake.refreshCalls()).toBe(0);
+      expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption
       expect(h.fake.activeGrants()).toBe(1);
       expect(await storedRow()).not.toBeNull();
       expect(parsedLogs(h.logs)).toContainEqual(
@@ -627,7 +627,7 @@ describe('GET /api/v1/github/callback', () => {
       expectBackToSettings(response, '/settings?github=connected');
       const tokenRevoke = `DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/token`;
       expect(revokeCalls(h)).toEqual([tokenRevoke, tokenRevoke]);
-      expect(h.fake.refreshCalls()).toBe(1);
+      expect(h.fake.refreshCalls()).toBe(2); // the code exchange and the redemption
       expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
       expect(h.fake.activeGrants()).toBe(1);
       const connectedAt = Date.parse((await storedRow())?.connected_at ?? '');
@@ -644,7 +644,8 @@ describe('GET /api/v1/github/callback', () => {
       const { response } = await connectAs(h);
 
       expectBackToSettings(response, '/settings?github=connected');
-      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
+      // The redemption still ended the chain, and with it the access token GitHub would not revoke.
+      expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(false);
       expect(parsedLogs(h.logs)).toContainEqual(
         expect.objectContaining({
           message: 'owner reconnect: the previous access token was not revoked',
@@ -666,7 +667,7 @@ describe('GET /api/v1/github/callback', () => {
     expectBackToSettings(response, '/settings?github=failed');
     expect(await storedRow()).toEqual(before);
     expect(revokeCalls(h)).toEqual([`DELETE /applications/${env.GITHUB_APP_CLIENT_ID}/grant`]);
-    expect(h.fake.refreshCalls()).toBe(0);
+    expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption
     expect(h.fake.activeGrants()).toBe(1);
     expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
     expect(parsedLogs(h.logs)).toContainEqual(
