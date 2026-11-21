@@ -217,9 +217,12 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
     }
     if (facts?.kind === 'symlink') {
       const target = await host.realpath(path);
-      const targetFacts = target === null ? null : await host.stat(target);
-      if (target === null || targetFacts?.kind !== 'file' || !isRootOnly(targetFacts)) {
-        refuse(target ?? path);
+      if (target === null) {
+        return refuse(path);
+      }
+      const targetFacts = await host.stat(target);
+      if (targetFacts?.kind !== 'file' || !isRootOnly(targetFacts)) {
+        refuse(target);
       }
       const dir = target.slice(0, target.lastIndexOf('/')) || '/';
       if (!isRootOnly(await host.stat(dir))) {

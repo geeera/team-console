@@ -265,9 +265,10 @@ describe('update: installing a release (C11 row 1)', () => {
       'gh release download',
       'gh attestation verify',
       'tar -xzf --no-same-owner',
-      `${join(calls[4]?.command ?? '', '..')}/node --disable-sigusr1`,
+      `${calls[4]?.command ?? ''} --disable-sigusr1 version`,
     ]);
     expect(calls[4]?.command.startsWith(join(home, 'updates'))).toBe(true);
+    expect(calls[4]?.command.endsWith('/tree/node')).toBe(true);
     expect(await readFile(join(prefix, 'node'), 'utf8')).toBe(`#!/bin/sh\n# node for ${TARGET}\n`);
     expect((await stat(join(prefix, 'node'))).mode & 0o777).toBe(0o555);
     const download = calls[1]?.args ?? [];

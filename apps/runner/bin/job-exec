@@ -12,6 +12,10 @@ prefix=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd -P)
 uid=$(/usr/bin/id -u)
 case "${1:-}" in
   run)
+    # The release's own root-owned node (#634 PR 5); the runner image, which ships none in its prefix, uses PATH's.
+    if [ -f "$prefix/node" ]; then
+      exec "$prefix/node" "$prefix/team-console-runner.mjs" job-exec
+    fi
     exec node "$prefix/team-console-runner.mjs" job-exec ;;
   reap)
     exec /usr/bin/pkill -9 -u "$uid" ;;
