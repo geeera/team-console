@@ -188,6 +188,31 @@ export type {
   StartEnrolmentResponse,
 } from './lib/enrolment-intent';
 export {
+  BUNDLE_FILE,
+  MAC_RELEASE_PLATFORMS,
+  NODE_BUNDLED_SINCE,
+  NODE_FILE,
+  RELEASE_FILES,
+  RELEASE_HOST,
+  RELEASE_OIDC_ISSUER,
+  RELEASE_PLATFORMS,
+  RELEASE_PREDICATE_TYPE,
+  RELEASE_REPOSITORY,
+  RELEASE_SUMS_FILE,
+  RELEASE_WORKFLOW_PATH,
+  attestationVerifyArgs,
+  isNodeBundled,
+  isReleaseVersion,
+  releaseDownloadArgs,
+  releasePlatformOf,
+  releaseRefOf,
+  releaseSumsOf,
+  releaseTagOf,
+  tarballNameOf,
+  tarballUrlOf,
+} from './lib/runner-release';
+export type { MacReleasePlatform, ReleasePlatform } from './lib/runner-release';
+export {
   BUDGET_PAUSER,
   JOB_COST_USD_MAX,
   JOB_EVENTS_MAX_PER_BATCH,

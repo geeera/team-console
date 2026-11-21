@@ -1,7 +1,6 @@
 import { lstatSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { runnerReleaseChannelOf } from '@shared/contracts';
-import { BUNDLE_FILE, RELEASE_FILES, RELEASE_SUMS_FILE } from './release-identity';
+import { BUNDLE_FILE, NODE_FILE, RELEASE_FILES, RELEASE_SUMS_FILE, runnerReleaseChannelOf } from '@shared/contracts';
 
 /**
  * The install directory `update` maintains (#604): each release in its own `releases/<version>/`, one `current`

@@ -2,11 +2,10 @@ import { createHash } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RunnerReleaseDto } from '@shared/contracts';
+import { RELEASE_FILES, attestationVerifyArgs, releasePlatformOf, tarballNameOf, type RunnerReleaseDto } from '@shared/contracts';
 import type { Exec, ExecOptions, ExecResult } from '../host/exec';
 import { AUTO_UPDATE_INTERVAL_MS, autoUpdater } from './auto-update';
 import { installRootOf } from './install-layout';
-import { RELEASE_FILES, attestationVerifyArgs, releasePlatformOf, tarballNameOf } from './release-identity';
 import {
   UpdateError,
   applyUpdate,

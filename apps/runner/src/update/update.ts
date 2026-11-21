@@ -3,9 +3,17 @@ import type { Stats } from 'node:fs';
 import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rename, rm, symlink } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
+  BUNDLE_FILE,
+  NODE_FILE,
+  RELEASE_FILES,
+  RELEASE_SUMS_FILE,
+  attestationVerifyArgs,
   compareRunnerVersions,
   isRunnerVersionBelow,
+  releaseDownloadArgs,
+  releasePlatformOf,
   runnerReleaseChannelOf,
+  tarballNameOf,
   type RunnerReleaseDto,
 } from '@shared/contracts';
 import type { UpdatePolicy } from '../config/config';
@@ -21,15 +29,6 @@ import {
   binLinkTargetOf,
   releaseDirOf,
 } from './install-layout';
-import {
-  BUNDLE_FILE,
-  RELEASE_FILES,
-  RELEASE_SUMS_FILE,
-  attestationVerifyArgs,
-  releaseDownloadArgs,
-  releasePlatformOf,
-  tarballNameOf,
-} from './release-identity';
 
 /**
  * `team-console-runner update` (ADR 0008 decision 10, threat model C11 rows 1–2, RR13). The console only names a
