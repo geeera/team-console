@@ -44,12 +44,20 @@ const INSTALL = {
 
 const frame = (inner: string): string => `<div style="max-width: var(--sheet-dialog-w); display: grid; gap: var(--space-5)">${inner}</div>`;
 
-/** Step 1 for an account with several owners (or an unknown count): the D3 line under «Все проекты аккаунта». */
+/** Step 1 while the owner count is unknown: the D3 line in its conditional wording (#878). */
 export const Params: Story = {
   render: () => ({
     props: { projects: PROJECTS },
     template: frame(`<tc-add-runner-step-indicator step="params" />
       <tc-add-runner-params-step formId="story-params" [projects]="projects" [ownerCount]="null" />`),
+  }),
+};
+
+/** Step 1 for an account with several owners: the D3 line as a plain statement. */
+export const ParamsSeveralOwners: Story = {
+  render: () => ({
+    props: { projects: PROJECTS },
+    template: frame(`<tc-add-runner-params-step formId="story-owners" [projects]="projects" [ownerCount]="2" />`),
   }),
 };
 

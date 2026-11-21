@@ -2346,7 +2346,8 @@
       "title": "Runner projects",
       "edit": "Projects",
       "editAria": "Change the projects of runner {{name}}",
-      "allOwners": "This account has several owners. Under this rule a runner signed in with a Claude subscription takes only your projects. It takes other owners’ projects only if you tick them under “Only the chosen ones”."
+      "allOwners": "This account has several owners. Under this rule a runner signed in with a Claude subscription takes only your projects. It takes other owners’ projects only if you tick them under “Only the chosen ones”.",
+      "allOwnersUnknown": "If the account has other owners, a runner signed in with a Claude subscription takes only your projects under this rule. It takes other owners’ projects only if you tick them under “Only the chosen ones”."
     },
     "enroller": {
       "open": "Claim as mine",

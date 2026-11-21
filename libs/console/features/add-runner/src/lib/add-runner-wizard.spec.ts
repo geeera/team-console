@@ -161,7 +161,7 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
 
   it('keeps the D3 line when the owner count fails to load (decision 5)', async () => {
     const { find } = await render({ owners: () => failed('offline') });
-    expect(find('runner-scope-owners')).not.toBeNull();
+    expect(find('runner-scope-owners')?.textContent).toContain('Если в аккаунте есть другие владельцы');
   });
 
   it('refuses an empty name and focuses the field', async () => {

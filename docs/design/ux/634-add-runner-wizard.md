@@ -93,7 +93,9 @@ Fields, in order:
      future project of the account.
    - **Multi-owner sentence** `runners.scope.allOwners`, a visible paragraph under the hint (not hidden behind a
      disclosure). It is shown when `GET /accounts/:id/members` counts more than one `owner`, or when that call has
-     not answered or has failed. It is hidden only when exactly one owner is known.
+     not answered or has failed. It is hidden only when exactly one owner is known. While the count is unknown it
+     reads `runners.scope.allOwnersUnknown` («Если в аккаунте есть другие владельцы…», #878), so it never claims
+     owners the account may not have.
    - Under «Только выбранные» with no project ticked: the existing `runners.enrol.noProjects` line as a warning. It
      does not block: a runner with no projects is allowed.
 3. **Где будет работать раннер** (`ChoiceGroup`, two radios):
@@ -335,6 +337,7 @@ New keys under `runners.wizard.*`, plus one changed and one new key under `runne
 |---|---|
 | `runners.scope.allHint` (changed) | Все текущие и будущие проекты аккаунта, в том числе те, что появятся позже. |
 | `runners.scope.allOwners` (new) | В аккаунте несколько владельцев. Раннер с подпиской Claude по этому правилу берёт только ваши проекты. Проекты других владельцев он возьмёт, только если вы отметите их в «Только выбранные». |
+| `runners.scope.allOwnersUnknown` (#878) | Если в аккаунте есть другие владельцы, раннер с подпиской Claude по этому правилу берёт только ваши проекты. Проекты других владельцев он возьмёт, только если вы отметите их в «Только выбранные». |
 | `runners.wizard.step` | Шаг {{n}} из 4 · {{name}} |
 | `runners.wizard.steps.params` | Параметры |
 | `runners.wizard.steps.command` | Команда |
