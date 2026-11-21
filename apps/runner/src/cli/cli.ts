@@ -17,7 +17,7 @@ import {
 } from '../config/config';
 import { SYSTEM_PATH, hostExec, type Exec } from '../host/exec';
 import { InstallError, runInstall, systemInstallHost, type InstallHost } from '../install/install';
-import { jobExecOf } from '../install/templates';
+import { DOCUMENTED_DEFAULTS, jobExecOf, nodeOf } from '../install/templates';
 import { RunnerFileError } from '../config/private-files';
 import { loadRunnerKey, runnerKeyLocationOf, type RunnerKeyDeps } from '../config/runner-key';
 import { runLoop } from '../jobs/loop';
@@ -29,7 +29,6 @@ import { ENROL_CODE_STDIN, enrolCodeOf, type ReadCodeLine } from './enrol-code';
 import { REQUEST_TOKEN_STDIN, runOnceOidc } from './run-once-oidc';
 import { tmpdir } from 'node:os';
 import { updateRunnerConfig } from '../config/config';
-import { DOCUMENTED_DEFAULTS } from '../install/templates';
 import {
   CredentialSetupError,
   hostSpawnClaude,
@@ -405,7 +404,6 @@ function applyDepsOf(home: string, deps: CliDeps): ApplyDeps {
     prefix: deps.prefix ?? dirname(process.argv[1] ?? ''),
     platform: deps.platform ?? process.platform,
     arch: deps.arch ?? process.arch,
-    node: process.execPath,
     exec: deps.updateExec ?? hostExec,
     ghEnv: { PATH: SYSTEM_PATH, ...pick(deps.env, GH_ENV) },
     uid: deps.uid ?? process.getuid?.() ?? null,
@@ -624,7 +622,8 @@ function systemSetupHostOf(deps: CliDeps, prefix: string): SetupHost {
     uid: deps.uid ?? process.getuid?.() ?? -1,
     homeDir: deps.homeDir,
     prefix,
-    node: deps.execPath ?? process.execPath,
+    // `_tcrunner` cannot traverse where root unpacked the one-liner's copy; the installed root-owned node it can.
+    node: nodeOf(prefix),
     env: deps.env,
   });
 }

@@ -1,9 +1,12 @@
 /// <reference types='vitest' />
+import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { defineConfig } from 'vite';
 
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/tools/workspace-checks',
+  // The release-identity specs compare the guard scripts with @shared/contracts at run time.
+  plugins: [nxViteTsPaths()],
   test: {
     name: 'workspace-checks',
     watch: false,

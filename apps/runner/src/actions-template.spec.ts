@@ -7,14 +7,16 @@ import {
   isConsoleOrigin,
   renderRunnerWorkflow,
 } from '@shared/actions-workflow';
-import { ACTIONS_ENVIRONMENT, ACTIONS_WORKFLOW_FILE, isUlid } from '@shared/contracts';
-import { ACTIONS_RUN_ENV, REQUEST_TOKEN_STDIN } from './cli/run-once-oidc';
-import { INFERENCE_API_KEY_ENV } from './env/credential';
 import {
+  ACTIONS_ENVIRONMENT,
+  ACTIONS_WORKFLOW_FILE,
   attestationVerifyArgs,
+  isUlid,
   releaseDownloadArgs,
   tarballNameOf,
-} from './update/release-identity';
+} from '@shared/contracts';
+import { ACTIONS_RUN_ENV, REQUEST_TOKEN_STDIN } from './cli/run-once-oidc';
+import { INFERENCE_API_KEY_ENV } from './env/credential';
 
 /**
  * The customer's workflow file (#671, #712; ADR 0008 decision 7(a′), threat model C11). Each control the console and
@@ -256,7 +258,7 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
       );
     });
 
-    it('is downloaded and verified with exactly the flags of release-identity.ts', () => {
+    it('is downloaded and verified with exactly the flags of the release identity in @shared/contracts', () => {
       const values = { RUNNER_VERSION: version(), download: '<download>', tarball: tarballNameOf(version(), 'linux-x64') };
       const verify = commandWords(runOf(step()), 'gh attestation verify').map((word) => expand(word, values));
       expect(verify).toEqual(['gh', ...attestationVerifyArgs(`<download>/${values.tarball}`, version())]);

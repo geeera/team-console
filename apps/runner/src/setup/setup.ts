@@ -94,7 +94,6 @@ function stepsOf(options: SetupOptions): readonly SetupStep[] {
 export async function installRelease(
   release: NonNullable<SetupOptions['release']>,
   deps: Pick<SetupDeps, 'host' | 'out' | 'tmpRoot'>,
-  node: string,
   prefix: string,
 ): Promise<void> {
   if (!SHA256.test(release.sha256)) {
@@ -133,7 +132,7 @@ export async function installRelease(
       throw new SetupError('the release tarball does not match the sum the console named; nothing was installed');
     }
     await mkdir(prefix, { recursive: true, mode: 0o755 });
-    await installTarball(staged, staging, prefix, RUNNER_VERSION, { exec: deps.host.exec, node });
+    await installTarball(staged, staging, prefix, RUNNER_VERSION, { exec: deps.host.exec });
     deps.out(`install: release ${RUNNER_VERSION} verified and copied to ${prefix}`);
   } finally {
     await rm(staging, { recursive: true, force: true });
@@ -269,7 +268,7 @@ export async function runSetup(options: SetupOptions, deps: SetupDeps): Promise<
     switch (step) {
       case 'install':
         if (options.release !== undefined) {
-          await installRelease(options.release, deps, options.node, prefix);
+          await installRelease(options.release, deps, prefix);
         }
         try {
           await runInstall({ backend: 'user', apply: true, prefix, node: options.node }, host, deps.out, { showNext: false });

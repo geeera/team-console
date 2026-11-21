@@ -223,6 +223,23 @@ jobs:
       - name: Test the deploy.yml D1 placeholder guard distinguishes comments from real ids
         run: node tools/deploy-guard/check-d1-placeholder.test.js
 
+      # S1 of the #634 security note: deploy.yml's runner-release check, fed fixtures and a fake `gh`.
+      - name: Test the deploy.yml runner-release attestation check
+        run: node tools/deploy-guard/check-runner-release.test.js
+
+      # R-NODE-1: the bundled Node.js verifier of release-runner.yml (pin, keyring, gpgv status, signed sums).
+      - name: Test the bundled Node.js verifier
+        run: node tools/release/node-runtime.test.mjs
+
+      # The shape of RUNNER_RELEASE_VERSION/RUNNER_RELEASE_SHA256SUMS in each env, per PR; the attestation itself is
+      # checked by deploy.yml's guard, where the release exists.
+      - name: Check the runner release vars are well formed in every environment
+        run: |
+          set -euo pipefail
+          for env in dev stage production; do
+            node tools/deploy-guard/check-runner-release.js --format-only "${env}" apps/api/wrangler.jsonc
+          done
+
       # SECURITY review: deploy.yml's `guard` job only runs this check on a push to dev/stage/main or a
       # rollback dispatch, so a PR that regresses the wrangler.jsonc shape (or reintroduces a placeholder)
       # would otherwise only fail at deploy time, not in this PR's own CI. Same placeholders as deploy.yml.

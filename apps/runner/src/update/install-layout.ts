@@ -1,14 +1,13 @@
 import { lstatSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { runnerReleaseChannelOf } from '@shared/contracts';
-import { BUNDLE_FILE, RELEASE_FILES, RELEASE_SUMS_FILE } from './release-identity';
+import { BUNDLE_FILE, NODE_FILE, RELEASE_FILES, RELEASE_SUMS_FILE, runnerReleaseChannelOf } from '@shared/contracts';
 
 /**
  * The install directory `update` maintains (#604): each release in its own `releases/<version>/`, one `current`
  * symlink naming the live one, and `team-console-runner.mjs`, `SHA256SUMS` and each file of `bin/` as fixed symlinks
  * through it. Switching releases is then one `rename` of `current`, so a crash leaves either the old release or the
- * new one, never a mix. The service and the sudoers rule keep naming `<prefix>/team-console-runner.mjs` and
- * `<prefix>/bin/job-exec`. A tarball extracted by hand (the documented first install) is flat; the first `update`
+ * new one, never a mix: the bundle and the `node` that runs it (#634 PR 5) change in the same rename. The service and
+ * the sudoers rule keep naming `<prefix>/node`, `<prefix>/team-console-runner.mjs` and `<prefix>/bin/job-exec`. A tarball extracted by hand (the documented first install) is flat; the first `update`
  * converts it.
  *
  * `bin` stays a real directory whose entries are the links (#666): a directory cannot be renamed over by a link, so
@@ -35,6 +34,7 @@ export const binLinkTargetOf = (file: string): string => join('..', CURRENT_LINK
 
 /** What the top-level files of a converted prefix link to, in the order they are switched: the bundle last. */
 export const SUMS_LINK: Readonly<[string, string]> = [RELEASE_SUMS_FILE, join(CURRENT_LINK, RELEASE_SUMS_FILE)];
+export const NODE_LINK: Readonly<[string, string]> = [NODE_FILE, join(CURRENT_LINK, NODE_FILE)];
 export const BUNDLE_LINK: Readonly<[string, string]> = [BUNDLE_FILE, join(CURRENT_LINK, BUNDLE_FILE)];
 
 /**

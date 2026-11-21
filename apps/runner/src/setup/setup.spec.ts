@@ -169,7 +169,7 @@ describe('setup (#634 PR 2)', () => {
 
     const mapped = (path: string): string | null =>
       path === HOME ? home : path.startsWith(`${HOME}/`) ? join(home, path.slice(HOME.length + 1)) : null;
-    const plist = launchDaemonPlist({ node: NODE, prefix: PREFIX, home: HOME });
+    const plist = launchDaemonPlist({ node: `${PREFIX}/node`, prefix: PREFIX, home: HOME });
     const files: Record<string, string> = {
       '/Library/Application Support/ClaudeCode/managed-settings.json': managedSettingsText(),
       '/etc/sudoers.d/team-console-runner': sudoersRule(PREFIX),
@@ -188,6 +188,7 @@ describe('setup (#634 PR 2)', () => {
       [`${PREFIX}/bin`]: dir(),
       [`${PREFIX}/team-console-runner.mjs`]: file(),
       [`${PREFIX}/bin/job-exec`]: file(),
+      [`${PREFIX}/node`]: file(),
       '/opt': dir(),
       '/opt/homebrew': dir(OWN_UID),
       '/opt/homebrew/bin': dir(OWN_UID),
@@ -404,17 +405,19 @@ describe('setup (#634 PR 2)', () => {
       await mkdir(join(tree, 'bin'), { recursive: true });
       const files: Record<string, string> = {
         'team-console-runner.mjs': `console.log(${JSON.stringify(RUNNER_VERSION)});\n`,
+        // The release's node: here the spec's own, so the version check runs the bundle for real.
+        node: `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} "$@"\n`,
         'bin/job-exec': '#!/bin/sh\n',
         'bin/team-console-runner': '#!/bin/sh\n',
       };
       const sums: string[] = [];
       for (const [name, content] of Object.entries(files)) {
-        await writeFile(join(tree, name), content);
+        await writeFile(join(tree, name), content, { mode: 0o755 });
         sums.push(`${createHash('sha256').update(content).digest('hex')}  ${name}`);
       }
       await writeFile(join(tree, 'SHA256SUMS'), `${sums.join('\n')}\n`);
       const tarball = join(root, 'tcr.tgz');
-      await hostExec('/usr/bin/tar', ['-czf', tarball, '-C', tree, 'SHA256SUMS', 'team-console-runner.mjs', 'bin']);
+      await hostExec('/usr/bin/tar', ['-czf', tarball, '-C', tree, 'SHA256SUMS', 'team-console-runner.mjs', 'node', 'bin']);
       return { tarball, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex') };
     }
 
@@ -427,10 +430,10 @@ describe('setup (#634 PR 2)', () => {
     it('installs from a root-owned copy whose sum matches, and skips a release already live', async () => {
       const prefix = join(root, 'prefix');
       const out: string[] = [];
-      await installRelease(await release(), deps(out), process.execPath, prefix);
+      await installRelease(await release(), deps(out), prefix);
       expect(await readFile(join(prefix, 'team-console-runner.mjs'), 'utf8')).toContain(RUNNER_VERSION);
       expect((await lstat(join(prefix, 'current'))).isSymbolicLink()).toBe(true);
-      await installRelease(await release(), deps(out), process.execPath, prefix);
+      await installRelease(await release(), deps(out), prefix);
       expect(out.at(-1)).toBe(`install: release ${RUNNER_VERSION} is already in ${prefix}`);
       expect(await readdir(tmpRoot)).toEqual([]);
     });
@@ -438,11 +441,11 @@ describe('setup (#634 PR 2)', () => {
     it('refuses a tarball that does not match the sum, installing nothing', async () => {
       const prefix = join(root, 'prefix');
       const { tarball } = await release();
-      await expect(installRelease({ tarball, sha256: 'a'.repeat(64) }, deps([]), process.execPath, prefix)).rejects.toThrow(
+      await expect(installRelease({ tarball, sha256: 'a'.repeat(64) }, deps([]), prefix)).rejects.toThrow(
         /does not match the sum the console named/,
       );
       await expect(stat(prefix)).rejects.toThrow();
-      await expect(installRelease({ tarball, sha256: 'nope' }, deps([]), process.execPath, prefix)).rejects.toThrow(/64 hex/);
+      await expect(installRelease({ tarball, sha256: 'nope' }, deps([]), prefix)).rejects.toThrow(/64 hex/);
       expect(await readdir(tmpRoot)).toEqual([]);
     });
   });

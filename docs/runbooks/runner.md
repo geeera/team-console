@@ -35,22 +35,23 @@ flat, so it extracts straight into that directory:
 ```sh
 sudo install -d -o root -m 0755 /usr/local/lib/team-console-runner
 sudo tar -xzf team-console-runner-<v>-<platform>.tar.gz --no-same-owner -C /usr/local/lib/team-console-runner
-/usr/local/lib/team-console-runner/bin/team-console-runner version    # prints <v>
+sudo /usr/local/lib/team-console-runner/bin/team-console-runner version    # prints <v>
 ```
 
-The launcher needs Node.js 22.14 or later. It starts node with `--disable-sigusr1`, so no process of the runner's user
-can open the runner's inspector with `kill -USR1`. An older node refuses the flag and the runner does not start.
+**Node.js ships in the release (#634 PR 5).** Each tarball holds that platform's `node` (pinned in
+`apps/runner/node/node-release.json`, verified in the release workflow against Node's signed `SHASUMS256.txt` and the
+committed release keys), listed in the tarball's `SHA256SUMS` with the other files. Homebrew's node is no longer a
+dependency of the runner; it stays a toolchain choice for jobs. The launcher starts node with `--disable-sigusr1`, so
+no process of the runner's user can open the runner's inspector with `kill -USR1`.
 
-Which node the launcher runs: `<prefix>/node` if the release ships one, else `node` on `PATH`, else
-`/opt/homebrew/bin/node`, else `/usr/local/bin/node`. **Run as root** (`sudo …/bin/team-console-runner …`), it runs only
-a node that root alone can change: the file and every directory up to `/` root-owned and not writable by group or
-others, after every link is resolved. It then runs that resolved path. It never falls back to another node; it stops
-with exit 126 and names the ones it refused (#778). Homebrew's node fails this, because Homebrew's prefix belongs to
-the admin login user. Node.js from the nodejs.org installer (`/usr/local/bin/node`, `root:wheel`) passes on a Mac
-without Intel Homebrew in `/usr/local`.
+Which node the launcher runs: `<prefix>/node`, else `node` on `PATH`, else `/opt/homebrew/bin/node`, else
+`/usr/local/bin/node`. **Run as root** (`sudo …/bin/team-console-runner …`), it runs only `<prefix>/node`, and only when
+root alone can change it: the file and every directory up to `/` root-owned and not writable by group or others,
+after every link is resolved. It runs that resolved path and never falls back to another node, root-owned or not; it
+stops with exit 126 (#778, S2). A release older than 0.2.0 ships no node and so cannot run as root: update it first.
 
-`install --backend user` refuses a directory, bundle or `job-exec` that is not root-owned or that anyone else can
-write, because the sudoers rule names that file. Run `install --dry-run` first. It lists every step and changes
+`install --backend user` refuses a directory, bundle, `job-exec` or `node` that is not root-owned or that anyone else
+can write, because the sudoers rule and the LaunchDaemon name those files. Run `install --dry-run` first. It lists every step and changes
 nothing. Then run the same command with `--yes`. Run the launcher by its full path, or put
 `/usr/local/lib/team-console-runner/bin` on `PATH`. Do not symlink the launcher elsewhere, because it finds the bundle
 relative to its own path.
@@ -103,10 +104,16 @@ and the release files are root's alone. L3 checks 5–7 need a running job: see 
 
 An already enrolled Mac (the owner's «Mac»): `sudo … setup --only toolchain,credential,service,check`.
 
-Until the release ships its own node (#634 PR 5), the launcher runs as root only with a node that root alone can
-change (S2): Node.js from nodejs.org (`/usr/local/bin/node`), not Homebrew's. Until the console's wizard builds the
-download command (#634 PR 4/5), extract the release by hand as in [Get a release](#get-a-release-and-verify-it-both-backends)
-and run `setup` without `--release`.
+**First install from the console (#634 PR 5).** When the environment names a release that ships node, Add runner
+offers one line per processor (Apple silicon `darwin-arm64`, Intel `darwin-x64`). It downloads the release from
+`github.com/geeera/team-console` with `curl --proto '=https' --tlsv1.2` into a `mktemp -d` directory, checks it with
+`shasum -a 256` against the sum the console names before `sudo` asks for your password, then as root copies it into a
+fresh 0700 directory under `/var/root`, checks the copy again, unpacks it there and runs
+`setup --url … --enrolment … --release … --sha256 …` from it; that directory is removed afterwards. The sum comes from
+`RUNNER_RELEASE_SHA256SUMS`, which the deploy only accepts when it equals the release's attested `SHA256SUMS` (S1).
+For a first install that trust root is the console over TLS (threat model C11, R-ONE-1, Medium until the `.pkg`). To
+verify the provenance yourself instead, get the release by hand as in
+[Get a release](#get-a-release-and-verify-it-both-backends) and run `setup` without `--release`.
 
 Root's part never reads the Claude credential: every step that touches the key, `config.json` or the credential
 starts as `sudo -u _tcrunner -- env -i HOME=/Users/_tcrunner TC_RUNNER_HOME=/Users/_tcrunner PATH=<system> …`, with
@@ -115,32 +122,20 @@ directory that is deleted afterwards, so no login state lands in `_tcrunner`'s h
 
 ### By hand
 
-The steps `setup` automates, for a Mac where you want to see each one. `sudo` may not search Homebrew's `PATH`, so
-name `node` and the bundle explicitly:
+The steps `setup` automates, for a Mac where you want to see each one:
 
 ```sh
-NODE=$(command -v node); B=/usr/local/lib/team-console-runner/team-console-runner.mjs
-sudo "$NODE" "$B" install --backend user --dry-run
-sudo "$NODE" "$B" install --backend user --yes
+sudo /usr/local/lib/team-console-runner/bin/team-console-runner install --backend user --dry-run
+sudo /usr/local/lib/team-console-runner/bin/team-console-runner install --backend user --yes
 ```
 
-With a root-owned node (see above) the launcher works as well: `sudo /usr/local/lib/team-console-runner/bin/team-console-runner install …`.
-
-**Which node the service runs (#772).** The LaunchDaemon runs the node path `install` was started with, never its
-realpath. When that path, or what it links to, is inside Homebrew's Cellar (`/opt/homebrew/Cellar/node/<version>/…`),
-`install` writes Homebrew's versionless link `/opt/homebrew/opt/node/bin/node` instead, because `brew upgrade node`
-deletes the old Cellar directory and launchd would then restart a missing binary every 30 seconds. If that link does
-not exist, `install` refuses and tells you to run `brew link node`. The daemon's `PATH` is the node's directory, then
-`/opt/homebrew/bin` when node is Homebrew's, then `/usr/bin:/bin:/usr/sbin:/sbin`. `run --loop` logs
+**Which node the service runs (#634 PR 5, S2).** The LaunchDaemon runs the release's own
+`/usr/local/lib/team-console-runner/node`, root-owned, whatever node `install` was started with, and its `PATH` is
+`/usr/local/lib/team-console-runner:/usr/bin:/bin:/usr/sbin:/sbin`: no directory the login user can write, so the
+login user can no longer become `_tcrunner` by replacing node (before PR 5, Homebrew's node let them). The runner's
+own `git` (the mirror fetch) is therefore `/usr/bin/git`, which needs the Xcode Command Line Tools; jobs still get the
+toolchain `setup` found. `job-exec run` starts the job's runner half with the same node. `run --loop` logs
 `starting with node <path> (<resolved path>)` first in `logs/runner.log`.
-
-**Who can act as `_tcrunner` with Homebrew's node (S2, #778).** The daemon runs as `_tcrunner` with that node. Homebrew's
-prefix belongs to the admin login user, so that user (and anything running as that user) can replace node and run
-code as `_tcrunner`. That code can read the runner key and `credentials/claude-setup-token`. The same goes for
-`sudo "$NODE" "$B" install`: root runs a binary that the login user can replace. `install` prints a warning naming the
-first path on the way to node that is not root's alone. Nothing in the installer makes Homebrew's node safe; this
-stays true until the release ships its own root-owned node (#634). On a Mac that only you use, the login user is you.
-On a shared Mac, use a root-owned node (Node.js from nodejs.org) for both `install` and the daemon.
 
 What `--yes` does. It writes only these paths (decision 11, threat model C11):
 
@@ -507,12 +502,14 @@ verify`. It refuses when any of these is true, and leaves the install directory 
 - The release is below the console's `minimumVersion`.
 - The download fails, or `gh attestation verify` fails.
 - The tarball holds anything but the release files (an extra file or a symlink), a file does not match the
-  `SHA256SUMS` inside the tarball, or the new bundle reports another version.
+  `SHA256SUMS` inside the tarball (`node` included), or the new bundle, run by the release's own node, reports another
+  version.
 - The install directory is not owned by, or not writable only by, the user running `update`.
 
 Then it switches the install directory to the new release in one step. Each release gets its own
-`releases/<v>/`, and one `current` symlink names the live one. `team-console-runner.mjs`, `SHA256SUMS` and each file in
-`bin/` (`job-exec`, `team-console-runner`) are symlinks through `current`, so the service and the launcher keep the
+`releases/<v>/`, and one `current` symlink names the live one. `team-console-runner.mjs`, `node`, `SHA256SUMS` and each
+file in `bin/` (`job-exec`, `team-console-runner`) are symlinks through `current`, so the bundle and the node that runs
+it change in the same rename, so the service and the launcher keep the
 paths they already use; `bin/` itself stays a real directory, so `bin/job-exec` exists at every step. The switch is one
 rename of `current`. A crash leaves the old release or the new one, never a mix of both, and the next `update` removes
 what the crash left. A crash during the first conversion leaves a prefix that still runs, with some entries linked and
@@ -539,24 +536,24 @@ able to replace what root installed. Update by hand, as an admin:
 
 ### Upgrade notes: check these before you update
 
-- **A LaunchDaemon that names a Cellar node** (#772, `user` backend installed with 0.1.0). Check with
-  `grep -A1 ProgramArguments /Library/LaunchDaemons/com.team-console.runner.plist`; a path under
-  `/opt/homebrew/Cellar/node/<version>/` stops working at the next `brew upgrade node`. The runner keeps working as it
-  is until then, and `config.json` (`toolchain` included) is not touched by any of this. To move it to the stable path,
-  after extracting the new release (steps 1–2 of the `user` backend update below):
+- **From a release without node to 0.2.0 or later** (#634 PR 5, `user` backend installed with 0.1.0). The old
+  LaunchDaemon names Homebrew's node (`/opt/homebrew/opt/node/bin/node`, or a Cellar path), which the login user can
+  replace (S2). After extracting the new release (steps 1–2 of the `user` backend update above), rewrite the plist so it
+  runs the release's own node, then reload it:
 
   ```sh
-  NODE=$(command -v node); B=/usr/local/lib/team-console-runner/team-console-runner.mjs
-  sudo "$NODE" "$B" install --backend user --dry-run   # lists one step: write …/com.team-console.runner.plist
-  sudo "$NODE" "$B" install --backend user --yes
+  R=/usr/local/lib/team-console-runner/bin/team-console-runner
+  sudo "$R" install --backend user --dry-run   # lists one step: write …/com.team-console.runner.plist
+  sudo "$R" install --backend user --yes
   sudo launchctl bootout system/com.team-console.runner
   sudo launchctl bootstrap system /Library/LaunchDaemons/com.team-console.runner.plist
   ```
 
   `kickstart` does not reread a changed plist, hence `bootout` then `bootstrap`. Then
   `sudo grep 'starting with node' /Users/_tcrunner/logs/runner.log | tail -1` shows
-  `/opt/homebrew/opt/node/bin/node`, and the runner shows as online on Settings › Runners. The dry run also prints the
-  S2 warning about Homebrew's node (above); that is expected.
+  `/usr/local/lib/team-console-runner/node`, and the runner shows as online on Settings › Runners. `config.json`
+  (`toolchain` included) is not touched. The old launcher cannot run as root with Homebrew's node, so run these with the
+  new release's launcher, as above.
 
 - **A `config.json` that still has `roles` stops the runner at start** (#685). Every command that loads the config
   (`run`, `run-once`, `update`) exits with `config.json: roles is no longer read: … remove the key`. Each role's model

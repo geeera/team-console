@@ -18,6 +18,7 @@ import {
   SYSTEMD_UNIT_NAME,
   bundleOf,
   jobExecOf,
+  nodeOf,
   launchAgentPlist,
   launchDaemonPlist,
   sudoersRule,
@@ -77,7 +78,7 @@ export interface InstallOptions {
   readonly apply: boolean;
   /** Where the release was extracted: `team-console-runner.mjs` and `bin/job-exec`. */
   readonly prefix: string;
-  /** The node install was started with, as given (`process.argv0`), not its realpath: the services run this path. */
+  /** The node install was started with, as given (`process.argv0`), not its realpath: the `container` service runs it. */
   readonly node: string;
   readonly home?: string | undefined;
   readonly image?: string | undefined;
@@ -88,8 +89,6 @@ export interface InstallPlan {
   readonly steps: readonly InstallStep[];
   /** What the operator does by hand afterwards. */
   readonly next: readonly string[];
-  /** Printed before the steps; nothing here stops the install. */
-  readonly warnings?: readonly string[];
 }
 
 export class InstallError extends Error {
@@ -195,49 +194,38 @@ export async function stableNodeOf(given: string, host: Pick<InstallHost, 'realp
   return link;
 }
 
-/**
- * S2 of the #634 security note (#778): the daemon runs as `_tcrunner` with this node, so whoever can replace the file
- * or any directory above it can act as `_tcrunner`. Homebrew's prefix belongs to the admin login user. That is
- * stated, not refused, until the release ships its own root-owned node (#634 PR 5).
- */
-async function nodeOwnerWarning(node: string, host: InstallHost): Promise<string | null> {
-  const target = (await host.realpath(node)) ?? node;
-  // The path as given and its target: a link on the way can be repointed by whoever owns its directory.
-  for (const start of new Set([node, target])) {
-    for (let path = start; ; path = path.slice(0, path.lastIndexOf('/')) || '/') {
-      const facts = await host.stat(path);
-      // A symlink's own mode means nothing (0755 on macOS, 0777 on Linux); its owner and its directory do.
-      const writable = facts !== null && facts.kind !== 'symlink' && (facts.mode & 0o022) !== 0;
-      if (facts === null || facts.uid !== 0 || writable) {
-        const why =
-          facts === null
-            ? 'could not be inspected'
-            : facts.uid !== 0
-              ? `belongs to uid ${String(facts.uid)}, not root`
-              : 'is writable by others than root';
-        return [
-          `Warning: the runner's node ${node} is not root's alone (${path} ${why}).`,
-          `  Whoever can change it can replace node, run as ${RUNNER_USER} and read the runner key and the Claude credential.`,
-          "  With Homebrew's node that is the Mac's admin login user, until the runner release ships its own node (#634).",
-          '  See docs/runbooks/runner.md › user backend.',
-        ].join('\n');
-      }
-      if (path === '/') {
-        break;
-      }
-    }
-  }
-  return null;
-}
+const isRootOnly = (facts: PathFacts | null): boolean => facts !== null && facts.uid === 0 && (facts.mode & 0o022) === 0;
 
-/** The bundle and `job-exec` the sudoers rule and the daemon name must be root's alone, or the rule hands them out. */
+/**
+ * The bundle, `job-exec` and `node` the sudoers rule and the daemon name must be root's alone, or the rule hands them
+ * out (S2 of the #634 security note: the daemon runs `<prefix>/node` as `_tcrunner`). An entry `update` turned into a
+ * link through `current` is judged by what it resolves to as well, and that file's directory, since a link's own mode
+ * says nothing.
+ */
 export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
-  for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix)]) {
+  const refuse = (path: string): never => {
+    throw new InstallError(
+      `${path} must exist, be root-owned and writable by root only: extract the release with sudo (docs/runbooks/runner.md)`,
+    );
+  };
+  for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix), nodeOf(prefix)]) {
     const facts = await host.stat(path);
-    if (facts === null || facts.uid !== 0 || (facts.mode & 0o022) !== 0) {
-      throw new InstallError(
-        `${path} must exist, be root-owned and writable by root only: extract the release with sudo (docs/runbooks/runner.md)`,
-      );
+    if (!isRootOnly(facts)) {
+      refuse(path);
+    }
+    if (facts?.kind === 'symlink') {
+      const target = await host.realpath(path);
+      if (target === null) {
+        return refuse(path);
+      }
+      const targetFacts = await host.stat(target);
+      if (targetFacts?.kind !== 'file' || !isRootOnly(targetFacts)) {
+        refuse(target);
+      }
+      const dir = target.slice(0, target.lastIndexOf('/')) || '/';
+      if (!isRootOnly(await host.stat(dir))) {
+        refuse(dir);
+      }
     }
   }
 }
@@ -267,11 +255,10 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   const home = options.home ?? DOCUMENTED_DEFAULTS.home;
   assertSafePath('--home', home);
   assertSafePath('the release directory', options.prefix);
-  assertSafePath('node', options.node);
   await assertRootOwnedPrefix(host, options.prefix);
-  const node = await stableNodeOf(options.node, host);
-  assertSafePath('node', node);
-  const ownerWarning = await nodeOwnerWarning(node, host);
+  // The release's own node, never the one install was started with: root-owned, so the login user cannot become
+  // _tcrunner by replacing it (S2 of the #634 security note, R-ROOT-2).
+  const node = nodeOf(options.prefix);
 
   const users = await listIds(host, 'Users');
   const groups = await listIds(host, 'Groups');
@@ -349,7 +336,6 @@ async function planUser(options: InstallOptions, host: InstallHost): Promise<Ins
   const runner = `sudo -u ${RUNNER_USER} env HOME=${home} TC_RUNNER_HOME=${home}`;
   return {
     steps,
-    ...(ownerWarning === null ? {} : { warnings: [ownerWarning] }),
     next: [
       `1. Enrol: ${runner} ${node} ${bundleOf(options.prefix)} enrol --url <console origin> --backend user --credential setup-token --code - (paste the tce_… code from Settings › Runners at the prompt, or the whole command shown there: the code is taken from it; never as an argument, #582)`,
       `2. Claude credential: sudo -u ${RUNNER_USER} sh -c 'umask 077; HOME=${home} exec claude setup-token', then store the token it prints: sudo -u ${RUNNER_USER} sh -c 'umask 077; cat > ${home}/credentials/claude-setup-token' (paste, then Ctrl-D)`,
@@ -481,7 +467,6 @@ export async function runInstall(
     throw new InstallError('install --backend user --yes changes system files: run it with sudo');
   }
   const plan = await planInstall(options, host);
-  plan.warnings?.forEach((warning) => out(warning));
   const who = options.backend === 'user' ? 'as root' : 'as you';
   if (plan.steps.length === 0) {
     out('Already installed: nothing to change.');

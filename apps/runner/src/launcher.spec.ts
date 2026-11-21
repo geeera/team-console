@@ -5,8 +5,8 @@ import { dirname, join } from 'node:path';
 
 /**
  * The release launcher `bin/team-console-runner` (#778, S2 of the #634 security note), run for real by /bin/sh. As
- * root it runs only a node that root alone can change: the file and every directory up to `/`, links resolved, and it
- * execs the checked physical path. `/usr/bin/id` and `/usr/bin/stat` are swapped for fakes in a copy of the script, so
+ * root it runs only the release's own `<prefix>/node` (#634 PR 5), and only when root alone can change it: the file and
+ * every directory up to `/`, links resolved, and it execs the checked physical path. `/usr/bin/id` and `/usr/bin/stat` are swapped for fakes in a copy of the script, so
  * the spec plays root and decides which paths count as root-owned without needing root itself.
  */
 
@@ -103,7 +103,7 @@ describe('bin/team-console-runner', () => {
   const expectRefused = (result: Run): void => {
     expect(result.status).toBe(126);
     expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('as root only a node that root alone can change runs');
+    expect(result.stderr).toContain("as root only the release's own node runs");
   };
 
   it('as a user, runs the node on PATH with SIGUSR1 off', () => {
@@ -127,11 +127,19 @@ describe('bin/team-console-runner', () => {
   it('as root, refuses a node the login user owns and never falls back to one', () => {
     fakeNode(join(userBin, 'node'));
     const result = run(0);
-    expect(result.status).toBe(126);
-    expect(result.stdout).toBe('');
-    expect(result.stderr).toContain('as root only a node that root alone can change runs');
-    expect(result.stderr).toContain(join(userBin, 'node'));
+    expectRefused(result);
+    expect(result.stderr).toContain(join(prefix, 'node'));
     expect(result.stderr).toContain('docs/runbooks/runner.md');
+  });
+
+  it('as root, never falls back to another node, even one root alone can change', () => {
+    for (const node of [join(root, 'brew', 'node'), join(root, 'local', 'node')]) {
+      fakeNode(node);
+      rootOwned(node, '555');
+      rootOwned(dirname(node));
+    }
+    rootOwned(root);
+    expectRefused(run(0));
   });
 
   it('as root, refuses a root-owned node in a directory that is not root-owned', () => {
@@ -162,25 +170,28 @@ describe('bin/team-console-runner', () => {
     expect(argsOf(result)).toEqual([node, '--disable-sigusr1', join(prefix, 'team-console-runner.mjs'), 'version']);
   });
 
-  it('as root, follows a link to a root-owned node and execs the checked target, not the link', () => {
-    const target = join(root, 'system', 'bin', 'node');
+  it('as root, follows the prefix link through current and execs the checked target, not the link', () => {
+    // The layout `update` leaves: <prefix>/node -> current/node, current -> releases/<version>.
+    const target = join(prefix, 'releases', '0.2.0', 'node');
     fakeNode(target);
+    symlinkSync(join('releases', '0.2.0'), join(prefix, 'current'));
+    symlinkSync(join('current', 'node'), join(prefix, 'node'));
     rootOwned(target, '555');
     rootOwned(dirname(target));
-    rootOwned(join(root, 'system'));
+    rootOwned(join(prefix, 'releases'));
+    rootOwned(prefix);
     rootOwned(root);
-    // The link sits in a directory the user owns, so the user could repoint it: the target is what runs.
-    symlinkSync(target, join(userBin, 'node'));
     const result = run(0);
     expect(result.status).toBe(0);
     expect(argsOf(result)[0]).toBe(target);
   });
 
-  it('as root, refuses a link whose target is not root-owned', () => {
+  it('as root, refuses a prefix link whose target is not root-owned', () => {
     const target = join(root, 'cellar', 'node');
     fakeNode(target);
+    rootOwned(prefix);
     rootOwned(root);
-    symlinkSync(target, join(userBin, 'node'));
+    symlinkSync(target, join(prefix, 'node'));
     expectRefused(run(0));
   });
 });

@@ -40,7 +40,8 @@ describe('service files', () => {
       'sweep',
       '*',
     ]);
-    expect(script).toContain('exec node "$prefix/team-console-runner.mjs" job-exec');
+    expect(script).toContain('exec "$prefix/node" "$prefix/team-console-runner.mjs" job-exec');
+    expect(script.indexOf('exec "$prefix/node"')).toBeLessThan(script.indexOf('exec node "$prefix/team-console-runner.mjs"'));
     expect(script).toContain('exec /usr/bin/pkill -9 -u "$uid"');
     for (const dir of ['/tmp', '/private/var/tmp', '/Users/Shared']) {
       expect(script).toContain(` ${dir} `);

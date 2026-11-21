@@ -1,7 +1,6 @@
 import { isUlid } from './account';
 import { isNullable, isString, isTimestamp } from './guards';
 import {
-  RUNNER_BINARY,
   RUNNER_HOST_FIELD_MAX_LENGTH,
   capabilities,
   isEd25519PublicJwk,
@@ -17,6 +16,7 @@ import {
   type RunnerHostDto,
   type RunnerProjectScopeDto,
 } from './runner';
+import { MAC_RELEASE_PLATFORMS, RUNNER_INSTALLED_LAUNCHER, isReleaseVersion, type MacReleasePlatform } from './runner-release';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -90,14 +90,26 @@ export interface CreateEnrolmentIntentInput extends RunnerProjectScopeDto {
   readonly isolation: EnrolmentIsolation;
 }
 
+/**
+ * The verified-download one-liner per Mac processor (#634 PR 5, R-ONE-1): download the named release, check it
+ * against the sum the console names, then `setup` as root from a root-owned copy. Built by the API only.
+ */
+export type RunnerInstallCommandsDto = { readonly version: string } & Readonly<Record<MacReleasePlatform, string>>;
+
 export interface EnrolmentIntentCreatedDto {
   readonly intentId: string;
   readonly expiresAt: string;
   /**
-   * The `setup` invocation for this intent, built by the API from its configured origin; `null` when that origin is
-   * not configured or not safe to paste, so the wizard never assembles a command from client state.
+   * The `setup` invocation for this intent on a Mac where the release is already installed, built by the API from its
+   * configured origin; `null` when that origin is not configured or not safe to paste, so the wizard never assembles
+   * a command from client state.
    */
   readonly command: string | null;
+  /**
+   * The first-install one-liners. `null` unless this environment names a release whose sums passed the deploy-time
+   * attestation check and the Worker's format check, that release ships its own `node` (S2), and the origin is https.
+   */
+  readonly installCommands: RunnerInstallCommandsDto | null;
 }
 
 /** `GET …/enrolment-intents/:intent`: what the wizard polls. The bind's members are `null` until a runner bound. */
@@ -235,15 +247,17 @@ export function checkPollEnrolmentInput(body: unknown): InputCheck<PollEnrolment
 const SETUP_API_URL = /^https?:\/\/[A-Za-z0-9.-]+(?::[0-9]{1,5})?$/;
 
 /**
- * The `setup` invocation the wizard shows for an intent: `team-console-runner setup --url <origin> --enrolment <id>`.
- * The id is an identifier, so it may sit in argv (R-INT-1 covers a local user who reads it there). `null` when either
- * part could carry a shell metacharacter, so a surprising value is never offered for pasting into a terminal.
+ * The `setup` invocation the wizard shows for an intent on a Mac with the release installed, exactly as the runbook
+ * spells it: `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url <origin> --enrolment <id>`
+ * (sudo's secure_path does not reach the prefix, and as root the launcher runs only the release's own node). The id
+ * is an identifier, so it may sit in argv (R-INT-1 covers a local user who reads it there). `null` when either part
+ * could carry a shell metacharacter, so a surprising value is never offered for pasting into a terminal.
  */
 export function setupCommandOf(apiUrl: string, id: string): string | null {
   if (!SETUP_API_URL.test(apiUrl) || !isEnrolmentIntentId(id)) {
     return null;
   }
-  return `${RUNNER_BINARY} setup --url ${apiUrl} --enrolment ${id}`;
+  return `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --url ${apiUrl} --enrolment ${id}`;
 }
 
 function isShownHost(value: unknown): value is RunnerHostDto {
@@ -278,12 +292,22 @@ export function isEnrolmentIntentDto(value: unknown): value is EnrolmentIntentDt
   );
 }
 
+export function isRunnerInstallCommandsDto(value: unknown): value is RunnerInstallCommandsDto {
+  return (
+    isRecord(value) &&
+    Object.keys(value).length === MAC_RELEASE_PLATFORMS.length + 1 &&
+    isReleaseVersion(value['version']) &&
+    MAC_RELEASE_PLATFORMS.every((platform) => isString(value[platform]) && value[platform] !== '')
+  );
+}
+
 export function isEnrolmentIntentCreatedDto(value: unknown): value is EnrolmentIntentCreatedDto {
   return (
     isRecord(value) &&
     isEnrolmentIntentId(value['intentId']) &&
     isTimestamp(value['expiresAt']) &&
-    isNullable(value['command'], isString)
+    isNullable(value['command'], isString) &&
+    isNullable(value['installCommands'], isRunnerInstallCommandsDto)
   );
 }
 

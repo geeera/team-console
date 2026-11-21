@@ -709,9 +709,13 @@ a Node 22 CLI bundled to one dependency-free file (`bundle.spec.ts`); state in `
 its user may write; backends `user` (macOS, sudoers rule to `bin/job-exec`), `container` (image by digest) and `none`
 (fixtures). Releases come only from `.github/workflows/release-runner.yml` on an owner-only `v*` tag, every job in the
 `release` environment (`release-workflow.spec.ts`). The identity a release must carry is compiled in
-(`update/release-identity.ts`; changing it is a security change); `update` verifies with `gh attestation verify` and
-switches releases by one rename of `current` (`update/install-layout.ts`, `update.spec.ts`). No agent pushes a `v*` tag
-or runs that workflow.
+(`@shared/contracts` `lib/runner-release.ts`, shared with the console's install command and deploy.yml's guard;
+changing it is a security change, `runner-release-identity.spec.ts`); `update` verifies with `gh attestation verify`
+and switches releases by one rename of `current` (`update/install-layout.ts`, `update.spec.ts`). Each tarball ships a
+pinned, signature-checked Node.js (`apps/runner/node/`, `tools/release/node-runtime.mjs`, #634 PR 5): the
+LaunchDaemon and the launcher as root run only that root-owned `<prefix>/node`. deploy.yml refuses a
+`RUNNER_RELEASE_SHA256SUMS` that is not the attested `SHA256SUMS` of `RUNNER_RELEASE_VERSION`
+(`tools/deploy-guard/check-runner-release.js`). No agent pushes a `v*` tag or runs that workflow.
 
 Commands: `npx nx serve api` (builds the console, applies migrations, `wrangler dev` on :8787), `npx nx run
 api:migrate` (fresh local D1), `npx nx build api` (`tsc --noEmit` + `wrangler deploy --dry-run`), `docker build -t

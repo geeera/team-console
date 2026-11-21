@@ -668,6 +668,33 @@ export const ENVIRONMENT_MANIFEST: EnvironmentManifest = {
       }
     },
     {
+      "name": "RUNNER_RELEASE_SHA256SUMS",
+      "optional": true,
+      "kind": "variable",
+      "origin": "generated",
+      "environments": [
+        "dev",
+        "stage",
+        "production"
+      ],
+      "locations": [
+        {
+          "place": "wrangler-var",
+          "app": "api"
+        }
+      ],
+      "neededBy": [
+        "apps/api (команда установки на Mac в ответе enrolment-intents, #634 PR 5, S1)"
+      ],
+      "purpose": "Текст `SHA256SUMS` релиза из `RUNNER_RELEASE_VERSION`; по нему команда установки проверяет скачанный архив.",
+      "guide": {
+        "obtain": null,
+        "scopes": null,
+        "rotation": "Задаётся вместе с `RUNNER_RELEASE_VERSION` для каждого релиза: точный текст файла `SHA256SUMS` релиза, после `gh attestation verify` у себя.",
+        "gotchas": "deploy.yml сверяет значение с аттестованным `SHA256SUMS` релиза и не деплоит при расхождении или при версии без сумм. Пустое значение вместе с пустой версией — консоль не предлагает команду установки."
+      }
+    },
+    {
       "name": "AUTH_MODE",
       "kind": "variable",
       "origin": "generated",

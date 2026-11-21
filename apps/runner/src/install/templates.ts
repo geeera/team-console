@@ -1,3 +1,4 @@
+import { NODE_FILE, RUNNER_INSTALL_PREFIX } from '@shared/contracts';
 import { JOB_USER, RUNNER_USER } from '../backends/user';
 import { RUNNER_HOME_ENV } from '../config/config';
 
@@ -15,7 +16,10 @@ export const SYSTEMD_UNIT_NAME = 'team-console-runner.service';
 export const SAFE_PATH = /^\/[A-Za-z0-9._/-]{1,200}$/;
 
 export interface ServiceFiles {
-  /** The `node` the service runs: the path install was started with, never its realpath (#772). */
+  /**
+   * The `node` the service runs. The `user` backend's LaunchDaemon runs the release's own root-owned `<prefix>/node`
+   * (#634 PR 5, S2); the `container` backend's service runs the path install was started with, never its realpath (#772).
+   */
   readonly node: string;
   /** The directory holding `team-console-runner.mjs` and `bin/job-exec`. */
   readonly prefix: string;
@@ -23,11 +27,13 @@ export interface ServiceFiles {
 }
 
 export const DOCUMENTED_DEFAULTS: ServiceFiles = {
-  node: '/opt/homebrew/opt/node/bin/node',
-  prefix: '/usr/local/lib/team-console-runner',
+  node: `${RUNNER_INSTALL_PREFIX}/${NODE_FILE}`,
+  prefix: RUNNER_INSTALL_PREFIX,
   home: '/Users/_tcrunner',
 };
 
+/** The Node.js binary the release ships in the prefix (a link through `current` once `update` converted it). */
+export const nodeOf = (prefix: string): string => `${prefix}/${NODE_FILE}`;
 export const jobExecOf = (prefix: string): string => `${prefix}/bin/job-exec`;
 export const bundleOf = (prefix: string): string => `${prefix}/team-console-runner.mjs`;
 const dirOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
