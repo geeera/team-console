@@ -341,7 +341,7 @@ test('copy failed: a refused clipboard says so, and the file stays selectable te
 
 test('404: an unknown project reads as not found, with no steps and a way back', async ({ page }) => {
   await answerReadiness(page, () => problem(404, 'project-not-found'));
-  await openPage(page);
+  await page.goto(PAGE);
   await expect(page.getByTestId('actions-not-found')).toBeVisible();
   await expect(page.getByTestId('actions-ledger')).toHaveCount(0);
   await expect(page.getByRole('link', { name: ru('overview.title') }).last()).toHaveAttribute('href', '/overview');
