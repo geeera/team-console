@@ -1095,7 +1095,7 @@
       },
       "idChanged": {
         "title": "That’s a different GitHub account",
-        "body": "The login {{login}} on GitHub now belongs to a different account than the one connected to the console. The connection wasn’t replaced, and access for the new account is already revoked. To switch accounts, select Disconnect first, then connect GitHub again."
+        "body": "The login {{login}} on GitHub now belongs to a different account than the one connected to the console. The connection wasn’t replaced, nothing from the new account was saved, and its access is being withdrawn. To switch accounts, select Disconnect first, then connect GitHub again."
       },
       "error": {
         "title": "Couldn’t connect GitHub",
