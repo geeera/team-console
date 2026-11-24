@@ -5,7 +5,7 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Callout } from './callout';
 
 const tones = `
-  <div style="display: grid; gap: var(--space-6); max-width: var(--log-max)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); max-width: var(--log-max)">
     <section tc-callout tone="danger" aria-labelledby="callout-danger">
       <h2 tc-callout-title id="callout-danger">{{ 'stories.callout.refusedTitle' | transloco }}</h2>
       <p>{{ 'stories.callout.refusedBody' | transloco }}</p>

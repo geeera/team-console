@@ -1,8 +1,10 @@
+/* The hidden word hangs from the seal's top edge: its text rect (taller than the 1px box) then sits on the row's line. */
 :host {
   display: inline-grid;
   grid-template-columns: minmax(0, 1fr);
   flex: none;
   place-items: center;
+  position: relative;
   width: var(--chip-h);
   height: var(--chip-h);
   border-radius: var(--r-round);
@@ -10,11 +12,6 @@
   color: var(--accent-text);
   box-shadow: var(--shadow-1);
   cursor: default;
-}
-
-/* The hidden word hangs from the seal's top edge: its text rect (taller than the 1px box) then sits on the row's line. */
-:host {
-  position: relative;
 }
 
 .tc-sr-only {

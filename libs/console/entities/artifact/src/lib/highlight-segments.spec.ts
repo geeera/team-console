@@ -47,4 +47,26 @@ describe('highlightSegments', () => {
       { text: '</b>', isMatch: false },
     ]);
   });
+
+  it('marks an ASCII title as before (no fold involved)', () => {
+    expect(highlightSegments('Board phone lanes', ['board', 'lanes'])).toEqual([
+      { text: 'Board', isMatch: true },
+      { text: ' phone ', isMatch: false },
+      { text: 'lanes', isMatch: true },
+    ]);
+  });
+
+  it('marks a title with the Turkish dotless ı for a plain ASCII "i" query, keeping the title\'s own letters (#945)', () => {
+    expect(highlightSegments('Kızılay meydanı', ['kizilay'])).toEqual([
+      { text: 'Kızılay', isMatch: true },
+      { text: ' meydanı', isMatch: false },
+    ]);
+  });
+
+  it('marks a title with the Turkish dotted İ for a plain ASCII "i" query (#945)', () => {
+    expect(highlightSegments('İstanbul köprüsü', ['istanbul'])).toEqual([
+      { text: 'İstanbul', isMatch: true },
+      { text: ' köprüsü', isMatch: false },
+    ]);
+  });
 });

@@ -84,7 +84,12 @@ CI on every PR into dev/stage/main (ADR 0001 decision 18): `ci.yml` job `lint-te
 lint|test|build` with `NX_BASE`/`NX_HEAD` from `nrwl/nx-set-shas` (merge-base of the PR's base branch and the PR
 merge commit), and `nx run-many` instead when the PR touches `.github/workflows/`, `package.json`, the lockfile,
 `.nvmrc`, `nx.json`, `tsconfig.base.json`, `eslint.config.mjs` or `vitest.config.mts`, and on every PR into
-stage/main; the job's "Nx scope" notice says which. `security.yml`: `secret-scan` (gitleaks; on a PR only the
+stage/main; the job's "Nx scope" notice says which. `runner-darwin-sweep` (`macos-15-intel`, #651, moved off
+`macos-latest`'s arm64 pool by #958) runs only when `runner-darwin-scope` says the change can reach it —
+`apps/runner/**`, `libs/shared/contracts/**`, `ci.yml`, `.github/actions/**` or the toolchain pins — and on every
+PR into stage/main (#947: a capacity-constrained macOS pool can cancel a queued job itself after ~20 min, outside
+`timeout-minutes`); it is not one of dev's required status checks, so a skipped sweep never blocks a merge.
+`security.yml`: `secret-scan` (gitleaks; on a PR only the
 PR's own commits, `git log <base>..HEAD` from the merge commit's first parent — every PR commit with its own diff,
 so a secret added and removed inside the PR is still found, while another open PR's branch is never judged against
 this PR's `.gitleaksignore` (#171); on a push to dev/stage/main, where it is the only job, the full `git log --all`
@@ -755,7 +760,7 @@ E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playw
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
 worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
 command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
+`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `wrangler dev` drops a non-GET request whose keep-alive connection the other end closed at exactly 5 s idle — a 500 «Error: Network connection lost.» from its proxy, or a `socket hang up`/`ECONNRESET` on the client's own reused socket (#947, `support/dev-proxy.ts`): `apiClient`, the `request` fixture and the fake GitHub's `/_fake/*` helpers (`fetchResendingDevProxyDrops`) resend such a request once after 250 ms, the drop is a `dev-proxy-drop` annotation on the test rather than an incident, and a browser request that hits it fails its spec's own assertion. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the

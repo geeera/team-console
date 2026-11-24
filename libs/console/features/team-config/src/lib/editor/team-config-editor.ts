@@ -40,6 +40,7 @@ import {
   Switch,
   Toaster,
 } from '@console/shared/ui';
+import { debounce } from '@console/shared/utils';
 import {
   CAP_MODES,
   GATE_POLICIES,
@@ -706,28 +707,22 @@ export class TeamConfigEditor {
   }
 
   private announceChanges(): void {
-    let timer: ReturnType<typeof setTimeout> | null = null;
     let last = 0;
+    const debouncedAnnounce = debounce((count: number) => {
+      last = count;
+      if (count > 0) {
+        this.announce(this.plural('teamConfig.bar.announce', count));
+      }
+    }, ANNOUNCE_DEBOUNCE_MS);
     effect(() => {
       const count = this.store.changes().length;
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
       if (count === last) {
+        debouncedAnnounce.cancel();
         return;
       }
-      timer = setTimeout(() => {
-        last = count;
-        if (count > 0) {
-          this.announce(this.plural('teamConfig.bar.announce', count));
-        }
-      }, ANNOUNCE_DEBOUNCE_MS);
+      debouncedAnnounce(count);
     });
-    inject(DestroyRef).onDestroy(() => {
-      if (timer !== null) {
-        clearTimeout(timer);
-      }
-    });
+    inject(DestroyRef).onDestroy(() => debouncedAnnounce.cancel());
   }
 
   /** A reload or a closed tab with unsaved edits asks the browser's own question. */

@@ -313,6 +313,15 @@ export class DesignViewerDialog {
     this.zoomed.update((zoomed) => !zoomed);
   }
 
+  /**
+   * The turn animation (`data-move`) has finished playing. Reset to `'none'` so a later re-render that recreates
+   * this element for an unrelated reason (a round trip through «Все экраны», a manifest reload) does not replay a
+   * move that already happened (#944).
+   */
+  protected onTurnEnd(): void {
+    this.move.set('none');
+  }
+
   protected reloadManifest(): void {
     void this.manifests.reload(this.data.slug, this.data.issue);
   }

@@ -1,7 +1,7 @@
-import { isEnvironment, type Environment } from '@shared/contracts';
-import type { APIRequestContext } from '@playwright/test';
+import type { Environment } from '@shared/contracts';
 import { expect, expectAccessible, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { environmentOf } from './support/stack';
 
 /**
  * The installed app says which environment it is (#237). Read-only, so it holds on any target: the local stack and
@@ -14,16 +14,6 @@ const NAMES: Readonly<Record<Environment, { name: string; shortName: string; lab
   stage: { name: 'Team Console Stage', shortName: 'TC Stage', label: 'Stage' },
   production: { name: 'Team Console', shortName: 'Console', label: null },
 };
-
-async function environmentOf(request: APIRequestContext): Promise<Environment> {
-  const response = await request.get('/api/v1/healthz');
-  expect(response.status()).toBe(200);
-  const body = (await response.json()) as { environment?: unknown };
-  if (!isEnvironment(body.environment)) {
-    throw new Error(`healthz names no environment: ${JSON.stringify(body)}`);
-  }
-  return body.environment;
-}
 
 // `request`, not `page.request`: only the `request` fixture carries the Access token on a target behind Access (#142).
 test('the manifest and the Home Screen icons carry the environment', async ({ request }) => {

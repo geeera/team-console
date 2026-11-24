@@ -5,7 +5,7 @@ import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/sto
 import { Field, FieldControl } from './field';
 
 const form = `
-  <form style="display: grid; gap: var(--space-4); max-width: var(--dialog-max-w)" autocomplete="off">
+  <form style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); max-width: var(--dialog-max-w)" autocomplete="off">
     <tc-field [label]="'stories.field.repoLabel' | transloco" [hint]="'stories.field.repoHint' | transloco" required>
       <input tcInput type="text" name="repo" placeholder="geeera/team-console" />
     </tc-field>

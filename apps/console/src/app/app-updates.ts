@@ -28,8 +28,21 @@ export const QUIET_WAIT_MS = 3_000;
 export const RECOVERY_GUARD_MS = 10 * 60_000;
 /** `localStorage` key of the last self-heal's time (ms since the epoch). */
 export const RECOVERY_GUARD_KEY = 'tc.sw-recovery.v1';
-/** `localStorage` key set when an update is activated and read by the page that loads next (#347). */
+/**
+ * `localStorage` key set, to the build active just before activating, when an update is activated; read by the
+ * page that loads next (#347, #941). The stored value is the pre-activation build identity, not a plain flag, so
+ * that page can tell a real build change from a reload that landed back on the same one.
+ */
 export const UPDATED_MARK_KEY = 'tc.updated-from.v1';
+
+/**
+ * Identifies a build well enough to tell two deploys apart even when neither bumps `package.json`'s version
+ * (the common case, #941): `builtAt` is the deploy run's own stamp (`__TC_BUILT_AT__`, deploy.yml's "Stamp the
+ * console build"), unique per run.
+ */
+function buildIdentityOf(): string {
+  return `${buildInfo.version}@${buildInfo.builtAt}`;
+}
 
 /** ngsw's own words when a file it fetched is not the one its manifest hashed. */
 const HASH_MISMATCH = /hash mismatch/i;
@@ -181,24 +194,39 @@ export class AppUpdates {
     this.platform.reload();
   }
 
-  /** Leaves word for the next page that this reload is an update; a missing storage only means no note. */
+  /**
+   * Leaves word for the next page that this reload is an update, set before `activateUpdate` so a reload mid-
+   * activation (or one that fails and falls back to the old build) still finds the mark. A missing storage only
+   * means no note.
+   */
   private markUpdating(): void {
     try {
-      this.platform.storage?.setItem(UPDATED_MARK_KEY, '1');
+      this.platform.storage?.setItem(UPDATED_MARK_KEY, buildIdentityOf());
     } catch (error: unknown) {
       console.error('[updates] the updated mark could not be written', error);
     }
   }
 
-  /** Reads and clears the mark once. Only an activation writes it, so a plain reload never shows the note. */
+  /**
+   * Reads and clears the mark once. Only an activation writes it, so a plain reload never shows the note. The
+   * note itself only fires when the stored (pre-activation) build identity differs from this page's: an
+   * activation that landed back on the same build (activateUpdate failed, or a redeploy of the very same build)
+   * has nothing to announce. The text still names only the version, not the deploy stamp.
+   */
   private consumeUpdatedMark(): void {
     try {
       const storage = this.platform.storage;
-      if (storage === null || storage.getItem(UPDATED_MARK_KEY) === null) {
+      if (storage === null) {
+        return;
+      }
+      const storedIdentity = storage.getItem(UPDATED_MARK_KEY);
+      if (storedIdentity === null) {
         return;
       }
       storage.removeItem(UPDATED_MARK_KEY);
-      this.updatedTo.set(buildInfo.version);
+      if (storedIdentity !== buildIdentityOf()) {
+        this.updatedTo.set(buildInfo.version);
+      }
     } catch (error: unknown) {
       console.error('[updates] the updated mark could not be read', error);
     }

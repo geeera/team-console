@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { DEV_PROXY_DROP_MARKER } from '../support/dev-proxy';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -67,10 +68,11 @@ export function portsFor(parallelIndex: number): StackPorts {
 }
 
 /**
- * Log lines of a server that failed requests on its own: workerd died and miniflare restarted it in place, or the
- * dev proxy lost its connection to the Worker and could not retry (a non-GET, #230).
+ * Log lines of a server that stopped serving on its own: workerd died and miniflare restarted it in place. The dev
+ * proxy dropping one request on its way to the Worker (#230, #947) is not one — the server kept serving, the
+ * request's own answer says so, and `apiClient` resends it — so those lines are `devProxyDrops()` instead.
  */
-const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly', 'Error inside ProxyWorker'] as const;
+const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly'] as const;
 
 /**
  * One `wrangler dev` and the workerd it forks. Every lifetime appends to the log between two marker lines, so a
@@ -152,6 +154,14 @@ class StackProcess {
       found.push(`${this.label}: wrangler exited on its own`);
     }
     return found;
+  }
+
+  /** Every request the dev proxy dropped on its way to the Worker (`support/dev-proxy.ts`). */
+  devProxyDrops(): string[] {
+    return this.output()
+      .split('\n')
+      .filter((line) => line.includes(DEV_PROXY_DROP_MARKER))
+      .map((line) => `${this.label}: ${line.trim()}`);
   }
 
   /**
@@ -296,6 +306,7 @@ export class LocalStack {
     push: null,
   };
   private readonly pastIncidents: string[] = [];
+  private readonly pastDevProxyDrops: string[] = [];
   private readonly vapid = throwawayVapidPair();
   /** Settles once per stack; a failed migration stays failed, so every reset reports it instead of retrying. */
   private template: Promise<string> | null = null;
@@ -382,12 +393,21 @@ export class LocalStack {
     ];
   }
 
+  /** Every request the dev proxy of one of this stack's servers dropped, oldest first (`support/dev-proxy.ts`). */
+  devProxyDrops(): string[] {
+    return [
+      ...this.pastDevProxyDrops,
+      ...[this.fake, this.fakePush, this.api].flatMap((process) => process?.devProxyDrops() ?? []),
+    ];
+  }
+
   private async retireApi(): Promise<void> {
     if (this.api === null) {
       return;
     }
     await this.api.stop();
     this.pastIncidents.push(...this.api.incidents());
+    this.pastDevProxyDrops.push(...this.api.devProxyDrops());
     this.api = null;
   }
 

@@ -48,7 +48,7 @@ export const Phone: Story = {
   ...phoneViewport,
   render: () => ({
     template: `
-      <div style="display: grid; gap: var(--space-2)">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2)">
         <button tc-button variant="primary" block type="button">{{ 'stories.button.approveClose' | transloco }}</button>
         <button tc-button variant="secondary" block type="button">{{ 'stories.button.reject' | transloco }}</button>
       </div>
@@ -60,7 +60,7 @@ export const Phone: Story = {
 export const OffWithReason: Story = {
   render: () => ({
     template: `
-      <div style="display: grid; gap: var(--space-1); justify-items: start">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1); justify-items: start">
         <button tc-button off aria-disabled="true" aria-describedby="story-off-why" type="button">
           {{ 'stories.button.run' | transloco }}
         </button>
@@ -96,7 +96,7 @@ export const DraftDot: Story = {
 export const WrappedLabel: Story = {
   render: () => ({
     template: `
-      <div style="display: grid; gap: var(--space-2); justify-items: start; width: calc(var(--space-16) * 3)">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); justify-items: start; width: calc(var(--space-16) * 3)">
         <a tc-button wrap href="#">
           <tc-icon name="settings" size="sm" />
           {{ 'stories.button.longLabel' | transloco }}

@@ -8,7 +8,7 @@ import { Choice, ChoiceGroup } from './choice';
 const options = ['hour', 'morning', 'week', 'forever'];
 
 const both = (disabled: boolean) => `
-  <div style="display: grid; gap: var(--space-4); max-width: var(--dialog-max-w)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); max-width: var(--dialog-max-w)">
     <fieldset tc-choice-group [legend]="'stories.choice.when' | transloco">
       ${options
         .map(
