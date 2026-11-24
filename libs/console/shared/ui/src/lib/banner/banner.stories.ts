@@ -26,6 +26,16 @@ const both = `
   </div>
 `;
 
+const note = `
+  <div tc-banner tone="warning" note>
+    <tc-icon tc-banner-icon name="pause" />
+    <p tc-banner-text>{{ 'stories.banner.owner' | transloco }}</p>
+    <div tc-banner-actions>
+      <button tc-button size="sm" type="button">{{ 'stories.banner.resume' | transloco }}</button>
+    </div>
+  </div>
+`;
+
 const meta: Meta<Banner> = {
   title: 'Kit/Banner',
   component: Banner,
@@ -51,6 +61,11 @@ type Story = StoryObj<Banner>;
 
 export const Playground: Story = {};
 export const Tones: Story = { render: () => ({ template: both }) };
+/** #357: the team's pause as a paper note with a paperclip; it drops into place. */
+export const Note: Story = { render: () => ({ template: note }) };
+export const NoteDark: Story = { ...darkTheme, render: () => ({ template: note }) };
+export const NoteReducedMotion: Story = { ...reducedMotion, render: () => ({ template: note }) };
+export const NotePhone: Story = { ...phoneViewport, render: () => ({ template: note }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: both }) };
 export const ReducedMotion: Story = { ...reducedMotion, render: () => ({ template: both }) };
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: both }) };

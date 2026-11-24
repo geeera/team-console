@@ -89,7 +89,7 @@ describe('CommandsPanel', () => {
   async function render(initial: TeamStatusDto) {
     const done: CommandOutcome = {
       tone: 'positive',
-      verb: 'Запрошено: разработка',
+      verb: 'Отправлено: разработка',
       detail: null,
       runLogUrl: null,
       at: new Date().toISOString(),
@@ -231,7 +231,7 @@ describe('CommandsPanel', () => {
     await fixture.whenStable();
     expect(commands.run).toHaveBeenCalledWith({ slug: 'tc', name: 'Team Console' }, 'pm');
     const note = root.querySelector('.cp-result') as HTMLElement;
-    expect(text(note)).toContain('Запрошено: разработка');
+    expect(text(note)).toContain('Отправлено: разработка');
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(document.activeElement).toBe(note);
   });
@@ -281,7 +281,7 @@ describe('CommandsPanel', () => {
     (banner.querySelector('[data-testid="banner-resume"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     expect(commands.resume).toHaveBeenCalledTimes(2);
-    expect(toasts).toEqual(['Запрошено: разработка']);
+    expect(toasts).toEqual(['Отправлено: разработка']);
   });
 
   it('#141: where a console pause would not hold, Pause is off and says why; the other commands work', async () => {

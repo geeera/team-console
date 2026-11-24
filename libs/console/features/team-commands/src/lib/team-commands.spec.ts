@@ -259,7 +259,7 @@ describe('TeamCommands', () => {
     expect(sent).toEqual({ slot: 'dev' });
     expect(outcome).toMatchObject({
       tone: 'positive',
-      verb: 'Запрошено: разработка',
+      verb: 'Отправлено: разработка',
       detail: 'Прогон появится в журнале через пару минут.',
     });
     expect(store.status()?.slots[1]?.lock).toEqual({

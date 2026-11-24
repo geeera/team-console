@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  output,
+  signal,
+} from '@angular/core';
 import { TeamStatusStore } from '@console/entities/team-run';
 import { TeamCommands } from '@console/features/team-commands';
 import { NetworkStatus } from '@console/shared/api';
@@ -22,6 +31,9 @@ let nextBannerId = 0;
         <div
           tc-banner
           data-testid="paused-banner"
+          note
+          [attr.inert]="isResumed() ? '' : null"
+          animate.leave="tc-banner--leaving"
           [tone]="status.state === 'paused-by-team' ? 'danger' : 'warning'"
         >
           <tc-icon tc-banner-icon [name]="status.state === 'paused-by-team' ? 'alert' : 'pause'" />
@@ -40,7 +52,8 @@ let nextBannerId = 0;
                   : ('commands.status.ownerNoTime' | transloco)
               }}</b>
               {{
-                (status.pauseLiftsAtNextRun ? 'commands.banner.liftsRest' : 'commands.banner.ownerRest') | transloco
+                (status.pauseLiftsAtNextRun ? 'commands.banner.liftsRest' : 'commands.banner.ownerRest')
+                  | transloco
               }}
             }
           </p>
@@ -81,11 +94,14 @@ export class PausedBanner {
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);
   private readonly language = inject(ConsoleLanguage);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   readonly project = input.required<CommandsProject>();
   /** The project was resumed and the banner is going away; the page puts focus somewhere that stays (#144). */
   readonly resumed = output<void>();
 
+  /** Resumed: the note is lifting away. It no longer takes focus or clicks, and the page decides where focus goes. */
+  protected readonly isResumed = signal(false);
   protected readonly id = `tc-paused-banner-why-${nextBannerId++}`;
   protected readonly status = computed(() =>
     this.store.slug() === this.project().slug ? this.store.status() : null,
@@ -108,6 +124,12 @@ export class PausedBanner {
     const outcome = await this.commands.resume({ slug: this.project().slug, name: this.project().name });
     if (outcome !== null) {
       this.toaster.show(outcome.verb);
+      this.isResumed.set(true);
+      // The note stays in the DOM while it lifts away; focus must not wait inside it (#144).
+      const active = this.host.nativeElement.ownerDocument.activeElement;
+      if (active instanceof HTMLElement && this.host.nativeElement.contains(active)) {
+        active.blur();
+      }
       this.resumed.emit();
     }
   }

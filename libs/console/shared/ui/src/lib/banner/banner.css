@@ -1,4 +1,5 @@
 :host {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -67,6 +68,40 @@
   }
 }
 
+/* The note (#357): lifted off the page by a shadow, a paperclip over its top edge. */
+:host(.tc-banner--note) {
+  box-shadow: var(--shadow-1);
+  animation: tc-banner-drop var(--dur-slow) var(--ease-enter) both;
+}
+
+.tc-banner__clip {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: var(--space-4);
+  color: var(--text-2);
+  transform: rotate(12deg);
+  pointer-events: none;
+}
+
+/* The caller's `animate.leave` class: the note lifts away up the page. */
+:host(.tc-banner--leaving) {
+  animation: tc-banner-lift var(--dur-base) var(--ease-exit) both;
+}
+
+@keyframes tc-banner-drop {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--space-4) * -1));
+  }
+}
+
+@keyframes tc-banner-lift {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--space-4) * -1));
+  }
+}
+
 @keyframes tc-banner-in {
   from {
     opacity: 0;
@@ -75,13 +110,24 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :host {
+  :host,
+  :host(.tc-banner--note) {
     animation: tc-banner-fade var(--dur-fade) linear both;
+  }
+
+  :host(.tc-banner--leaving) {
+    animation: tc-banner-fade-out var(--dur-fade) linear both;
   }
 }
 
 :host-context(:root[data-motion='reduce']) {
   animation: tc-banner-fade var(--dur-fade) linear both;
+}
+
+@keyframes tc-banner-fade-out {
+  to {
+    opacity: 0;
+  }
 }
 
 @keyframes tc-banner-fade {
