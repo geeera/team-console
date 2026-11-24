@@ -91,8 +91,13 @@ function isNgswManifest(value: unknown): value is NgswManifest {
  * Build B: the built console as the next deploy differs from it. Every lazy chunk has a new name (so the installed
  * version's chunks are gone from the server, as after a real deploy), the shell carries `BUILD_MARKER`, and ngsw.json
  * lists and hashes it all the way the Angular CLI does (SHA-1 of the bytes served).
+ *
+ * `buildInfo.builtAt` (`apps/console/src/app/build-info.ts`) is `"local"` in both builds otherwise, since neither
+ * ran through deploy.yml's "Stamp the console build" step: `{ sameBuild: true }` keeps that (a redeploy with no
+ * change at all, #941's same-build case), the default stamps build B with its own value, the way a real deploy's
+ * own `__TC_BUILT_AT__` always would, so AppUpdates can tell the two builds apart.
  */
-export function writeNextBuild(name: string): string {
+export function writeNextBuild(name: string, options: { sameBuild?: boolean } = {}): string {
   const dir = join(STACKS_DIR, name, 'build-b');
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
@@ -103,6 +108,7 @@ export function writeNextBuild(name: string): string {
       .filter((file) => /^chunk-[^/]+\.js$/.test(file))
       .map((file) => [file, file.replace(/^chunk-/, 'chunk-next-')] as const),
   );
+  let builtAtPatched = options.sameBuild === true;
   for (const file of readdirSync(dir).filter((entry) => /\.(js|html)$/.test(entry))) {
     let text = readFileSync(join(dir, file), 'utf8');
     for (const [from, to] of renames) {
@@ -111,11 +117,22 @@ export function writeNextBuild(name: string): string {
     if (file === 'index.html') {
       text = text.replace('<head>', `<head>\n  <meta name="${BUILD_MARKER}" content="B">`);
     }
+    if (!builtAtPatched && /^main-[^/]+\.js$/.test(file)) {
+      const patched = text.replace(/builtAt:(["'`])local\1/, (_match, quote: string) => `builtAt:${quote}${name}-build-b${quote}`);
+      if (patched === text) {
+        throw new Error('build-info builtAt literal not found in the main bundle');
+      }
+      text = patched;
+      builtAtPatched = true;
+    }
     const target = renames.get(file) ?? file;
     writeFileSync(join(dir, target), text);
     if (target !== file) {
       rmSync(join(dir, file));
     }
+  }
+  if (!builtAtPatched) {
+    throw new Error('build B has no main bundle to stamp builtAt in');
   }
 
   const manifest: unknown = JSON.parse(readFileSync(join(dir, 'ngsw.json'), 'utf8'));
