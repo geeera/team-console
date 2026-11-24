@@ -33,6 +33,7 @@ export * from './lib/pinned-column/pinned-column';
 export * from './lib/receipt/receipt';
 export * from './lib/recommendation/recommendation';
 export * from './lib/roll/roll';
+export * from './lib/seal/seal';
 export * from './lib/segmented/segmented';
 export * from './lib/sheet/sheet';
 export * from './lib/shortcut/letter-shortcut';

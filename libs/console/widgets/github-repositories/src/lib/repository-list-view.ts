@@ -3,12 +3,14 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   inject,
   Injector,
   input,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import type { GitHubConnectionView } from '@console/entities/github-connection';
@@ -19,7 +21,7 @@ import {
 } from '@console/entities/installation-repository';
 import { projectSetupRouteOf } from '@console/entities/project';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Chip, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Icon, List, ListRow, Seal, StateBlock } from '@console/shared/ui';
 import type { InstallationRepositoryDto } from '@shared/contracts';
 
 /** What a repository row shows while or after an add from this screen (in memory only). */
@@ -33,6 +35,8 @@ type RefreshControl = 'repos-refresh' | 'repos-missing-refresh';
 // A long list folds after ten addable rows when more than twelve would show (the #194 design).
 const FOLD_AT = 10;
 const FOLD_OVER = 12;
+// Rows that arrive after «Обновить» lay out one after another; past this many the rest come with the last (#348).
+const MAX_STAGGERED_ROWS = 8;
 
 /**
  * "Available on GitHub" (#194) as a pure view: every state of the list through kit primitives, from inputs only.
@@ -41,7 +45,7 @@ const FOLD_OVER = 12;
  */
 @Component({
   selector: 'tc-repository-list-view',
-  imports: [Button, Callout, Chip, Icon, List, ListRow, LocalTimePipe, StateBlock, TranslocoPipe],
+  imports: [Button, Callout, Icon, List, ListRow, LocalTimePipe, Seal, StateBlock, TranslocoPipe],
   templateUrl: './repository-list-view.html',
   styleUrl: './repository-list-view.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -73,6 +77,9 @@ export class RepositoryListView {
   private readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
 
   protected readonly expanded = signal(false);
+  /** Rows that appeared since the list was first shown (#348), by key, with their place in the arrival order. */
+  private readonly freshRows = signal<ReadonlyMap<string, number>>(new Map());
+  private knownRows: Set<string> | null = null;
   private refreshControl: RefreshControl = 'repos-refresh';
 
   protected readonly needsConnect = computed(() => {
@@ -104,8 +111,26 @@ export class RepositoryListView {
     return problem?.kind === 'not-installed' ? problem.installUrl : null;
   });
 
+  constructor() {
+    effect(() => {
+      if (this.status() !== 'ready') {
+        return;
+      }
+      const keys = this.repositories().map((repo) => this.keyOf(repo));
+      untracked(() => this.recordArrivals(keys));
+    });
+  }
+
   protected keyOf(repo: InstallationRepositoryDto): string {
     return repo.fullName.toLowerCase();
+  }
+
+  protected isFresh(repo: InstallationRepositoryDto): boolean {
+    return this.freshRows().has(this.keyOf(repo));
+  }
+
+  protected freshIndexOf(repo: InstallationRepositoryDto): number | null {
+    return this.freshRows().get(this.keyOf(repo)) ?? null;
   }
 
   protected stateOf(repo: InstallationRepositoryDto): RepositoryRowState | null {
@@ -186,6 +211,20 @@ export class RepositoryListView {
       root.querySelector<HTMLElement>(`[data-testid="${this.refreshControl}"]`) ??
       root.querySelector<HTMLElement>('[data-testid="repos-refresh"]');
     target?.focus();
+  }
+
+  /** The first list is the baseline; every later one lays out only the rows the owner has not seen yet. */
+  private recordArrivals(keys: readonly string[]): void {
+    if (this.knownRows === null) {
+      this.knownRows = new Set(keys);
+      return;
+    }
+    const known = this.knownRows;
+    const arrived = keys.filter((key) => !known.has(key));
+    arrived.forEach((key) => known.add(key));
+    this.freshRows.set(
+      new Map(arrived.map((key, index): [string, number] => [key, Math.min(index, MAX_STAGGERED_ROWS)])),
+    );
   }
 
   private focusAddableAt(index: number): void {

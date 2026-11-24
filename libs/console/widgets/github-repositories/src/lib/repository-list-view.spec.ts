@@ -165,6 +165,55 @@ describe('RepositoryListView', () => {
     expect(row('geeera/secret-site').querySelector('.repo__private')?.textContent?.trim()).toBe('Приватный');
   });
 
+  it('the Private seal is a round mark with a hover hint, and the word stays for screen readers (#348)', async () => {
+    await render();
+    const seal = row('geeera/storify').querySelector('tc-seal.repo__private') as HTMLElement;
+    expect(seal.getAttribute('title')).toBe('Приватный');
+    expect(seal.querySelector('.tc-sr-only')?.textContent).toBe('Приватный');
+  });
+
+  describe('rows that arrive after a refresh (#348)', () => {
+    const freshKeys = (): string[] =>
+      [...root().querySelectorAll('.repo--new')].map((el) => el.getAttribute('data-repo') ?? '');
+
+    it('lays out nothing on the first list, then only the rows the owner has not seen, in order', async () => {
+      await render();
+      expect(freshKeys()).toEqual([]);
+
+      ref.setInput('repositories', [
+        ...LIST,
+        repo('geeera/alpha'),
+        repo('geeera/beta', { state: 'none' }, true),
+      ]);
+      await fixture.whenStable();
+
+      expect(freshKeys()).toEqual(['geeera/alpha', 'geeera/beta']);
+      expect(row('geeera/alpha').style.getPropertyValue('--i')).toBe('0');
+      expect(row('geeera/beta').style.getPropertyValue('--i')).toBe('1');
+      expect(row('geeera/storify').classList.contains('repo--new')).toBe(false);
+    });
+
+    it('lays out nothing when a refresh brings no new row', async () => {
+      await render();
+      ref.setInput('repositories', [...LIST]);
+      await fixture.whenStable();
+      expect(freshKeys()).toEqual([]);
+    });
+
+    it('caps the delay so a long arrival still ends quickly', async () => {
+      await render();
+      // Registered rows are never folded away, so every arrival is on screen.
+      const many = Array.from({ length: 12 }, (_, index) => {
+        const slug = `new-${String(index).padStart(2, '0')}`;
+        return repo(`geeera/${slug}`, { state: 'active', slug });
+      });
+      ref.setInput('repositories', [...LIST, ...many]);
+      await fixture.whenStable();
+
+      expect(row('geeera/new-11').style.getPropertyValue('--i')).toBe('8');
+    });
+  });
+
   it('a loaded list ends with the missing step: a heading, the GitHub access link and Refresh (#278)', async () => {
     await render();
     const step = root().querySelector('[data-testid="repos-missing"]') as HTMLElement;

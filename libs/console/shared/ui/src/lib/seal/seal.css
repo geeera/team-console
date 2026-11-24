@@ -1,0 +1,12 @@
+:host {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: var(--chip-h);
+  height: var(--chip-h);
+  border-radius: var(--r-round);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  box-shadow: var(--shadow-1);
+  cursor: default;
+}
