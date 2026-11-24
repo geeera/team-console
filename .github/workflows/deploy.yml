@@ -215,10 +215,20 @@ jobs:
           cat "${tmp}" > apps/console/project.json
           rm -f "${tmp}"
 
+      # #960: the «Обновлено» note compares version@builtAt, so a deploy that ships the "local" default (or a
+      # malformed stamp) silences it for good. Fails here, before the build and long before any credentialed step.
+      - name: Check the console build stamp is a real UTC timestamp
+        run: node tools/deploy-guard/check-built-at.js config apps/console/project.json
+
       # Build once for this push; api's Nx target depends on console, so this also builds the SPA the api
       # Worker serves as static assets (ADR 0001 decisions 4, 14).
       - name: Build api and hooks
         run: npx nx run-many -t build --projects=api,hooks
+
+      # #960: the exact stamp above must be compiled into the bundle the api Worker serves — catches a build that
+      # dropped or overrode the define (the double-build trap described on the stamp step) or a stale output.
+      - name: Check the built console bundle carries the stamp
+        run: node tools/deploy-guard/check-built-at.js bundle apps/console/project.json dist/apps/console/browser
 
       - name: D1 migrations (remote, before traffic moves)
         uses: cloudflare/wrangler-action@953926a2e2182532811c01a25e53647d93bf07c0 # v4.1.3
