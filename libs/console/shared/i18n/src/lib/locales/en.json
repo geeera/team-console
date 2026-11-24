@@ -1729,6 +1729,10 @@
     }
   },
   "stories": {
+    "demoLeaf": {
+      "in": "Demo 16 October · in {{n}} d",
+      "today": "Demo today, 16 October"
+    },
     "common": {
       "settings": "Settings"
     },

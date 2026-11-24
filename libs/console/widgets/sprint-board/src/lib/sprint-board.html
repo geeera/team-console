@@ -24,9 +24,13 @@
   <header class="board__head">
     <h2 #boardTitle class="board__title" [id]="titleId" dir="auto" tabindex="-1">{{ milestone.title }}</h2>
     @if (demoLine()) {
-    <tc-chip class="board__demo" tone="accent" data-testid="demo"
-      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
-    >
+    <tc-demo-leaf
+      class="board__demo"
+      data-testid="demo"
+      [due]="milestone.dueOn ?? ''"
+      [days]="demoDays()"
+      [line]="demoLine()"
+    />
     } @if (isJobsBoard()) {
     <span class="board__open" data-testid="open-count"
       >{{ 'board.sections.open' | translocoPlural: openCount() }}</span
