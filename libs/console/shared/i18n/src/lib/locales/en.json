@@ -192,6 +192,9 @@
     }
   },
   "questions": {
+    "seal": {
+      "release": "To release · {{date}}"
+    },
     "listLabel": "Questions for you",
     "emptyTitle": "Nothing in this project needs you",
     "loadFailed": "Couldn't load the questions",
@@ -1748,6 +1751,7 @@
       "longLabel": "Open the runner settings of this account"
     },
     "card": {
+      "seal": "To release · 16.10",
       "kind": "Question",
       "title": "Approve the Paper Desk kit and tokens?",
       "body": "Tokens, primitives and Storybook are ready. The team recommends approving and closing the issue.",

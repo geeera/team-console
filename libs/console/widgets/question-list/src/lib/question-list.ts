@@ -40,7 +40,13 @@ import { AnswerGiven, AnswerQuestion } from '@console/features/answer-question';
 import { BudgetStop } from '@console/features/budget-stop';
 import { DesignViewer } from '@console/features/design-viewer';
 import { teamLimitsLinkOf } from '@console/features/team-config';
-import { localDayOf, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
+import {
+  localDayOf,
+  localShortDayOf,
+  localTimeOf,
+  TranslocoPipe,
+  TranslocoService,
+} from '@console/shared/i18n';
 import {
   type Arrival,
   Banner,
@@ -283,6 +289,16 @@ export class QuestionList {
 
   protected toneOf(command: AnswerCommand): CardStamp {
     return TONES[command];
+  }
+
+  /** «В релиз · 16.10» on a release card answered /go (#361); no other answer gets a seal. */
+  protected sealOf(row: Row): string | null {
+    if (row.item.section !== 'release' || row.answer?.command !== 'go') {
+      return null;
+    }
+    return this.transloco.translate('questions.seal.release', {
+      date: localShortDayOf(row.answer.answeredAt),
+    });
   }
 
   protected receiptUrl(answer: AnsweredItem): string | null {

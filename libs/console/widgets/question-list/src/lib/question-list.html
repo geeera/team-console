@@ -167,6 +167,7 @@
       [item]="row.item"
       [showProject]="isAllProjects()"
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+      [seal]="sealOf(row)"
       [embedOrigins]="embedOrigins()"
     >
       <!-- #276/#290: only the team's own design items; content is created even where the card would not show it. -->
