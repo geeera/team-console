@@ -1,4 +1,6 @@
-import { request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
+import { expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
+import { isEnvironment, type Environment } from '@shared/contracts';
+import { retryingDevProxyDrops } from './dev-proxy';
 
 /**
  * What a spec talks to. Locally (and in CI) every Playwright worker owns a `LocalStack`; with `BASE_URL` set the
@@ -14,6 +16,11 @@ export interface Stack {
   reset(): Promise<void>;
   /** Every time a local server stopped serving on its own (a workerd crash, wrangler exiting); none for a target. */
   incidents(): readonly string[];
+  /**
+   * Every request `wrangler dev`'s proxy dropped on its way to the Worker (see `support/dev-proxy.ts`); the server
+   * kept serving. Reported on the test, never a failure by itself: the request's own answer decides.
+   */
+  devProxyDrops(): readonly string[];
 }
 
 export interface FakeComment {
@@ -138,12 +145,27 @@ export async function routeGitHubToFake(context: BrowserContext, stack: Stack): 
   });
 }
 
-/** An API client that passes the Worker's CSRF check the way the browser does. */
+/**
+ * An API client that passes the Worker's CSRF check the way the browser does. On the local stack it resends a request
+ * `wrangler dev`'s proxy dropped before the Worker saw it (#947, `support/dev-proxy.ts`); a target has no such proxy.
+ */
 export async function apiClient(stack: Stack): Promise<APIRequestContext> {
-  return playwrightRequest.newContext({
+  const api = await playwrightRequest.newContext({
     baseURL: stack.baseURL,
     extraHTTPHeaders: { 'Sec-Fetch-Site': 'same-origin' },
   });
+  return stack.isLocal ? retryingDevProxyDrops(api) : api;
+}
+
+/** Which environment the target says it is (`local` for the local stack and the Docker image, `stage` for stage). */
+export async function environmentOf(request: APIRequestContext): Promise<Environment> {
+  const response = await request.get('/api/v1/healthz');
+  expect(response.status()).toBe(200);
+  const body = (await response.json()) as { environment?: unknown };
+  if (!isEnvironment(body.environment)) {
+    throw new Error(`healthz names no environment: ${JSON.stringify(body)}`);
+  }
+  return body.environment;
 }
 
 /** The owner's OAuth round trip over HTTP as whoever the fake GitHub signs in; the callback's Settings landing. */

@@ -2,6 +2,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 import { LocalStack, portsFor } from '../stack/local-stack';
 import { accessHeadersFromEnv, routeAccessHeaders, scopeAccessHeaders } from './access-headers';
 import { blockingViolations } from './axe';
+import { retryingDevProxyDrops } from './dev-proxy';
 import type { Stack } from './stack';
 
 interface OutsideRequests {
@@ -36,6 +37,7 @@ function externalStack(baseURL: string): Stack {
     isLocal: false,
     reset: () => Promise.reject(new Error('An external target (BASE_URL) cannot be reset')),
     incidents: () => [],
+    devProxyDrops: () => [],
   };
 }
 
@@ -62,6 +64,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
           isLocal: true,
           reset: () => local.reset(),
           incidents: () => local.incidents(),
+          devProxyDrops: () => local.devProxyDrops(),
         });
       } finally {
         await local.stop();
@@ -106,9 +109,11 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     { auto: true },
   ],
 
+  // On the local stack the client resends a request `wrangler dev`'s proxy dropped before the Worker saw it (#947).
   request: async ({ request, stack }, use) => {
     const access = accessHeadersFromEnv(process.env);
-    await use(access === null ? request : scopeAccessHeaders(request, stack.baseURL, access));
+    const scoped = access === null ? request : scopeAccessHeaders(request, stack.baseURL, access);
+    await use(stack.isLocal ? retryingDevProxyDrops(scoped) : scoped);
   },
 
   // Every test: the app talks to its own origin only (no CDN, font, analytics or GitHub request from the page).
@@ -132,7 +137,12 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   stackHealth: [
     async ({ stack }, use) => {
       const before = stack.incidents().length;
+      const dropsBefore = stack.devProxyDrops().length;
       await use();
+      // A dropped request stays visible in the report; whether it mattered is the request's own answer (#947).
+      for (const drop of stack.devProxyDrops().slice(dropsBefore)) {
+        test.info().annotations.push({ type: 'dev-proxy-drop', description: drop });
+      }
       expect(
         stack.incidents().slice(before),
         'local stack servers that stopped serving during the test',

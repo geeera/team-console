@@ -1,7 +1,8 @@
-import type { Locator, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import { appNameOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { seed } from './support/stack';
+import { environmentOf, seed } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
@@ -33,10 +34,15 @@ const stored = (page: Page): Promise<unknown> =>
     return raw === null ? null : (JSON.parse(raw) as unknown);
   }, KEY);
 
-/** The name the app gives itself here («Team Console Local» on the local stack), from the window title it sets. */
-async function appName(page: Page): Promise<string> {
-  await expect(page).toHaveTitle(/Team Console/);
-  return page.title();
+/**
+ * The name the app gives itself here («Team Console Local» on the local stack): the title it sets once the Worker has
+ * said where it runs (#237). index.html's static «Team Console» is there first, so the spec waits for the exact name
+ * instead of reading whatever title is up (#947).
+ */
+async function appName(page: Page, request: APIRequestContext): Promise<string> {
+  const name = appNameOf(await environmentOf(request));
+  await expect(page).toHaveTitle(name);
+  return name;
 }
 
 /**
@@ -79,10 +85,11 @@ test.describe('Chromium: one tap to the native dialog', () => {
 
   test('the card on Needs you holds the push nudge, and Install opens the dialog to the success line', async ({
     page,
+    request,
   }) => {
     await offerNativeInstall(page, 'accepted');
     await page.goto('/needs-you');
-    const name = await appName(page);
+    const name = await appName(page, request);
 
     await expect(card(page)).toBeVisible();
     await expect(card(page).getByRole('heading', { level: 2 })).toHaveText(ru('install.card.title', { app: name }));
@@ -178,10 +185,11 @@ test.describe('Chromium: a late install event', () => {
 test.describe('iPhone Safari: the Home Screen guide', () => {
   test('How to install opens the three steps inside the card; Not now snoozes and focuses the heading', async ({
     page,
+    request,
   }) => {
     test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
     await page.goto('/needs-you');
-    const name = await appName(page);
+    const name = await appName(page, request);
     await expect(card(page)).toBeVisible();
     await expect(card(page)).toContainText(ru('install.card.bodyIos'));
     await expect(page.getByTestId('push-nudge')).toHaveCount(0);
@@ -374,7 +382,7 @@ test.describe('Settings › App', () => {
   test.describe('in Chromium with the event kept', () => {
     test.use({ userAgent: ANDROID_CHROME });
 
-    test('Install from Settings, then it says installed in this tab', async ({ page }) => {
+    test('Install from Settings, then it says installed in this tab', async ({ page, request }) => {
       await offerNativeInstall(page, 'accepted');
       await page.goto('/settings');
       const section = page.getByTestId('app-section');
@@ -383,7 +391,7 @@ test.describe('Settings › App', () => {
 
       await section.getByTestId('install-settings-install').click();
 
-      const name = await appName(page);
+      const name = await appName(page, request);
       await expect(section.getByTestId('install-entry-sub')).toHaveText(ru('settings.app.subJustInstalled', { app: name }));
       await expect(section.getByTestId('install-entry-chip')).toHaveText(ru('settings.app.chipOn'));
       await expect(page.getByRole('heading', { level: 2, name: ru('settings.app.title') })).toBeFocused();
