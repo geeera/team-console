@@ -14,6 +14,7 @@ export * from './lib/check-row/check-row';
 export * from './lib/choice/choice';
 export * from './lib/chip/chip';
 export * from './lib/copy-code/copy-code';
+export * from './lib/count-badge/count-badge';
 export * from './lib/date-picker/date-picker';
 export * from './lib/field/field';
 export * from './lib/focus/focus-after-render';
