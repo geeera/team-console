@@ -35,8 +35,10 @@ type RefreshControl = 'repos-refresh' | 'repos-missing-refresh';
 // A long list folds after ten addable rows when more than twelve would show (the #194 design).
 const FOLD_AT = 10;
 const FOLD_OVER = 12;
-// Rows that arrive after «Обновить» lay out one after another; past this many the rest come with the last (#348).
+// Rows that arrive after «Обновить» lay out one after another (#348); past this many the rest come with the last.
 const MAX_STAGGERED_ROWS = 8;
+/** The step between arriving rows; the design's 30 ms is not a token, so it is set as a delay here. */
+const ROW_STAGGER_MS = 30;
 
 /**
  * "Available on GitHub" (#194) as a pure view: every state of the list through kit primitives, from inputs only.
@@ -129,8 +131,9 @@ export class RepositoryListView {
     return this.freshRows().has(this.keyOf(repo));
   }
 
-  protected freshIndexOf(repo: InstallationRepositoryDto): number | null {
-    return this.freshRows().get(this.keyOf(repo)) ?? null;
+  protected freshDelayOf(repo: InstallationRepositoryDto): number | null {
+    const place = this.freshRows().get(this.keyOf(repo));
+    return place === undefined ? null : place * ROW_STAGGER_MS;
   }
 
   protected stateOf(repo: InstallationRepositoryDto): RepositoryRowState | null {

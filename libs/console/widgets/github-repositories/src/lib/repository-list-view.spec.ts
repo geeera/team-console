@@ -188,8 +188,8 @@ describe('RepositoryListView', () => {
       await fixture.whenStable();
 
       expect(freshKeys()).toEqual(['geeera/alpha', 'geeera/beta']);
-      expect(row('geeera/alpha').style.getPropertyValue('--i')).toBe('0');
-      expect(row('geeera/beta').style.getPropertyValue('--i')).toBe('1');
+      expect(row('geeera/alpha').style.animationDelay).toBe('0ms');
+      expect(row('geeera/beta').style.animationDelay).toBe('30ms');
       expect(row('geeera/storify').classList.contains('repo--new')).toBe(false);
     });
 
@@ -210,7 +210,7 @@ describe('RepositoryListView', () => {
       ref.setInput('repositories', [...LIST, ...many]);
       await fixture.whenStable();
 
-      expect(row('geeera/new-11').style.getPropertyValue('--i')).toBe('8');
+      expect(row('geeera/new-11').style.animationDelay).toBe('240ms');
     });
   });
 

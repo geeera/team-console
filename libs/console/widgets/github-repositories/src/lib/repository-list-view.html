@@ -151,7 +151,7 @@
       [link]="route"
       [label]="route ? ('overview.repos.row.projectAria' | transloco: { repo: repo.fullName }) : ''"
       [class.repo--new]="isFresh(repo)"
-      [style.--i]="freshIndexOf(repo)"
+      [style.animation-delay.ms]="freshDelayOf(repo)"
       [attr.data-repo]="keyOf(repo)"
       [attr.data-registration]="repo.registration.state"
     >
@@ -233,7 +233,7 @@
       [label]="route ? ('overview.repos.row.projectAria' | transloco: { repo: repo.fullName }) : ''"
       [muted]="!route"
       [class.repo--new]="isFresh(repo)"
-      [style.--i]="freshIndexOf(repo)"
+      [style.animation-delay.ms]="freshDelayOf(repo)"
       [attr.data-repo]="keyOf(repo)"
       [attr.data-registration]="repo.registration.state"
     >
