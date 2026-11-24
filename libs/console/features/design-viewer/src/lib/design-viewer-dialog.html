@@ -167,10 +167,11 @@
   </tc-state-block>
   } @else {
   <!--
-    `track key` on a single-item array keyed by the path, rather than tracking `screen` directly off the
-    surrounding `@else`, forces Angular to destroy and recreate this div on every screen change (even when the
-    outer control-flow block does not re-enter): that is what replays the CSS turn animation on `data-move`,
-    since a plain attribute update on the same element would not (#934, #944).
+    `track key` on a single-item array keyed by `screen.path`, rather than tracking `screen` directly off the
+    surrounding `@else`, forces Angular to destroy and recreate this div whenever the path changes: that is what
+    replays the CSS turn animation on `data-move` (a plain attribute update on the same element would not). A
+    device switch does not change the path, so it does not re-key this block either; its replay comes from
+    `data-move` itself going from `none` to `'device'` on the same element (#934, #944).
   -->
   @for (key of [screen.path]; track key) {
   <div
@@ -178,7 +179,7 @@
     [class.viewer__screen--zoomed]="zoomed()"
     [attr.data-move]="move()"
     data-testid="viewer-page"
-    (animationend)="onTurnEnd()"
+    (animationend)="onTurnEnd($event)"
   >
     @if (!isLoaded(screen)) {
     <div
