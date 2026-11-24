@@ -8,7 +8,7 @@ import { SprintItemList, SprintListItem } from './sprint-item-list';
 @Component({
   imports: [SprintItemList],
   template: `
-    <tc-sprint-item-list [items]="items()" [slug]="slug()" [rowAction]="withAction() ? action : null" />
+    <tc-sprint-item-list [items]="items()" [slug]="slug()" [rowAction]="withAction() ? action : null" [unfoldFrom]="unfoldFrom()" />
     <ng-template #action let-issue><button type="button" data-testid="row-action">#{{ issue.number }}</button></ng-template>
   `,
 })
@@ -16,6 +16,7 @@ class Host {
   readonly items = signal<readonly SprintListItem[]>([]);
   readonly slug = signal<string | null>(null);
   readonly withAction = signal(false);
+  readonly unfoldFrom = signal<number | null>(null);
 }
 
 const ISSUE: SprintIssue = {
@@ -155,5 +156,16 @@ describe('SprintItemList', () => {
   it('leaves a console task static without a slug', async () => {
     const { rows } = await render([{ ...ISSUE, url: null }]);
     expect(rows[0]?.querySelector('a')).toBeNull();
+  });
+
+  it('opens the height of the rows from the given index on, and no other', async () => {
+    const second = { ...ISSUE, number: 50 };
+    const { rows } = await render([ISSUE, second], (host) => host.unfoldFrom.set(1));
+    expect(rows.map((row) => row.classList.contains('sprint-item--unfold'))).toEqual([false, true]);
+  });
+
+  it('animates nothing when no index is given', async () => {
+    const { rows } = await render([ISSUE, { ...ISSUE, number: 50 }]);
+    expect(rows.some((row) => row.classList.contains('sprint-item--unfold'))).toBe(false);
   });
 });

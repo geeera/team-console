@@ -27,6 +27,7 @@ export {
   localCalendarRangeOf,
   localDayOf,
   localNumberOf,
+  localShortDayOf,
   localTimeOf,
   localUsdOf,
 } from './lib/local-time';

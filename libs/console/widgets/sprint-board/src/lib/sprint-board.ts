@@ -60,7 +60,6 @@ import { PersistedStateStore } from '@console/shared/persisted-state';
 import {
   BREAKPOINTS,
   Button,
-  Chip,
   focusAfterRender,
   injectRetryFocus,
   Icon,
@@ -81,6 +80,7 @@ import { map } from 'rxjs';
 import { BoardJobs, type JobsPauseLine } from './board-jobs';
 import { BoardRunLog } from './board-run-log';
 import { BoardMoveButton } from './board-move-button';
+import { DemoLeaf } from './demo-leaf';
 import {
   arrivalsLast,
   BoardMoves,
@@ -227,7 +227,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     BoardRunLog,
     BoardMoveButton,
     Button,
-    Chip,
+    DemoLeaf,
     Icon,
     Lane,
     Lanes,
@@ -464,6 +464,11 @@ export class SprintBoard {
     return state.kind === 'failed' ? state : null;
   });
 
+  protected readonly demoDays = computed(() => {
+    const dueOn = this.board()?.milestone?.dueOn ?? null;
+    return dueOn === null ? 0 : daysUntilDemo(dueOn, new Date());
+  });
+
   protected readonly demoLine = computed(() => {
     const lang = this.lang();
     const milestone = this.board()?.milestone;
@@ -576,6 +581,11 @@ export class SprintBoard {
 
   protected visible<T>(items: readonly T[], key: string): readonly T[] {
     return visibleItemsOf(items, this.isExpanded(key) ? Infinity : BOARD_LIST_LIMIT);
+  }
+
+  /** The rows "Show more" added open their height as they come; a list not expanded animates nothing. */
+  protected unfoldFrom(key: string): number | null {
+    return this.isExpanded(key) ? BOARD_LIST_LIMIT : null;
   }
 
   protected hidden(items: readonly unknown[]): number {

@@ -304,6 +304,28 @@ describe('Lanes and Lane', () => {
     });
   });
 
+  describe('count', () => {
+    it('rolls to the new count in the heading and in the switcher, and hides the old one from assistive tech', async () => {
+      const { fixture, root, cells, settle } = await render('phone');
+      fixture.componentInstance.lanes.set(
+        BOARD.map((lane) => (lane.key === 'blocked' ? { ...lane, count: 1 } : lane)),
+      );
+      await settle();
+      fixture.detectChanges();
+
+      const blocked = cells()[3] as HTMLButtonElement;
+      expect(blocked.querySelector('.tc-roll__out')?.textContent?.trim()).toBe('3');
+      expect(blocked.querySelector('.tc-roll__out')?.getAttribute('aria-hidden')).toBe('true');
+      expect(blocked.querySelector('.tc-roll__in')?.textContent?.trim()).toBe('1');
+      expect(root.querySelectorAll('tc-lane .tc-roll__out').length).toBeGreaterThan(0);
+    });
+
+    it('shows the first count without any roll', async () => {
+      const { root } = await render('wide');
+      expect(root.querySelector('.tc-roll__out')).toBeNull();
+    });
+  });
+
   describe('compact below a wider breakpoint', () => {
     it('stays stacked on a tablet by default, and switches there when asked to', async () => {
       const stacked = await render('tablet');

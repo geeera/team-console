@@ -172,6 +172,31 @@
   border-radius: 0 0 var(--r-lg) var(--r-lg);
 }
 
+/*
+ * The pinned bar casts its paper shadow only while text is hidden under it (#352) and drops it at the end of the
+ * content. Positioned, so the shadow paints over the body without a z-index.
+ */
+.tc-sheet__foot {
+  position: relative;
+  box-shadow: none;
+  transition: box-shadow var(--dur-fast) var(--ease-standard);
+}
+
+.tc-sheet__foot--lifted {
+  box-shadow: var(--shadow-1);
+}
+
+/* Reduced motion: the shadow switches on and off without a transition. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-sheet__foot {
+    transition: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-sheet__foot {
+  transition: none;
+}
+
 /* A dialog footer that no longer fits one row (#325): the phone's layout, the frame having put the primary first. */
 :host(.tc-sheet--dialog) .tc-sheet__foot--stacked {
   flex-direction: column;

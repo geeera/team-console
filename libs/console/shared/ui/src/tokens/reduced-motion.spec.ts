@@ -61,6 +61,13 @@ describe('reduced-motion tokens', () => {
     expect(tokensCss()).toMatch(/--lift:\s*-2px;/);
   });
 
+  it('keeps a sealed card still under reduced motion (#361)', () => {
+    for (const block of blocks) {
+      expect(block).toMatch(/--seal-recoil:\s*1;/);
+    }
+    expect(tokensCss()).toMatch(/--seal-recoil:\s*0\.99;/);
+  });
+
   it('keeps --dur-fade at 120ms in the base token block', () => {
     expect(tokensCss()).toMatch(/--dur-fade:\s*120ms;/);
   });

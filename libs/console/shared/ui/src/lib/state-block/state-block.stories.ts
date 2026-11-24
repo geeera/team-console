@@ -18,6 +18,15 @@ const allKinds = `
   </div>
 `;
 
+/** The Needs-you inbox with nothing waiting (#354): a sheet of paper, a green stamp, one serif line. */
+const clearDesk = `
+  <tc-state-block kind="empty" [stamp]="'stories.stateBlock.deskStamp' | transloco" [title]="'stories.stateBlock.deskTitle' | transloco" />
+`;
+/** The stamp pressed on, as when the last item has just been answered. */
+const clearDeskPressed = `
+  <tc-state-block kind="empty" pressed [stamp]="'stories.stateBlock.deskStamp' | transloco" [title]="'stories.stateBlock.deskTitle' | transloco" />
+`;
+
 const meta: Meta<StateBlock> = {
   title: 'Kit/State block',
   component: StateBlock,
@@ -38,3 +47,10 @@ export const Kinds: Story = { render: () => ({ template: allKinds }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: allKinds }) };
 export const ReducedMotion: Story = { ...reducedMotion, render: () => ({ template: allKinds }) };
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: allKinds }) };
+export const ClearDesk: Story = { render: () => ({ template: clearDesk }) };
+/** Press-on gesture of `--dur-sig`; reload the story to see it again. */
+export const ClearDeskPressed: Story = { render: () => ({ template: clearDeskPressed }) };
+export const ClearDeskDark: Story = { ...darkTheme, render: () => ({ template: clearDeskPressed }) };
+/** Reduced motion: the stamp is simply there, with no strike. */
+export const ClearDeskReducedMotion: Story = { ...reducedMotion, render: () => ({ template: clearDeskPressed }) };
+export const ClearDeskPhone: Story = { ...phoneViewport, render: () => ({ template: clearDesk }) };

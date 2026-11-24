@@ -3,13 +3,15 @@
   align-items: center;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-3);
-  padding: var(--space-1) 0 var(--space-1) var(--space-3);
+  padding: var(--space-2) 0 var(--space-1) var(--space-3);
   margin-left: var(--card-indent);
+  /* The dashed top edge reads as the perforation the receipt was torn off along (#345). */
+  border-top: var(--border-w) dashed var(--border);
   border-left: var(--border-w-strong) solid var(--accent);
   font-family: var(--font-body);
   font-size: var(--fs-sm);
   color: var(--text-2);
-  animation: tc-receipt-in var(--dur-base) var(--ease-enter) both;
+  animation: tc-receipt-in var(--dur-slow) var(--ease-enter) both;
 }
 
 :host(:focus-visible) {
@@ -86,7 +88,7 @@
 @keyframes tc-receipt-in {
   from {
     opacity: 0;
-    transform: translateY(calc(var(--space-1) * -1));
+    transform: translateY(calc(var(--space-3) * -1));
   }
   to {
     opacity: 1;

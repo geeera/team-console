@@ -18,6 +18,10 @@ const TODAY = '2026-10-08';
         [min]="min()"
         [max]="max()"
         [isDateDisabled]="isDateDisabled"
+        [markedDay]="markedDay"
+        markedLabel="current demo day"
+        [hatchedRange]="hatchedRange"
+        hatchedLabel="freeze"
         (problemChange)="problem.set($event)"
       />
     </tc-field>
@@ -29,6 +33,8 @@ class Host {
   readonly min = signal<string | null>(TODAY);
   readonly max = signal<string | null>('2026-11-20');
   readonly problem = signal<DatePickerProblem | null>(null);
+  readonly markedDay = '2026-10-16';
+  readonly hatchedRange = { min: '2026-10-12', max: '2026-10-14' };
   readonly isDateDisabled = (day: string): boolean => day === '2026-10-20';
 }
 
@@ -181,6 +187,20 @@ describe('DatePicker', () => {
   });
 
   describe('the calendar popover', () => {
+    it('circles the marked day and hatches the run, each named for a screen reader', async () => {
+      const { toggle, panel } = await render();
+      toggle.click();
+      await settle();
+      const day = (iso: string): HTMLElement =>
+        panel()?.querySelector(`.tc-date-panel__day[data-day="${iso}"]`) as HTMLElement;
+      expect(day('2026-10-16').classList).toContain('tc-date-panel__day--marked');
+      expect(day('2026-10-16').getAttribute('aria-label')).toContain('current demo day');
+      expect(day('2026-10-13').classList).toContain('tc-date-panel__day--hatched');
+      expect(day('2026-10-13').getAttribute('aria-label')).toContain('freeze');
+      expect(day('2026-10-15').classList).not.toContain('tc-date-panel__day--hatched');
+      expect(day('2026-10-15').getAttribute('aria-label')).not.toContain('freeze');
+    });
+
     it('opens on the selected day as a modal dialog named by the month, Monday first', async () => {
       const { toggle, panel, focusedDay } = await render();
       toggle.click();

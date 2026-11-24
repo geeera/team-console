@@ -48,6 +48,8 @@ test('«Демо» shows no receipt, «Вопросы» shows the answered one a
   await expect(receipt).toContainText(ru('answer.receipt.waiting'));
   await expect(receipt.getByRole('link', { name: new RegExp(ru('answer.receipt.open')) })).toBeVisible();
   await expect(receipt).toHaveCSS('font-style', 'normal');
+  // Torn off the form (#345): a dashed perforation along the top.
+  await expect(receipt).toHaveCSS('border-top-style', 'dashed');
   expect(await receipt.evaluate((element) => getComputedStyle(element).fontFamily)).toMatch(/^"?Source Sans 3/);
   await expectAccessible(page, 'Questions with a receipt');
 

@@ -35,6 +35,16 @@ export interface ConnectionOptions {
   readonly masterKey?: string;
   /** The row's environment; `local` unless a case runs with deployed bindings (dev, stage). */
   readonly environment?: string;
+  /** Replaces the client over the fake, e.g. one from `oauthOver` with a method that throws. */
+  readonly oauth?: GitHubOAuth;
+}
+
+/** The real OAuth client talking to the fake GitHub. */
+export function oauthOver(fake: FakeGitHubOAuth, now: () => number = () => Date.now()): GitHubOAuth {
+  return new GitHubOAuth(
+    { clientId: env.GITHUB_APP_CLIENT_ID, clientSecret: env.GITHUB_APP_CLIENT_SECRET ?? '' },
+    { fetch: fake.fetch, now },
+  );
 }
 
 export async function ownerConnection(
@@ -47,10 +57,7 @@ export async function ownerConnection(
     environment,
     repo: options.repo ?? new OwnerConnectionsRepo(env.DB),
     keys: await loadOwnerKeys(options.masterKey ?? env.TOKEN_ENCRYPTION_KEY, environment),
-    oauth: new GitHubOAuth(
-      { clientId: env.GITHUB_APP_CLIENT_ID, clientSecret: env.GITHUB_APP_CLIENT_SECRET ?? '' },
-      { fetch: fake.fetch, now },
-    ),
+    oauth: options.oauth ?? oauthOver(fake, now),
     logger: createLogger({ service: 'test' }, (line) => options.logs?.push(line)),
     now,
     ...(options.sleep === undefined ? {} : { sleep: options.sleep }),

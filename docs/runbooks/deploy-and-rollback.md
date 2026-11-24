@@ -186,6 +186,127 @@ incident (threat model C11): whoever holds the key mints their own tokens, so th
    Ask them to rotate `TC_INFERENCE_API_KEY` if the default branch has no ruleset.
 6. Unsuspend, lift the stop and record the timeline on the incident issue.
 
+## A secret in tracker text: rotate, then scrub (#462, #477)
+
+A credential ended up in stored tracker text: an item's title or body, a comment, an ask, the PM's reason on a
+request, a sprint's title or description, or text the import brought from GitHub. Jobs are refused such text
+(422 `body-secret`), and the import runs the same check (`findSecretInText` / `maskSecretsInText` of
+`@shared/redaction`), so in practice this is the owner's own paste, or a credential no pattern knows (a password).
+
+**The order is fixed: rotate first, scrub second.** The scrub removes the text from what the console shows and
+serves from now on. It is not containment: it cannot reach the copies listed under "What the scrub does not reach",
+and until the secret is rotated every one of them is a live credential.
+
+1. **Rotate or revoke the secret at its issuer, now**, before touching the console (GitHub token, API key, the
+   `wrangler secret` and GitHub Environment values that hold it, a runner credential in Settings). Check the
+   issuer's audit log for use since the time the text was written. From here on the leaked value is dead; the rest
+   is hygiene.
+2. **Open an incident issue** (label `security`) that says what kind of secret it was, where it was (project, item
+   key, comment / ask / request ids, sprint number) and when it was rotated. Never paste the value. This issue is
+   also the record of what was scrubbed if D1 is ever restored to an earlier point (see Time Travel below).
+3. **Correct the live text** where the console lets you edit it: `PATCH` the item's title and body (the item page).
+   This leaves the old text in the item's history; step 4 masks it.
+4. **Scrub** (owner only; every job role and the service identity get 403). There is no screen for it yet; from the
+   console's own tab (same origin, so the session and CSRF rules apply), in the browser's developer console:
+
+   ```js
+   const scrub = (path, body) =>
+     fetch(`/api/v1/projects/<slug>/${path}`, {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json', 'Idempotency-Key': crypto.randomUUID() },
+       body: JSON.stringify(body),
+     }).then(async (response) => [response.status, await response.json()]);
+
+   // The old title and body kept by the item's created / edited / imported events (after step 3):
+   await scrub('items/<KEY>/events/scrub', {});
+   // Comments, asks and request reasons of that item, by id, with or without its history:
+   await scrub('items/<KEY>/events/scrub', { events: true, comments: [12], asks: [3], requests: [5] });
+   // A sprint's title, description or both:
+   await scrub('sprints/<number>/scrub', { fields: ['title', 'description'] });
+   ```
+
+   The ids are the `id` members of `GET …/items/<KEY>/comments`, `…/asks` and `…/requests`. Each masked text becomes
+   `[scrubbed]` (a sprint title becomes `[scrubbed] <number>`, since titles are unique per project). Nothing else
+   of a row changes: author, time, kind, an ask's commands and answer, a request's result all stay, and the
+   database refuses any other update of these rows (migration 0043). An id that is not the item's own, or a request
+   nobody answered, is 422 and nothing is masked. A request takes at most 50 ids of each kind.
+   The body must be valid JSON: a body that does not parse, or is not an object, is 422 and nothing is masked.
+5. **Check.** Read the item, its comments, asks, requests and events (or the sprint) again and search for the
+   value's first characters. Each scrub leaves a `scrubbed` event on the item (counts and ids, hidden in the
+   console's history) and a `tracker.scrubbed` row in the account audit (the item or sprint number, ids and field
+   names; never text).
+6. **Clean the copies outside D1** that you can reach (next list), and close the incident issue with the timeline.
+
+**What the scrub does not reach** (why step 1 comes first):
+
+- **D1 Time Travel.** Cloudflare keeps every earlier state of the database for point-in-time restore: **7 days on
+  the Workers Free plan, 30 days on Workers Paid**. It is always on; there is no setting to switch it off, shorten
+  it or delete one moment from it. So the pre-scrub rows exist at Cloudflare for that window after the scrub and then
+  expire by themselves. Nothing reads them in place: the only way to them is `wrangler d1 time-travel restore`,
+  which overwrites the live database and needs D1 edit rights on the Cloudflare account. A restore prints the
+  bookmark of the state it replaced, and restoring to that bookmark undoes the restore. Two consequences:
+  - whoever has those rights can bring the text back during the window, so the secret must already be dead;
+  - **a restore to a point before the scrub undoes it**, together with its `scrubbed` event and audit row. After any
+    Time Travel restore (a rollback of bad data, a rehearsal), re-run every scrub recorded on incident issues newer
+    than the restore point. Do not restore past a scrub for convenience.
+- **The source on GitHub.** Imported text still stands in the GitHub issue or comment it came from, with GitHub's
+  own edit history. Edit or delete it there (and delete the revision from the comment's edit history).
+- **What already left the console:** a push notification that quoted the text, a job that read the item while the
+  text was there (its transcript and work tree on the runner host, the model provider's request logs), the plugin's
+  local files on the owner's machine, any browser tab or screenshot. The owner's decisions (`owner_decisions.text`)
+  stay append-only and are not scrubbable; a secret typed there is rotated and left.
+- **Exports.** A `wrangler d1 export` or a local copy taken before the scrub keeps the text; delete such files.
+- **Logs.** Worker logs and audit rows are redacted by the same pattern list as they are written, so a known token
+  shape never reached them; a prefix-less password in a logged field is not recognised, and stored logs cannot be
+  edited.
+
+## Owner reconnect: check the fresh token on real GitHub (#831, #901)
+
+A reconnect over an existing connection stores the new token pair, then retires the previous one: it revokes the old
+access token and redeems the old refresh token once, so the old chain ends (`OwnerConnection.retirePrevious`). The
+specs and the e2e run against the fake GitHub, which assumes what GitHub documents: a redemption ends only its own
+pair, and the freshly stored pair stays live. **Real GitHub has not been exercised.** The owner runs this check once
+on dev, after the first deploy that carries #887, and again on stage before the first release. Nothing in CI can do
+it: it needs the owner's GitHub session.
+
+The console has no button for it, because Settings offers Connect only while nothing is connected. Start it by hand:
+
+1. Open `https://team-console-dev.geeera.workers.dev/settings`, with GitHub shown as connected.
+2. In the browser's developer console on that page (same origin, so the CSRF check passes):
+
+   ```js
+   const start = await (await fetch('/api/v1/github/connect', { method: 'POST' })).json();
+   console.log(start.authorizeUrl);
+   ```
+
+   Open the printed address only if it starts with `https://github.com/login/oauth/authorize?`, in the same tab.
+   GitHub may ask you to authorize or pass you straight through. The console comes back to Settings with GitHub
+   still connected; a refusal shows a notice instead and changes nothing.
+3. Workers Logs of `team-console-dev`, for that callback, show these lines in order: `owner reconnect: the previous
+   access token was revoked`, `owner reconnect: the previous redeemed access token was revoked`, `owner reconnect:
+   the previous refresh chain was ended`, `owner connected`. A `... was not revoked` or `... was not ended` warning
+   names its `reason`; an error `owner reconnect: retiring the previous pair failed unexpectedly` is a bug to file.
+   Either way the new connection is stored.
+4. Within a few minutes, do one thing that writes to GitHub as the owner (answer a question from the console, or
+   send a request to the PM) and confirm on GitHub that it arrived under your account.
+5. Read the row:
+
+   ```sh
+   npx wrangler d1 execute team-console-dev --env dev --remote --config apps/api/wrangler.jsonc --command \
+     "SELECT version, connected_at, updated_at FROM owner_connections WHERE environment = 'dev'"
+   ```
+
+What the result means:
+
+| Step 4 | Row | Meaning | Do |
+| ------ | --- | ------- | -- |
+| Worked | `updated_at` equals `connected_at` | The fresh access token was used as stored. GitHub behaves as the fake does. | Record the date in the header comment of `libs/worker/github/src/testing/fake-github-oauth.ts` by a PR. |
+| Worked | `updated_at` is later than `connected_at` | GitHub rejected the fresh access token and the console refreshed it (a token lives 8 hours and is refreshed only in its last 30 minutes, so a refresh this early means a 401). The redemption ended more than its own pair. One extra round trip, no outage. | File a `kind:finding` issue: make the fake end every access token of the grant on a redemption, and record the finding in its header comment. |
+| Failed with "connection lost" (403 `github-owner-not-connected`) | The row is gone | The redemption ended the new chain too. | Connect again from Settings: with no stored row nothing is retired, so this connection holds. File a `sev:high` bug to stop redeeming the previous refresh token on reconnect. |
+
+Until the first row of the table is recorded in the fake's header comment, treat the reconnect path as unverified
+against real GitHub.
+
 ## What this does not cover
 
 - **Production** is out of scope for #25 (`stage` → `main` only after the owner's recorded **go** on the

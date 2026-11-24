@@ -103,6 +103,7 @@
   --spinner-size: 20px;
   --spinner-size-lg: 32px;
   --stamp-size: 78px;
+  --seal-size: 112px; /* #361: the release seal, a larger variant of the stamp */
   --card-tilt: -1.2deg; /* #107: a card just filed, tilted a little */
 
   /* One bottom tab: a large icon over a one-line --fs-2xs label, --space-1 around and between them, never under
@@ -186,6 +187,7 @@
   /* a run in progress breathes slowly (#114); never collapsed — under reduced motion the dot stands still */
   --dur-pulse: 1600ms;
   --lift: -2px; /* a card raised on hover (#766); none under reduced motion */
+  --seal-recoil: 0.99; /* the card's give under the release seal (#361); 1 (still) under reduced motion */
   /* #409: how long Undo stays offered after a move (the toast's hairline); `UNDO_DURATION_MS` in TS */
   --undo-ms: 10000ms;
 
@@ -341,6 +343,7 @@
     --dur-slow: 1ms;
     --dur-sig: 1ms;
     --lift: 0px;
+    --seal-recoil: 1;
   }
 }
 
@@ -350,4 +353,5 @@
   --dur-slow: 1ms;
   --dur-sig: 1ms;
   --lift: 0px;
+  --seal-recoil: 1;
 }

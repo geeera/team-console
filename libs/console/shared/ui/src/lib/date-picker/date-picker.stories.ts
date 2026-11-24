@@ -33,6 +33,8 @@ interface StoryArgs {
   readonly typed: string;
   /** Opens the calendar as soon as the story renders. */
   readonly open: boolean;
+  /** The current demo circled and its freeze hatched, as in «Перенести демо» (#346). */
+  readonly demoMarks: boolean;
 }
 
 @Component({
@@ -51,6 +53,10 @@ interface StoryArgs {
           [min]="min()"
           [max]="max()"
           [isDateDisabled]="isDateDisabled()"
+          [markedDay]="marked()"
+          [markedLabel]="'stories.datePicker.marked' | transloco"
+          [hatchedRange]="hatched()"
+          [hatchedLabel]="'stories.datePicker.hatched' | transloco"
           [disabled]="disabled()"
           [ngModel]="value()"
           (ngModelChange)="value.set($event)"
@@ -75,6 +81,7 @@ class DatePickerStory {
   readonly disabled = input(false);
   readonly typed = input('');
   readonly open = input(false);
+  readonly demoMarks = input(false);
 
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly picker = viewChild.required(DatePicker);
@@ -84,6 +91,10 @@ class DatePickerStory {
   protected readonly problem = signal<DatePickerProblem | null>(null);
   protected readonly min = computed(() => this.dayIn(this.minIn()));
   protected readonly max = computed(() => this.dayIn(this.maxIn()));
+  protected readonly marked = computed(() => (this.demoMarks() ? this.dayIn(this.valueIn()) : null));
+  protected readonly hatched = computed(() =>
+    this.demoMarks() ? { min: this.dayIn(4), max: this.dayIn(8) } : null,
+  );
   protected readonly isDateDisabled = computed(() =>
     this.noWeekends() ? (day: string) => weekdayIndexOf(day) >= 5 : () => false,
   );
@@ -118,13 +129,22 @@ const meta: Meta<StoryArgs> = {
     minIn: { control: 'number' },
     maxIn: { control: 'number' },
   },
-  args: { valueIn: 8, minIn: null, maxIn: null, noWeekends: false, disabled: false, typed: '', open: false },
+  args: {
+    valueIn: 8,
+    minIn: null,
+    maxIn: null,
+    noWeekends: false,
+    disabled: false,
+    typed: '',
+    open: false,
+    demoMarks: false,
+  },
   // The calendar renders in the CDK overlay container, outside the story root; axe must see both.
   parameters: { a11y: { context: 'body' } },
   render: (args) => ({
     props: args,
     template: `<tc-story-date-picker [valueIn]="valueIn" [minIn]="minIn" [maxIn]="maxIn" [noWeekends]="noWeekends"
-      [disabled]="disabled" [typed]="typed" [open]="open" />`,
+      [disabled]="disabled" [typed]="typed" [open]="open" [demoMarks]="demoMarks" />`,
   }),
 };
 
@@ -144,6 +164,16 @@ export const MinMax: Story = { args: { minIn: 0, maxIn: 20, valueIn: 20, open: t
 /** Weekends off inside the range: reachable by the arrows, never selectable. */
 export const DisabledDays: Story = { args: { minIn: 0, noWeekends: true, open: true } };
 /** The keys: → twice, ↓, PageDown; focus is the ring, not the selection. */
+/** «Перенести демо» (#346): the current demo circled, the freeze hatched, the chosen day inked in. */
+export const DemoMarks: Story = { args: { minIn: 0, valueIn: 8, demoMarks: true, open: true } };
+export const DemoMarksReducedMotion: Story = {
+  ...reducedMotion,
+  args: { minIn: 0, valueIn: 8, demoMarks: true, open: true },
+};
+export const DemoMarksDark: Story = {
+  ...darkTheme,
+  args: { minIn: 0, valueIn: 8, demoMarks: true, open: true },
+};
 export const KeyboardFocus: Story = {
   args: { open: true },
   play: async () => {

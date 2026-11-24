@@ -578,6 +578,63 @@ describe('Sheet', () => {
       expect(body.getAttribute('role')).toBeNull();
     });
 
+    describe('#352: the pinned footer casts its shadow only while text is hidden under it', () => {
+      /** jsdom has no layout: the body's measurements are set by hand, then a scroll is dispatched. */
+      function scrollTo(body: HTMLElement, { scrollHeight, clientHeight, scrollTop }: Record<string, number>): void {
+        Object.defineProperty(body, 'scrollHeight', { configurable: true, value: scrollHeight });
+        Object.defineProperty(body, 'clientHeight', { configurable: true, value: clientHeight });
+        Object.defineProperty(body, 'scrollTop', { configurable: true, value: scrollTop });
+        body.dispatchEvent(new Event('scroll'));
+      }
+
+      async function openWithFooter() {
+        sheet.open(WithFooter, { title: 'Long', data: { text: 'x' } });
+        await settle();
+        const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+        return {
+          body: dialog.querySelector('.tc-sheet__body') as HTMLElement,
+          lifted: () => dialog.querySelector('.tc-sheet__foot')?.classList.contains('tc-sheet__foot--lifted'),
+        };
+      }
+
+      it('has no shadow while the content fits', async () => {
+        const { lifted } = await openWithFooter();
+        expect(lifted()).toBe(false);
+      });
+
+      it('casts the shadow while the body has more below, and drops it at the end', async () => {
+        const { body, lifted } = await openWithFooter();
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 0 });
+        await settle();
+        expect(lifted()).toBe(true);
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 250 });
+        await settle();
+        expect(lifted()).toBe(true);
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 500 });
+        await settle();
+        expect(lifted()).toBe(false);
+      });
+
+      it('treats a sub-pixel gap at the end as the end', async () => {
+        const { body, lifted } = await openWithFooter();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 499.5 });
+        await settle();
+        expect(lifted()).toBe(false);
+      });
+
+      it('brings the shadow back when scrolled up from the end', async () => {
+        const { body, lifted } = await openWithFooter();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 500 });
+        await settle();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 100 });
+        await settle();
+        expect(lifted()).toBe(true);
+      });
+    });
+
     it('gives a wide dialog its own panel class', async () => {
       sheet.open(Content, { title: 'Add', data: { text: 'x' }, width: 'wide' });
       await settle();

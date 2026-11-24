@@ -1,6 +1,6 @@
 import type { OwnerRequest, RequestKind, RequestResult, RequestState } from '@shared/contracts';
 import { canonicalRequest, requestOfCanonical } from '@shared/owner-grammar';
-import type { TrackerActor } from './item-events.repo';
+import { SCRUBBED_TEXT, type TrackerActor } from './item-events.repo';
 
 export interface ItemRequestRecord {
   readonly id: number;
@@ -64,6 +64,20 @@ function toRecord(row: ItemRequestRow): ItemRequestRecord {
  */
 export class ItemRequestsRepo {
   constructor(private readonly db: D1Database) {}
+
+  /**
+   * Masks the PM's `reason` on the item's answered requests `ids` (#477, migration 0043), for the batch of
+   * `ItemEventsRepo.scrub`. Who handled it, the result and the time stay; an unanswered request has no reason and is
+   * left out here as `scrubIdsMissing` reports it.
+   */
+  scrubReasonStatement(itemId: number, ids: readonly number[]): D1PreparedStatement {
+    return this.db
+      .prepare(
+        `UPDATE item_requests SET reason = ?3
+         WHERE item_id = ?1 AND handled_at IS NOT NULL AND id IN (SELECT value FROM json_each(?2))`,
+      )
+      .bind(itemId, JSON.stringify(ids), SCRUBBED_TEXT);
+  }
 
   async newest(itemId: number): Promise<ItemRequestRecord | null> {
     const row = await this.db

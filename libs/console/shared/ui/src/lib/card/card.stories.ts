@@ -6,8 +6,8 @@ import { Button } from '../button/button';
 import { Chip } from '../chip/chip';
 import { Card } from './card';
 
-const decision = (stamp: string) => `
-  <tc-card [stamp]="${stamp}" tabindex="0" aria-labelledby="card-title">
+const decision = (stamp: string, seal = 'null') => `
+  <tc-card [stamp]="${stamp}" [seal]="${seal}" tabindex="0" aria-labelledby="card-title">
     <span tc-card-kind>{{ 'stories.card.kind' | transloco }}</span>
     <span tc-card-number>#13</span>
     <h3 tc-card-title id="card-title">{{ 'stories.card.title' | transloco }}</h3>
@@ -57,6 +57,11 @@ export const Stamped: Story = {
   }),
 };
 
+/** #361: the release card answered /go — a large round seal with words, the card giving a little under it. */
+export const Sealed: Story = {
+  render: () => ({ template: decision("'positive'", "'stories.card.seal' | transloco") }),
+};
+
 export const Minimal: Story = {
   render: () => ({
     template: `
@@ -70,4 +75,7 @@ export const Minimal: Story = {
 
 export const Dark: Story = { ...darkTheme, args: { stamp: 'positive' } };
 export const ReducedMotion: Story = { ...reducedMotion, args: { stamp: 'positive' } };
+export const SealedDark: Story = { ...darkTheme, render: Sealed.render };
+export const SealedReducedMotion: Story = { ...reducedMotion, render: Sealed.render };
+export const SealedPhone: Story = { ...phoneViewport, render: Sealed.render };
 export const Phone: Story = { ...phoneViewport, args: { stamp: null } };

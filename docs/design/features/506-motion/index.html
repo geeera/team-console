@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Team Console · #506 · Motion language (preview)</title>
+<link rel="stylesheet" href="../../fonts/fonts.css">
+<style>
+/* Paper Desk tokens (tokens.css, ADR 0002) + the three proposed motion tokens marked NEW */
+:root{
+  --font-display:"Source Serif 4",Georgia,serif;--font-body:"Source Sans 3",-apple-system,system-ui,sans-serif;--font-mono:"Source Code Pro",ui-monospace,monospace;
+  --fs-xs:12px;--fs-sm:14px;--fs-md:15px;--fs-lg:18px;--fs-xl:22px;
+  --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:20px;--space-6:24px;--space-8:32px;
+  --r-sm:6px;--r-md:10px;--r-lg:16px;--r-sheet:26px;--r-pill:999px;
+  --dur-fade:120ms;--dur-fast:140ms;--dur-base:240ms;--dur-slow:380ms;--dur-sig:620ms;--dur-pulse:1600ms;--lift:-2px;
+  --ease-standard:cubic-bezier(.2,0,0,1);--ease-enter:cubic-bezier(0,0,.2,1);--ease-exit:cubic-bezier(.4,0,1,1);--ease-emph:cubic-bezier(.3,0,0,1);
+  --stagger:30ms;--motion-shift:8px;--press-scale:.98; /* NEW */
+  --bg:#f7f3ec;--bg-sunken:#efe9df;--surface:#fffdf9;--surface-2:#faf6ef;--text:#29251f;--text-2:#5b5449;--text-3:#6d6459;
+  --border:#e5ddd0;--border-strong:#cfc5b5;--accent:#3e6a48;--accent-contrast:#fff;--accent-soft:#e3ece0;--accent-text:#2f5638;
+  --warning-soft:#f5e8cd;--warning-text:#7a510e;--danger:#9a3324;--focus:#3e6a48;--scrim:rgba(0,0,0,.36);
+  --shadow-1:0 1px 2px rgba(60,45,20,.07),0 0 0 .5px rgba(60,45,20,.03);--shadow-2:0 8px 24px -8px rgba(60,45,20,.22);--shadow-3:0 -12px 40px -12px rgba(60,45,20,.28);
+  --slow:1; /* preview only: the "x4 slower" switch */
+}
+:root[data-theme=dark]{
+  --bg:#1c1a17;--bg-sunken:#161412;--surface:#25221e;--surface-2:#201e1a;--text:#eee8dd;--text-2:#bdb4a5;--text-3:#999082;
+  --border:#35312b;--border-strong:#4a443b;--accent:#8fbc92;--accent-contrast:#10200f;--accent-soft:#263428;--accent-text:#a8d0aa;
+  --warning-soft:#3a2f17;--warning-text:#e6c47e;--danger:#e3897a;--focus:#8fbc92;
+  --shadow-1:0 1px 2px rgba(0,0,0,.35);--shadow-2:0 10px 28px -8px rgba(0,0,0,.6);--shadow-3:0 -12px 40px -12px rgba(0,0,0,.7);
+}
+/* reduced motion: as tokens.css section 12, plus the NEW tokens */
+@media (prefers-reduced-motion:reduce){:root:not([data-motion=full]){--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms;--lift:0px;--stagger:0ms;--motion-shift:0px;--press-scale:1}}
+:root[data-motion=reduce]{--dur-fast:1ms;--dur-base:1ms;--dur-slow:1ms;--dur-sig:1ms;--lift:0px;--stagger:0ms;--motion-shift:0px;--press-scale:1}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:var(--fs-md)/1.5 var(--font-body);padding-bottom:var(--space-8)}
+h1,h2{font-family:var(--font-display);font-weight:600;margin:0}
+h1{font-size:var(--fs-xl)}h2{font-size:var(--fs-lg)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.bar{position:sticky;top:0;z-index:10;background:var(--surface);border-bottom:1px solid var(--border);padding:var(--space-2) var(--space-4);display:flex;flex-wrap:wrap;gap:var(--space-2) var(--space-4);align-items:center}
+.seg{display:inline-flex;border:1px solid var(--border-strong);border-radius:var(--r-pill);overflow:hidden}
+.seg button{border:0;background:none;padding:var(--space-2) var(--space-3);min-height:36px;font-size:var(--fs-sm)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-contrast)}
+.bar label{font-size:var(--fs-xs);color:var(--text-3);display:flex;gap:var(--space-2);align-items:center}
+.status{font-size:var(--fs-xs);font-family:var(--font-mono);color:var(--accent-text);background:var(--accent-soft);padding:2px var(--space-2);border-radius:var(--r-pill)}
+main{max-width:560px;margin:0 auto;padding:var(--space-4)}
+.lead{color:var(--text-2);font-size:var(--fs-sm);margin:var(--space-2) 0 var(--space-4)}
+section.demo{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--space-4);margin-bottom:var(--space-4)}
+.cap{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-3);margin:var(--space-2) 0 0}
+.row{display:flex;flex-wrap:wrap;gap:var(--space-2);margin:var(--space-3) 0}
+.btn{border:1px solid var(--border-strong);background:var(--surface-2);border-radius:var(--r-md);padding:var(--space-2) var(--space-4);min-height:44px;transition:transform var(--dur-fast) var(--ease-standard)}
+.btn:active{transform:scale(var(--press-scale))}
+.btn.pri{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent)}
+.frame{position:relative;overflow:hidden;height:270px;border:1px solid var(--border-strong);border-radius:var(--r-md);background:var(--bg);display:flex;flex-direction:column}
+.screen{position:relative;flex:1;overflow:hidden}
+.page{position:absolute;inset:0;padding:var(--space-4);overflow:auto}
+.page h3{font-family:var(--font-display);margin:0 0 var(--space-2)}
+.nav{display:flex;border-top:1px solid var(--border);background:var(--surface)}
+.nav button{flex:1;border:0;background:none;min-height:44px;font-size:var(--fs-sm);color:var(--text-2)}
+.nav button[aria-current=page]{color:var(--accent-text);font-weight:600}
+
+/* ---- motion kit (what would become shared/ui motion.css) ---- */
+@keyframes m-enter{from{opacity:0;transform:translateY(var(--motion-shift))}}
+@keyframes m-push{from{opacity:0;transform:translateX(calc(var(--motion-shift) * 3))}}
+@keyframes m-fade{from{opacity:0}}
+@keyframes m-leave{to{opacity:0}}
+@keyframes m-sheet-in{from{transform:translateY(100%)}}
+@keyframes m-sheet-out{to{transform:translateY(100%)}}
+@keyframes m-dialog-in{from{opacity:0;transform:scale(.98)}}
+@keyframes m-drop{from{opacity:0;transform:translateY(calc(var(--motion-shift) * -1))}}
+@keyframes m-toast-out{to{opacity:0;transform:translateY(var(--motion-shift))}}
+@keyframes m-hair{from{transform:scaleX(1)}to{transform:scaleX(0)}}
+@keyframes m-stamp{from{opacity:0;transform:rotate(-6deg) scale(1.25)}60%{opacity:1}}
+@keyframes m-pulse{50%{opacity:.5}}
+@keyframes m-shimmer{50%{opacity:.55}}
+.m-enter{animation:m-enter calc(var(--dur-base)*var(--slow)) var(--ease-enter) both}
+.m-push{animation:m-push calc(var(--dur-base)*var(--slow)) var(--ease-standard) both}
+.m-fade{animation:m-fade calc(var(--dur-fast)*var(--slow)) var(--ease-standard) both}
+.m-leave{animation:m-leave calc(var(--dur-fast)*var(--slow)) var(--ease-exit) both;pointer-events:none}
+.stag{animation:m-enter calc(var(--dur-base)*var(--slow)) var(--ease-enter) both;animation-delay:calc(var(--i)*var(--stagger)*var(--slow))}
+/* under reduced motion every enter is a pure opacity fade of --dur-fade (the shift token is already 0) */
+@media (prefers-reduced-motion:reduce){:root:not([data-motion=full]) :is(.m-enter,.m-push,.stag,.m-drop,.sheet,.dialog,.toast){animation-duration:calc(var(--dur-fade)*var(--slow))}}
+:root[data-motion=reduce] :is(.m-enter,.m-push,.stag,.m-drop,.sheet,.dialog,.toast){animation-duration:calc(var(--dur-fade)*var(--slow))}
+:root[data-motion=reduce] .sheet{animation-name:m-fade}:root[data-motion=reduce] .sheet.out{animation-name:m-leave}
+
+/* sheet + dialog */
+.scrim{position:absolute;inset:0;background:var(--scrim);animation:m-fade calc(var(--dur-base)*var(--slow)) var(--ease-standard) both}
+.scrim.out{animation:m-leave calc(var(--dur-fast)*var(--slow)) var(--ease-exit) both}
+.sheet{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:var(--r-sheet) var(--r-sheet) 0 0;box-shadow:var(--shadow-3);padding:var(--space-5);animation:m-sheet-in calc(var(--dur-slow)*var(--slow)) var(--ease-enter) both}
+.sheet.out{animation:m-sheet-out calc(var(--dur-base)*var(--slow)) var(--ease-exit) both}
+.dialog{position:absolute;left:50%;top:50%;translate:-50% -50%;width:min(86%,320px);background:var(--surface);border-radius:var(--r-lg);box-shadow:var(--shadow-2);padding:var(--space-5);animation:m-dialog-in calc(var(--dur-base)*var(--slow)) var(--ease-enter) both}
+.dialog.out{animation:m-leave calc(var(--dur-fast)*var(--slow)) var(--ease-exit) both}
+
+/* list */
+.list{list-style:none;margin:0;padding:0;position:relative}
+.list li{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-2) var(--space-3);margin-bottom:var(--space-2);min-height:44px}
+.list li.ghost{position:absolute;left:0;right:0;margin:0}
+.x{border:0;background:none;color:var(--text-3);min-width:44px;min-height:36px}
+
+/* tabs */
+.tabs{position:relative;display:grid;grid-template-columns:repeat(3,1fr);border-bottom:1px solid var(--border)}
+.tabs button{border:0;background:none;min-height:44px;color:var(--text-2)}
+.tabs button[aria-selected=true]{color:var(--accent-text);font-weight:600}
+.ind{position:absolute;left:0;bottom:-1px;width:33.333%;height:2px;background:var(--accent);transition:transform calc(var(--dur-base)*var(--slow)) var(--ease-standard)}
+.panel{padding:var(--space-4) 0;min-height:56px}
+
+/* components */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+.cell{border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-3);background:var(--surface-2);min-height:112px;position:relative;overflow:hidden}
+.cell b{display:block;font-size:var(--fs-xs);color:var(--text-3);font-weight:500;margin-bottom:var(--space-2)}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-md);padding:var(--space-3);box-shadow:var(--shadow-1);transition:transform calc(var(--dur-fast)*var(--slow)) var(--ease-standard)}
+@media (hover:hover){.card:hover{transform:translateY(var(--lift))}}
+.sw{width:48px;height:28px;border-radius:var(--r-pill);background:var(--border-strong);border:0;position:relative;padding:0}
+.sw::after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:var(--surface);box-shadow:var(--shadow-1);transition:transform calc(var(--dur-fast)*var(--slow)) var(--ease-standard)}
+.sw[aria-checked=true]{background:var(--accent)}
+.sw[aria-checked=true]::after{transform:translateX(20px)}
+.toast{position:absolute;left:var(--space-3);right:var(--space-3);bottom:var(--space-3);background:var(--text);color:var(--bg);border-radius:var(--r-md);padding:var(--space-3);font-size:var(--fs-sm);overflow:hidden;animation:m-enter calc(var(--dur-base)*var(--slow)) var(--ease-enter) both}
+.toast.out{animation:m-toast-out calc(var(--dur-fast)*var(--slow)) var(--ease-exit) both}
+.toast i{position:absolute;left:0;bottom:0;height:2px;width:100%;background:var(--accent);transform-origin:left;animation:m-hair 4s linear both}
+.roll{display:inline-block;height:1.5em;overflow:hidden;vertical-align:bottom;font-family:var(--font-mono);font-size:var(--fs-lg);background:var(--accent-soft);border-radius:var(--r-pill);padding:0 var(--space-3)}
+.roll span{display:block;height:1.5em}
+.skel{height:14px;border-radius:var(--r-sm);background:var(--border);margin:6px 0;animation:m-shimmer var(--dur-pulse) ease-in-out infinite}
+:root[data-motion=reduce] .skel{animation:none}
+@media (prefers-reduced-motion:reduce){:root:not([data-motion=full]) .skel{animation:none}}
+.meter{height:8px;border-radius:var(--r-pill);background:var(--border);overflow:hidden;margin-top:var(--space-3)}
+.meter i{display:block;height:100%;width:100%;background:var(--accent);transform-origin:left;transform:scaleX(0);transition:transform calc(var(--dur-slow)*var(--slow)) var(--ease-standard)}
+.meter.on i{transform:scaleX(.72)}
+.banner{background:var(--warning-soft);color:var(--warning-text);border-radius:var(--r-md);padding:var(--space-2) var(--space-3);font-size:var(--fs-sm);animation:m-drop calc(var(--dur-slow)*var(--slow)) var(--ease-enter) both}
+.stamp{display:inline-block;border:2px solid var(--accent);color:var(--accent-text);border-radius:var(--r-sm);padding:2px var(--space-3);font-family:var(--font-display);font-weight:600;text-transform:uppercase;letter-spacing:.08em;animation:m-stamp calc(var(--dur-sig)*var(--slow)) var(--ease-emph) both}
+:root[data-motion=reduce] .stamp{animation:m-fade calc(var(--dur-fade)*var(--slow)) linear both}
+@media (prefers-reduced-motion:reduce){:root:not([data-motion=full]) .stamp{animation:m-fade calc(var(--dur-fade)*var(--slow)) linear both}}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--accent);animation:m-pulse var(--dur-pulse) ease-in-out infinite;vertical-align:middle}
+:root[data-motion=reduce] .dot{animation:none}
+@media (prefers-reduced-motion:reduce){:root:not([data-motion=full]) .dot{animation:none}}
+table{border-collapse:collapse;width:100%;font-size:var(--fs-sm)}
+td,th{border-top:1px solid var(--border);padding:var(--space-2) var(--space-2) var(--space-2) 0;text-align:left;vertical-align:top}
+</style>
+</head>
+<body>
+<div class="bar" role="toolbar" aria-label="Preview controls">
+  <div class="seg" role="group" aria-label="Motion"><button data-motion="full" aria-pressed="true" data-t="mFull">Полное</button><button data-motion="reduce" aria-pressed="false" data-t="mReduce">Уменьшенное</button></div>
+  <div class="seg" role="group" aria-label="Theme"><button data-theme="light" aria-pressed="true" data-t="tLight">Светлая</button><button data-theme="dark" aria-pressed="false" data-t="tDark">Тёмная</button></div>
+  <div class="seg" role="group" aria-label="Speed"><button data-slow="1" aria-pressed="true">×1</button><button data-slow="4" aria-pressed="false" data-t="slow">×4 медленнее</button></div>
+  <div class="seg" role="group" aria-label="Language"><button data-lang="ru" aria-pressed="true">RU</button><button data-lang="en" aria-pressed="false">EN</button></div>
+  <span class="status" id="status" aria-live="polite"></span>
+</div>
+<main>
+  <h1 data-t="title">Язык движения консоли</h1>
+  <p class="lead" data-t="lead">Макет #506 для утверждения. Это не приложение: переходы собраны на токенах tokens.css; три новых токена помечены NEW в коде. Начальное положение переключателя «Движение» берётся из системной настройки.</p>
+
+  <section class="demo"><h2 data-t="h1">1. Переходы между страницами</h2>
+    <p class="lead" data-t="d1">Содержимое появляется сразу, анимация идёт поверх и не ждёт данных. Выхода у ушедшей страницы нет.</p>
+    <div class="frame"><div class="screen" id="route"></div>
+      <nav class="nav" id="nav"><button data-p="board" aria-current="page" data-t="nBoard">Доска</button><button data-p="questions" data-t="nQ">Вопросы</button><button data-p="stats" data-t="nStats">Показатели</button></nav></div>
+    <p class="cap">route: translateY(--motion-shift)+opacity · --dur-base · --ease-enter | push: translateX 24px · --ease-standard | back: opacity · --dur-fast</p></section>
+
+  <section class="demo"><h2 data-t="h2">2. Шторка и диалог</h2>
+    <div class="frame" id="overlayFrame"><div class="page"><h3 data-t="nBoard">Доска</h3><p class="lead" data-t="d2">Нажмите кнопку: шторка выезжает на iPhone, диалог проявляется на Mac.</p>
+      <div class="row"><button class="btn" id="openSheet" data-t="openSheet">Шторка (iPhone)</button><button class="btn" id="openDialog" data-t="openDialog">Диалог (Mac)</button></div></div></div>
+    <p class="cap">sheet in: translateY · --dur-slow · --ease-enter | out: --dur-base · --ease-exit | scrim: opacity · dialog: opacity+scale .98→1</p></section>
+
+  <section class="demo"><h2 data-t="h3">3. Список: добавление и удаление</h2>
+    <div class="row"><button class="btn pri" id="addRow" data-t="add">Добавить</button><button class="btn" id="reload" data-t="reload">Перезагрузить список</button></div>
+    <ul class="list" id="list"></ul>
+    <p class="cap">insert: opacity+translateY · --dur-base · --ease-enter | load: stagger --stagger, up to 8 rows | remove: ghost fades --dur-fast, siblings slide by FLIP (transform) --dur-base</p></section>
+
+  <section class="demo"><h2 data-t="h4">4. Вкладки</h2>
+    <div class="tabs" role="tablist" id="tabs"><button role="tab" aria-selected="true" data-t="tab1">Все</button><button role="tab" aria-selected="false" data-t="tab2">Ждут вас</button><button role="tab" aria-selected="false" data-t="tab3">Готово</button><span class="ind" id="ind"></span></div>
+    <div class="panel" id="panel" role="tabpanel"></div>
+    <p class="cap">indicator: translateX · --dur-base · --ease-standard | panel: opacity only · --dur-fast, no movement</p></section>
+
+  <section class="demo"><h2 data-t="h5">5. Компоненты</h2>
+    <div class="grid">
+      <div class="cell"><b data-t="cPress">Нажатие</b><button class="btn pri" data-t="send">Отправить</button><p class="cap">scale --press-scale · --dur-fast</p></div>
+      <div class="cell"><b data-t="cLift">Карточка при наведении</b><div class="card" data-t="card">Вопрос про релиз</div><p class="cap">translateY --lift · --dur-fast</p></div>
+      <div class="cell"><b data-t="cSwitch">Переключатель</b><button class="sw" role="switch" aria-checked="false" id="sw" aria-label="Switch"></button><p class="cap">translateX · --dur-fast</p></div>
+      <div class="cell"><b data-t="cRoll">Счётчик</b><span class="roll" id="roll"><span>3</span></span> <button class="btn" id="rollBtn">−1</button><p class="cap">translateY · --dur-base</p></div>
+      <div class="cell"><b data-t="cSkel">Загрузка → данные</b><div id="skel"></div><button class="btn" id="skelBtn" data-t="again">Ещё раз</button><p class="cap">opacity · --dur-fast, same size</p></div>
+      <div class="cell"><b data-t="cMeter">Шкала</b><div class="meter" id="meter"><i></i></div><button class="btn" id="meterBtn" data-t="again">Ещё раз</button><p class="cap">scaleX · --dur-slow</p></div>
+      <div class="cell"><b data-t="cBanner">Записка</b><div id="banner"></div><button class="btn" id="bannerBtn" data-t="again">Ещё раз</button><p class="cap">translateY+opacity · --dur-slow</p></div>
+      <div class="cell"><b data-t="cStamp">Штамп</b><div id="stamp"></div><button class="btn" id="stampBtn" data-t="again">Ещё раз</button><p class="cap">--dur-sig · --ease-emph</p></div>
+      <div class="cell"><b data-t="cToast">Уведомление с Отменой</b><button class="btn" id="toastBtn" data-t="showToast">Показать</button><p class="cap">in --dur-base · out --dur-fast · hairline scaleX</p></div>
+      <div class="cell"><b data-t="cPulse">«Команда работает»</b><span class="dot"></span> <span data-t="working">работает</span><p class="cap">opacity · --dur-pulse · still when reduced</p></div>
+    </div></section>
+
+  <section class="demo"><h2 data-t="h6">Бюджет для iPhone</h2>
+    <table><tr><th data-t="bAllowed">Можно</th><td>transform, opacity (translate, scale, rotate)</td></tr>
+    <tr><th data-t="bBanned">Нельзя</th><td>width, height, top/left, margin, padding, grid-template-*, box-shadow, filter, backdrop-filter, transition: all</td></tr>
+    <tr><th data-t="bConc">Одновременно</th><td>≤ 8 движущихся элементов, ≤ 1 бесконечная анимация</td></tr>
+    <tr><th data-t="bFrame">Кадр</th><td>≤ 16,7 мс на 60 Гц (≤ 8 мс скриптов), без длинных задач &gt; 50 мс</td></tr></table></section>
+</main>
+<script>
+const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];
+const D={
+ru:{mFull:'Полное',mReduce:'Уменьшенное',tLight:'Светлая',tDark:'Тёмная',slow:'×4 медленнее',title:'Язык движения консоли',lead:'Макет #506 для утверждения. Это не приложение: переходы собраны на токенах tokens.css; три новых токена помечены NEW в коде. Начальное положение переключателя «Движение» берётся из системной настройки.',h1:'1. Переходы между страницами',d1:'Содержимое появляется сразу, анимация идёт поверх и не ждёт данных. Выхода у ушедшей страницы нет.',nBoard:'Доска',nQ:'Вопросы',nStats:'Показатели',h2:'2. Шторка и диалог',d2:'Нажмите кнопку: шторка выезжает на iPhone, диалог проявляется на Mac.',openSheet:'Шторка (iPhone)',openDialog:'Диалог (Mac)',h3:'3. Список: добавление и удаление',add:'Добавить',reload:'Перезагрузить список',h4:'4. Вкладки',tab1:'Все',tab2:'Ждут вас',tab3:'Готово',h5:'5. Компоненты',cPress:'Нажатие',send:'Отправить',cLift:'Карточка при наведении',card:'Вопрос про релиз',cSwitch:'Переключатель',cRoll:'Счётчик',cSkel:'Загрузка → данные',again:'Ещё раз',cMeter:'Шкала',cBanner:'Записка',cStamp:'Штамп',cToast:'Уведомление с Отменой',showToast:'Показать',cPulse:'«Команда работает»',working:'работает',h6:'Бюджет для iPhone',bAllowed:'Можно',bBanned:'Нельзя',bConc:'Одновременно',bFrame:'Кадр',
+ task:'Открыть задачу',back:'Назад',taskT:'Задача TC-506',taskP:'Это страница второго уровня: она въезжает сбоку.',boardP:'Три вопроса ждут вас. Переключайте разделы внизу.',qT:'Вопросы',qP:'Два ответа ждут ваших слов.',sT:'Показатели',sP:'Прогон за прогоном, без задержки.',sheetT:'Перенести задачу',sheetP:'Выберите спринт для переноса.',close:'Закрыть',dlgT:'Закрыть задачу?',dlgP:'Вы сможете открыть её снова.',item:'Новая запись',del:'Удалить',loaded:'Данные загружены',bannerT:'Команда на паузе до понедельника',stampT:'Отвечено',toastT:'Задача перенесена · Отменить',p1:'Все задачи спринта.',p2:'Эти ждут вашего решения.',p3:'Закрыто за спринт.',mode:m=>m?'Движение: уменьшенное':'Движение: полное'},
+en:{mFull:'Full',mReduce:'Reduced',tLight:'Light',tDark:'Dark',slow:'×4 slower',title:'Console motion language',lead:'#506 mock for approval. Not the app: transitions are built on the tokens.css tokens; the three new tokens are marked NEW in the code. The Motion switch starts from the system setting.',h1:'1. Page transitions',d1:'Content shows at once; the animation runs on top and never waits for data. The page that leaves has no exit.',nBoard:'Board',nQ:'Questions',nStats:'Stats',h2:'2. Sheet and dialog',d2:'Press a button: the sheet rises on iPhone, the dialog fades in on Mac.',openSheet:'Sheet (iPhone)',openDialog:'Dialog (Mac)',h3:'3. List: insert and remove',add:'Add',reload:'Reload the list',h4:'4. Tabs',tab1:'All',tab2:'Waiting for you',tab3:'Done',h5:'5. Components',cPress:'Press',send:'Send',cLift:'Card on hover',card:'Question about a release',cSwitch:'Switch',cRoll:'Counter',cSkel:'Loading → data',again:'Again',cMeter:'Meter',cBanner:'Note',cStamp:'Stamp',cToast:'Toast with Undo',showToast:'Show',cPulse:'"Team is working"',working:'working',h6:'iPhone budget',bAllowed:'Allowed',bBanned:'Banned',bConc:'Concurrent',bFrame:'Frame',
+ task:'Open task',back:'Back',taskT:'Task TC-506',taskP:'A second-level page: it slides in from the side.',boardP:'Three questions wait for you. Switch sections below.',qT:'Questions',qP:'Two answers wait for your words.',sT:'Stats',sP:'Run after run, with no delay.',sheetT:'Move the task',sheetP:'Pick a sprint to move it to.',close:'Close',dlgT:'Close the task?',dlgP:'You can reopen it later.',item:'New entry',del:'Delete',loaded:'Data loaded',bannerT:'Team is paused until Monday',stampT:'Answered',toastT:'Task moved · Undo',p1:'Every task in the sprint.',p2:'These wait for your decision.',p3:'Closed this sprint.',mode:m=>m?'Motion: reduced':'Motion: full'}};
+let lang='ru';const t=k=>D[lang][k];
+const root=document.documentElement;
+const reduced=()=>root.dataset.motion==='reduce'||(root.dataset.motion!=='full'&&matchMedia('(prefers-reduced-motion:reduce)').matches);
+const slow=()=>+getComputedStyle(root).getPropertyValue('--slow')||1;
+const tokMs=n=>parseFloat(getComputedStyle(root).getPropertyValue(n))*slow();
+function status(){$('#status').textContent=t('mode')(reduced())}
+function applyText(){$$('[data-t]').forEach(e=>{if(D[lang][e.dataset.t]!=null)e.textContent=t(e.dataset.t)});root.lang=lang;status();renderRoute(cur,'none');renderPanel(tab,false)}
+function pressed(sel,attr,val){$$(sel).forEach(b=>b.setAttribute('aria-pressed',b.dataset[attr]===val))}
+$$('[data-motion]').forEach(b=>b.onclick=()=>{root.dataset.motion=b.dataset.motion;pressed('[data-motion]','motion',b.dataset.motion);status()});
+$$('[data-theme]').forEach(b=>b.onclick=()=>{root.dataset.theme=b.dataset.theme;pressed('[data-theme]','theme',b.dataset.theme)});
+$$('[data-slow]').forEach(b=>b.onclick=()=>{root.style.setProperty('--slow',b.dataset.slow);pressed('[data-slow]','slow',b.dataset.slow)});
+$$('[data-lang]').forEach(b=>b.onclick=()=>{lang=b.dataset.lang;pressed('[data-lang]','lang',lang);applyText()});
+if(matchMedia('(prefers-reduced-motion:reduce)').matches){root.dataset.motion='reduce';pressed('[data-motion]','motion','reduce')}
+function leave(el,cls='m-leave',after){el.classList.add(cls);let done=false;const fin=()=>{if(done)return;done=true;el.remove();after&&after()};el.addEventListener('animationend',fin,{once:true});setTimeout(fin,900*slow())}
+
+/* 1 route */
+let cur='board';
+function renderRoute(p,how='enter'){cur=p;const s=$('#route');const pg=document.createElement('div');pg.className='page '+(how==='enter'?'m-enter':how==='push'?'m-push':how==='back'?'m-fade':'');
+ const T={board:['nBoard','boardP'],questions:['qT','qP'],stats:['sT','sP'],task:['taskT','taskP']}[p];
+ pg.innerHTML=`<h3>${t(T[0])}</h3><p class="lead">${t(T[1])}</p>`+(p==='board'?`<button class="btn" id="openTask">${t('task')}</button>`:p==='task'?`<button class="btn" id="backBtn">${t('back')}</button>`:'');
+ s.replaceChildren(pg);$$('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.p===(p==='task'?'board':p)?'page':'false'));
+ $('#openTask')&&($('#openTask').onclick=()=>renderRoute('task','push'));$('#backBtn')&&($('#backBtn').onclick=()=>renderRoute('board','back'))}
+$$('#nav button').forEach(b=>b.onclick=()=>{if(b.dataset.p!==cur)renderRoute(b.dataset.p)});
+
+/* 2 sheet + dialog */
+function overlay(kind){const f=$('#overlayFrame');if(f.querySelector('.scrim'))return;
+ const sc=document.createElement('div');sc.className='scrim';const el=document.createElement('div');el.className=kind;el.setAttribute('role','dialog');
+ el.innerHTML=kind==='sheet'?`<h3 style="margin:0 0 8px;font-family:var(--font-display)">${t('sheetT')}</h3><p class="lead">${t('sheetP')}</p><button class="btn pri">${t('close')}</button>`:`<h3 style="margin:0 0 8px;font-family:var(--font-display)">${t('dlgT')}</h3><p class="lead">${t('dlgP')}</p><button class="btn pri">${t('close')}</button>`;
+ f.append(sc,el);const btn=el.querySelector('button');btn.focus({preventScroll:true});
+ const close=()=>{leave(sc,'out');leave(el,'out');$(kind==='sheet'?'#openSheet':'#openDialog').focus({preventScroll:true})};btn.onclick=close;sc.onclick=close}
+$('#openSheet').onclick=()=>overlay('sheet');$('#openDialog').onclick=()=>overlay('dialog');
+
+/* 3 list */
+const list=$('#list');let n=0;
+function row(i){const li=document.createElement('li');li.innerHTML=`<span>${t('item')} ${++n}</span><button class="x" aria-label="${t('del')}">✕</button>`;li.querySelector('button').onclick=()=>removeRow(li);if(i!=null){li.className='stag';li.style.setProperty('--i',i)}else li.className='m-enter';return li}
+function loadList(){n=0;list.replaceChildren(...[0,1,2,3,4].map(i=>row(i)))}
+$('#addRow').onclick=()=>{if(list.children.length<8)list.prepend(row())};$('#reload').onclick=loadList;
+function removeRow(li){const sibs=[...list.children].filter(x=>x!==li&&!x.classList.contains('ghost'));const before=new Map(sibs.map(x=>[x,x.getBoundingClientRect().top]));
+ const g=li.cloneNode(true);g.className='ghost';g.style.top=li.offsetTop+'px';g.style.height=li.offsetHeight+'px';g.setAttribute('aria-hidden','true');li.remove();list.append(g);leave(g);
+ if(reduced())return;sibs.forEach(x=>{const dy=before.get(x)-x.getBoundingClientRect().top;if(dy)x.animate([{transform:`translateY(${dy}px)`},{transform:'none'}],{duration:tokMs('--dur-base'),easing:getComputedStyle(root).getPropertyValue('--ease-standard')})})}
+loadList();
+
+/* 4 tabs */
+let tab=0;function renderPanel(i,anim=true){const p=$('#panel');p.className='panel'+(anim?' m-fade':'');p.textContent=t('p'+(i+1));if(anim){p.style.animation='none';p.offsetWidth;p.style.animation=''}}
+$$('#tabs [role=tab]').forEach((b,i)=>b.onclick=()=>{if(i===tab)return;tab=i;$$('#tabs [role=tab]').forEach((x,j)=>x.setAttribute('aria-selected',j===i));$('#ind').style.transform=`translateX(${i*100}%)`;renderPanel(i)});
+
+/* 5 components */
+$('#sw').onclick=e=>e.currentTarget.setAttribute('aria-checked',e.currentTarget.getAttribute('aria-checked')!=='true');
+let count=3;$('#rollBtn').onclick=()=>{const r=$('#roll'),old=r.firstElementChild;count=count>0?count-1:3;const nw=document.createElement('span');nw.textContent=count;r.append(nw);
+ if(reduced()){old.remove();return}const o={duration:tokMs('--dur-base'),easing:getComputedStyle(root).getPropertyValue('--ease-standard'),fill:'both'};
+ old.animate([{transform:'none'},{transform:'translateY(-100%)'}],o);nw.animate([{transform:'translateY(0)'},{transform:'translateY(-100%)'}],o).onfinish=()=>{old.remove();nw.getAnimations().forEach(a=>a.cancel())}};
+function skel(){const e=$('#skel');e.innerHTML='<div class="skel"></div><div class="skel" style="width:70%"></div>';setTimeout(()=>{e.innerHTML=`<div class="m-fade" style="font-size:14px;line-height:26px">${t('loaded')}<br><span style="color:var(--text-3)">TC-506</span></div>`},1400*slow())}
+$('#skelBtn').onclick=skel;skel();
+$('#meterBtn').onclick=()=>{const m=$('#meter');m.classList.remove('on');m.offsetWidth;requestAnimationFrame(()=>m.classList.add('on'))};setTimeout(()=>$('#meter').classList.add('on'),300);
+function banner(){$('#banner').innerHTML=`<div class="banner">${t('bannerT')}</div>`}$('#bannerBtn').onclick=()=>{$('#banner').innerHTML='';requestAnimationFrame(banner)};banner();
+function stamp(){$('#stamp').innerHTML=`<span class="stamp">${t('stampT')}</span>`}$('#stampBtn').onclick=()=>{$('#stamp').innerHTML='';requestAnimationFrame(stamp)};stamp();
+$('#toastBtn').onclick=e=>{const c=e.currentTarget.closest('.cell');if(c.querySelector('.toast'))return;const el=document.createElement('div');el.className='toast';el.setAttribute('role','status');el.innerHTML=`${t('toastT')}<i></i>`;c.append(el);
+ setTimeout(()=>leave(el,'out'),4000*slow())};
+applyText();
+</script>
+</body>
+</html>

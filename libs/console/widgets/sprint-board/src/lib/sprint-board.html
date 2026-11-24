@@ -24,9 +24,13 @@
   <header class="board__head">
     <h2 #boardTitle class="board__title" [id]="titleId" dir="auto" tabindex="-1">{{ milestone.title }}</h2>
     @if (demoLine()) {
-    <tc-chip class="board__demo" tone="accent" data-testid="demo"
-      ><tc-icon name="calendar" size="sm" />{{ demoLine() }}</tc-chip
-    >
+    <tc-demo-leaf
+      class="board__demo"
+      data-testid="demo"
+      [due]="milestone.dueOn ?? ''"
+      [days]="demoDays()"
+      [line]="demoLine()"
+    />
     } @if (isJobsBoard()) {
     <span class="board__open" data-testid="open-count"
       >{{ 'board.sections.open' | translocoPlural: openCount() }}</span
@@ -77,14 +81,15 @@
       data-testid="done-stat"
       [label]="'board.stat.done' | transloco"
       [sub]="tileLayout() !== 'five' ? ('board.stat.doneSub' | transloco: { n: (board.carriedOver | localNumber) }) : null"
-    >
-      {{ 'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned
-      | localNumber) } }}
-    </div>
+      [rollingValue]="'board.stat.doneValue' | transloco: { shipped: (board.shipped | localNumber), planned: (board.planned | localNumber) }"
+    ></div>
     @if (tileLayout() === 'five') {
-    <div tc-stat data-testid="open-stat" [label]="'board.stat.stillOpen' | transloco">
-      {{ board.carriedOver | localNumber }}
-    </div>
+    <div
+      tc-stat
+      data-testid="open-stat"
+      [label]="'board.stat.stillOpen' | transloco"
+      [rollingValue]="board.carriedOver | localNumber"
+    ></div>
     }
     <div
       tc-stat
@@ -119,10 +124,9 @@
       [label]="'board.stat.waiting' | transloco"
       [icon]="waiting() === 0 ? 'check' : null"
       [actionLabel]="waitingAria()"
+      [rollingValue]="waitingValue()"
       (activate)="openQuestions()"
-    >
-      {{ waitingValue() }}
-    </div>
+    ></div>
   </dl>
 </section>
 } @if (!board.milestone && compact()) {
@@ -193,6 +197,7 @@
         } @else if (column.issues.length > 0) {
         <tc-sprint-item-list
           [items]="visible(column.issues, 'lane:' + column.status)"
+          [unfoldFrom]="unfoldFrom('lane:' + column.status)"
           [slug]="isJobsBoard() ? project().slug : null"
           [rowAction]="isJobsBoard() ? moveAction : null"
         />
@@ -224,7 +229,7 @@
       >
     </h2>
     @if (board.pullRequests.length > 0) {
-    <tc-sprint-item-list [items]="visiblePulls()" [ciScope]="project().slug" />
+    <tc-sprint-item-list [items]="visiblePulls()" [ciScope]="project().slug" [unfoldFrom]="unfoldFrom('pulls')" />
     @if (hidden(board.pullRequests) > 0) {
     <ng-container
       *ngTemplateOutlet="more; context: { key: 'pulls', n: board.pullRequests.length, all: true }"

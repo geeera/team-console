@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   checkCreateSprintInput,
+  checkScrubSprintInput,
   checkUpdateSprintInput,
   isSprintState,
   type TrackerSprintListDto,
@@ -12,8 +13,9 @@ import type { ApiEnv } from '../../env';
 import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { sprintDtoOf } from '../../tracker/dto';
-import { TEXT_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
+import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
 import { idempotent } from '../../tracker/idempotency';
+import { scrubAuditStatement } from '../../tracker/scrub-audit';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
 type Context = WorkerContext<ApiEnv>;
@@ -58,6 +60,7 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     read: trackerAccess('GET /api/v1/projects/:slug/sprints/:number'),
     create: trackerAccess('POST /api/v1/projects/:slug/sprints'),
     change: trackerAccess('PATCH /api/v1/projects/:slug/sprints/:number'),
+    scrub: trackerAccess('POST /api/v1/projects/:slug/sprints/:number/scrub'),
   };
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/sprints', guard.list, async (c) => {
@@ -170,6 +173,52 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
             complete(200, 'sprint', { value: String(number) }),
           ]);
           c.get('logger').info('tracker sprint changed', { slug: project.slug, number });
+          return sprintResponse(c, project, number, 200);
+        },
+      );
+    })
+
+    // #477: incident response for a secret in a sprint's title or description, after the secret itself is rotated.
+    // The named fields become the marker and an audit row records which; a sprint row keeps no history to mask.
+    .post('/:slug/sprints/:number/scrub', guard.scrub, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const context = await trackerWriteContextOf(c);
+      if (context instanceof Response) {
+        return context;
+      }
+      const { project, write } = context;
+      const param = c.req.param('number');
+      const number = SPRINT_NUMBER.test(param) ? Number(param) : null;
+      return idempotent(
+        c,
+        write,
+        (ref) => sprintResponse(c, project, Number(ref), 200),
+        async (complete) => {
+          const repo = new SprintsRepo(c.env.DB);
+          if (number === null || (await repo.findByNumber(project.slug, number)) === null) {
+            return sprintNotFound(c);
+          }
+          if (write.bodyMalformed) {
+            return invalid(c, 'sprint-invalid', 'body', 'The body must be valid JSON');
+          }
+          const input = checkScrubSprintInput(write.body);
+          if (!input.ok) {
+            return invalid(c, 'sprint-invalid', input.field, input.detail);
+          }
+          const { fields } = input.value;
+          const scrubbed = await repo.scrub(project.slug, number, fields, [
+            scrubAuditStatement(c, project, new Date().toISOString(), { sprint: number, fields }),
+            complete(200, 'sprint', { value: String(number) }),
+          ]);
+          if (scrubbed === 'title-taken') {
+            // Another sprint was named exactly as the marker title; this route renames nothing, so say why.
+            return problem(c, {
+              type: 'sprint-exists',
+              title: 'Another sprint holds the scrubbed title',
+              status: 409,
+              detail: 'A sprint of this project is already titled as the scrub would title this one',
+            });
+          }
+          c.get('logger').info('tracker sprint scrubbed', { slug: project.slug, number, fields });
           return sprintResponse(c, project, number, 200);
         },
       );

@@ -87,18 +87,69 @@ export function itemEventStatement(
 /** How SQLite names migration 0025's index when a second link of the same pull request trips it. */
 const PR_LINK_UNIQUE = "UNIQUE constraint failed: index 'item_events_pr_link'";
 
-/** What a scrub writes over a title or a body; migration 0019's trigger admits exactly this replacement. */
+/**
+ * What a scrub writes over a masked text; the triggers of migrations 0019 and 0043 admit exactly this replacement
+ * (an event's title and body, a comment's body, an ask's text, a request's reason).
+ */
 export const SCRUBBED_TEXT = '[scrubbed]';
 
 // The text an event keeps after a scrub: the same expression as the trigger's, so the trigger lets it through.
 const scrubbed = (column: 'before' | 'after'): string =>
   `json_replace(${column}, '$.title', '${SCRUBBED_TEXT}', '$.body', '${SCRUBBED_TEXT}')`;
-const SCRUB_TARGET = `item_id = ?1 AND kind IN ('created', 'edited')
+// `imported` (#477): the import's event keeps the imported text under the same two members (migration 0043).
+const SCRUB_TARGET = `item_id = ?1 AND kind IN ('created', 'edited', 'imported')
   AND (before IS NOT ${scrubbed('before')} OR after IS NOT ${scrubbed('after')})`;
 
 /**
+ * What one scrub of an item masks (#477): its history (`events`) and the rows of its own the owner named. The ids are
+ * recorded in the `scrubbed` event as they were asked; the statements that mask those rows come from their repos
+ * (`CommentsRepo`, `AsksRepo`, `ItemRequestsRepo`) and ride in the same batch.
+ */
+export interface ItemScrubScope {
+  readonly events: boolean;
+  readonly comments: readonly number[];
+  readonly asks: readonly number[];
+  readonly requests: readonly number[];
+}
+
+const HISTORY_ONLY: ItemScrubScope = { events: true, comments: [], asks: [], requests: [] };
+
+/** The tables whose rows a scrub names by id; a fixed list, so no caller value ever names a table. */
+const SCRUB_ROW_TABLES = {
+  comments: { table: 'comments', filter: '' },
+  asks: { table: 'asks', filter: '' },
+  // Only an answered request has a reason to mask.
+  requests: { table: 'item_requests', filter: ' AND handled_at IS NOT NULL' },
+} as const;
+export type ScrubRowKind = keyof typeof SCRUB_ROW_TABLES;
+
+/**
+ * Which of `ids` are not rows of item `itemId` that a scrub can mask (#477): another item's, unknown, or a request
+ * nobody answered. These rows are never deleted, so an id found here is still there for the scrub's batch.
+ */
+export async function scrubIdsMissing(
+  db: D1Database,
+  kind: ScrubRowKind,
+  itemId: number,
+  ids: readonly number[],
+): Promise<number[]> {
+  if (ids.length === 0) {
+    return [];
+  }
+  const { table, filter } = SCRUB_ROW_TABLES[kind];
+  const { results } = await db
+    .prepare(
+      `SELECT value AS id FROM json_each(?2)
+       WHERE value NOT IN (SELECT id FROM ${table} WHERE item_id = ?1${filter}) ORDER BY value`,
+    )
+    .bind(itemId, JSON.stringify(ids))
+    .all<{ id: number }>();
+  return results.map((row) => row.id);
+}
+
+/**
  * An item's audit trail (`item_events`). Append-only: there is no delete here, and triggers refuse it and every
- * update but the owner's scrub (`scrub`, migration 0019).
+ * update but the owner's scrub (`scrub`, migrations 0019 and 0043).
  */
 export class ItemEventsRepo {
   constructor(private readonly db: D1Database) {}
@@ -116,36 +167,46 @@ export class ItemEventsRepo {
   }
 
   /**
-   * The owner's scrub (#462): masks `title` and `body` in the item's `created` and `edited` events and records a
-   * `scrubbed` event (`after.events`: how many events were masked), with `extra` in the same batch. Every other
-   * column and member is kept. Returns that count and the `scrubbed` event's id; a second scrub masks nothing and
-   * still records itself.
+   * The owner's scrub (#462, #477). With `scope.events` it masks `title` and `body` in the item's `created`, `edited`
+   * and `imported` events; every other column and member is kept. It records a `scrubbed` event (`after`: how many
+   * events were masked, the fields, and the ids of the comments, asks and requests the scrub named — never text),
+   * with `extra` in the same batch: the statements that mask those rows, the audit row, the idempotency key. Returns
+   * the count and the `scrubbed` event's id; a second scrub masks nothing and still records itself.
    */
   async scrub(
     itemId: number,
     actor: TrackerActor,
     at: string,
     extra: readonly D1PreparedStatement[] = [],
+    scope: ItemScrubScope = HISTORY_ONLY,
   ): Promise<{ readonly masked: number; readonly eventId: number }> {
-    const counted = await this.db
-      .prepare(`SELECT COUNT(*) AS n FROM item_events WHERE ${SCRUB_TARGET}`)
-      .bind(itemId)
-      .first<{ n: number }>();
+    const counted = scope.events
+      ? await this.db
+          .prepare(`SELECT COUNT(*) AS n FROM item_events WHERE ${SCRUB_TARGET}`)
+          .bind(itemId)
+          .first<{ n: number }>()
+      : null;
     const events = counted?.n ?? 0;
+    // A history-only scrub keeps #462's shape; the id lists appear only when the scrub named rows.
+    const after = {
+      events,
+      fields: scope.events ? ['title', 'body'] : [],
+      ...(scope.comments.length > 0 ? { comments: scope.comments } : {}),
+      ...(scope.asks.length > 0 ? { asks: scope.asks } : {}),
+      ...(scope.requests.length > 0 ? { requests: scope.requests } : {}),
+    };
     await this.db.batch([
-      this.db
-        .prepare(
-          `UPDATE item_events SET before = ${scrubbed('before')}, after = ${scrubbed('after')}
-           WHERE ${SCRUB_TARGET}`,
-        )
-        .bind(itemId),
-      itemEventStatement(
-        this.db,
-        { id: itemId },
-        actor,
-        { kind: 'scrubbed', before: null, after: { events, fields: ['title', 'body'] } },
-        at,
-      ),
+      ...(scope.events
+        ? [
+            this.db
+              .prepare(
+                `UPDATE item_events SET before = ${scrubbed('before')}, after = ${scrubbed('after')}
+                 WHERE ${SCRUB_TARGET}`,
+              )
+              .bind(itemId),
+          ]
+        : []),
+      itemEventStatement(this.db, { id: itemId }, actor, { kind: 'scrubbed', before: null, after }, at),
       ...extra,
     ]);
     const recorded = await this.db

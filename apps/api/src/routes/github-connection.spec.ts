@@ -670,15 +670,19 @@ describe('GET /api/v1/github/callback', () => {
     expect(h.fake.refreshCalls()).toBe(1); // the code exchange; no redemption
     expect(h.fake.activeGrants()).toBe(1);
     expect(h.fake.isAccessTokenLive(seeded.accessToken)).toBe(true);
-    expect(parsedLogs(h.logs)).toContainEqual(
-      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
+    // #901: one warning for the refusal, carrying the signal and the revoke outcome.
+    const refusals = parsedLogs(h.logs).filter(
+      (line) => line['securitySignal'] === 'owner-user-id-changed' || line['level'] === 'warn',
     );
-    expect(parsedLogs(h.logs)).toContainEqual(
+    expect(refusals).toEqual([
       expect.objectContaining({
+        level: 'warn',
         message: 'owner connect refused: the GitHub user id is not the connected one',
+        securitySignal: 'owner-user-id-changed',
+        login: OWNER.login,
         revoked: true,
       }),
-    );
+    ]);
   });
 
   it('redirects only to the fixed Settings URL, whatever else the query carries', async () => {

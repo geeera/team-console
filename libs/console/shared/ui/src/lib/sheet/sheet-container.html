@@ -43,13 +43,19 @@
   [attr.tabindex]="scrollable() ? 0 : null"
   [attr.role]="scrollable() ? 'region' : null"
   [attr.aria-labelledby]="scrollable() ? frame.titleId : null"
+  (scroll)="measureBody()"
 >
   <div #content class="tc-sheet__content"><ng-template cdkPortalOutlet /></div>
 </div>
 <!-- Reading order on both presentations (#282): the DOM order below is the Tab order and the visual order. A dialog
      footer that no longer fits one row stacks like the phone's (#325), and the order follows. -->
 @if (footerTemplates().length > 0) {
-<div #foot class="tc-sheet__foot" [class.tc-sheet__foot--stacked]="stackedFooter()">
+<div
+  #foot
+  class="tc-sheet__foot"
+  [class.tc-sheet__foot--stacked]="stackedFooter()"
+  [class.tc-sheet__foot--lifted]="hasTextBelow()"
+>
   @for (actions of footerTemplates(); track actions) {
   <ng-container *ngTemplateOutlet="actions" />
   }

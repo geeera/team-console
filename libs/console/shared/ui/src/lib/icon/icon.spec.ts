@@ -12,14 +12,17 @@ class Host {
 }
 
 describe('Icon', () => {
-  it.each<IconName>(['bell', 'bell-off', 'share', 'more', 'add-square'])('draws the %s glyph', async (name) => {
-    const fixture = TestBed.createComponent(Host);
-    fixture.componentInstance.name.set(name);
-    await fixture.whenStable();
+  it.each<IconName>(['bell', 'bell-off', 'share', 'more', 'add-square', 'paperclip'])(
+    'draws the %s glyph',
+    async (name) => {
+      const fixture = TestBed.createComponent(Host);
+      fixture.componentInstance.name.set(name);
+      await fixture.whenStable();
 
-    const path = (fixture.nativeElement as HTMLElement).querySelector('path');
-    expect(path?.getAttribute('d')).toMatch(/^M/);
-  });
+      const path = (fixture.nativeElement as HTMLElement).querySelector('path');
+      expect(path?.getAttribute('d')).toMatch(/^M/);
+    },
+  );
 
   it('is hidden from assistive tech unless it is given a label', async () => {
     const fixture = TestBed.createComponent(Host);

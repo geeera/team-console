@@ -9,3 +9,5 @@ export {
   redactSecrets,
 } from './lib/secrets';
 export type { RedactionMode, SecretKind } from './lib/secrets';
+export { findSecretInText, maskSecretsInText } from './lib/free-text';
+export type { MaskedText } from './lib/free-text';

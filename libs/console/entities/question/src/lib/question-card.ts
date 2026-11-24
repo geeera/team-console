@@ -76,7 +76,7 @@ function isActionSection(section: Section): boolean {
   selector: 'tc-question-card',
   imports: [Card, Chip, Frame, Icon, Markdown, Recommendation, RouterLink, TranslocoPipe],
   template: `
-    <tc-card flush [stamp]="stamp()" role="article" [attr.aria-labelledby]="titleId">
+    <tc-card flush [stamp]="stamp()" [seal]="seal()" role="article" [attr.aria-labelledby]="titleId">
       <span tc-card-kind>
         @if (showProject()) {
           <tc-chip tone="accent" data-testid="project-tag">{{ item().project.name }}</tc-chip>
@@ -207,6 +207,8 @@ export class QuestionCard {
   readonly showProject = input(false, { transform: booleanAttribute });
   /** The ink stamp while an answered card folds away. */
   readonly stamp = input<CardStamp | null>(null);
+  /** Words for a large seal in place of the stamp's mark (#361: the release's go), already translated. */
+  readonly seal = input<string | null>(null);
   /**
    * The project's exact frame origins (#20): set, the body renders as sanitised markdown and the card previews the
    * page it links to; `null` (the default) keeps the plain-text card of Questions and Needs you.

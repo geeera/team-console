@@ -132,6 +132,13 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
   // Opens on the demo's day; today is marked; the past cannot be picked.
   await expect(day(page, DUE)).toHaveAttribute('aria-selected', 'true');
   await expect(day(page, DUE)).toBeFocused();
+  // #346: the current demo is circled and the freeze is hatched, both named for a screen reader.
+  await expect(day(page, DUE)).toHaveClass(/tc-date-panel__day--marked/);
+  await expect(day(page, DUE)).toHaveAttribute('aria-label', new RegExp(ru('commands.demo.markedDay')));
+  await expect(calendar(page).locator('.tc-date-panel__day--hatched').first()).toHaveAttribute(
+    'aria-label',
+    new RegExp(ru('commands.demo.frozenDay')),
+  );
   const yesterday = day(page, addDays(TODAY, -1));
   if ((await yesterday.count()) > 0) {
     await expect(yesterday).toHaveAttribute('aria-disabled', 'true');

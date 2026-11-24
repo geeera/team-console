@@ -18,6 +18,7 @@ import { Stat, Stats, StatTone } from './stat';
       >
         1 PR failed
       </div>
+      <div tc-stat label="Open" [rollingValue]="open()"></div>
     </dl>
   `,
 })
@@ -27,6 +28,7 @@ class Host {
   readonly action = signal<string | null>(null);
   readonly icon = signal<IconName | null>(null);
   readonly columns = signal<number | null>(null);
+  readonly open = signal<string | null>(null);
   private readonly tiles = viewChildren(Stat);
   ci(): Stat {
     return this.tiles()[1] as Stat;
@@ -52,7 +54,7 @@ describe('Stats and Stat', () => {
     const { root } = await render();
     const list = root.querySelector('dl') as HTMLElement;
 
-    expect([...list.children].map((child) => child.tagName)).toEqual(['DIV', 'DIV']);
+    expect([...list.children].map((child) => child.tagName)).toEqual(['DIV', 'DIV', 'DIV']);
     const first = list.children[0] as HTMLElement;
     expect([...first.children].map((child) => child.tagName)).toEqual(['DT', 'DD']);
     expect(first.querySelector('dt')?.textContent).toBe('Done');
@@ -144,5 +146,23 @@ describe('Stats and Stat', () => {
     fixture.componentInstance.columns.set(0);
     await settle();
     expect(list.style.gridTemplateColumns).toBe('');
+  });
+
+  it('rolls a value given as text, and shows projected content as it is', async () => {
+    const { fixture, stats, settle } = await render();
+    const open = stats()[2] as HTMLElement;
+    expect(open.querySelector('tc-roll')).toBeNull();
+
+    fixture.componentInstance.open.set('4');
+    await settle();
+    expect(open.querySelector('tc-roll')?.textContent?.trim()).toBe('4');
+
+    fixture.componentInstance.open.set('3');
+    await settle();
+    fixture.detectChanges();
+    expect(open.querySelector('.tc-roll__out')?.textContent?.trim()).toBe('4');
+    expect(open.querySelector('.tc-roll__in')?.textContent?.trim()).toBe('3');
+    expect(stats()[0]?.querySelector('tc-roll')).toBeNull();
+    expect(stats()[0]?.querySelector('dd')?.textContent?.trim()).toBe('3 of 9');
   });
 });

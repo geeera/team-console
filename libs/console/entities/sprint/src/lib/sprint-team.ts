@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { localDayOf, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, IconName, List, ListRow } from '@console/shared/ui';
-import type { RunEntryState, TeamRunState } from '@shared/contracts';
+import { RECENT_RUNS_LIMIT, type RunEntryState, type TeamRunState } from '@shared/contracts';
 import type { SprintRun } from './sprint.model';
 
 /** One glyph per team state (#132), so the "Run log" tile reads without its colour. */
@@ -32,11 +33,30 @@ const RUN_TONES: Readonly<Record<RunEntryState, ChipTone>> = {
  * The team's latest runs (#132), newest first: the slot, when it ended (or started, while it runs) and how — icon and
  * words, the tone only repeating them. The last row opens the run-log issue on GitHub. Nothing here is a control
  * besides that link; the board never starts or stops a run.
+ *
+ * Above the rows a strip (#355): while the team works, a dot in `--accent` breathes beside the state's words (only
+ * while the tab is visible, still under reduced motion), and the latest runs are a row of small stamps — filled for a
+ * finished run, hollow for one in progress, reddish for one that failed. The stamps repeat the rows below and are
+ * hidden from assistive tech.
  */
 @Component({
   selector: 'tc-sprint-run-list',
   imports: [Chip, Icon, List, ListRow, TranslocoPipe],
   template: `
+    @if (isWorking() || stamps().length > 0) {
+      <div class="run-strip" data-testid="run-strip" [class.run-strip--paused]="!isPageVisible()">
+        @if (isWorking()) {
+          <span class="run-strip__state" data-testid="team-working"
+            ><span class="run-strip__dot" aria-hidden="true"></span>{{ 'board.team.running' | transloco }}</span
+          >
+        }
+        <span class="run-strip__stamps" aria-hidden="true">
+          @for (state of stamps(); track $index) {
+            <span class="run-strip__stamp" data-testid="run-stamp" [attr.data-state]="state"></span>
+          }
+        </span>
+      </div>
+    }
     <tc-list [attr.aria-label]="label()">
       @for (run of runs(); track $index) {
         <tc-list-row data-testid="run" [attr.data-state]="run.state" [attr.data-slot]="run.slotName">
@@ -63,19 +83,35 @@ const RUN_TONES: Readonly<Record<RunEntryState, ChipTone>> = {
       }
     </tc-list>
   `,
+  styleUrl: './sprint-team.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SprintRunList {
   private readonly transloco = inject(TranslocoService);
+  private readonly document = inject(DOCUMENT);
 
   readonly runs = input.required<readonly SprintRun[]>();
   readonly runLogUrl = input<string | null>(null);
   /** The list's accessible name; the board has other lists. */
   readonly label = input<string | null>(null);
+  /** The team's state from the run log; `running` shows the breathing dot. */
+  readonly teamState = input<TeamRunState | null>(null);
+
+  protected readonly isWorking = computed(() => this.teamState() === 'running');
+  protected readonly stamps = computed(() => this.runs().slice(0, RECENT_RUNS_LIMIT).map((run) => run.state));
+
+  /** The dot breathes only while the tab is on screen; a hidden tab's animation would run for nobody. */
+  protected readonly isPageVisible = signal(this.document.visibilityState !== 'hidden');
 
   private readonly lang = toSignal(this.transloco.langChanges$, {
     initialValue: this.transloco.getActiveLang(),
   });
+
+  constructor() {
+    const onVisibility = (): void => this.isPageVisible.set(this.document.visibilityState !== 'hidden');
+    this.document.addEventListener('visibilitychange', onVisibility);
+    inject(DestroyRef).onDestroy(() => this.document.removeEventListener('visibilitychange', onVisibility));
+  }
 
   protected slotLabel(run: SprintRun): string {
     this.lang();

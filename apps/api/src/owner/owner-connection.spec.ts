@@ -7,6 +7,7 @@ import {
   ENVIRONMENT,
   OWNER,
   fakeGitHub,
+  oauthOver,
   ownerConnection,
   parsedLogs,
   resetOwnerConnections,
@@ -465,6 +466,36 @@ describe('OwnerConnection.connect', () => {
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
   });
 
+  // #901: anything but a GitHubError while retiring is a bug, not GitHub's answer; the new pair is stored already.
+  it.each(['revokeToken', 'refresh'] as const)(
+    'an unexpected error from %s while retiring is logged and the connect still answers connected',
+    async (method) => {
+      const fake = fakeGitHub();
+      const logs: string[] = [];
+      await seedConnection(fake);
+      const next = freshPair(fake);
+      const oauth = oauthOver(fake);
+      vi.spyOn(oauth, method).mockRejectedValue(new TypeError('unexpected while retiring'));
+
+      await expect((await ownerConnection(fake, { logs, oauth })).connect(OWNER, next)).resolves.toBe(
+        'connected',
+      );
+
+      const failures = parsedLogs(logs).filter(
+        (line) => line['message'] === 'owner reconnect: retiring the previous pair failed unexpectedly',
+      );
+      expect(failures).toEqual([
+        expect.objectContaining({
+          level: 'error',
+          securitySignal: 'owner-previous-pair-not-retired',
+          error: expect.objectContaining({ name: 'TypeError', message: 'unexpected while retiring' }),
+        }),
+      ]);
+      expect(logs.join('\n')).not.toMatch(/gh[ur]_/);
+      await expect((await ownerConnection(fake)).getToken()).resolves.toBe(next.accessToken);
+    },
+  );
+
   it.each([
     ['expired', 'UPDATE owner_connections SET access_expires_at = 1, refresh_expires_at = 1'],
     [
@@ -503,9 +534,8 @@ describe('OwnerConnection.connect', () => {
 
     expect(fake.calls).toEqual([]);
     expect(await storedRow()).toEqual(before);
-    expect(parsedLogs(logs)).toContainEqual(
-      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
-    );
+    // The callback logs the refusal, once, with the revoke outcome (#901).
+    expect(logs).toEqual([]);
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(previous.accessToken);
   });
 
@@ -540,8 +570,7 @@ describe('OwnerConnection.connect', () => {
       version: 1,
     });
     expect(fake.calls).toEqual([]);
-    expect(parsedLogs(logs)).toContainEqual(
-      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
-    );
+    // The callback logs the refusal, once, with the revoke outcome (#901).
+    expect(logs).toEqual([]);
   });
 });

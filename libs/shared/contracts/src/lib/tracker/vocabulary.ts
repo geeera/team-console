@@ -64,7 +64,8 @@ export const ITEM_EVENT_KINDS = [
   'handled',
   'pr-linked',
   'imported',
-  // #462: the owner masked the title and body in the item's created/edited events (`…/events/scrub`).
+  // #462, #477: the owner masked text of the item (`…/events/scrub`): the title and body its created/edited/imported
+  // events keep, comments, asks, request reasons. `after` holds counts and ids, never text.
   'scrubbed',
   // #456: the item took another place in its queue (`…/items/:key/queue`); before/after = {rank}.
   'reordered',
