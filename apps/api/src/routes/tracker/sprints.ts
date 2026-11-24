@@ -197,6 +197,9 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
           if (number === null || (await repo.findByNumber(project.slug, number)) === null) {
             return sprintNotFound(c);
           }
+          if (write.bodyMalformed) {
+            return invalid(c, 'sprint-invalid', 'body', 'The body must be valid JSON');
+          }
           const input = checkScrubSprintInput(write.body);
           if (!input.ok) {
             return invalid(c, 'sprint-invalid', input.field, input.detail);

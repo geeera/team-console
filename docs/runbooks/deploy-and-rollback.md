@@ -230,6 +230,7 @@ and until the secret is rotated every one of them is a live credential.
    of a row changes: author, time, kind, an ask's commands and answer, a request's result all stay, and the
    database refuses any other update of these rows (migration 0043). An id that is not the item's own, or a request
    nobody answered, is 422 and nothing is masked. A request takes at most 50 ids of each kind.
+   The body must be valid JSON: a body that does not parse, or is not an object, is 422 and nothing is masked.
 5. **Check.** Read the item, its comments, asks, requests and events (or the sprint) again and search for the
    value's first characters. Each scrub leaves a `scrubbed` event on the item (counts and ids, hidden in the
    console's history) and a `tracker.scrubbed` row in the account audit (the item or sprint number, ids and field
@@ -242,7 +243,8 @@ and until the secret is rotated every one of them is a live credential.
   the Workers Free plan, 30 days on Workers Paid**. It is always on; there is no setting to switch it off, shorten
   it or delete one moment from it. So the pre-scrub rows exist at Cloudflare for that window after the scrub and then
   expire by themselves. Nothing reads them in place: the only way to them is `wrangler d1 time-travel restore`,
-  which overwrites the live database and needs D1 edit rights on the Cloudflare account. Two consequences:
+  which overwrites the live database and needs D1 edit rights on the Cloudflare account. A restore prints the
+  bookmark of the state it replaced, and restoring to that bookmark undoes the restore. Two consequences:
   - whoever has those rights can bring the text back during the window, so the secret must already be dead;
   - **a restore to a point before the scrub undoes it**, together with its `scrubbed` event and audit row. After any
     Time Travel restore (a rollback of bad data, a rehearsal), re-run every scrub recorded on incident issues newer

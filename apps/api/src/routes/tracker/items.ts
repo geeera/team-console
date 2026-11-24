@@ -541,6 +541,11 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
           write,
           (ref, status) => respond(Number(ref), status === 201 ? 201 : 200),
           async (complete) => {
+            // No body means "the history alone", and that cannot be undone: a body that was sent but is not JSON
+            // (a typo) must never read as no body.
+            if (write.bodyMalformed) {
+              return invalid(c, 'item-invalid', 'body', 'The body must be valid JSON, {} or absent');
+            }
             const input = checkScrubItemInput(write.body);
             if (!input.ok) {
               return invalid(c, 'item-invalid', input.field, input.detail);

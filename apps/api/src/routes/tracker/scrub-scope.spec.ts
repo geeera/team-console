@@ -311,6 +311,39 @@ describe('POST /projects/:slug/items/:key/events/scrub with members (#477)', () 
     expect(await stored(project.slug)).toEqual(before);
   });
 
+  // Security review of #912: a body that is sent but is not a JSON object must never read as "no body", which
+  // would run the whole history scrub on an owner's typo.
+  it.each([
+    ['malformed JSON', '{"comments": [1'],
+    ['a truncated empty object', '{'],
+    ['whitespace only', ' '],
+    ['a JSON array', '[]'],
+    ['a JSON array of ids', '[1, 2]'],
+    ['a JSON string', '"{}"'],
+    ['JSON null', 'null'],
+  ])('refuses %s as a body with 422 item-invalid, masking nothing', async (_, raw) => {
+    const { project, path } = await incident();
+    const etag = (await send('GET', path)).headers.get('ETag') ?? '';
+    expect((await send('PATCH', path, { title: `Deploy ${LEAK}` }, { ifMatch: etag })).status).toBe(200);
+    const before = await stored(project.slug);
+
+    const response = await send('POST', `${path}/events/scrub`, raw);
+
+    expect(response.status).toBe(422);
+    expect(await slugOf(response)).toBe('item-invalid');
+    expect(((await response.json()) as { field: string }).field).toBe('body');
+    expect(await stored(project.slug)).toEqual(before);
+    expect(JSON.stringify(before.item_events)).toContain(LEAK);
+    expect(await auditOf(project.slug)).toEqual([]);
+  });
+
+  it('still takes an absent body and {} as the history alone', async () => {
+    const { project, path } = await incident();
+    expect((await send('POST', `${path}/events/scrub`)).status).toBe(201);
+    expect((await send('POST', `${path}/events/scrub`, '{}')).status).toBe(201);
+    expect(await auditOf(project.slug)).toHaveLength(2);
+  });
+
   it('is the owner’s alone with members too: every job role and the service get 403, writing nothing', async () => {
     const { project, path, comment, askId, request } = await incident();
     const before = await stored(project.slug);
@@ -416,6 +449,22 @@ describe('POST /projects/:slug/sprints/:number/scrub (#477)', () => {
     expect(response.status).toBe(422);
     expect(await slugOf(response)).toBe('sprint-invalid');
     expect(((await response.json()) as { field: string }).field).toBe(field);
+    expect(await rowsOf('sprints', project.slug)).toEqual(before);
+    expect(await auditOf(project.slug)).toEqual([]);
+  });
+
+  it.each([
+    ['malformed JSON', '{"fields": ["title"'],
+    ['a JSON array', '["title"]'],
+    ['a JSON string', '"title"'],
+    ['no body', undefined],
+  ])('refuses %s as a body with 422 sprint-invalid, masking nothing', async (_, raw) => {
+    const { project, path } = await leakedSprint();
+    const before = await rowsOf('sprints', project.slug);
+    const response = await send('POST', `${path}/scrub`, raw);
+    expect(response.status).toBe(422);
+    expect(await slugOf(response)).toBe('sprint-invalid');
+    expect(((await response.json()) as { field: string }).field).toBe('body');
     expect(await rowsOf('sprints', project.slug)).toEqual(before);
     expect(await auditOf(project.slug)).toEqual([]);
   });
