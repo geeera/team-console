@@ -1952,6 +1952,9 @@
       "title": "Story editor autosave",
       "tip": "Tier: heavy"
     },
+    "ciChip": {
+      "toggle": "Switch running / passed"
+    },
     "stat": {
       "done": "Done",
       "doneValue": "3 of 9",

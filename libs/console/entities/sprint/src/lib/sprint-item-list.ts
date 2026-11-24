@@ -41,7 +41,7 @@ function isIssue(item: SprintListItem): item is SprintIssue {
           @if (ciOf(item); as ci) {
             <!-- Under the title, not trailing: on the phone a second trailing chip would squeeze the title. -->
             <span tc-row-subtitle class="sprint-item__marks">
-              <tc-sprint-ci-chip [state]="ci" data-testid="ci" />
+              <tc-sprint-ci-chip [state]="ci" [memoryKey]="ciKeyOf(item)" data-testid="ci" />
               @if (!item.authorTrusted) {
                 <tc-chip tone="warning" dot data-testid="untrusted">{{
                   'board.untrusted' | transloco
@@ -98,7 +98,14 @@ export class SprintItemList {
   /** The project of console-tracker rows: a row without a GitHub link opens `/p/:slug/t/:n`. */
   readonly slug = input<string | null>(null);
   /** A control per issue row (the Move menu, #558); declared here so the list owns where it sits. */
+  /** The project the pull requests belong to; with it each CI chip remembers its last state across board reloads. */
+  readonly ciScope = input<string | null>(null);
   readonly rowAction = input<TemplateRef<{ $implicit: SprintIssue }> | null>(null);
+
+  protected ciKeyOf(item: SprintListItem): string | null {
+    const scope = this.ciScope();
+    return scope === null ? null : `${scope}#${String(item.number)}`;
+  }
 
   protected consoleLinkOf(item: SprintListItem): string[] | null {
     const slug = this.slug();

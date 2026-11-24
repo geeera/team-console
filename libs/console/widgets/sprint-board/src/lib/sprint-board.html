@@ -224,7 +224,7 @@
       >
     </h2>
     @if (board.pullRequests.length > 0) {
-    <tc-sprint-item-list [items]="visiblePulls()" />
+    <tc-sprint-item-list [items]="visiblePulls()" [ciScope]="project().slug" />
     @if (hidden(board.pullRequests) > 0) {
     <ng-container
       *ngTemplateOutlet="more; context: { key: 'pulls', n: board.pullRequests.length, all: true }"
