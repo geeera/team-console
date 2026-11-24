@@ -146,7 +146,11 @@ export class SheetContainer extends CdkDialogContainer {
     });
   }
 
-  /** A wrapped row stacks; a stacked footer that grew wider than when it stacked is tried as a row again. */
+  /**
+   * A wrapped row stacks; a stacked footer that grew wider than when it stacked is tried as a row again.
+   * Known edge (#327): the check is one-way on width, so a label that shrinks while stacked (a language switch, a
+   * shorter busy label) does not bring the row back until the footer itself gets wider.
+   */
   private fitFooter(foot: HTMLElement): void {
     // Free-form content lays itself out; only the role buttons are stacked by the frame.
     if (this.footer.freeForm() !== null) {
@@ -154,7 +158,9 @@ export class SheetContainer extends CdkDialogContainer {
     }
     const width = foot.clientWidth;
     if (!this.stackedFooter()) {
-      const [first, ...rest] = Array.from(foot.children) as HTMLElement[];
+      const [first, ...rest] = Array.from(foot.children).filter(
+        (child): child is HTMLElement => child instanceof HTMLElement,
+      );
       if (first !== undefined && rest.some((item) => item.offsetTop > first.offsetTop)) {
         this.stackedAtWidth = width;
         this.restack(foot, true);
@@ -166,7 +172,8 @@ export class SheetContainer extends CdkDialogContainer {
 
   /** Reordering moves the buttons in the DOM, which drops focus: put it back on the same button. */
   private restack(foot: HTMLElement, stacked: boolean): void {
-    const focused = foot.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && foot.contains(active) ? active : null;
     this.stackedFooter.set(stacked);
     if (focused !== null) {
       afterNextRender(() => focused.focus({ preventScroll: true }), { injector: this.injector });
