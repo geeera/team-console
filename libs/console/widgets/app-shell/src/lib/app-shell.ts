@@ -23,7 +23,7 @@ import { EnvironmentMark } from '@console/entities/app-info';
 import {
   BREAKPOINTS,
   Button,
-  Chip,
+  CountBadge,
   Icon,
   IconButton,
   isPageScrollLocked,
@@ -48,7 +48,7 @@ import { shellAreaOf } from './shell-location';
   selector: 'tc-app-shell',
   imports: [
     Button,
-    Chip,
+    CountBadge,
     EnvironmentMark,
     Icon,
     IconButton,

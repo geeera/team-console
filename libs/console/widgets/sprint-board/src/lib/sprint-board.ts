@@ -60,7 +60,6 @@ import { PersistedStateStore } from '@console/shared/persisted-state';
 import {
   BREAKPOINTS,
   Button,
-  Chip,
   focusAfterRender,
   injectRetryFocus,
   Icon,
@@ -81,6 +80,7 @@ import { map } from 'rxjs';
 import { BoardJobs, type JobsPauseLine } from './board-jobs';
 import { BoardRunLog } from './board-run-log';
 import { BoardMoveButton } from './board-move-button';
+import { DemoLeaf } from './demo-leaf';
 import {
   arrivalsLast,
   BoardMoves,
@@ -227,7 +227,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     BoardRunLog,
     BoardMoveButton,
     Button,
-    Chip,
+    DemoLeaf,
     Icon,
     Lane,
     Lanes,
@@ -462,6 +462,11 @@ export class SprintBoard {
   protected readonly failure = computed(() => {
     const state = this.state();
     return state.kind === 'failed' ? state : null;
+  });
+
+  protected readonly demoDays = computed(() => {
+    const dueOn = this.board()?.milestone?.dueOn ?? null;
+    return dueOn === null ? 0 : daysUntilDemo(dueOn, new Date());
   });
 
   protected readonly demoLine = computed(() => {

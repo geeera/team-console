@@ -2,7 +2,14 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
-import { clearFakeMilestones, fakePost, RUN_LOG_ISSUE, seed, seedFakeRunLog, type Stack } from './support/stack';
+import {
+  clearFakeMilestones,
+  fakePost,
+  RUN_LOG_ISSUE,
+  seed,
+  seedFakeRunLog,
+  type Stack,
+} from './support/stack';
 
 /**
  * The compact board (#275) at 390×844 (iphone) and 1440×900 (desktop), on the mock repository (20 sprint issues,
@@ -164,7 +171,10 @@ async function expectNoCutTileValue(page: Page): Promise<void> {
 test('the key status is on the first screen: sprint, demo date and the four tiles', async ({ page }) => {
   await openBoard(page);
 
-  await expectAboveFold(page, page.getByTestId('demo'), 'the demo chip');
+  await expectAboveFold(page, page.getByTestId('demo'), 'the demo leaf');
+  // #363: the tear-off leaf says how many days are left; its binding edge is the accent rule.
+  await expect(page.getByTestId('demo')).toHaveText(/^Демо .+ · через \d+ /);
+  await expect(page.getByTestId('demo')).toHaveCSS('border-top-width', '2px');
   for (const tile of ['done-stat', 'ci-stat', 'team-stat', 'waiting-stat']) {
     await expectAboveFold(page, page.getByTestId(tile), tile);
   }
@@ -259,11 +269,7 @@ test('the phone: lists are tabs, the lane switcher is one row and opens on the b
   await openBoard(page);
 
   const tabs = page.getByRole('tablist', { name: ru('board.tabs.label') }).getByRole('tab');
-  await expect(tabs).toHaveText([
-    ru('board.tabs.tasks', { n: 20 }),
-    await pullsTabLabel(request),
-    RUNS_TAB,
-  ]);
+  await expect(tabs).toHaveText([ru('board.tabs.tasks', { n: 20 }), await pullsTabLabel(request), RUNS_TAB]);
   await expect(tabs.first()).toHaveAttribute('aria-selected', 'true');
 
   const switcher = page.getByRole('group', { name: ru('board.lanes') });
@@ -320,10 +326,7 @@ test('a list shows five rows, then «Показать ещё N»', async ({ page
   await expectAccessible(page, 'Done lane expanded');
 });
 
-test('the CI tile shows the PR list, failing first, and moves focus to it', async ({
-  page,
-  request,
-}) => {
+test('the CI tile shows the PR list, failing first, and moves focus to it', async ({ page, request }) => {
   await openBoard(page);
   const ci = page.getByTestId('ci-stat').getByRole('button', {
     name: ru('board.tile.openAria', {

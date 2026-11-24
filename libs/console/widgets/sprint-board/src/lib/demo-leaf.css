@@ -1,0 +1,57 @@
+:host {
+  position: relative;
+  display: inline-block;
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-top: var(--border-w-strong) solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The demo day: an accent leaf. */
+:host(.tc-demo-leaf--today) {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* The leaf being torn off lies over the new one, with the old words, then leaves upward. */
+:host(.tc-demo-leaf--tearing)::after {
+  content: attr(data-torn);
+  position: absolute;
+  inset: calc(-1 * var(--border-w-strong)) calc(-1 * var(--border-w));
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-w) solid var(--border);
+  border-top: var(--border-w-strong) solid var(--accent);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text);
+  transform-origin: top left;
+  animation: tc-leaf-tear var(--dur-slow) var(--ease-exit) both;
+}
+
+@keyframes tc-leaf-tear {
+  from {
+    opacity: 1;
+    transform: none;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(calc(-1 * var(--space-4))) rotate(-8deg);
+  }
+}
+
+/* Reduced motion: no tear (the component does not plan one either); the leaf shows today's words. */
+@media (prefers-reduced-motion: reduce) {
+  :host(.tc-demo-leaf--tearing)::after {
+    display: none;
+  }
+}

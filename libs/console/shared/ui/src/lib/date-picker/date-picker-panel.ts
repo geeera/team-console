@@ -35,6 +35,11 @@ export interface DatePickerPanelData {
   readonly today: string;
   readonly bounds: DayBounds;
   readonly isDateDisabled: (day: string) => boolean;
+  /** Decoration only (#346): a circled day and a hatched run, each with the words a screen reader adds. */
+  readonly markedDay: string | null;
+  readonly markedLabel: string;
+  readonly hatchedRange: DayBounds | null;
+  readonly hatchedLabel: string;
   readonly lang: string;
   readonly close: (day: string | null) => void;
 }
@@ -45,6 +50,8 @@ interface DayCell {
   readonly label: string;
   readonly isToday: boolean;
   readonly isUnavailable: boolean;
+  readonly isMarked: boolean;
+  readonly isHatched: boolean;
 }
 
 let nextPanelId = 0;
@@ -195,14 +202,18 @@ export class DatePickerPanel {
   private cellOf(day: string): DayCell {
     const isToday = day === this.data.today;
     const isUnavailable = this.isUnavailable(day);
+    const isMarked = this.data.markedDay === day;
+    const isHatched = this.data.hatchedRange !== null && !isOutOfBounds(day, this.data.hatchedRange);
     const label = [
       this.names.fullDay(day),
       isToday ? this.names.todayMark : '',
+      isMarked ? this.data.markedLabel : '',
+      isHatched ? this.data.hatchedLabel : '',
       isUnavailable ? this.names.unavailable : '',
     ]
       .filter((part) => part !== '')
       .join(', ');
-    return { day, date: Number(day.slice(8, 10)), label, isToday, isUnavailable };
+    return { day, date: Number(day.slice(8, 10)), label, isToday, isUnavailable, isMarked, isHatched };
   }
 
   /** The first day of `day`'s month that is inside the bounds (the month has one: its button was on). */

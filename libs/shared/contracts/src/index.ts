@@ -697,6 +697,13 @@ export type {
   TrackerSprintListDto,
 } from './lib/tracker/dto';
 export { currentSprintOf, openSprintsOf } from './lib/tracker/sprints';
+export {
+  SCRUB_IDS_MAX,
+  SPRINT_SCRUB_FIELDS,
+  checkScrubItemInput,
+  checkScrubSprintInput,
+} from './lib/tracker/scrub';
+export type { ScrubItemInput, ScrubSprintInput, SprintScrubField } from './lib/tracker/scrub';
 export type {
   PullRequestDto,
   PullRequestItemsDto,

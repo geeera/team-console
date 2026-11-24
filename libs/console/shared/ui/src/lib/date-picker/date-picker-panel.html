@@ -39,6 +39,8 @@
           class="tc-date-panel__day"
           [class.tc-date-panel__day--today]="cell.isToday"
           [class.tc-date-panel__day--off]="cell.isUnavailable"
+          [class.tc-date-panel__day--marked]="cell.isMarked"
+          [class.tc-date-panel__day--hatched]="cell.isHatched"
           [attr.data-day]="cell.day"
           [attr.tabindex]="cell.day === focused() ? 0 : -1"
           [attr.aria-label]="cell.label"

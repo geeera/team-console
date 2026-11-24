@@ -90,6 +90,8 @@ export class SprintControls {
           value: sprint.due,
           min: today,
           ...(next === null ? {} : { max: addDays(next.due, -1) }),
+          marked: { day: sprint.due, label: this.t('commands.demo.markedDay') },
+          hatched: { from: sprint.freeze.from, to: sprint.freeze.to, label: this.t('commands.demo.frozenDay') },
           check,
         },
         confirmLabel: this.t('commands.demo.btn'),

@@ -114,6 +114,9 @@ export const AUDIT_EVENT_KINDS = [
   'project.actions-workflow-pr-attempted',
   'project.actions-workflow-pr-opened',
   'project.actions-workflow-pr-failed',
+  // #477: the owner's scrub of stored tracker text (an item's history, comments, asks, request reasons, or a sprint's
+  // title and description). Details hold the item or sprint number, ids and field names, never text.
+  'tracker.scrubbed',
 ] as const;
 export type AuditEventKind = (typeof AUDIT_EVENT_KINDS)[number];
 export const isAuditEventKind = (value: unknown): value is AuditEventKind =>
