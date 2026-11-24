@@ -26,7 +26,7 @@ function isIssue(item: SprintListItem): item is SprintIssue {
     <tc-list>
       @for (item of items(); track item.number; let index = $index) {
         <tc-list-row
-          [class.sprint-item--unfold]="isUnfolding(index)"
+          [class.m-enter]="isUnfolding(index)"
           [href]="item.url ?? ''"
           external
           [link]="consoleLinkOf(item)"
@@ -100,7 +100,7 @@ export class SprintItemList {
   readonly slug = input<string | null>(null);
   /** The project the pull requests belong to; with it each CI chip remembers its last state across board reloads. */
   readonly ciScope = input<string | null>(null);
-  /** Rows from this index on open their height as they arrive ("Show N more"); `null`: none animates. */
+  /** Rows from this index on fade and rise as they arrive ("Show N more"); the height changes at once (#506). `null`: none animates. */
   readonly unfoldFrom = input<number | null>(null);
   /** A control per issue row (the Move menu, #558); declared here so the list owns where it sits. */
   readonly rowAction = input<TemplateRef<{ $implicit: SprintIssue }> | null>(null);
