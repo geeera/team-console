@@ -5,10 +5,11 @@ import { booleanAttribute, ChangeDetectionStrategy, Component, computed, input }
  * `aria-hidden`, never the only carrier of the number. `max` 0 reads as empty, values outside 0…max are clamped.
  *
  * With `appear` the fill grows from the start edge when the meter is first shown (#359); a caller staggers a row of
- * meters through the `--meter-delay` custom property. Reduced motion shows the fill at once.
+ * meters by setting the `--i` custom property (its place in the row), multiplied in CSS by the #506 `--stagger`
+ * token. Reduced motion shows the fill at once (`--stagger` is 0).
  *
  * ```html
- * <tc-meter [value]="shipped" [max]="planned" appear />
+ * <tc-meter [value]="shipped" [max]="planned" appear [style.--i]="rowIndex" />
  * ```
  */
 @Component({

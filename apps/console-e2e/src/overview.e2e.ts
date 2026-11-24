@@ -130,6 +130,23 @@ test.describe('with two active projects', () => {
     await expect(tileOf(page, 'team-console').locator('.tc-meter__fill')).toHaveCSS('animation-name', 'none');
   });
 
+  test('#943: under RTL the meter fill grows from the right, its transform-origin following', async ({
+    page,
+  }) => {
+    // Reduced motion settles the fill at its full, untransformed width, so the comparison below is not a
+    // mid-animation race against the scaleX transform.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openOverview(page);
+    // Set after load (not an init script): the browser recalculates `:dir()` matches on the attribute
+    // mutation itself, so the computed style below already reflects it.
+    await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+
+    const fill = tileOf(page, 'team-console').locator('.tc-meter__fill');
+    const width = await fill.evaluate((el) => el.getBoundingClientRect().width);
+    const originX = await fill.evaluate((el) => parseFloat(getComputedStyle(el).transformOrigin));
+    expect(Math.round(originX)).toBe(Math.round(width));
+  });
+
   test('the keyboard reaches a tile and Enter opens its board', async ({ page }) => {
     await openOverview(page);
     const target = tileOf(page, 'team-console');

@@ -13,10 +13,20 @@
   background: var(--accent);
 }
 
-/* The fill grows by transform from its start edge (no layout), after `--meter-delay` when a row of meters is staggered. */
+/*
+ * The fill grows by transform from its start edge (no layout); a caller staggers a row of meters through `--i`
+ * (its place in the row) times the #506 `--stagger` token. The start edge is the inline-start side, so the
+ * transform's origin follows it: left in LTR, right in RTL.
+ */
 .tc-meter__fill--appear {
   transform-origin: left center;
-  animation: tc-meter-fill var(--dur-slow) var(--ease-standard) var(--meter-delay, 0ms) both;
+  animation: tc-meter-fill var(--dur-slow) var(--ease-standard) calc(var(--i, 0) * var(--stagger)) both;
+}
+
+/* `:host-context`, not a bare `:dir(rtl)`: Angular's emulated encapsulation scopes a plain selector to this
+   component, which an ancestor (`<html dir="rtl">`) never carries. */
+:host-context(:dir(rtl)) .tc-meter__fill--appear {
+  transform-origin: right center;
 }
 
 @keyframes tc-meter-fill {

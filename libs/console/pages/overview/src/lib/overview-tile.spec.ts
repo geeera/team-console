@@ -75,14 +75,15 @@ describe('OverviewTile demo countdown (#359)', () => {
     expect(countdown()).toBeNull();
   });
 
-  it('fills the meter from empty on first show, 40 ms later for each next card, at most 8 steps', async () => {
+  it('fills the meter from empty on first show, one more `--stagger` step for each next card, at most 8 steps', async () => {
     await render(project('2026-10-16'), 2);
     const meter = (fixture.nativeElement as HTMLElement).querySelector('tc-meter') as HTMLElement;
     expect(meter.querySelector('.tc-meter__fill--appear')).not.toBeNull();
-    expect(meter.style.getPropertyValue('--meter-delay')).toBe('80ms');
+    // The delay itself (`--i` x the #506 `--stagger` token) is computed in CSS; the e2e suite checks the result.
+    expect(meter.style.getPropertyValue('--i')).toBe('2');
 
     ref.setInput('index', 30);
     await fixture.whenStable();
-    expect(meter.style.getPropertyValue('--meter-delay')).toBe('320ms');
+    expect(meter.style.getPropertyValue('--i')).toBe('8');
   });
 });
