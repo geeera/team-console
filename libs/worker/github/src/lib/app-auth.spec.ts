@@ -1,6 +1,7 @@
 import {
   INSTALLATION_ID,
   SENTINEL_TOKEN,
+  installationToken,
   appFlow,
   decodeJwt,
   generateAppKey,
@@ -223,7 +224,7 @@ describe('GitHubAppAuth', () => {
     const github = scriptedGitHub((call) =>
       call.method === 'POST'
         ? json(201, {
-            token: `ghs_T${github.calls.length}`,
+            token: installationToken(`T${github.calls.length}`),
             expires_at: new Date(now + 60 * 60 * 1000).toISOString(),
             ...REPO_SCOPE,
           })
@@ -267,7 +268,7 @@ describe('GitHubAppAuth', () => {
     const source = auth.tokenSourceFor(REPO);
 
     const first = await source.getToken();
-    source.invalidate('ghs_some_other_token');
+    source.invalidate(installationToken('some_other_token'));
     expect(await source.getToken()).toBe(first);
     source.invalidate(first);
     expect(await source.getToken()).not.toBe(first);
@@ -300,7 +301,7 @@ describe('GitHubAppAuth', () => {
         });
       }
       return json(201, {
-        token: 'ghs_fresh',
+        token: installationToken('fresh'),
         expires_at: new Date(Date.now() + 3_600_000).toISOString(),
         ...REPO_SCOPE,
       });
@@ -327,7 +328,7 @@ describe('GitHubAppAuth', () => {
     expect(postAttempts).toBe(1);
 
     // The next request does not join a dead mint: it starts a fresh one and succeeds.
-    await expect(source.getToken()).resolves.toBe('ghs_fresh');
+    await expect(source.getToken()).resolves.toBe(installationToken('fresh'));
     expect(postAttempts).toBe(2);
   });
 
@@ -340,7 +341,7 @@ describe('GitHubAppAuth', () => {
       return fail
         ? json(500, {})
         : json(201, {
-            token: 'ghs_ok',
+            token: installationToken('ok'),
             expires_at: new Date(Date.now() + 3_600_000).toISOString(),
             ...REPO_SCOPE,
           });
@@ -350,14 +351,14 @@ describe('GitHubAppAuth', () => {
 
     expect((await rejection(source.getToken())).problem.type).toBe('github-unavailable');
     fail = false;
-    await expect(source.getToken()).resolves.toBe('ghs_ok');
+    await expect(source.getToken()).resolves.toBe(installationToken('ok'));
   });
 
   it.each([
     ['no token', { expires_at: '2026-09-30T13:00:00Z' }],
-    ['no expiry', { token: 'ghs_x' }],
-    ['a bad expiry', { token: 'ghs_x', expires_at: 'soon' }],
-    ['a token with whitespace', { token: 'ghs_x y', expires_at: '2026-09-30T13:00:00Z' }],
+    ['no expiry', { token: installationToken('x') }],
+    ['a bad expiry', { token: installationToken('x'), expires_at: 'soon' }],
+    ['a token with whitespace', { token: installationToken('x y'), expires_at: '2026-09-30T13:00:00Z' }],
   ])('answers 502 github-unexpected for a mint response with %s', async (_label, body) => {
     const github = scriptedGitHub((call) =>
       call.method === 'GET' ? json(200, { id: INSTALLATION_ID }) : json(201, body),
@@ -388,7 +389,7 @@ describe('GitHubAppAuth', () => {
         call.method === 'GET'
           ? json(200, { id: INSTALLATION_ID })
           : json(201, {
-              token: 'ghs_broader',
+              token: installationToken('broader'),
               expires_at: '2026-09-30T13:00:00Z',
               permissions,
               repository_selection: repositorySelection,
@@ -592,7 +593,7 @@ describe('the repositories a repository token covers (#317)', () => {
   });
 
   it('sends no revoke when the mint answer carries no usable token', async () => {
-    const github = mintAnswering({ token: 'ghs_x y', ...scopeWith(REPO_SCOPE.repositories) });
+    const github = mintAnswering({ token: installationToken('x y'), ...scopeWith(REPO_SCOPE.repositories) });
     const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
     expect(error.problem.type).toBe('github-unexpected');
     expect(revokes(github)).toHaveLength(0);
@@ -699,14 +700,14 @@ describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 
     async (repositorySelection) => {
       const github = scriptedGitHub(() =>
         json(201, {
-          token: 'ghs_list',
+          token: installationToken('list'),
           expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
           permissions: { metadata: 'read' },
           repository_selection: repositorySelection,
         }),
       );
       const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
-      await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe('ghs_list');
+      await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe(installationToken('list'));
     },
   );
 
@@ -722,7 +723,7 @@ describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 
     async (_label, permissions, repositorySelection) => {
       const github = scriptedGitHub(() =>
         json(201, {
-          token: 'ghs_broader',
+          token: installationToken('broader'),
           expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
           permissions,
           repository_selection: repositorySelection,

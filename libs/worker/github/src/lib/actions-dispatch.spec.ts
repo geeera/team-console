@@ -1,3 +1,4 @@
+import { installationToken } from '../testing/github-kit';
 import type { Logger } from '@worker/core';
 import { dispatchRunnerWorkflow } from './actions-dispatch';
 import { GitHubAppAuth } from './app-auth';
@@ -76,7 +77,7 @@ describe('the actions-dispatch scoped mint and dispatchRunnerWorkflow', () => {
     ['200 with a run id that is no positive integer', () => Response.json({ workflow_run_id: '12' })],
   ] as const)('refuses a dispatch answered %s with 502 github-unexpected', async (_label, answer) => {
     const error = await rejection(
-      dispatchRunnerWorkflow(async () => answer(), new ScopedInstallationToken('actions-dispatch', 1, 1, 'ghs_x'), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(async () => answer(), new ScopedInstallationToken('actions-dispatch', 1, 1, installationToken('x')), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
     );
     expect(error.problem.type).toBe('github-unexpected');
   });

@@ -1,3 +1,4 @@
+import { installationToken } from '../testing/github-kit';
 import { GitHubAppAuth } from './app-auth';
 import { GitHubClient } from './client';
 import { GitHubError } from './errors';
@@ -13,7 +14,7 @@ const TEAM_CONSOLE = parseRepoName('geeera/team-console');
 const TEAM_CONSOLE_ID = 900001;
 
 function fixedTokens(): InstallationTokenSource {
-  return { kind: 'installation', repo: TEAM_CONSOLE, getToken: async () => 'ghs_fixed', invalidate: () => undefined };
+  return { kind: 'installation', repo: TEAM_CONSOLE, getToken: async () => installationToken('fixed'), invalidate: () => undefined };
 }
 
 function answering(body: unknown): GitHubClient {

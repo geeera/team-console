@@ -113,6 +113,11 @@ export { mintScopeOf, repositoryOwners };
 // Assembled at run time so the repository's secret scanners never see a token-shaped literal.
 export const SENTINEL_TOKEN = ['ghs', 'TESTSENTINEL'].join('_');
 
+/** A synthetic installation token, assembled at run time (CLAUDE.md: no secret-shaped literals in specs). */
+export function installationToken(tail: string): string {
+  return ['ghs', tail].join('_');
+}
+
 /**
  * The happy path of the app flow for `owner/name`: installation lookup, mint (tokens numbered so tests can
  * tell a re-mint), and whatever `read` answers for any other call.
