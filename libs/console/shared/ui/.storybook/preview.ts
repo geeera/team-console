@@ -2,6 +2,7 @@ import '@angular/cdk/overlay-prebuilt.css';
 import '@angular/cdk/a11y-prebuilt.css';
 import '../src/tokens/tokens.css';
 import '../src/styles/base.css';
+import '../src/styles/motion.css';
 import '../src/styles/overlay.css';
 
 import { DOCUMENT } from '@angular/common';

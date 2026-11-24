@@ -26,6 +26,7 @@ export * from './lib/is-phone/is-phone';
 export * from './lib/lane/lane';
 export * from './lib/ledger/ledger';
 export * from './lib/menu/menu';
+export * from './lib/motion/leave';
 export * from './lib/meter/meter';
 export * from './lib/list/list';
 export * from './lib/picker-button/picker-button';

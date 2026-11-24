@@ -68,6 +68,17 @@ describe('reduced-motion tokens', () => {
     expect(tokensCss()).toMatch(/--seal-recoil:\s*0\.99;/);
   });
 
+  it('removes movement under reduced motion: no stagger, no shift, no press give (#506)', () => {
+    for (const block of blocks) {
+      expect(block).toMatch(/--stagger:\s*0ms;/);
+      expect(block).toMatch(/--motion-shift:\s*0px;/);
+      expect(block).toMatch(/--press-scale:\s*1;/);
+    }
+    expect(tokensCss()).toMatch(/--stagger:\s*30ms;/);
+    expect(tokensCss()).toMatch(/--motion-shift:\s*8px;/);
+    expect(tokensCss()).toMatch(/--press-scale:\s*0\.98;/);
+  });
+
   it('keeps --dur-fade at 120ms in the base token block', () => {
     expect(tokensCss()).toMatch(/--dur-fade:\s*120ms;/);
   });
