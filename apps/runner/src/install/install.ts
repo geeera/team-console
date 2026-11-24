@@ -199,8 +199,13 @@ const isRootOnly = (facts: PathFacts | null): boolean => facts !== null && facts
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
 
 const LS = '/bin/ls';
-/** An ACE that lets its holder write, append, add or delete entries, or take the file over; the mode says nothing of it. */
+/**
+ * An ACE that lets its holder write, append, add or delete entries, or take the file over; the mode says nothing of it.
+ * The same policy as `acl_root_only` in `apps/runner/bin/team-console-runner` (shell globs there): change both.
+ * `testing/acl-policy-cases.ts` is the one table both specs run.
+ */
 const FOREIGN_WRITE_ACE = / allow \S*(?:write|append|add_|delete|chown)/;
+/** Root's own entry is skipped whatever it grants: root can write the path anyway. */
 const ROOT_ACE = /^\s*\d+: user:root /;
 
 /**
@@ -222,10 +227,13 @@ export async function hasForeignWriteAcl(exec: Exec, path: string): Promise<bool
 /**
  * The bundle, `job-exec` and `node` the sudoers rule and the daemon name must be root's alone, or the rule hands them
  * out (S2 of the #634 security note: the daemon runs `<prefix>/node` as `_tcrunner`). An entry `update` turned into a
- * link through `current` is judged by what it resolves to as well, and that file's directory, since a link's own mode
- * says nothing; so are `releases/` and the release `current` names, with the directory that holds it (#884). That
- * release must sit directly in `releases/`, and on macOS no ACL entry on any of these may let anyone but root write
- * (#894): the launcher refuses such a prefix too, so install refusing it means it never fails at first start.
+ * link through `current` is judged by what it resolves to as well, since a link's own mode says nothing; so are
+ * `releases/` and the release `current` names (#884). That release must sit directly in `releases/`, and on macOS no
+ * ACL entry on any of these may let anyone but root write (#894).
+ *
+ * Every directory above the prefix and above each link target, up to `/`, is held to the same rule (#900): whoever can
+ * write one of them can swap what sits below it. The launcher's `root_only` (`apps/runner/bin/team-console-runner`)
+ * walks the same way at every root start, so install refusing here means the service never fails at first start.
  */
 export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): Promise<void> {
   const refuse = (path: string): never => {
@@ -235,11 +243,40 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
   };
   const rootOnly = async (path: string, facts: PathFacts | null): Promise<boolean> =>
     isRootOnly(facts) && (host.platform !== 'darwin' || !(await hasForeignWriteAcl(host.exec, path)));
+  // A directory already walked has had everything above it walked too.
+  const walked = new Set<string>();
+  const assertAncestors = async (path: string): Promise<void> => {
+    for (let dir = parentOf(path); !walked.has(dir); dir = parentOf(dir)) {
+      walked.add(dir);
+      const facts = await host.stat(dir);
+      if (!(await rootOnly(dir, facts))) {
+        refuse(dir);
+      }
+      if (facts?.kind === 'symlink') {
+        // /tmp and /var on macOS: the link is root's, and so must be the directory it names and all above that.
+        const target = await host.realpath(dir);
+        if (target === null) {
+          return refuse(dir);
+        }
+        const targetFacts = await host.stat(target);
+        if (targetFacts?.kind !== 'directory' || !(await rootOnly(target, targetFacts))) {
+          refuse(target);
+        }
+        await assertAncestors(target);
+      } else if (facts?.kind !== 'directory') {
+        refuse(dir);
+      }
+      if (dir === '/') {
+        return;
+      }
+    }
+  };
   for (const path of [prefix, `${prefix}/bin`, bundleOf(prefix), jobExecOf(prefix), nodeOf(prefix)]) {
     const facts = await host.stat(path);
     if (!(await rootOnly(path, facts))) {
       refuse(path);
     }
+    await assertAncestors(path);
     if (facts?.kind === 'symlink') {
       const target = await host.realpath(path);
       if (target === null) {
@@ -249,10 +286,7 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
       if (targetFacts?.kind !== 'file' || !(await rootOnly(target, targetFacts))) {
         refuse(target);
       }
-      const dir = parentOf(target);
-      if (!(await rootOnly(dir, await host.stat(dir)))) {
-        refuse(dir);
-      }
+      await assertAncestors(target);
     }
   }
   // #884: in the layout `update` leaves, whoever can write `releases/` or repoint `current` changes what every link
@@ -267,30 +301,35 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
   if (currentFacts === null) {
     return;
   }
-  const outsideReleases = (): never => {
+  // #900: one reason per refusal, so the operator knows which of them to fix.
+  const refuseCurrent = (reason: string): never => {
     throw new InstallError(
-      `${current} must be a root-owned link to a release under ${releases}: extract the release with sudo (docs/runbooks/runner.md)`,
+      `${current} ${reason}; it must be a root-owned link to a release directly in ${releases}: extract the release with sudo (docs/runbooks/runner.md)`,
     );
   };
+  if (currentFacts.kind !== 'symlink') {
+    return refuseCurrent(`is a ${currentFacts.kind}, not a link`);
+  }
   // A link's own mode says nothing; its owner and the directory it sits in (the prefix, checked above) do.
-  if (currentFacts.kind !== 'symlink' || currentFacts.uid !== 0 || releasesFacts === null) {
-    return outsideReleases();
+  if (currentFacts.uid !== 0) {
+    return refuseCurrent(`is a link owned by uid ${String(currentFacts.uid)}, not by root`);
+  }
+  if (releasesFacts === null) {
+    return refuseCurrent(`is a link, but ${releases} does not exist`);
   }
   const release = await host.realpath(current);
   if (release === null) {
-    return refuse(current);
+    return refuseCurrent('is a link that leads nowhere');
   }
   // Physical paths on both sides: the prefix itself may sit under a link (/tmp, /var on macOS).
   if (parentOf(release) !== (await host.realpath(releases))) {
-    outsideReleases();
+    refuseCurrent(`points to ${release}, which is not directly in ${releases}`);
   }
   const releaseFacts = await host.stat(release);
   if (releaseFacts?.kind !== 'directory' || !(await rootOnly(release, releaseFacts))) {
     refuse(release);
   }
-  if (!(await rootOnly(parentOf(release), await host.stat(parentOf(release))))) {
-    refuse(parentOf(release));
-  }
+  await assertAncestors(release);
 }
 
 const createUser = (name: string, uid: number, gid: number, home: string, realName: string): InstallStep[] =>

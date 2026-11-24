@@ -12,7 +12,8 @@
 # As root, node starts through `/usr/bin/env -i` (#894): OPENSSL_CONF, LD_PRELOAD, LD_LIBRARY_PATH, NODE_OPTIONS and
 # their kin load code into root's node, so it gets only this allowlist, and only values without a newline:
 #   PATH                          always /usr/sbin:/usr/bin:/sbin:/bin, whatever the caller's (the installer's own
-#                                 SYSTEM_PATH; `gh` for a root `update` is not on it, which refuses as "gh missing")
+#                                 SYSTEM_PATH; Homebrew's `gh` is not on it, so a root `update` refuses and
+#                                 points to the manual update in the runbook)
 #   HOME                          where node's os.homedir() and so the default TC_RUNNER_HOME point; sudo sets it
 #   TC_*                          the runner's own: TC_RUNNER_HOME, TC_ENROL_CODE, TC_ENROLMENT, TC_RUNNER_KEY_STORE, …
 #   LANG, LC_*, TERM              the locale and the terminal `setup` and `claude setup-token` draw on
@@ -80,7 +81,10 @@ root_only() {
 }
 
 # Succeeds when no ACL entry on $1 (never following a link) lets anyone but root write, append, add, delete or take it
-# over: the mode bits say nothing about those, and `chmod +a` adds them without changing the mode.
+# over: the mode bits say nothing about those, and `chmod +a` adds them without changing the mode. Root's own entry
+# is skipped whatever it grants. The same policy as `hasForeignWriteAcl` in apps/runner/src/install/install.ts (a
+# regex there, asked at install for the same paths and every directory above them): change both. Both specs run the
+# one table in apps/runner/src/testing/acl-policy-cases.ts.
 acl_root_only() {
   listing=$(/bin/ls -lde -- "$1" 2>/dev/null) || return 1
   # The first line is the entry itself, each further one an ACE: " 0: user:alice allow write,append".

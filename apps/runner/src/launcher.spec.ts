@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { ACL_POLICY_CASES } from './testing/acl-policy-cases';
 
 /**
  * The release launcher `bin/team-console-runner` (#778, S2 of the #634 security note), run for real by /bin/sh. As
@@ -328,6 +329,19 @@ describe('bin/team-console-runner', () => {
       const result = run(0, { os: 'Darwin' });
       expectRefused(result);
       expect(result.stderr).toContain('ACL');
+    });
+
+    // #900: the same table install.spec.ts runs against `hasForeignWriteAcl`, so the two policies cannot drift.
+    it.each(ACL_POLICY_CASES)('agrees with install on "$ace" ($name)', ({ ace, foreignWrite }) => {
+      const node = rootOnlyRelease();
+      acl(jobExec(), ace);
+      const result = run(0, { os: 'Darwin' });
+      if (foreignWrite) {
+        expectRefused(result);
+      } else {
+        expect(result.status).toBe(0);
+        expect(argsOf(result)[0]).toBe(node);
+      }
     });
 
     it('runs with entries that only deny, only read, or grant root', () => {
