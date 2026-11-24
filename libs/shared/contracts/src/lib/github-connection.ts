@@ -30,9 +30,10 @@ export interface GitHubConnectStartDto {
 
 /**
  * The callback's result in the Settings URL: `connected`; `denied` (cancelled on GitHub); `wrong-account` (another
- * login authorized — its grant is already revoked; `login` names it); `user-id-changed` (the owner login, but another
- * GitHub account than the connected one — refused, its grant revoked; switching needs Disconnect first, #890);
- * `failed` (anything else: expired or tampered request, GitHub unavailable, app misconfigured).
+ * login authorized — refused, `login` names it); `user-id-changed` (the owner login, but another GitHub account than
+ * the connected one — refused; switching needs Disconnect first, #890); `failed` (anything else: expired or tampered
+ * request, GitHub unavailable, app misconfigured). On both refusals the callback asks GitHub to revoke the fresh
+ * grant, best effort: the outcome never promises that it is gone, so the copy says access is being withdrawn (#901).
  */
 export type GitHubConnectOutcome = 'connected' | 'denied' | 'wrong-account' | 'user-id-changed' | 'failed';
 
