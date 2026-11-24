@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { localDayOf, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
-import { Chip, ChipTone, Icon, IconName, List, ListRow } from '@console/shared/ui';
+import { Chip, ChipTone, Icon, IconName, List, ListRow, LiveDot } from '@console/shared/ui';
 import { RECENT_RUNS_LIMIT, type RunEntryState, type TeamRunState } from '@shared/contracts';
 import type { SprintRun } from './sprint.model';
 
@@ -41,13 +41,13 @@ const RUN_TONES: Readonly<Record<RunEntryState, ChipTone>> = {
  */
 @Component({
   selector: 'tc-sprint-run-list',
-  imports: [Chip, Icon, List, ListRow, TranslocoPipe],
+  imports: [Chip, Icon, List, ListRow, LiveDot, TranslocoPipe],
   template: `
     @if (isWorking() || stamps().length > 0) {
-      <div class="run-strip" data-testid="run-strip" [class.run-strip--paused]="!isPageVisible()">
+      <div class="run-strip" data-testid="run-strip">
         @if (isWorking()) {
           <span class="run-strip__state" data-testid="team-working"
-            ><span class="run-strip__dot" aria-hidden="true"></span>{{ 'board.team.running' | transloco }}</span
+            ><tc-live-dot [paused]="!isPageVisible()" />{{ 'board.team.running' | transloco }}</span
           >
         }
         <span class="run-strip__stamps" aria-hidden="true">

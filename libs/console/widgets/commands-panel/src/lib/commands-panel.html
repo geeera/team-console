@@ -132,7 +132,7 @@
             [id]="id + '-line-' + row.slot"
           >
             @switch (row.lineKind) { @case ('live') {
-            <span class="cmd__live" aria-hidden="true"></span>
+            <tc-live-dot tone="success" depth="deep" />
             } @case ('unknown') {
             <tc-icon name="clock" size="sm" />
             } }

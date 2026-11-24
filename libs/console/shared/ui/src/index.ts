@@ -25,6 +25,7 @@ export * from './lib/home-screen-guide/home-screen-guide';
 export * from './lib/icon/icon';
 export * from './lib/is-phone/is-phone';
 export * from './lib/lane/lane';
+export * from './lib/live-dot/live-dot';
 export * from './lib/ledger/ledger';
 export * from './lib/menu/menu';
 export * from './lib/motion/leave';

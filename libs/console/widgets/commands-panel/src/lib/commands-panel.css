@@ -166,33 +166,6 @@
   margin-top: var(--space-px);
 }
 
-/* a run in progress breathes slowly; still under reduced motion */
-.cmd__live {
-  flex: none;
-  align-self: center;
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--r-round);
-  background: var(--success-text);
-  animation: cp-live var(--dur-pulse) var(--ease-standard) infinite;
-}
-
-@keyframes cp-live {
-  50% {
-    opacity: 0.3;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .cmd__live {
-    animation: none;
-  }
-}
-
-:host-context(:root[data-motion='reduce']) .cmd__live {
-  animation: none;
-}
-
 /* the phone: the team row's long verb gets its own full-width line */
 :host(.tc-commands-panel--sheet) .cmd--team {
   grid-template-columns: minmax(0, 1fr);
