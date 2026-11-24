@@ -136,6 +136,37 @@ test('the Run log tile and the last runs show icon and words; an edited run is u
   await expectAccessible(page, 'Project board with the run state');
 });
 
+// #355: a breathing dot beside «Running» and the last five runs as stamps.
+test('a working team shows a breathing dot and the last five runs as stamps', async ({ page }) => {
+  await page.goto('/p/team-console/board?tab=runs');
+  const strip = page.getByTestId('run-strip');
+  await expect(strip.getByTestId('team-working')).toHaveText(ru('board.team.running'));
+  const dot = strip.locator('.run-strip__dot');
+  await expect(dot).toHaveCSS('animation-iteration-count', 'infinite');
+  await expect(dot).toHaveAttribute('aria-hidden', 'true');
+
+  const stamps = strip.getByTestId('run-stamp');
+  await expect(stamps).toHaveCount(EXPECTED.length);
+  for (const [index, { state }] of EXPECTED.entries()) {
+    await expect(stamps.nth(index)).toHaveAttribute('data-state', state);
+  }
+  // A finished run is filled, the one in progress hollow, the failed one reddish.
+  await expect(stamps.nth(0)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(stamps.nth(1)).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+  await expect(stamps.nth(4)).not.toHaveCSS('background-color', await stamps.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor));
+
+  await strip.scrollIntoViewIfNeeded();
+  await expectAccessible(page, 'Run strip with the breathing dot and stamps');
+});
+
+test('under reduced motion the dot stays still', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('/p/team-console/board?tab=runs');
+  const dot = page.getByTestId('run-strip').locator('.run-strip__dot');
+  await expect(dot).toBeVisible();
+  await expect(dot).toHaveCSS('animation-name', 'none');
+});
+
 test('the run state follows the language', async ({ page }) => {
   await page.goto('/settings');
   await page.getByTestId('switch-lang').click();
