@@ -42,21 +42,5 @@
   "libs/console/pages/overview/src/lib/overview.page.css": 2,
   "libs/console/pages/project-space/src/lib/artifacts-section.page.css": 4,
   "libs/console/pages/project-space/src/lib/chat-placeholder.page.ts": 1,
-  "libs/console/pages/project-space/src/lib/demo-section.page.ts": 1,
-  "libs/console/widgets/app-shell/src/lib/app-shell.css": 1,
-  "libs/console/widgets/app-shell/src/lib/projects-sheet.css": 1,
-  "libs/console/widgets/commands-panel/src/lib/commands-panel.css": 3,
-  "libs/console/widgets/commands-panel/src/lib/commands-setup.css": 4,
-  "libs/console/widgets/commands-panel/src/lib/commands-status.css": 3,
-  "libs/console/widgets/github-repositories/src/lib/github-repositories-block.css": 1,
-  "libs/console/widgets/github-repositories/src/lib/repository-list-view.css": 4,
-  "libs/console/widgets/question-list/src/lib/question-design-previews.css": 1,
-  "libs/console/widgets/question-list/src/lib/question-list.css": 2,
-  "libs/console/widgets/sprint-board/src/lib/board-folder.css": 4,
-  "libs/console/widgets/sprint-board/src/lib/board-folders.ts": 2,
-  "libs/console/widgets/sprint-board/src/lib/board-run-log.ts": 1,
-  "libs/console/widgets/sprint-board/src/lib/sprint-board.css": 3,
-  "libs/console/widgets/task-screen/src/lib/task-history.css": 3,
-  "libs/console/widgets/task-screen/src/lib/task-screen.css": 3,
-  "libs/console/widgets/task-screen/src/lib/task-state.css": 2
+  "libs/console/pages/project-space/src/lib/demo-section.page.ts": 1
 }

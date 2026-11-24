@@ -30,6 +30,7 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-5);
   padding: var(--space-4) var(--space-5) var(--space-8);
@@ -81,6 +82,7 @@
 /* the status card's section: the kicker, then the card (commands-status.css) */
 .cp-state {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
 }
 
@@ -110,6 +112,7 @@
 
 .cmd__txt {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-px);
   min-width: 0;
 }

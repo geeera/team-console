@@ -1,5 +1,6 @@
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   /* The two-column layout follows the board's own width: the Commands pane beside it takes room too. */
   container-type: inline-size;
@@ -7,6 +8,7 @@
 
 .board__status {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   min-width: 0;
 }
@@ -60,6 +62,7 @@
 /* No tabs: the three lists one under another, until there is room for two columns. */
 .board__sections:not(.tc-tabs--active) {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
 }
 

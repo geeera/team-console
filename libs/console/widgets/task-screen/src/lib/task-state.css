@@ -1,5 +1,6 @@
 .tc-task-state__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
   padding: var(--space-5) var(--space-6) var(--space-10);
 }
@@ -21,6 +22,7 @@
 
 .tc-task-state__skeleton {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 

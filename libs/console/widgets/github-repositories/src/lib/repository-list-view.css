@@ -4,6 +4,7 @@
 
 .repos {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding-top: var(--space-5);
   border-top: var(--border-w) solid var(--border);
@@ -19,6 +20,7 @@
 
 .repos__head-text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   min-width: 0;
 }
@@ -200,6 +202,7 @@
 
 .repos__loading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   border-radius: var(--r-lg);
   background: var(--surface);
 }
@@ -218,6 +221,7 @@
 
 .repos__skeleton-text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   gap: var(--space-2);
 }
