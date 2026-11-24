@@ -155,7 +155,7 @@ describe('SprintControls', () => {
       'Эта дата уже прошла (по киевскому времени). Выберите сегодня или позже.',
     );
     expect(check('2026-10-14')).toMatchObject({ isBlocked: true, confirmLabel: 'Дата не изменилась' });
-    expect(check('2026-10-28').error).toMatch(/^Демо Sprint 05 \(28 октября\)/);
+    expect(check('2026-10-28').error).toMatch(/^Эта дата не раньше демо Sprint 05 \(28 октября\)/);
     expect(check('2026-10-06').warning).toBe(
       'Заморозка начнётся сразу: новые задачи в этом спринте брать уже не будут.',
     );

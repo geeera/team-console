@@ -130,7 +130,7 @@ describe('QuestionCard', () => {
       }),
     );
     await fixture.whenStable();
-    expect(recommendation()?.textContent).toContain('Проводить демо.');
+    expect(recommendation()?.textContent).toContain('Выпускать релиз.');
     expect(recommendation()?.textContent).not.toMatch(/\/go|рекомендую/);
   });
 
