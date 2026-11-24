@@ -92,7 +92,11 @@ export class DemoLeaf {
       hasTornThisSession = true;
       this.tornLine.set(torn);
     }
-    this.storage.write(JSON.stringify(now));
+    try {
+      this.storage.write(JSON.stringify(now));
+    } catch {
+      // Private mode, full quota or blocked storage: the leaf is simply not remembered for next time.
+    }
   }
 
   /** The OS setting, unless `<html data-motion>` says otherwise (the same switch as the token blocks). */

@@ -16,6 +16,7 @@ class Host {
 
 describe('DemoLeaf', () => {
   let stored: string | null;
+  let failWrites: boolean;
 
   async function render() {
     await TestBed.configureTestingModule({
@@ -26,6 +27,9 @@ describe('DemoLeaf', () => {
           useValue: {
             read: () => stored,
             write: (value: string) => {
+              if (failWrites) {
+                throw new Error('QuotaExceededError');
+              }
               stored = value;
             },
           },
@@ -40,6 +44,7 @@ describe('DemoLeaf', () => {
 
   beforeEach(() => {
     stored = null;
+    failWrites = false;
     resetDemoLeafSession();
   });
 
@@ -72,6 +77,15 @@ describe('DemoLeaf', () => {
     await fixture.whenStable();
 
     expect(leaf.classList).toContain('tc-demo-leaf--today');
+  });
+
+  it('still renders and decides the tear when the memory cannot be written', async () => {
+    stored = JSON.stringify({ due: '2026-10-16', days: 4, line: LINE_4 });
+    failWrites = true;
+    const { leaf } = await render();
+
+    expect(leaf.textContent).toBe(LINE_3);
+    expect(leaf.classList).toContain('tc-demo-leaf--tearing');
   });
 
   it('treats a damaged memory as a first visit', async () => {
