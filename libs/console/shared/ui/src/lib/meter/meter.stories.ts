@@ -1,7 +1,7 @@
 import { TranslocoPipe } from '@console/shared/i18n';
 import type { Meta, StoryObj } from '@storybook/angular';
 import { moduleMetadata } from '@storybook/angular';
-import { darkTheme, phoneViewport } from '../../../.storybook/stories';
+import { darkTheme, phoneViewport, reducedMotion } from '../../../.storybook/stories';
 import { Meter } from './meter';
 
 // The meter never stands alone: the text beside it carries the number.
@@ -33,6 +33,22 @@ export default meta;
 type Story = StoryObj<Meter>;
 
 export const Playground: Story = {};
+/** First show (#359): the fill grows from the start edge; neighbours start 40 ms apart through `--meter-delay`. */
+export const Appear: Story = {
+  render: () => ({
+    template: `
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3)">
+        @for (delay of [0, 40, 80]; track delay) {
+          <tc-meter appear [value]="5" [max]="8" [style.--meter-delay.ms]="delay" />
+        }
+      </div>
+    `,
+  }),
+};
+export const AppearReducedMotion: Story = {
+  ...reducedMotion,
+  render: () => ({ template: `<tc-meter appear [value]="5" [max]="8" />` }),
+};
 export const States: Story = { render: () => ({ template: states }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: states }) };
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: states }) };

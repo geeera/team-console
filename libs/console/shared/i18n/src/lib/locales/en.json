@@ -951,6 +951,13 @@
       "many": "{{n}} projects",
       "other": "{{n}} projects"
     },
+    "countdown": {
+      "one": "{{n}} day to the demo",
+      "few": "{{n}} days to the demo",
+      "many": "{{n}} days to the demo",
+      "other": "{{n}} days to the demo"
+    },
+    "countdownToday": "Demo today",
     "listLabel": "Projects and their sprints",
     "quiet": "Nothing for you",
     "quietLabel": "Projects with nothing for you",

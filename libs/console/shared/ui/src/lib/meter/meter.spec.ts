@@ -41,4 +41,19 @@ describe('Meter', () => {
     await fixture.whenStable();
     expect(fill?.style.inlineSize).toBe('75%');
   });
+
+  it('grows its fill from empty only when asked to appear', async () => {
+    const fixture = TestBed.createComponent(AppearHost);
+    await fixture.whenStable();
+    const fills = (fixture.nativeElement as HTMLElement).querySelectorAll('.tc-meter__fill');
+
+    expect(fills[0]?.classList.contains('tc-meter__fill--appear')).toBe(true);
+    expect(fills[1]?.classList.contains('tc-meter__fill--appear')).toBe(false);
+  });
 });
+
+@Component({
+  imports: [Meter],
+  template: '<tc-meter [value]="1" [max]="2" appear /><tc-meter [value]="1" [max]="2" />',
+})
+class AppearHost {}
