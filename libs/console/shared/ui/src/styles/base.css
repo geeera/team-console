@@ -186,6 +186,7 @@ select {
 /* One column of content on a screen: the cross-project pages and Settings share it. */
 .tc-page {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   max-width: var(--log-max);
   margin: 0 auto;
@@ -381,6 +382,7 @@ select {
 
 .tc-steps .step__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   min-width: 0;
 }
@@ -438,6 +440,7 @@ select {
 
 .tc-steps .step__how {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--r-md);

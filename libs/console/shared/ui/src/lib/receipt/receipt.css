@@ -33,6 +33,7 @@
 
 .tc-receipt__icon {
   display: inline-grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   flex: none;
   color: var(--accent-text);
@@ -52,6 +53,7 @@
 
 .tc-receipt__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1 1 12rem;
   gap: var(--space-1);
   justify-items: start;
