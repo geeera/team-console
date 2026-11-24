@@ -162,7 +162,8 @@ export class OwnerConnection implements OwnerTokenSource {
    * profile name goes to the user row, not here (#775).
    *
    * The previous pair is read before the write and retired only after it succeeds, so a failed write leaves the
-   * old connection working. Retiring is best effort and logged; see `retirePrevious`.
+   * old connection working. Retiring is best effort and logged, whatever it throws: once the write has succeeded
+   * the answer is `connected`; see `retirePrevious`.
    */
   async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<ConnectOutcome> {
     const previous = await this.repo.find(this.environment);
@@ -182,7 +183,16 @@ export class OwnerConnection implements OwnerTokenSource {
       return this.refuseChangedUserId(user.login);
     }
     if (retired !== null) {
-      await this.retirePrevious(retired);
+      try {
+        await this.retirePrevious(retired);
+      } catch (error: unknown) {
+        // The new pair is stored: failing the callback now would revoke it and leave a row that cannot be used
+        // (#901). An unexpected failure is logged and the previous pair is left to lapse at GitHub.
+        this.logger.error('owner reconnect: retiring the previous pair failed unexpectedly', {
+          securitySignal: 'owner-previous-pair-not-retired',
+          error,
+        });
+      }
     }
     return 'connected';
   }
