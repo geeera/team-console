@@ -10,6 +10,7 @@ import {
   type Section,
 } from '@shared/contracts';
 import {
+  ANSWERS,
   GrammarError,
   allowedAnswers,
   answerComment,
@@ -121,17 +122,23 @@ interface PreparedAnswer {
   readonly repo: RepoName;
   readonly number: number;
   readonly request: ParsedAnswer;
-  readonly section: Section;
-  readonly body: string;
+  readonly issue: GitHubIssue;
+  readonly labels: readonly string[];
   readonly installation: GitHubConnection;
   readonly reader: GitHubClient;
+}
+
+interface ComposedAnswer {
+  readonly section: Section;
+  readonly body: string;
 }
 
 /**
  * What the answer route and its lookup decide before they touch `own_writes`: the project, the request, the live
  * issue (uncached on purpose: a stale label set could accept a command the issue no longer takes, or let the service
- * identity past the fixture gate on an issue that just lost `e2e:fixture`), the service identity's gate, and the
- * comment the answer composes to. A refusal is the response to send.
+ * identity past the fixture gate on an issue that just lost `e2e:fixture`) and the service identity's gate. Whether the
+ * issue still takes the answer is `composeAnswer`'s; the lookup asks that only after `own_writes` (#266). A refusal is
+ * the response to send.
  */
 async function prepareAnswer<T extends ParsedAnswer>(
   c: Context,
@@ -183,6 +190,12 @@ async function prepareAnswer<T extends ParsedAnswer>(
   if (refused !== null) {
     return refused;
   }
+  return { project, repo, number, request, issue, labels, installation, reader };
+}
+
+/** The section and comment an answer composes to on the live issue, or the problem to send when it takes none. */
+function composeAnswer(c: Context, prepared: PreparedAnswer): ComposedAnswer | Response {
+  const { issue, labels, request } = prepared;
   if (issue.state !== 'open') {
     return problem(c, {
       type: 'issue-closed',
@@ -210,7 +223,32 @@ async function prepareAnswer<T extends ParsedAnswer>(
     // answerComment refuses a null section; this keeps the type narrow for the response.
     throw new Error('an answer was composed for an issue without a section');
   }
-  return { project, repo, number, request, section, body, installation, reader };
+  return { section, body };
+}
+
+/**
+ * The comment a past send of this answer carried, for the lookup on an issue that may have moved on since. The text
+ * depends on the command and the words only, never on the section, so any section that takes the command composes
+ * it; the live one is kept when it does, for the receipt's `section`. Null when the words or reason were refused.
+ */
+function composePastAnswer(prepared: PreparedAnswer): ComposedAnswer | null {
+  const { labels, request } = prepared;
+  const live = sectionOf(labels, kindOf(labels));
+  const section =
+    live !== null && allowedAnswers(live).includes(request.command)
+      ? live
+      : (Object.keys(ANSWERS) as Section[]).find((candidate) => allowedAnswers(candidate).includes(request.command));
+  if (section === undefined) {
+    return null;
+  }
+  try {
+    return { section, body: answerComment({ ...request, section, via: 'console' }) };
+  } catch (error: unknown) {
+    if (error instanceof GrammarError) {
+      return null;
+    }
+    throw error;
+  }
 }
 
 interface ParsedLookup extends ParsedAnswer {
@@ -245,10 +283,11 @@ function parseLookup(body: unknown): ParsedLookup | string {
  * The write itself (replay, claim, comment, record) is `postOwnerAnswer`, shared with the batch route (#220).
  *
  * `POST …/answer/lookup` (#120) is the item re-read the console makes before it repeats an answer it first sent more
- * than the replay window ago (a response lost on the way back): the same live issue read, gate and problems when
- * the issue no longer takes the answer, and then — instead of a write — the comment the console already wrote with
- * exactly this answer since it was first sent (`own_writes`, `sentAgoMs` plus the replay window back, at most
- * `ANSWER_LOOKUP_MAX_MS`), or `null`. Nothing is written or claimed; one GitHub read for the owner.
+ * than the replay window ago (a response lost on the way back): the same live issue read and gate, then — instead of
+ * a write — the comment the console already wrote with exactly this answer since it was first sent (`own_writes`,
+ * `sentAgoMs` plus the replay window back, at most `ANSWER_LOOKUP_MAX_MS`), whatever the issue became since (#266);
+ * only when none was written, the problems when the issue no longer takes the answer, or `null`. Nothing is written
+ * or claimed; one GitHub read for the owner.
  */
 export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
@@ -257,7 +296,12 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       if (prepared instanceof Response) {
         return prepared;
       }
-      const { project, repo, number, request, section, body, installation, reader } = prepared;
+      const { project, repo, number, request, installation, reader } = prepared;
+      const composed = composeAnswer(c, prepared);
+      if (composed instanceof Response) {
+        return composed;
+      }
+      const { section, body } = composed;
       const target = { repo, registered: project.repo, number, body, kind: 'answer' as const };
       const outcome = await postOwnerAnswer(c, github, target, {
         writer: async () => ownerWriter(c.env, c.get('logger'), github, installation, target),
@@ -285,10 +329,26 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       if (prepared instanceof Response) {
         return prepared;
       }
-      const { project, number, request, section, body } = prepared;
-      const bodyHash = await answerBodyHash({ registered: project.repo, number, body, kind: 'answer' });
+      const { project, number, request } = prepared;
+      // The receipt comes first (#266): a lost answer that landed stays a receipt after the team closed or relabelled
+      // the issue; the state and grammar problems are for an answer nothing was written for.
+      const past = composePastAnswer(prepared);
       const since = new Date(github.now() - request.sentAgoMs - ANSWER_REPLAY_WINDOW_MS).toISOString();
-      const write = await new OwnWritesRepo(c.env.DB).findRecentByHash(project.repo, number, bodyHash, since);
+      const write =
+        past === null
+          ? null
+          : await new OwnWritesRepo(c.env.DB).findRecentByHash(
+              project.repo,
+              number,
+              await answerBodyHash({ registered: project.repo, number, body: past.body, kind: 'answer' }),
+              since,
+            );
+      if (write === null) {
+        const composed = composeAnswer(c, prepared);
+        if (composed instanceof Response) {
+          return composed;
+        }
+      }
       c.get('logger').info('owner answer looked up', {
         slug: project.slug,
         issue: number,
@@ -298,12 +358,12 @@ export function createAnswerRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv
       });
       const response: AnswerLookupResponse = {
         answer:
-          write === null
+          write === null || past === null
             ? null
             : {
                 commentId: write.commentId,
                 url: write.url,
-                section,
+                section: past.section,
                 command: request.command,
                 replayed: true,
               },
