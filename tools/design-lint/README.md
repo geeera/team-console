@@ -6,8 +6,9 @@ on `display: grid` rules without a column template (#839).
 
 ## Grid baseline (`grid-columns-baseline.json`)
 
-Rules that predate the grid check are listed per file with their hit count: 17 hits in 12 files (194 in 109 when the baseline was
-recounted in #898; the sum of the JSON values is the number).
+Rules that predate the grid check are listed per file with their hit count. The baseline is empty now: 0 hits in 0 files
+(194 in 109 when it was recounted in #898), so every `display: grid` rule sets its columns or carries a
+`grid-columns-ok` reason. The file stays, as `{}`, because the check reads it and compares it with the base branch.
 
 - A file may not have more hits than its baseline count; an unlisted file allows none.
 - The baseline may only shrink. In CI the check reads the file at `NX_BASE` (the PR merge-base, or the previous commit

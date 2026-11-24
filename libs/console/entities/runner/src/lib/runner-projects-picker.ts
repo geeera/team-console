@@ -43,6 +43,7 @@ export interface RunnerProjectOption {
   styles: `
     .runner-projects {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
       margin: 0;
       padding: 0;

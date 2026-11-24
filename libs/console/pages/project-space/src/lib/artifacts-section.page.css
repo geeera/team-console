@@ -1,5 +1,6 @@
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   min-width: 0;
 }
@@ -29,6 +30,7 @@
 /* #277 spec §4: the Design filter loads as three rows the shape of a design row (thumbnail, title, meta). */
 .artifacts__designs-loading {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .artifacts__skeleton {
@@ -57,6 +59,7 @@
 
 .artifacts__skeleton-text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: 1;
   gap: var(--space-2);
 }
@@ -118,6 +121,7 @@
   .artifacts__skeleton,
   .artifacts__skeleton--extra {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: var(--space-3);
     padding: 0 0 var(--space-4);

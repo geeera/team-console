@@ -1,14 +1,1 @@
-{
-  "apps/console/src/app/session-expired.ts": 1,
-  "libs/console/entities/design/src/lib/design-preview.css": 1,
-  "libs/console/entities/item/src/lib/tracker-failure-block.css": 1,
-  "libs/console/entities/question/src/lib/question-card.css": 1,
-  "libs/console/entities/runner/src/lib/runner-projects-picker.ts": 1,
-  "libs/console/entities/runner/src/lib/runner-scope-picker.ts": 1,
-  "libs/console/entities/sprint/src/lib/sprint-tier-icon.css": 1,
-  "libs/console/pages/overview/src/lib/overview-tile.css": 2,
-  "libs/console/pages/overview/src/lib/overview.page.css": 2,
-  "libs/console/pages/project-space/src/lib/artifacts-section.page.css": 4,
-  "libs/console/pages/project-space/src/lib/chat-placeholder.page.ts": 1,
-  "libs/console/pages/project-space/src/lib/demo-section.page.ts": 1
-}
+{}

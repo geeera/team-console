@@ -42,6 +42,7 @@ import { Button, StateBlock } from '@console/shared/ui';
   styles: `
     .tc-session-expired {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       place-items: center;
       min-height: 100dvh;
       padding: var(--space-4);
