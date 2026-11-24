@@ -7,7 +7,8 @@ import { TimeoutError } from 'rxjs';
  * Why a Settings › Runners call did not succeed, as the screens word it (#464):
  * - `forbidden` — 403: the caller is no owner of the account (`account-owner-only`), this identity may not act, or
  *   another owner tried to add projects to a subscription runner (`runner-scope-enroller-only`, #795), or the caller
- *   is not the account's sole owner (`runner-enroller-not-sole-owner`, #827);
+ *   is not the account's sole owner (`runner-enroller-not-sole-owner`, #827), or has no user id yet
+ *   (`runner-enroller-unlinked`, #837: the Access owner before the GitHub link);
  * - `not-found` — 404: the account, runner or project is not the caller's (the same answer as one that is missing);
  * - `invalid` — 422 with the problem slug (`allowed-projects-invalid`, `runner-scope-fixed`, `runner-policy-invalid`, …)
  *   and the field;
@@ -135,6 +136,10 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
   }
   if (failure.kind === 'forbidden' && failure.slug === 'runner-enroller-not-sole-owner') {
     return 'runners.err.enrollerNotSoleOwner';
+  }
+  // #899: the list offers this caller no claim, so only a stale list or a direct call gets here.
+  if (failure.kind === 'forbidden' && failure.slug === 'runner-enroller-unlinked') {
+    return 'runners.err.enrollerUnlinked';
   }
   if (failure.kind === 'forbidden' && failure.slug === 'account-suspended') {
     return 'runners.wizard.err.suspended';

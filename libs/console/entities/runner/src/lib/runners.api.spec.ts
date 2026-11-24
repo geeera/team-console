@@ -242,6 +242,7 @@ describe('runnerFailureOf', () => {
     [problem(409, 'runner-not-suspect'), 'not-suspect'],
     [problem(409, 'runner-enroller-set'), 'enroller-set'],
     [problem(403, 'runner-enroller-not-sole-owner'), 'forbidden'],
+    [problem(403, 'runner-enroller-unlinked'), 'forbidden'],
     [problem(409, 'something-else'), 'error'],
     [problem(422, 'allowed-projects-invalid', { field: 'allowedProjects' }), 'invalid'],
     [problem(413, 'too-large'), 'invalid'],
@@ -311,6 +312,7 @@ describe('runnerFailureKeyOf', () => {
     expect(of('forbidden')).toBe('runners.err.forbidden');
     expect(of('forbidden', 'runner-scope-enroller-only')).toBe('runners.err.enrollerOnly');
     expect(of('forbidden', 'runner-enroller-not-sole-owner')).toBe('runners.err.enrollerNotSoleOwner');
+    expect(of('forbidden', 'runner-enroller-unlinked')).toBe('runners.err.enrollerUnlinked');
     expect(of('enroller-set', 'runner-enroller-set')).toBe('runners.err.enrollerSet');
     expect(of('not-found')).toBe('runners.err.notFound');
     expect(of('not-found', 'enrolment-not-found')).toBe('runners.err.enrolmentGone');

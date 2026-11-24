@@ -214,6 +214,7 @@ describe('ManageRunner.claimEnroller', () => {
       ['revoked', 'runner-revoked'],
       ['not-found', 'runner-not-found'],
       ['forbidden', 'runner-enroller-not-sole-owner'],
+      ['forbidden', 'runner-enroller-unlinked'],
     ] as const) {
       TestBed.resetTestingModule();
       const { manage, failures } = setup(async () => ({ ok: false, failure: { kind, slug, field: null } }));
@@ -227,6 +228,17 @@ describe('ManageRunner.claimEnroller', () => {
     }));
     await second.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY });
     expect(second.failures[0]).toBe('Закрепить раннер может только единственный владелец аккаунта. Подключите раннер заново.');
+
+    // #899: the Access owner before the GitHub link is told what is missing, not the generic refusal.
+    TestBed.resetTestingModule();
+    const unlinked = setup(async () => ({
+      ok: false,
+      failure: { kind: 'forbidden', slug: 'runner-enroller-unlinked', field: null },
+    }));
+    await unlinked.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY });
+    expect(unlinked.failures[0]).toBe(
+      'Закрепить раннер можно только после того, как ваш вход в консоль связан с вашим аккаунтом GitHub. Пока связи нет, подключите раннер заново.',
+    );
 
     TestBed.resetTestingModule();
     const offline = setup(async () => ({ ok: false, failure: { kind: 'offline', slug: null, field: null } }));
