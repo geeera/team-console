@@ -3,6 +3,7 @@ import type { Locator, Page } from '@playwright/test';
 import { animationsSettled } from './support/axe';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { fakeComments, seed } from './support/stack';
 
 /**
@@ -82,6 +83,7 @@ for (const path of ['/p/team-console/questions', '/needs-you']) {
     await expect(card(page).getByTestId('design-summary')).toHaveText(`#${ISSUE} · 7 экранов · iPhone и Mac`);
 
     // Previews sit between the recommendation and the outcomes, above the answer buttons (#276 §3 order).
+    await settled(page);
     const tops = await Promise.all(
       [
         card(page).getByTestId('recommendation'),
