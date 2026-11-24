@@ -1,4 +1,5 @@
 import type { Artifact } from '@console/entities/artifact';
+import { caseFold } from '@console/shared/utils';
 import { ARTIFACT_TYPES, type ArtifactType } from '@shared/contracts';
 
 export interface ArtifactFilterValue {
@@ -10,11 +11,9 @@ export interface ArtifactFilterValue {
 /** The longest query kept (URL and local state); longer input is cut, never refused. */
 export const ARTIFACT_QUERY_MAX_LENGTH = 200;
 
-/** The lower-cased words of a query: what `filterArtifacts` requires and the list underlines. */
+/** The folded words of a query: what `filterArtifacts` requires and the list underlines. */
 export function artifactQueryTerms(query: string): string[] {
-  return query
-    .slice(0, ARTIFACT_QUERY_MAX_LENGTH)
-    .toLocaleLowerCase()
+  return caseFold(query.slice(0, ARTIFACT_QUERY_MAX_LENGTH))
     .split(/\s+/)
     .filter((term) => term !== '');
 }
@@ -38,7 +37,7 @@ export function filterArtifacts(
     if (terms.length === 0) {
       return true;
     }
-    const title = item.title.toLocaleLowerCase();
+    const title = caseFold(item.title);
     return terms.every((term) => title.includes(term));
   });
 }

@@ -23,6 +23,7 @@ import { DesignViewer } from '@console/features/design-viewer';
 import { localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Callout, injectRetryFocus, StateBlock } from '@console/shared/ui';
+import { debounce } from '@console/shared/utils';
 import { isArtifactType, type ArtifactType } from '@shared/contracts';
 import { map } from 'rxjs';
 
@@ -233,7 +234,10 @@ export class ArtifactsSectionPage {
   protected readonly query = signal('');
   /** The query's words the list marks: they follow typing after a pause, not every letter (#362). */
   protected readonly highlightTerms = signal<readonly string[]>([]);
-  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
+  private readonly debouncedHighlight = debounce(
+    (query: string) => this.highlightTerms.set(artifactQueryTerms(query)),
+    HIGHLIGHT_DEBOUNCE_MS,
+  );
 
   protected readonly state = computed(() => {
     const state = this.store.state();
@@ -276,7 +280,7 @@ export class ArtifactsSectionPage {
   });
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.cancelHighlight());
+    inject(DestroyRef).onDestroy(() => this.debouncedHighlight.cancel());
     effect(() => {
       const slug = this.slug();
       if (slug === null) {
@@ -348,21 +352,11 @@ export class ArtifactsSectionPage {
 
   /** Clearing the query unmarks at once; typing marks once the owner pauses. */
   private scheduleHighlight(query: string): void {
-    this.cancelHighlight();
+    this.debouncedHighlight.cancel();
     if (query === '') {
       this.highlightTerms.set([]);
       return;
     }
-    this.highlightTimer = setTimeout(() => {
-      this.highlightTimer = null;
-      this.highlightTerms.set(artifactQueryTerms(this.query()));
-    }, HIGHLIGHT_DEBOUNCE_MS);
-  }
-
-  private cancelHighlight(): void {
-    if (this.highlightTimer !== null) {
-      clearTimeout(this.highlightTimer);
-      this.highlightTimer = null;
-    }
+    this.debouncedHighlight(query);
   }
 }
