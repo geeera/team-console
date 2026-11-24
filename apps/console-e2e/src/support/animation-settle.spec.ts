@@ -133,6 +133,21 @@ describe('settleRound', () => {
     expect(!result.quiet && result.stuck).toEqual([]);
   });
 
+  it('names component keyframes without the Angular scope prefix', async () => {
+    const meter = fakeAnimation({
+      name: '_ngcontent-ng-c689207796_tc-meter-fill',
+      endTime: 900,
+      target: { tagName: 'I', classes: ['tc-meter__fill'] },
+    });
+    const result = await settleRound(
+      OPTIONS,
+      env(() => [meter]),
+    );
+    expect(!result.quiet && result.stuck).toEqual([
+      { name: 'tc-meter-fill', target: 'i.tc-meter__fill', remainingMs: 900 },
+    ]);
+  });
+
   it('reports an animation that outlives its budget instead of waiting for it', async () => {
     // Claims 100 ms left but never ends: the budget is 100 + slack, well under the test's own timeout.
     const stalled = fakeAnimation({

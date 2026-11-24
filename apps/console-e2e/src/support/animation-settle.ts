@@ -84,8 +84,9 @@ export async function settleRound(
     animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity;
 
   const describe = (animation: SettleAnimation): AnimationReport => {
+    // Angular scopes component keyframes as `_ngcontent-ng-c123_tc-spin`; the message names the source's `tc-spin`.
     const name =
-      animation.animationName ||
+      animation.animationName?.replace(/^_ngcontent-[^_]+_/, '') ||
       (animation.transitionProperty ? `transition: ${animation.transitionProperty}` : '') ||
       animation.id ||
       '(unnamed animation)';
