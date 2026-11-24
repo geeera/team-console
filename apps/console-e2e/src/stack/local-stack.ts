@@ -1,22 +1,32 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { DEV_PROXY_DROP_MARKER } from '../support/dev-proxy';
 import { generateKeyPairSync, randomBytes } from 'node:crypto';
-import { appendFileSync, closeSync, cpSync, existsSync, mkdirSync, openSync, readFileSync, rmSync, statSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  cpSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { join, resolve } from 'node:path';
 import { startCloseRelay, type CloseRelay } from './close-relay';
+import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
 
 export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
 /** One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). */
 export const STACKS_DIR = join(WORKSPACE_ROOT, 'tmp/console-e2e');
 
 const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
+/** Each server of the stack is a Worker on Miniflare, not a `wrangler dev` (#957, `serve-worker.mts`). */
+const SERVE_WORKER = join(__dirname, 'serve-worker.mts');
 const API_CONFIG = 'apps/api/wrangler.jsonc';
 const FAKE_CONFIG = 'apps/api/fake-github/wrangler.jsonc';
 const FAKE_PUSH_CONFIG = 'apps/api/fake-push/wrangler.jsonc';
-/**
- * The bundle `nx build api` writes and the Docker image runs, so the suite tests what ships. Not `--no-bundle`: with
- * it wrangler 4.124's esbuild service stops after start and the next log it formats crashes the runtime (#58).
- */
+/** The bundle `nx build api` writes and the Docker image runs, so the suite tests what ships. */
 const API_BUNDLE = 'dist/apps/api/main.js';
 const CONSOLE_INDEX = 'dist/apps/console/browser/index.html';
 const START_TIMEOUT_MS = 90_000;
@@ -41,7 +51,7 @@ export interface StackPorts {
 /**
  * Ten ports per Playwright worker, so parallel workers never share a server or a database. `E2E_PORT_BASE` (local
  * runs beside other stacks on one machine) packs a worker into three ports from that base — api, fake GitHub, fake
- * push — with the devtools inspectors on ports the system picks (`--inspector-port 0`).
+ * push — with the devtools inspectors on ports the system picks (inspector port 0).
  */
 export function portsFor(parallelIndex: number): StackPorts {
   const packed = Number(process.env['E2E_PORT_BASE'] ?? '');
@@ -67,16 +77,13 @@ export function portsFor(parallelIndex: number): StackPorts {
   };
 }
 
-/**
- * Log lines of a server that stopped serving on its own: workerd died and miniflare restarted it in place. The dev
- * proxy dropping one request on its way to the Worker (#230, #947) is not one — the server kept serving, the
- * request's own answer says so, and `apiClient` resends it — so those lines are `devProxyDrops()` instead.
- */
+/** Log lines of a server that stopped serving on its own: workerd died and Miniflare restarted it in place (#230). */
 const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly'] as const;
 
 /**
- * One `wrangler dev` and the workerd it forks. Every lifetime appends to the log between two marker lines, so a
- * worker's logs keep every api restart of the run (a truncating `reset()` used to drop the evidence of a crash).
+ * One `serve-worker.mts` and the workerd its Miniflare forks. Every lifetime appends to the log between two marker
+ * lines, so a worker's logs keep every api restart of the run (a truncating `reset()` used to drop the evidence of a
+ * crash).
  */
 class StackProcess {
   private spawnError: Error | null = null;
@@ -99,22 +106,21 @@ class StackProcess {
     });
   }
 
-  static spawn(label: string, args: readonly string[], logPath: string): StackProcess {
-    appendLog(logPath, `=== ${new Date().toISOString()} ${label} start: wrangler ${redactVars(args).join(' ')} ===`);
+  static spawn(label: string, options: ServeWorkerOptions, logPath: string): StackProcess {
+    appendLog(logPath, `=== ${new Date().toISOString()} ${label} start: serve-worker ${describeOptions(options)} ===`);
     const logStart = statSync(logPath).size;
     const log = openSync(logPath, 'a');
     try {
-      // Own process group: wrangler forks workerd, and stopping the group takes both down.
-      const child = spawn(WRANGLER, args, {
+      // Own process group: Miniflare forks workerd, and stopping the group takes both down.
+      const child = spawn(process.execPath, ['--experimental-strip-types', SERVE_WORKER], {
         cwd: WORKSPACE_ROOT,
         detached: true,
         stdio: ['ignore', log, log],
         env: {
           ...process.env,
+          [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
           WRANGLER_SEND_METRICS: 'false',
           NO_COLOR: '1',
-          // wrangler's own debug log (every level, with stacks) beside the console log, so it lands in the artifact.
-          WRANGLER_LOG_PATH: logPath.replace(/\.log$/, '.wrangler-debug.log'),
         },
       });
       return new StackProcess(child, label, logPath, logStart);
@@ -142,8 +148,8 @@ class StackProcess {
   }
 
   /**
-   * Every time this process stopped serving on its own: a workerd crash miniflare restarted in place (the in-flight
-   * request answers 500 and the port refuses connections until workerd is back), or wrangler itself exiting.
+   * Every time this process stopped serving on its own: a workerd crash Miniflare restarted in place (the in-flight
+   * request answers 500 and the port refuses connections until workerd is back), or the serve-worker process exiting.
    */
   incidents(): string[] {
     const found = this.output()
@@ -151,23 +157,15 @@ class StackProcess {
       .filter((line) => INCIDENT_MARKERS.some((marker) => line.includes(marker)))
       .map((line) => `${this.label}: ${line.trim()}`);
     if (this.hasExited && this.stopStart === null) {
-      found.push(`${this.label}: wrangler exited on its own`);
+      found.push(`${this.label}: the server exited on its own`);
     }
     return found;
   }
 
-  /** Every request the dev proxy dropped on its way to the Worker (`support/dev-proxy.ts`). */
-  devProxyDrops(): string[] {
-    return this.output()
-      .split('\n')
-      .filter((line) => line.includes(DEV_PROXY_DROP_MARKER))
-      .map((line) => `${this.label}: ${line.trim()}`);
-  }
-
   /**
-   * SIGTERM to wrangler alone, so it disposes its workerd itself. Signalling the whole group raced the two: workerd
-   * died first, miniflare took that for a crash and began starting a new workerd while wrangler was exiting.
-   * Whatever is left in the group afterwards is killed.
+   * SIGTERM to the serve-worker process alone, so Miniflare disposes its workerd itself. Signalling the whole group
+   * raced the two: workerd died first, Miniflare took that for a crash and began starting a new workerd while its
+   * process was exiting. Whatever is left in the group afterwards is killed.
    */
   async stop(): Promise<void> {
     if (this.stopStart === null) {
@@ -226,9 +224,11 @@ function appendLog(logPath: string, line: string): void {
   appendFileSync(logPath, `${line}\n`);
 }
 
-/** `--var NAME:value` is logged as `--var NAME:…`, so the run's throwaway keys stay out of the artifact. */
-function redactVars(args: readonly string[]): string[] {
-  return args.map((arg, index) => (args[index - 1] === '--var' ? `${arg.split(':')[0] ?? ''}:…` : arg));
+/** The options for the log, vars by name only, so the run's throwaway keys stay out of the artifact. */
+export function describeOptions(options: ServeWorkerOptions): string {
+  const env = options.env === undefined ? '' : ` --env ${options.env}`;
+  const vars = Object.keys(options.vars).map((name) => ` --var ${name}:…`);
+  return `${options.script} --config ${options.config}${env} --port ${options.port} --persist-to ${options.persistTo}${vars.join('')}`;
 }
 
 /**
@@ -289,10 +289,26 @@ function run(args: readonly string[], logPath: string): Promise<void> {
 }
 
 /**
- * One isolated backend for one Playwright worker: the fake GitHub (`apps/api/fake-github`) and the api Worker as
- * the Docker image runs it — the built bundle, a fresh local D1, `ENVIRONMENT=local` + `AUTH_MODE=local` +
- * `GITHUB_MOCK=true` — with `GITHUB_FAKE_ORIGIN` pointing at the fake, so the owner's OAuth round trip and answer
- * comments never leave the machine.
+ * A fake's TypeScript Worker bundled the way `wrangler dev` bundled it (`wrangler deploy --dry-run`, as `nx build api`
+ * does for the api), since Miniflare runs JavaScript only. `--outdir` resolves against the config's directory, so it
+ * is absolute here.
+ */
+async function bundleWorker(config: string, outdir: string, logPath: string): Promise<string> {
+  await run(['deploy', '--dry-run', '--config', config, '--outdir', outdir], logPath);
+  const scripts = readdirSync(outdir).filter((file) => file.endsWith('.js'));
+  const [script] = scripts;
+  if (script === undefined || scripts.length > 1) {
+    throw new Error(`${config}: expected one bundled script in ${outdir}, found ${scripts.join(', ') || 'none'}`);
+  }
+  return join(outdir, script);
+}
+
+/**
+ * One isolated backend for one Playwright worker: the fake GitHub (`apps/api/fake-github`) and the api Worker with
+ * what the Docker image runs — the built bundle, its wrangler config, a fresh local D1, `ENVIRONMENT=local` +
+ * `AUTH_MODE=local` + `GITHUB_MOCK=true` — with `GITHUB_FAKE_ORIGIN` pointing at the fake, so the owner's OAuth round
+ * trip and answer comments never leave the machine. Unlike the image, every server runs on Miniflare directly, not
+ * through `wrangler dev` (#957, `serve-worker.mts`): its ProxyWorker drops a non-GET request on a keep-alive race.
  */
 export class LocalStack {
   readonly baseURL: string;
@@ -306,7 +322,6 @@ export class LocalStack {
     push: null,
   };
   private readonly pastIncidents: string[] = [];
-  private readonly pastDevProxyDrops: string[] = [];
   private readonly vapid = throwawayVapidPair();
   /** Settles once per stack; a failed migration stays failed, so every reset reports it instead of retrying. */
   private template: Promise<string> | null = null;
@@ -316,6 +331,7 @@ export class LocalStack {
     private readonly ports: StackPorts,
     private readonly dir: string,
     private readonly fake: StackProcess,
+    private readonly fakePushScript: string,
   ) {
     this.baseURL = `http://127.0.0.1:${ports.api}`;
     this.fakeURL = `http://127.0.0.1:${ports.fake}`;
@@ -333,29 +349,23 @@ export class LocalStack {
     const dir = join(STACKS_DIR, name);
     rmSync(dir, { recursive: true, force: true });
     mkdirSync(dir, { recursive: true });
+    const [fakeScript, fakePushScript] = await Promise.all([
+      bundleWorker(FAKE_CONFIG, join(dir, 'fake-github-bundle'), join(dir, 'fake-github-bundle.log')),
+      bundleWorker(FAKE_PUSH_CONFIG, join(dir, 'fake-push-bundle'), join(dir, 'fake-push-bundle.log')),
+    ]);
     const fake = StackProcess.spawn(
       `${name} fake GitHub`,
-      [
-        'dev',
-        '--config',
-        FAKE_CONFIG,
-        '--ip',
-        '127.0.0.1',
-        '--port',
-        String(ports.fake),
-        '--inspector-port',
-        String(ports.fakeInspector),
-        '--persist-to',
-        join(dir, 'fake-state'),
-        '--show-interactive-dev-session=false',
-        '--var',
-        `FAKE_GITHUB_CLIENT_ID:${FAKE_CLIENT_ID}`,
-        '--var',
-        `FAKE_GITHUB_CLIENT_SECRET:${FAKE_CLIENT_SECRET}`,
-      ],
+      {
+        config: FAKE_CONFIG,
+        script: fakeScript,
+        port: ports.fake,
+        inspectorPort: ports.fakeInspector,
+        persistTo: join(dir, 'fake-state'),
+        vars: { FAKE_GITHUB_CLIENT_ID: FAKE_CLIENT_ID, FAKE_GITHUB_CLIENT_SECRET: FAKE_CLIENT_SECRET },
+      },
       join(dir, 'fake-github.log'),
     );
-    const stack = new LocalStack(name, ports, dir, fake);
+    const stack = new LocalStack(name, ports, dir, fake, fakePushScript);
     try {
       await waitForOk(`${stack.fakeURL}/_fake/state`, fake, `${name} fake GitHub`);
       await stack.startFakePush();
@@ -393,21 +403,12 @@ export class LocalStack {
     ];
   }
 
-  /** Every request the dev proxy of one of this stack's servers dropped, oldest first (`support/dev-proxy.ts`). */
-  devProxyDrops(): string[] {
-    return [
-      ...this.pastDevProxyDrops,
-      ...[this.fake, this.fakePush, this.api].flatMap((process) => process?.devProxyDrops() ?? []),
-    ];
-  }
-
   private async retireApi(): Promise<void> {
     if (this.api === null) {
       return;
     }
     await this.api.stop();
     this.pastIncidents.push(...this.api.incidents());
-    this.pastDevProxyDrops.push(...this.api.devProxyDrops());
     this.api = null;
   }
 
@@ -467,20 +468,14 @@ export class LocalStack {
   private async startFakePush(): Promise<void> {
     this.fakePush = StackProcess.spawn(
       `${this.name} fake push`,
-      [
-        'dev',
-        '--config',
-        FAKE_PUSH_CONFIG,
-        '--ip',
-        '127.0.0.1',
-        '--port',
-        String(this.ports.fakePush),
-        '--inspector-port',
-        String(this.ports.fakePushInspector),
-        '--persist-to',
-        join(this.dir, 'fake-push-state'),
-        '--show-interactive-dev-session=false',
-      ],
+      {
+        config: FAKE_PUSH_CONFIG,
+        script: this.fakePushScript,
+        port: this.ports.fakePush,
+        inspectorPort: this.ports.fakePushInspector,
+        persistTo: join(this.dir, 'fake-push-state'),
+        vars: {},
+      },
       join(this.dir, 'fake-push.log'),
     );
     await waitForOk(`${this.fakePushURL}/_fake/state`, this.fakePush, `${this.name} fake push`);
@@ -538,58 +533,36 @@ export class LocalStack {
     cpSync(await this.migratedTemplate(), persist, { recursive: true });
     this.api = StackProcess.spawn(
       `${this.name} api`,
-      [
-        'dev',
-        API_BUNDLE,
-        '--config',
-        API_CONFIG,
-        '--env',
-        'dev',
-        '--ip',
-        '127.0.0.1',
-        '--port',
-        String(this.ports.api),
-        '--inspector-port',
-        String(this.ports.apiInspector),
-        '--persist-to',
-        persist,
-        '--show-interactive-dev-session=false',
-        // The Dockerfile's local switches, plus the fake GitHub for the owner connection and owner writes.
-        '--var',
-        'ENVIRONMENT:local',
-        '--var',
-        'AUTH_MODE:local',
-        '--var',
-        'GITHUB_MOCK:true',
-        '--var',
-        'OWNER_GITHUB_LOGIN:geeera',
-        '--var',
-        `GITHUB_FAKE_ORIGIN:${this.relayOrigin(this.relays.github)}`,
-        '--var',
-        `GITHUB_APP_CLIENT_ID:${FAKE_CLIENT_ID}`,
-        '--var',
-        `GITHUB_APP_CLIENT_SECRET:${FAKE_CLIENT_SECRET}`,
-        '--var',
-        // A throwaway key per run: it seals the fake owner token in this run's own database only.
-        `TOKEN_ENCRYPTION_KEY:${randomBytes(32).toString('base64')}`,
-        '--var',
-        'ROUTINE_TOKEN_TEAM_CONSOLE:local-fake-routine',
-        // Web push (#36) against the fake push service only, with this run's throwaway VAPID pair.
-        '--var',
-        `PUSH_FAKE_ORIGIN:${this.relayOrigin(this.relays.push)}`,
-        '--var',
-        `VAPID_PUBLIC_KEY:${this.vapid.publicKey}`,
-        '--var',
-        `VAPID_PRIVATE_KEY:${this.vapid.privateKey}`,
-        // Settings › Runners flags a runner below the minimum (#464); runners.e2e.ts enrols one at 0.1.0.
-        '--var',
-        'RUNNER_RELEASE_VERSION:0.3.0',
-        // #634 PR 7: a digest for that release's image, so the wizard's Linux choice gets the API's command.
-        '--var',
-        `RUNNER_RELEASE_IMAGE_DIGEST:${E2E_RUNNER_IMAGE_DIGEST}`,
-        '--var',
-        'RUNNER_MINIMUM_VERSION:0.2.0',
-      ],
+      {
+        config: API_CONFIG,
+        env: 'dev',
+        script: API_BUNDLE,
+        port: this.ports.api,
+        inspectorPort: this.ports.apiInspector,
+        persistTo: persist,
+        vars: {
+          // The Dockerfile's local switches, plus the fake GitHub for the owner connection and owner writes.
+          ENVIRONMENT: 'local',
+          AUTH_MODE: 'local',
+          GITHUB_MOCK: 'true',
+          OWNER_GITHUB_LOGIN: 'geeera',
+          GITHUB_FAKE_ORIGIN: this.relayOrigin(this.relays.github),
+          GITHUB_APP_CLIENT_ID: FAKE_CLIENT_ID,
+          GITHUB_APP_CLIENT_SECRET: FAKE_CLIENT_SECRET,
+          // A throwaway key per run: it seals the fake owner token in this run's own database only.
+          TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64'),
+          ROUTINE_TOKEN_TEAM_CONSOLE: 'local-fake-routine',
+          // Web push (#36) against the fake push service only, with this run's throwaway VAPID pair.
+          PUSH_FAKE_ORIGIN: this.relayOrigin(this.relays.push),
+          VAPID_PUBLIC_KEY: this.vapid.publicKey,
+          VAPID_PRIVATE_KEY: this.vapid.privateKey,
+          // Settings › Runners flags a runner below the minimum (#464); runners.e2e.ts enrols one at 0.1.0.
+          RUNNER_RELEASE_VERSION: '0.3.0',
+          // #634 PR 7: a digest for that release's image, so the wizard's Linux choice gets the API's command.
+          RUNNER_RELEASE_IMAGE_DIGEST: E2E_RUNNER_IMAGE_DIGEST,
+          RUNNER_MINIMUM_VERSION: '0.2.0',
+        },
+      },
       join(this.dir, 'api.log'),
     );
     await waitForOk(`${this.baseURL}/api/v1/healthz`, this.api, `${this.name} api`);
