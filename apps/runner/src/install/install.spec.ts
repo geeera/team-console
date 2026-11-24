@@ -3,10 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { managedSettingsText } from '../backends/user';
 import type { Exec, ExecResult } from '../host/exec';
+import { ACL_POLICY_CASES } from '../testing/acl-policy-cases';
 import {
   InstallError,
   assertAllowedPaths,
   describeStep,
+  hasForeignWriteAcl,
   planInstall,
   runInstall,
   systemInstallHost,
@@ -408,7 +410,7 @@ describe('install --backend user: the node the daemon runs', () => {
     const target = `${PREFIX}/releases/0.2.0/node`;
     const host = fakeHost({
       realpaths: { [NODE]: target },
-      stats: { [NODE]: { uid: 0, mode: 0o755, kind: 'symlink' }, [target]: ROOT_FILE, [`${PREFIX}/releases/0.2.0`]: ROOT_DIR },
+      stats: { [NODE]: { uid: 0, mode: 0o755, kind: 'symlink' }, ...rootChain(target) },
     });
     expect(plistOf((await planInstall(userOptions(), host)).steps)).toContain(`<string>${NODE}</string>`);
   });
@@ -459,19 +461,40 @@ describe('install --backend user: the layout update leaves', () => {
     );
   });
 
+  // #900: each way `current` can be wrong has its own reason, and all of them name the fix.
+  const FIX = `it must be a root-owned link to a release directly in ${RELEASES}`;
+
   it.each([
-    ['owned by the login user', { uid: 501, mode: 0o755, kind: 'symlink' }],
-    ['a directory rather than a link', ROOT_DIR],
-  ] as const)('refuses a current %s', async (_, facts) => {
-    await expect(planInstall(userOptions(), layout({ [CURRENT]: facts }))).rejects.toThrow(
-      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
+    ['a link owned by the login user', { uid: 501, mode: 0o755, kind: 'symlink' }, 'is a link owned by uid 501, not by root'],
+    ['a directory rather than a link', ROOT_DIR, 'is a directory, not a link'],
+    ['a file rather than a link', ROOT_FILE, 'is a file, not a link'],
+  ] as const)('refuses a current that is %s, saying so', async (_, facts, reason) => {
+    await expect(planInstall(userOptions(), layout({ [CURRENT]: facts }))).rejects.toThrow(`${CURRENT} ${reason}; ${FIX}`);
+  });
+
+  it('refuses a current that leads nowhere, saying so', async () => {
+    await expect(planInstall(userOptions(), layout({}, { [CURRENT]: null }))).rejects.toThrow(
+      `${CURRENT} is a link that leads nowhere; ${FIX}`,
     );
   });
 
-  it('refuses a current that leads nowhere', async () => {
-    await expect(planInstall(userOptions(), layout({}, { [CURRENT]: null }))).rejects.toThrow(
-      `${CURRENT} must exist, be root-owned`,
-    );
+  it('gives each current failure a different message', async () => {
+    const messageOf = async (host: FakeHost): Promise<string> =>
+      await planInstall(userOptions(), host).then(
+        () => 'accepted',
+        (error: unknown) => (error instanceof InstallError ? error.message : 'not an InstallError'),
+      );
+    const messages = await Promise.all([
+      messageOf(layout({ [CURRENT]: ROOT_DIR })),
+      messageOf(layout({ [CURRENT]: { uid: 501, mode: 0o755, kind: 'symlink' } })),
+      messageOf(layout({ [RELEASES]: null })),
+      messageOf(layout({}, { [CURRENT]: null })),
+      messageOf(layout({ '/opt/elsewhere/0.2.0': ROOT_DIR, '/opt/elsewhere': ROOT_DIR }, { [CURRENT]: '/opt/elsewhere/0.2.0' })),
+      messageOf(layout({ [RELEASE]: { uid: 501, mode: 0o755, kind: 'directory' } })),
+    ]);
+    expect(messages).not.toContain('accepted');
+    expect(messages).not.toContain('not an InstallError');
+    expect(new Set(messages).size).toBe(messages.length);
   });
 
   it.each([
@@ -496,23 +519,206 @@ describe('install --backend user: the layout update leaves', () => {
       { [CURRENT]: target },
     );
     await expect(planInstall(userOptions(), host)).rejects.toThrow(
-      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
+      `${CURRENT} points to ${target}, which is not directly in ${RELEASES}; ${FIX}`,
     );
   });
 
-  it('refuses a current when there is no releases/', async () => {
+  it('refuses a current when there is no releases/, saying so', async () => {
     await expect(planInstall(userOptions(), layout({ [RELEASES]: null }))).rejects.toThrow(
-      `${CURRENT} must be a root-owned link to a release under ${RELEASES}`,
+      `${CURRENT} is a link, but ${RELEASES} does not exist; ${FIX}`,
     );
   });
 
   it('compares physical paths, so a prefix under a link still has its release under releases/', async () => {
     const physical = `/private${RELEASES}`;
-    const host = layout({ [`${physical}/0.2.0`]: ROOT_DIR, [physical]: ROOT_DIR }, {
+    const host = layout({ ...rootChain(physical), [`${physical}/0.2.0`]: ROOT_DIR, [physical]: ROOT_DIR }, {
       [CURRENT]: `${physical}/0.2.0`,
       [RELEASES]: physical,
     });
     await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
+  });
+});
+
+/**
+ * #900: whoever can write a directory above the release can swap the release, so install walks every one of them up
+ * to `/`, as the launcher does at each root start, and names the first that is not root's alone.
+ */
+describe('install --backend user: every directory above the release, up to /', () => {
+  const LOGIN_DIR: PathFacts = { uid: 501, mode: 0o755, kind: 'directory' };
+  const ROOT_LINK: PathFacts = { uid: 0, mode: 0o755, kind: 'symlink' };
+  const HOSTILE_ACE = ' 0: user:kirill allow add_file,add_subdirectory,delete_child';
+  const REFUSED = 'must exist, be root-owned and writable by root only (on macOS, no ACL entry that lets anyone else write)';
+  /** A flat release at `prefix`, root's alone, with every directory above it. */
+  const releaseAt = (prefix: string): Record<string, PathFacts> => ({
+    ...rootChain(`${prefix}/node`),
+    [`${prefix}/bin`]: ROOT_DIR,
+    [`${prefix}/team-console-runner.mjs`]: ROOT_FILE,
+    [`${prefix}/bin/job-exec`]: ROOT_FILE,
+  });
+
+  it('asks for the ACL of each directory up to /, once', async () => {
+    const host = fakeHost();
+    await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
+    for (const dir of ['/usr/local/lib', '/usr/local', '/usr', '/']) {
+      expect(host.queries.filter((query) => query === `/bin/ls -lde ${dir}`)).toHaveLength(1);
+    }
+  });
+
+  it.each([
+    ['the login user owns (Homebrew on Intel)', '/usr/local/lib', LOGIN_DIR],
+    ['the group can write', '/usr/local', { uid: 0, mode: 0o775, kind: 'directory' }],
+    ['others can write', '/usr', { uid: 0, mode: 0o757, kind: 'directory' }],
+    ['that is / itself, owned by the login user', '/', LOGIN_DIR],
+  ] as const)('refuses a directory above the prefix %s, before any step', async (_, dir, facts) => {
+    const host = fakeHost({ stats: { [dir]: facts } });
+    await expect(runInstall(userOptions(true), host, () => undefined)).rejects.toThrow(`${dir} ${REFUSED}`);
+    expect(host.applied).toEqual([]);
+  });
+
+  it.each(['/usr/local/lib', '/usr/local', '/usr', '/'])(
+    'refuses %s carrying an ACL entry that lets the login user add and delete entries',
+    async (dir) => {
+      const host = fakeHost({ acls: { [dir]: [HOSTILE_ACE] } });
+      await expect(runInstall(userOptions(true), host, () => undefined)).rejects.toThrow(`${dir} ${REFUSED}`);
+      expect(host.applied).toEqual([]);
+    },
+  );
+
+  it('accepts ancestors whose entries only deny, only read, or grant root', async () => {
+    const host = fakeHost({
+      acls: { '/usr/local': [' 0: group:everyone deny delete', ' 1: user:kirill allow list,search', ' 2: user:root allow add_file'] },
+    });
+    await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
+  });
+
+  it('refuses an ancestor it cannot list, since then it cannot tell', async () => {
+    const host = fakeHost();
+    const listing = host.exec;
+    const failing: FakeHost = {
+      ...host,
+      exec: async (command, args, options) =>
+        command === '/bin/ls' && args[1] === '/usr/local' ? { code: 1, stdout: '' } : await listing(command, args, options),
+    };
+    await expect(planInstall(userOptions(), failing)).rejects.toThrow(`/usr/local ${REFUSED}`);
+  });
+
+  it('skips the ACL question off macOS but not the walk (the prefix check is shared)', async () => {
+    const { assertRootOwnedPrefix } = await import('./install');
+    const linux = fakeHost({ platform: 'linux', acls: { '/usr/local': [HOSTILE_ACE] } });
+    await expect(assertRootOwnedPrefix(linux, PREFIX)).resolves.toBeUndefined();
+    expect(linux.queries).toEqual([]);
+    const owned = fakeHost({ platform: 'linux', stats: { '/usr/local': LOGIN_DIR } });
+    await expect(assertRootOwnedPrefix(owned, PREFIX)).rejects.toThrow(`/usr/local ${REFUSED}`);
+  });
+
+  describe('above a link target', () => {
+    const TARGET = '/opt/tc/releases/0.2.0/node';
+    const linked = (overrides: Parameters<typeof fakeHost>[0] = {}): FakeHost =>
+      fakeHost({
+        ...overrides,
+        realpaths: { [NODE]: TARGET },
+        stats: { [NODE]: ROOT_LINK, ...rootChain(TARGET), ...overrides.stats },
+      });
+
+    it('accepts a node link whose target has only root’s directories above it', async () => {
+      await expect(planInstall(userOptions(), linked())).resolves.toBeDefined();
+    });
+
+    it('refuses a node link whose target sits two levels below a directory the login user owns', async () => {
+      await expect(planInstall(userOptions(), linked({ stats: { '/opt/tc': LOGIN_DIR } }))).rejects.toThrow(`/opt/tc ${REFUSED}`);
+    });
+
+    it('refuses a node link whose target sits below a directory with a hostile ACL entry', async () => {
+      await expect(planInstall(userOptions(), linked({ acls: { '/opt': [HOSTILE_ACE] } }))).rejects.toThrow(`/opt ${REFUSED}`);
+    });
+  });
+
+  describe('above the release current names', () => {
+    const RELEASES = `${PREFIX}/releases`;
+    const PHYSICAL = `/private${RELEASES}`;
+    const underLink = (overrides: Parameters<typeof fakeHost>[0] = {}): FakeHost =>
+      fakeHost({
+        ...overrides,
+        realpaths: { [`${PREFIX}/current`]: `${PHYSICAL}/0.2.0`, [RELEASES]: PHYSICAL },
+        stats: {
+          [RELEASES]: ROOT_DIR,
+          [`${PREFIX}/current`]: ROOT_LINK,
+          ...rootChain(PHYSICAL),
+          [PHYSICAL]: ROOT_DIR,
+          [`${PHYSICAL}/0.2.0`]: ROOT_DIR,
+          ...overrides.stats,
+        },
+      });
+
+    it('refuses when a directory above the physical release is the login user’s', async () => {
+      await expect(planInstall(userOptions(), underLink({ stats: { '/private/usr': LOGIN_DIR } }))).rejects.toThrow(
+        `/private/usr ${REFUSED}`,
+      );
+    });
+
+    it('refuses when a directory above the physical release carries a hostile ACL entry', async () => {
+      await expect(planInstall(userOptions(), underLink({ acls: { '/private': [HOSTILE_ACE] } }))).rejects.toThrow(
+        `/private ${REFUSED}`,
+      );
+    });
+  });
+
+  describe('a prefix reached through a link (/tmp, /var on macOS)', () => {
+    const VIA = '/srv/link';
+    const LINKED_PREFIX = `${VIA}/runner`;
+    const options: InstallOptions = { ...userOptions(), prefix: LINKED_PREFIX };
+    const through = (target: string, extra: Record<string, PathFacts | null> = {}): FakeHost =>
+      fakeHost({
+        realpaths: { [VIA]: target },
+        stats: { ...releaseAt(LINKED_PREFIX), ...rootChain(`${target}/x`), [target]: ROOT_DIR, [VIA]: ROOT_LINK, ...extra },
+      });
+
+    it('accepts a root-owned link to a directory with only root’s directories above it', async () => {
+      await expect(planInstall(options, through('/private/srv'))).resolves.toBeDefined();
+    });
+
+    it('refuses a link the login user owns', async () => {
+      const host = through('/private/srv', { [VIA]: { uid: 501, mode: 0o755, kind: 'symlink' } });
+      await expect(planInstall(options, host)).rejects.toThrow(`${VIA} ${REFUSED}`);
+    });
+
+    it('refuses a link to a directory the login user owns', async () => {
+      const host = through('/Users/kirill/srv', { '/Users/kirill/srv': LOGIN_DIR });
+      await expect(planInstall(options, host)).rejects.toThrow(`/Users/kirill/srv ${REFUSED}`);
+    });
+
+    it('refuses a link to a directory below one the login user owns', async () => {
+      const host = through('/Users/kirill/srv', { '/Users/kirill': LOGIN_DIR });
+      await expect(planInstall(options, host)).rejects.toThrow(`/Users/kirill ${REFUSED}`);
+    });
+
+    it('refuses a link that leads nowhere', async () => {
+      const host = fakeHost({ realpaths: { [VIA]: null }, stats: { ...releaseAt(LINKED_PREFIX), [VIA]: ROOT_LINK } });
+      await expect(planInstall(options, host)).rejects.toThrow(`${VIA} ${REFUSED}`);
+    });
+
+    it('refuses a file where a directory belongs', async () => {
+      const host = fakeHost({ stats: { ...releaseAt(LINKED_PREFIX), [VIA]: ROOT_FILE } });
+      await expect(planInstall(options, host)).rejects.toThrow(`${VIA} ${REFUSED}`);
+    });
+  });
+});
+
+/** #900: the launcher's `acl_root_only` runs the same table in launcher.spec.ts; the two must agree on every line. */
+describe('hasForeignWriteAcl: the ACL policy the launcher shares', () => {
+  const listing = (aces: readonly string[]): Exec => async () => ({
+    code: 0,
+    stdout: ['-r-xr-xr-x+ 1 root  wheel  64 Nov 22 00:00 /p', ...aces].join('\n'),
+  });
+
+  it.each(ACL_POLICY_CASES)('$name: $ace', async ({ ace, foreignWrite }) => {
+    expect(await hasForeignWriteAcl(listing([ace]), '/p')).toBe(foreignWrite);
+  });
+
+  it('refuses when one entry among harmless ones lets someone else write', async () => {
+    const harmless = ACL_POLICY_CASES.filter((entry) => !entry.foreignWrite).map((entry) => entry.ace);
+    expect(await hasForeignWriteAcl(listing(harmless), '/p')).toBe(false);
+    expect(await hasForeignWriteAcl(listing([...harmless, ' 9: user:kirill allow write']), '/p')).toBe(true);
   });
 });
 

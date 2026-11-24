@@ -149,6 +149,13 @@ async function assertGh(deps: ApplyDeps): Promise<void> {
       throw error;
     }
   }
+  if (code !== 0 && deps.uid === 0) {
+    // #900: under sudo the launcher fixes PATH, so an installed Homebrew `gh` is not "missing", it is off root's PATH.
+    throw new UpdateError(
+      'gh-missing',
+      `update as root runs \`gh\` only from root's PATH (${deps.ghEnv['PATH'] ?? 'unset'}) and could not run one there; a Homebrew \`gh\` belongs to the login user, so root does not use it. A root-owned install is updated by hand: docs/runbooks/runner.md › Update (download, gh attestation verify, sudo tar)`,
+    );
+  }
   if (code !== 0) {
     throw new UpdateError(
       'gh-missing',
