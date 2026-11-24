@@ -171,6 +171,20 @@ describe('DesignViewer', () => {
     expect(byTestId('viewer-prev')).not.toBeNull();
   });
 
+  it('marks how the screen arrived so it can turn like a page: device, next, prev', async () => {
+    await open();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
+    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
+    byTestId<HTMLButtonElement>('viewer-next')?.click();
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('next');
+    byTestId<HTMLButtonElement>('viewer-prev')?.click();
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('prev');
+  });
+
   it('turns the page on a touch swipe, not on a short or vertical move', async () => {
     await open();
     allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));

@@ -9,6 +9,7 @@ import { ArtifactList } from './artifact-list';
   template: `<tc-artifact-list
     [items]="items()"
     [grouped]="grouped()"
+    [highlight]="highlight()"
     label="Artifacts"
     [designLeading]="leading"
     [designSubtitle]="subtitle"
@@ -20,6 +21,7 @@ import { ArtifactList } from './artifact-list';
 class Host {
   readonly items = signal<readonly Artifact[]>([]);
   readonly grouped = signal(false);
+  readonly highlight = signal<readonly string[]>([]);
   readonly opened = signal<number | null>(null);
 }
 
@@ -91,6 +93,22 @@ describe('ArtifactList', () => {
 
     button.click();
     expect(fixture.componentInstance.opened()).toBe(277);
+  });
+
+  it('marks the search words in a title as text, and leaves the title plain without a query (#362)', async () => {
+    const fixture = await render();
+    fixture.componentInstance.items.set([{ ...DESIGN, title: 'Release <b>notes</b>' }]);
+    fixture.componentInstance.highlight.set(['notes']);
+    await fixture.whenStable();
+    const root = fixture.nativeElement as HTMLElement;
+    const marks = Array.from(root.querySelectorAll('mark'));
+    expect(marks.map((mark) => mark.textContent)).toEqual(['notes']);
+    expect(root.querySelector('b')).toBeNull();
+    expect(root.querySelector('[tc-row-title]')?.textContent).toContain('Release <b>notes</b>');
+
+    fixture.componentInstance.highlight.set([]);
+    await fixture.whenStable();
+    expect(root.querySelector('mark')).toBeNull();
   });
 
   it('keeps a design issue without a number, and a design file, as plain GitHub links', async () => {

@@ -583,7 +583,7 @@ export class SprintBoard {
     return visibleItemsOf(items, this.isExpanded(key) ? Infinity : BOARD_LIST_LIMIT);
   }
 
-  /** The rows "Show more" added open their height as they come; a list not expanded animates nothing. */
+  /** The rows "Show more" added fade and rise as they come (the height does not animate, #506); a list not expanded animates nothing. */
   protected unfoldFrom(key: string): number | null {
     return this.isExpanded(key) ? BOARD_LIST_LIMIT : null;
   }

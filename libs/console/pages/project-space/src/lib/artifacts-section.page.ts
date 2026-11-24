@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  DestroyRef,
   effect,
   inject,
   signal,
@@ -14,6 +15,7 @@ import { DesignManifests, DesignPreview, DesignSummary } from '@console/entities
 import { ProjectSetupLink } from '@console/entities/project';
 import {
   ARTIFACT_QUERY_MAX_LENGTH,
+  artifactQueryTerms,
   ArtifactSearch,
   filterArtifacts,
 } from '@console/features/artifact-search';
@@ -23,6 +25,9 @@ import { PersistedStateStore } from '@console/shared/persisted-state';
 import { Button, Callout, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import { isArtifactType, type ArtifactType } from '@shared/contracts';
 import { map } from 'rxjs';
+
+/** How long the search box stays quiet before the hits are marked: the filter itself answers every letter. */
+const HIGHLIGHT_DEBOUNCE_MS = 250;
 
 /**
  * `/p/:slug/artifacts` (#19): the project's decisions, designs and demos with type toggles and a search over the
@@ -143,6 +148,7 @@ import { map } from 'rxjs';
                 [items]="visible()"
                 [label]="'artifacts.listLabel' | transloco"
                 [grouped]="type() === null"
+                [highlight]="highlightTerms()"
                 [designLeading]="designLeading"
                 [designSubtitle]="designSubtitle"
                 (openDesign)="openDesign($event)"
@@ -225,6 +231,9 @@ export class ArtifactsSectionPage {
 
   protected readonly type = signal<ArtifactType | null>(null);
   protected readonly query = signal('');
+  /** The query's words the list marks: they follow typing after a pause, not every letter (#362). */
+  protected readonly highlightTerms = signal<readonly string[]>([]);
+  private highlightTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly state = computed(() => {
     const state = this.store.state();
@@ -267,6 +276,7 @@ export class ArtifactsSectionPage {
   });
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.cancelHighlight());
     effect(() => {
       const slug = this.slug();
       if (slug === null) {
@@ -308,6 +318,7 @@ export class ArtifactsSectionPage {
     const q = query.slice(0, ARTIFACT_QUERY_MAX_LENGTH);
     this.type.set(type);
     this.query.set(q);
+    this.scheduleHighlight(q);
     const slug = this.slug();
     if (slug !== null) {
       this.persisted.setArtifactFilter(slug, type === null ? { q } : { type, q });
@@ -329,8 +340,29 @@ export class ArtifactsSectionPage {
     const query = hasUrlFilter ? (params.get('q') ?? '') : (saved?.q ?? '');
     this.type.set(isArtifactType(type) ? type : null);
     this.query.set(query.slice(0, ARTIFACT_QUERY_MAX_LENGTH));
+    this.highlightTerms.set(artifactQueryTerms(this.query()));
     if (!hasUrlFilter && (this.type() !== null || this.query() !== '')) {
       this.setFilter(this.type(), this.query());
+    }
+  }
+
+  /** Clearing the query unmarks at once; typing marks once the owner pauses. */
+  private scheduleHighlight(query: string): void {
+    this.cancelHighlight();
+    if (query === '') {
+      this.highlightTerms.set([]);
+      return;
+    }
+    this.highlightTimer = setTimeout(() => {
+      this.highlightTimer = null;
+      this.highlightTerms.set(artifactQueryTerms(this.query()));
+    }, HIGHLIGHT_DEBOUNCE_MS);
+  }
+
+  private cancelHighlight(): void {
+    if (this.highlightTimer !== null) {
+      clearTimeout(this.highlightTimer);
+      this.highlightTimer = null;
     }
   }
 }

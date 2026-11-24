@@ -158,14 +158,14 @@ describe('SprintItemList', () => {
     expect(rows[0]?.querySelector('a')).toBeNull();
   });
 
-  it('opens the height of the rows from the given index on, and no other', async () => {
+  it('fades in the rows from the given index on, and no other', async () => {
     const second = { ...ISSUE, number: 50 };
     const { rows } = await render([ISSUE, second], (host) => host.unfoldFrom.set(1));
-    expect(rows.map((row) => row.classList.contains('sprint-item--unfold'))).toEqual([false, true]);
+    expect(rows.map((row) => row.classList.contains('m-enter'))).toEqual([false, true]);
   });
 
   it('animates nothing when no index is given', async () => {
     const { rows } = await render([ISSUE, { ...ISSUE, number: 50 }]);
-    expect(rows.some((row) => row.classList.contains('sprint-item--unfold'))).toBe(false);
+    expect(rows.some((row) => row.classList.contains('m-enter'))).toBe(false);
   });
 });

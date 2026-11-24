@@ -52,6 +52,9 @@ export interface DesignViewerData {
 
 export type ViewerMode = 'images' | 'grid' | 'interactive';
 
+/** How the screen on show arrived, for its enter animation: a page turned either way, a device switch, or opened. */
+export type ViewerMove = 'none' | 'next' | 'prev' | 'device';
+
 type OriginsState =
   | { readonly kind: 'idle' }
   | { readonly kind: 'loading' }
@@ -106,6 +109,7 @@ export class DesignViewerDialog {
   protected readonly device = signal<DesignDevice | null>(null);
   protected readonly index = signal(0);
   protected readonly zoomed = signal(false);
+  protected readonly move = signal<ViewerMove>('none');
   /** The commit the screens are read at; when it changes every image is new, so what loaded or failed is forgotten. */
   private readonly sha = computed(() => this.manifest()?.sha ?? null);
   /** Screens whose image arrived or failed, by path; a retry bumps the attempt so the browser asks again. */
@@ -212,6 +216,7 @@ export class DesignViewerDialog {
 
   protected setDevice(device: DesignDevice): void {
     if (this.device() !== device) {
+      this.move.set('device');
       this.device.set(device);
       this.index.set(0);
       this.zoomed.set(false);
@@ -282,6 +287,7 @@ export class DesignViewerDialog {
     const last = this.screens().length - 1;
     const clamped = Math.max(0, Math.min(index, last));
     if (clamped !== this.index()) {
+      this.move.set(clamped > this.index() ? 'next' : 'prev');
       this.index.set(clamped);
       this.zoomed.set(false);
     }
