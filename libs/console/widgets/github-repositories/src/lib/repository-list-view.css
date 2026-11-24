@@ -243,3 +243,32 @@
   height: var(--control-h-touch);
   border-radius: var(--r-md);
 }
+
+/*
+ * #348: rows that arrive after «Обновить» lay out one after another, a short rise and a fade. The step between rows
+ * is `ROW_STAGGER_MS` in the view, set per row as its animation delay. Reduced motion: all at once, no rise.
+ */
+.repo--new {
+  animation: repo-in var(--dur-base) var(--ease-enter) both;
+}
+
+@keyframes repo-in {
+  from {
+    opacity: 0;
+    transform: translateY(var(--space-2));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host-context(:root:not([data-motion='full'])) .repo--new {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .repo--new {
+  animation: none;
+}
