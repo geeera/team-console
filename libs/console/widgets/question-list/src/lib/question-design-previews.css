@@ -39,17 +39,48 @@
   border-color: var(--border-strong);
 }
 
-/* «+N» over the last preview: the screens the card does not show. */
+/*
+ * The fan (#350): the first and last preview lean out by --fan-tilt, the middle lies straight; on hover, focus or
+ * press the fan opens a little. Individual `rotate` and `translate` move only (composited). Under reduced motion
+ * --fan-tilt and --motion-shift are 0: the previews lie flat and nothing moves.
+ */
+.previews__list li {
+  transition:
+    rotate var(--dur-base) var(--ease-emph),
+    translate var(--dur-base) var(--ease-emph);
+}
+
+.previews__list li:first-child:not(:last-child) {
+  rotate: calc(var(--fan-tilt) * -1);
+}
+
+.previews__list li:last-child:not(:first-child) {
+  rotate: var(--fan-tilt);
+}
+
+.previews__list:is(:hover, :focus-within, :active) li:first-child:not(:last-child) {
+  rotate: calc(var(--fan-tilt) * -2);
+  translate: calc(var(--motion-shift) / -2) 0;
+}
+
+.previews__list:is(:hover, :focus-within, :active) li:last-child:not(:first-child) {
+  rotate: calc(var(--fan-tilt) * 2);
+  translate: calc(var(--motion-shift) / 2) 0;
+}
+
+/* «+N»: the corner of the next card peeking out from under the last preview. */
 .previews__more {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-md);
-  background: var(--scrim);
-  color: var(--accent-contrast);
-  font-size: var(--fs-lg);
+  inset: auto 0 0 auto;
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-md) 0 var(--r-md) 0;
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+  color: var(--text-2);
+  font-size: var(--fs-sm);
   font-weight: var(--fw-semibold);
+  line-height: var(--lh-snug);
 }
 
 .previews__foot {
