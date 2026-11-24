@@ -37,6 +37,9 @@ export interface ConfirmInput {
   /** Bounds of a date field, `YYYY-MM-DD`: days outside are off in the calendar; `check` and the server decide. */
   readonly min?: string;
   readonly max?: string;
+  /** A date field's decorations (#346): the current day circled, a run of days (the freeze) hatched; translated words. */
+  readonly marked?: { readonly day: string; readonly label: string };
+  readonly hatched?: { readonly from: string; readonly to: string; readonly label: string };
   readonly check?: (value: string) => ConfirmCheck;
 }
 
@@ -153,6 +156,10 @@ let nextFieldId = 0;
             [label]="field.label"
             [min]="field.min ?? null"
             [max]="field.max ?? null"
+            [markedDay]="field.marked?.day ?? null"
+            [markedLabel]="field.marked?.label ?? ''"
+            [hatchedRange]="field.hatched ? { min: field.hatched.from, max: field.hatched.to } : null"
+            [hatchedLabel]="field.hatched?.label ?? ''"
             [describedBy]="hasHint() ? fieldId + '-hint' : null"
             [invalid]="!!checked()?.error"
             [readonly]="running()"

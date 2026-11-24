@@ -1533,6 +1533,8 @@
       "title": "Move the {{sprint}} demo?",
       "body": "The demo is now on {{date}}; freeze is {{range}}, through demo day: the team takes no new issues and checks stage.",
       "field": "Demo date",
+      "markedDay": "current demo day",
+      "frozenDay": "freeze",
       "freeze": "Freeze: {{range}}",
       "same": "The date hasn’t changed",
       "empty": "Pick a date.",
@@ -2036,7 +2038,9 @@
       "label": "Demo date",
       "hint": "The demo is at 12:00 Kyiv time.",
       "selected": "Selected: {{date}}",
-      "none": "nothing selected"
+      "none": "nothing selected",
+      "marked": "current demo day",
+      "hatched": "freeze"
     },
     "ledger": {
       "status": "Status",
