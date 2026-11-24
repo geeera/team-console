@@ -6,9 +6,9 @@ import { Meter } from './meter';
 
 // The meter never stands alone: the text beside it carries the number.
 const states = `
-  <div style="display: grid; gap: var(--space-3)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3)">
     @for (row of [[0, 8], [3, 8], [8, 8], [0, 0]]; track $index) {
-      <div style="display: grid; gap: var(--space-1)">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-1)">
         <span style="font-size: var(--fs-xs); color: var(--text-2)">
           {{ 'stories.meter.done' | transloco: { done: row[0], total: row[1] } }}
         </span>

@@ -48,7 +48,7 @@ export const Decision: Story = {};
 export const Stamped: Story = {
   render: () => ({
     template: `
-      <div style="display: grid; gap: var(--space-4)">
+      <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)">
         ${decision("'positive'")}
         ${decision("'negative'")}
         ${decision("'neutral'")}

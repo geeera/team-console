@@ -6,7 +6,7 @@ import { Button } from '../button/button';
 import { StateBlock } from './state-block';
 
 const allKinds = `
-  <div style="display: grid; gap: var(--space-4)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)">
     <tc-state-block kind="empty" [title]="'stories.stateBlock.emptyTitle' | transloco" [description]="'stories.stateBlock.emptyDescription' | transloco" />
     <tc-state-block kind="error" [title]="'stories.stateBlock.errorTitle' | transloco" [description]="'stories.stateBlock.errorDescription' | transloco">
       <button tc-button tc-state-action variant="primary" type="button">{{ 'ui.error.retry' | transloco }}</button>

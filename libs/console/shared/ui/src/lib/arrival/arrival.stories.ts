@@ -8,7 +8,7 @@ import { Receipt } from '../receipt/receipt';
 
 /** The class `markArrival()` adds; the story shows the ring as it stays after the swell. */
 const arrived = `
-  <div style="display: grid; gap: var(--space-6); max-width: var(--log-max); padding: var(--space-4)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); max-width: var(--log-max); padding: var(--space-4)">
     <tc-card flush class="tc-arrival">
       <span tc-card-kind>{{ 'stories.arrival.kind' | transloco }}</span>
       <span tc-card-number>#42</span>

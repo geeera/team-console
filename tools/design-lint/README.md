@@ -6,7 +6,7 @@ on `display: grid` rules without a column template (#839).
 
 ## Grid baseline (`grid-columns-baseline.json`)
 
-Rules that predate the grid check are listed per file with their hit count: 124 hits in 74 files (194 in 109 when the baseline was
+Rules that predate the grid check are listed per file with their hit count: 104 hits in 60 files (194 in 109 when the baseline was
 recounted in #898; the sum of the JSON values is the number).
 
 - A file may not have more hits than its baseline count; an unlisted file allows none.
