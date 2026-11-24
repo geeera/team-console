@@ -46,21 +46,16 @@
   }
 }
 
-/* Reduced motion: the new value stands at once; the old one is never shown. */
+/*
+ * Reduced motion: the old value is never shown and the new one stands at once. The entering animation stays, on the
+ * token duration that collapses to a frame, so `animationend` still fires and the old value leaves the DOM.
+ */
 @media (prefers-reduced-motion: reduce) {
-  .tc-roll__out {
+  :host-context(:root:not([data-motion='full'])) .tc-roll__out {
     display: none;
-  }
-
-  .tc-roll__in--rolling {
-    animation: none;
   }
 }
 
 :host-context(:root[data-motion='reduce']) .tc-roll__out {
   display: none;
-}
-
-:host-context(:root[data-motion='reduce']) .tc-roll__in--rolling {
-  animation: none;
 }
