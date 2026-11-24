@@ -7,7 +7,7 @@ import { Icon } from '../icon/icon';
 import { Banner } from './banner';
 
 const both = `
-  <div style="display: grid; gap: var(--space-4)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)">
     <div tc-banner tone="warning">
       <tc-icon tc-banner-icon name="pause" />
       <p tc-banner-text>{{ 'stories.banner.owner' | transloco }}</p>

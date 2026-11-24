@@ -15,7 +15,7 @@ const receipt = (tone: string, verb: string) => `
 `;
 
 const allTones = `
-  <div style="display: grid; gap: var(--space-4)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)">
     ${receipt('positive', 'approved')}
     ${receipt('negative', 'rejected')}
     ${receipt('neutral', 'done')}

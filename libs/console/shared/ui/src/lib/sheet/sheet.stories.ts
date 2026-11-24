@@ -34,7 +34,7 @@ import { SheetFooter } from './sheet-footer';
         <span tc-row-title>{{ projects[2] }}</span>
       </tc-list-row>
     </tc-list>
-    <div style="display: grid; gap: var(--space-2); margin-top: var(--space-4)">
+    <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-2); margin-top: var(--space-4)">
       <button tc-button variant="primary" block type="button">
         {{ 'stories.sheet.addProject' | transloco }}
       </button>
@@ -85,7 +85,7 @@ class FooterSheetContent {
   selector: 'tc-story-long-form-sheet',
   imports: [Button, Choice, ChoiceGroup, SheetFooter, TranslocoPipe],
   template: `
-    <form id="tc-story-long-form" style="display: grid; gap: var(--space-4)" (submit)="send($event)">
+    <form id="tc-story-long-form" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4)" (submit)="send($event)">
       <p style="margin: 0">{{ 'stories.sheet.longIntro' | transloco }}</p>
       @for (group of groups; track group) {
         <fieldset tc-choice-group [legend]="'stories.sheet.longSprint' | transloco">
@@ -140,7 +140,7 @@ class LongFormSheetContent {
       <button tc-button size="sm" type="button" aria-pressed="true">{{ 'stories.sheet.fullToolbarA' | transloco }}</button>
       <button tc-button size="sm" type="button" aria-pressed="false">{{ 'stories.sheet.fullToolbarB' | transloco }}</button>
     </div>
-    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; gap: var(--space-3)">
+    <div style="flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-4); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3)">
       @for (block of blocks; track block) {
         <div style="height: var(--stamp-size); border-radius: var(--r-md); background: var(--skeleton)"></div>
       }
@@ -177,7 +177,7 @@ class FullSheetContent {
     TranslocoPipe,
   ],
   template: `
-    <form id="tc-story-task-form" style="display: grid; gap: var(--space-5)" (submit)="send($event)">
+    <form id="tc-story-task-form" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5)" (submit)="send($event)">
       <tc-field
         required
         [label]="'stories.sheet.taskName' | transloco"

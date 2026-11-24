@@ -7,7 +7,7 @@ import { Icon } from '../icon/icon';
 import { StatusCard } from './status-card';
 
 const states = `
-  <div style="display: grid; gap: var(--space-6); max-width: var(--log-max)">
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-6); max-width: var(--log-max)">
     <div tc-status-card loading [loadingLabel]="'stories.statusCard.checking' | transloco"></div>
     <div tc-status-card>
       <div tc-status-card-row>
