@@ -8,7 +8,6 @@ import { Stat, Stats, StatTone } from './stat';
   template: `
     <dl tc-stats [columns]="columns()">
       <div tc-stat label="Done" [sub]="sub()">3 of 9</div>
-      <div tc-stat label="Open" [rollingValue]="open()"></div>
       <div
         tc-stat
         label="CI"
@@ -19,6 +18,7 @@ import { Stat, Stats, StatTone } from './stat';
       >
         1 PR failed
       </div>
+      <div tc-stat label="Open" [rollingValue]="open()"></div>
     </dl>
   `,
 })
@@ -31,7 +31,7 @@ class Host {
   readonly open = signal<string | null>(null);
   private readonly tiles = viewChildren(Stat);
   ci(): Stat {
-    return this.tiles()[2] as Stat;
+    return this.tiles()[1] as Stat;
   }
   activated = 0;
 }
@@ -54,7 +54,7 @@ describe('Stats and Stat', () => {
     const { root } = await render();
     const list = root.querySelector('dl') as HTMLElement;
 
-    expect([...list.children].map((child) => child.tagName)).toEqual(['DIV', 'DIV']);
+    expect([...list.children].map((child) => child.tagName)).toEqual(['DIV', 'DIV', 'DIV']);
     const first = list.children[0] as HTMLElement;
     expect([...first.children].map((child) => child.tagName)).toEqual(['DT', 'DD']);
     expect(first.querySelector('dt')?.textContent).toBe('Done');
@@ -86,7 +86,7 @@ describe('Stats and Stat', () => {
 
   it('is plain text until it has an action label, then a named button in the dd that emits activate', async () => {
     const { fixture, stats, settle } = await render();
-    const ci = stats()[2] as HTMLElement;
+    const ci = stats()[1] as HTMLElement;
     expect(ci.querySelector('button')).toBeNull();
     expect(ci.classList.contains('tc-stat--action')).toBe(false);
 
@@ -121,7 +121,7 @@ describe('Stats and Stat', () => {
 
   it('puts the state glyph before the label, hidden from assistive tech, and the label text after it', async () => {
     const { fixture, stats, settle } = await render();
-    const ci = stats()[2] as HTMLElement;
+    const ci = stats()[1] as HTMLElement;
     expect(ci.querySelector('.tc-stat__icon')).toBeNull();
 
     fixture.componentInstance.icon.set('x');
@@ -150,7 +150,7 @@ describe('Stats and Stat', () => {
 
   it('rolls a value given as text, and shows projected content as it is', async () => {
     const { fixture, stats, settle } = await render();
-    const open = stats()[1] as HTMLElement;
+    const open = stats()[2] as HTMLElement;
     expect(open.querySelector('tc-roll')).toBeNull();
 
     fixture.componentInstance.open.set('4');
