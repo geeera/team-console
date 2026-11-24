@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { describeOptions } from './local-stack';
 import { parseServeWorkerOptions, type ServeWorkerOptions } from './serve-worker-options.mts';
@@ -9,7 +10,7 @@ const api: ServeWorkerOptions = {
   port: 8800,
   inspectorPort: 0,
   persistTo: '/tmp/stack/api-state',
-  vars: { ENVIRONMENT: 'local', TOKEN_ENCRYPTION_KEY: 'c2VjcmV0LW9mLXRoaXMtcnVu' },
+  vars: { ENVIRONMENT: 'local', TOKEN_ENCRYPTION_KEY: randomBytes(32).toString('base64') },
 };
 
 describe('parseServeWorkerOptions', () => {
