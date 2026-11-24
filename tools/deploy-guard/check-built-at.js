@@ -28,11 +28,15 @@ function assertValidStamp(stamp) {
     throw new Error(`${DEFINE_KEY} is missing or not a string`);
   }
   if (stamp === 'local') {
-    throw new Error(`${DEFINE_KEY} is still the "local" default — the stamp step did not run or did not apply`);
+    throw new Error(
+      `${DEFINE_KEY} is still the "local" default — the stamp step did not run or did not apply`,
+    );
   }
   const match = STAMP.exec(stamp);
   if (match === null) {
-    throw new Error(`${DEFINE_KEY} ${JSON.stringify(stamp)} is not a UTC timestamp like 2026-01-31T12:00:00Z (abc1234)`);
+    throw new Error(
+      `${DEFINE_KEY} ${JSON.stringify(stamp)} is not a UTC timestamp like 2026-01-31T12:00:00Z (abc1234)`,
+    );
   }
   // The regex admits 2026-02-31T25:61:61Z; a round trip through Date rejects anything that is not a real instant.
   const iso = `${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:${match[6]}`;
@@ -51,7 +55,12 @@ function readStamp(projectJsonSource) {
   try {
     project = JSON.parse(projectJsonSource);
   } catch (error) {
-    throw new Error(`project.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(
+      `project.json is not valid JSON: ${error instanceof Error ? error.message : String(error)}`,
+      {
+        cause: error,
+      },
+    );
   }
   const define = project?.targets?.build?.configurations?.production?.define;
   if (typeof define !== 'object' || define === null || !Object.hasOwn(define, DEFINE_KEY)) {
@@ -64,17 +73,21 @@ function readStamp(projectJsonSource) {
   let stamp;
   try {
     stamp = JSON.parse(expression);
-  } catch {
-    throw new Error(`${DEFINE_KEY} define ${JSON.stringify(expression)} is not a JSON string literal`);
+  } catch (error) {
+    throw new Error(`${DEFINE_KEY} define ${JSON.stringify(expression)} is not a JSON string literal`, {
+      cause: error,
+    });
   }
   assertValidStamp(stamp);
   return stamp;
 }
 
 function listScripts(directory) {
-  return fs.readdirSync(directory, { withFileTypes: true, recursive: true }).flatMap((entry) =>
-    entry.isFile() && entry.name.endsWith('.js') ? [path.join(entry.parentPath, entry.name)] : [],
-  );
+  return fs
+    .readdirSync(directory, { withFileTypes: true, recursive: true })
+    .flatMap((entry) =>
+      entry.isFile() && entry.name.endsWith('.js') ? [path.join(entry.parentPath, entry.name)] : [],
+    );
 }
 
 /**

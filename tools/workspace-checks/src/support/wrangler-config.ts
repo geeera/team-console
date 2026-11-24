@@ -35,6 +35,7 @@ export interface WranglerEnvConfig {
   readonly workers_dev?: boolean;
   readonly preview_urls?: boolean;
   readonly assets?: {
+    readonly directory?: string;
     readonly binding?: string;
     readonly not_found_handling?: string;
     readonly run_worker_first?: readonly string[] | boolean;

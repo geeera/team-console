@@ -43,9 +43,19 @@ for (const garbage of [
   '2026-11-24T09:41:07Z (686b1da)\n',
   '2026-11-24T09:41:07Z (686b1da)"; alert(1); "',
 ]) {
-  assert.throws(() => assertValidStamp(garbage), /not a UTC timestamp/, `must reject ${JSON.stringify(garbage)}`);
+  assert.throws(
+    () => assertValidStamp(garbage),
+    /not a UTC timestamp/,
+    `must reject ${JSON.stringify(garbage)}`,
+  );
 }
-for (const impossible of ['2026-02-30T00:00:00Z', '2027-02-29T00:00:00Z', '2026-13-01T00:00:00Z', '2026-11-24T24:00:00Z', '2026-11-24T09:60:00Z']) {
+for (const impossible of [
+  '2026-02-30T00:00:00Z',
+  '2027-02-29T00:00:00Z',
+  '2026-13-01T00:00:00Z',
+  '2026-11-24T24:00:00Z',
+  '2026-11-24T09:60:00Z',
+]) {
   assert.throws(() => assertValidStamp(impossible), /not a valid date and time/, `must reject ${impossible}`);
 }
 
@@ -72,12 +82,18 @@ try {
   assert.throws(() => assertStampInBundle(STAMP, browser), /not compiled into any script/);
 
   // The stamp only inside a longer string or a comment is not the inlined define.
-  fs.writeFileSync(path.join(browser, 'main-ABC.js'), `const b={builtAt:"local"};/* ${STAMP} */const c="x${STAMP}";`);
+  fs.writeFileSync(
+    path.join(browser, 'main-ABC.js'),
+    `const b={builtAt:"local"};/* ${STAMP} */const c="x${STAMP}";`,
+  );
   assert.throws(() => assertStampInBundle(STAMP, browser), /not compiled into any script/);
 
   // Whatever quote the minifier picks (the production build emits a template literal).
   for (const quote of ['`', '"', "'"]) {
-    fs.writeFileSync(path.join(browser, 'chunks', 'chunk-DEF.js'), `const b={version:"0.1.0",builtAt:${quote}${STAMP}${quote}};`);
+    fs.writeFileSync(
+      path.join(browser, 'chunks', 'chunk-DEF.js'),
+      `const b={version:"0.1.0",builtAt:${quote}${STAMP}${quote}};`,
+    );
     assertStampInBundle(STAMP, browser);
   }
   assert.throws(() => assertStampInBundle('2026-11-24T09:41:08Z (686b1da)', browser), /not compiled/);
@@ -105,4 +121,6 @@ try {
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 
-process.stdout.write('ok: check-built-at rejects a missing, "local" or malformed stamp and one absent from the bundle\n');
+process.stdout.write(
+  'ok: check-built-at rejects a missing, "local" or malformed stamp and one absent from the bundle\n',
+);

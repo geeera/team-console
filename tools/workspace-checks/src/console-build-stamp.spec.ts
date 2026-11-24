@@ -29,10 +29,14 @@ const BROWSER_DIR = 'dist/apps/console/browser';
 
 describe('deploy.yml console build-stamp check', () => {
   const stamp = indexOf((step) => step.run?.includes('__TC_BUILT_AT__') === true);
-  const configCheck = indexOf((step) => step.run === 'node tools/deploy-guard/check-built-at.js config apps/console/project.json');
+  const configCheck = indexOf(
+    (step) => step.run === 'node tools/deploy-guard/check-built-at.js config apps/console/project.json',
+  );
   const build = indexOf((step) => step.run?.startsWith('npx nx run-many -t build') === true);
   const bundleCheck = indexOf(
-    (step) => step.run === `node tools/deploy-guard/check-built-at.js bundle apps/console/project.json ${BROWSER_DIR}`,
+    (step) =>
+      step.run ===
+      `node tools/deploy-guard/check-built-at.js bundle apps/console/project.json ${BROWSER_DIR}`,
   );
   const firstWrangler = indexOf((step) => step.uses?.startsWith('cloudflare/wrangler-action@') === true);
 
