@@ -6,6 +6,7 @@
 /* A folder on the desk: a strip of sunken paper while closed, the page's surface once open (#108 design). */
 .folder {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
   border: var(--border-w) solid var(--border);
@@ -27,6 +28,7 @@
 
 .folder__title {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   margin: 0;
   scroll-margin-top: var(--space-4);
 }
@@ -73,6 +75,7 @@
 /* No height animation: the body appears at once, which also covers reduced motion. */
 .folder__body {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
   min-width: 0;
 }
@@ -89,6 +92,7 @@
 
 .folder__skeleton {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--r-sm);

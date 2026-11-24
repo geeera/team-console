@@ -124,11 +124,13 @@ export function folderKeyOf(folder: BoardFolderSpec): string {
   styles: `
     :host {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-3);
     }
 
     .folders__no-next {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       justify-items: start;
       gap: var(--space-2);
     }

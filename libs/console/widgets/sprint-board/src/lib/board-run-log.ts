@@ -43,6 +43,7 @@ let nextRunLogId = 0;
   styles: `
     .run-log {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-3);
       margin-top: var(--space-5);
       padding-top: var(--space-4);
