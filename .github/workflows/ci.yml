@@ -134,14 +134,18 @@ jobs:
           TC_RUNNER_TEST_IMAGE: tc-runner:ci-fake
         run: npx vitest run --config apps/runner/vitest.config.mts src/integration/container.integration.spec.ts
 
-  # #947: GitHub's hosted macOS arm64 pool is capacity-constrained; a `macos-latest` job can sit queued for 20+
-  # minutes and then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after
-  # multiple attempts") — `timeout-minutes` never starts, and the run goes red for a change that could not have
-  # touched the sweep. So the macOS job runs only when its inputs can have changed: anything under `apps/runner/`
-  # (the templates, the spec, its vitest config), this workflow and its composite action, or the toolchain pins the
-  # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there. A skipped job
-  # satisfies a required check, so the gate reads the same either way. Decided here on Linux (git only, no API
-  # call, as `lint-test-build`'s "Select projects" does), not on the macOS runner the decision is meant to spare.
+  # #947: GitHub's hosted macOS pools are capacity-constrained; a macOS job can sit queued for 20+ minutes and
+  # then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after multiple
+  # attempts") — `timeout-minutes` never starts, and the run goes red for a change that could not have touched
+  # the sweep. So the macOS job runs only when its inputs can have changed: anything under `apps/runner/` (the
+  # templates, the spec, its vitest config), `libs/shared/contracts/` (the templates import `NODE_FILE` and
+  # `RUNNER_INSTALL_PREFIX` from there), this workflow and its composite action, or the toolchain pins the
+  # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there.
+  # `runner-darwin-sweep` is not itself one of dev's required status checks (branch ruleset 24176349 requires
+  # `lint-test-build`, `secret-scan`, `sast`, `dependency-audit`, `e2e`, `runner-container`, `workflow-lint`), so
+  # a skipped sweep never blocks a merge either way — scoping only saves minutes and avoids the queue below.
+  # Decided here on Linux (git only, no API call, as `lint-test-build`'s "Select projects" does), not on the
+  # macOS runner the decision is meant to spare.
   runner-darwin-scope:
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -161,13 +165,16 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          paths='^(apps/runner/|\.github/workflows/ci\.yml$|\.github/actions/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|vitest\.config\.mts$)'
+          paths='^(apps/runner/|libs/shared/contracts/|\.github/workflows/ci\.yml$|\.github/actions/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|vitest\.config\.mts$)'
+          # --no-renames + core.quotePath=false: a plain `git diff --name-only` only prints a renamed file's new
+          # path (missing the old one a rename-out-of-scope touched) and C-style-escapes non-ASCII paths, so
+          # either would let a change slip past the regex below (#955 review, ci.yml:170/:178).
           if [ "${EVENT}" = "pull_request" ]; then
             if [ "${BASE_REF}" != "dev" ]; then
               run=true; why="release PR into ${BASE_REF}"
             else
               # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
-              changed=$(git diff --name-only HEAD^1 HEAD)
+              changed=$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD)
               if grep -Eq "${paths}" <<< "${changed}"; then
                 run=true; why="runner, CI or toolchain files changed"
               else
@@ -175,7 +182,7 @@ jobs:
               fi
             fi
           elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            changed=$(git diff --name-only "${BEFORE}" HEAD)
+            changed=$(git -c core.quotePath=false diff --no-renames --name-only "${BEFORE}" HEAD)
             if grep -Eq "${paths}" <<< "${changed}"; then
               run=true; why="runner, CI or toolchain files changed since ${BEFORE}"
             else
@@ -191,10 +198,15 @@ jobs:
   # apps/runner/src/install/templates.spec.ts) only ever ran on the Linux runners above, so it never actually
   # executed in CI. A dedicated macOS job for just that one spec file keeps the minutes small instead of
   # moving the whole runner suite (or `lint-test-build`) onto a macOS runner.
+  # #958: even scoped (above), this job kept queuing out on `macos-latest`'s arm64 pool. `macos-15-intel` is
+  # GitHub's separate x64 pool — same real macOS run #651 asked for, just not sharing the arm64 pool's
+  # capacity problem. Nothing the sweep checks is arch-sensitive: `getconf`'s Darwin keys and the
+  # `/var/folders/<..>/[TC]` layout templates.spec.ts asserts on are identical on Intel and Apple silicon, and
+  # `homebrewBinOf` (templates.ts) already covers both Homebrew prefixes (`/opt/homebrew` and `/usr/local`).
   runner-darwin-sweep:
     needs: runner-darwin-scope
     if: needs.runner-darwin-scope.outputs.run == 'true'
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
