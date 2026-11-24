@@ -250,10 +250,12 @@
 
 /*
  * #348: rows that arrive after «Обновить» lay out one after another, a short rise and a fade. The step between rows
- * is `ROW_STAGGER_MS` in the view, set per row as its animation delay. Reduced motion: all at once, no rise.
+ * is the #506 `--stagger` token, multiplied by `--i` (the row's place in arrival order, set by the view). Reduced
+ * motion: `--stagger` is 0, so every row lands at once with no rise.
  */
 .repo--new {
   animation: repo-in var(--dur-base) var(--ease-enter) both;
+  animation-delay: calc(var(--i, 0) * var(--stagger));
 }
 
 @keyframes repo-in {

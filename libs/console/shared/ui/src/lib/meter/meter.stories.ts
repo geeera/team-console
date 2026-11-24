@@ -33,13 +33,13 @@ export default meta;
 type Story = StoryObj<Meter>;
 
 export const Playground: Story = {};
-/** First show (#359): the fill grows from the start edge; neighbours start 40 ms apart through `--meter-delay`. */
+/** First show (#359): the fill grows from the start edge; neighbours start one `--stagger` step apart through `--i`. */
 export const Appear: Story = {
   render: () => ({
     template: `
       <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3)">
-        @for (delay of [0, 40, 80]; track delay) {
-          <tc-meter appear [value]="5" [max]="8" [style.--meter-delay.ms]="delay" />
+        @for (i of [0, 1, 2]; track i) {
+          <tc-meter appear [value]="5" [max]="8" [style.--i]="i" />
         }
       </div>
     `,
@@ -48,6 +48,18 @@ export const Appear: Story = {
 export const AppearReducedMotion: Story = {
   ...reducedMotion,
   render: () => ({ template: `<tc-meter appear [value]="5" [max]="8" />` }),
+};
+/** #943: the start edge is `inline-start`, so under RTL the fill grows from the right and its transform-origin follows. */
+export const AppearRtl: Story = {
+  render: () => ({
+    template: `
+      <div dir="rtl" style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3)">
+        @for (i of [0, 1, 2]; track i) {
+          <tc-meter appear [value]="5" [max]="8" [style.--i]="i" />
+        }
+      </div>
+    `,
+  }),
 };
 export const States: Story = { render: () => ({ template: states }) };
 export const Dark: Story = { ...darkTheme, render: () => ({ template: states }) };

@@ -21,8 +21,8 @@ const TEAM_TONE: Readonly<Record<OverviewTeamState, ChipTone>> = {
   unknown: 'warning',
 };
 
-/** The step between neighbouring cards' meters (#359); past this many cards the rest fill with the last. */
-const METER_STAGGER_MS = 40;
+/** Neighbouring cards' meters fill one after another (#359, via `--i` and the #506 `--stagger` token); past this
+ *  many cards the rest fill with the last. */
 const MAX_STAGGERED_CARDS = 8;
 
 /** Not read in this request: the Worker's subrequest budget ran out first; the next request continues. */
@@ -84,7 +84,7 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
           <tc-meter
             class="ov__meter"
             appear
-            [style.--meter-delay.ms]="meterDelay()"
+            [style.--i]="meterIndex()"
             [value]="sprint.shipped"
             [max]="sprint.planned"
           />
@@ -177,9 +177,8 @@ export class OverviewTile {
     return days < 0 ? null : { n: days };
   });
 
-  protected readonly meterDelay = computed(
-    () => Math.min(this.index(), MAX_STAGGERED_CARDS) * METER_STAGGER_MS,
-  );
+  /** This card's place in the stagger (#506's `--stagger` token does the timing, in CSS). */
+  protected readonly meterIndex = computed(() => Math.min(this.index(), MAX_STAGGERED_CARDS));
 
   protected readonly snoozeLine = computed<string | null>(() => {
     const snooze = this.snooze();
