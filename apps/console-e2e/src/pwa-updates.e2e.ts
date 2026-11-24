@@ -98,6 +98,8 @@ test.describe('PWA updates', () => {
     await openInstalled(page, '/overview');
     await expect(page.getByTestId('updated-note'), 'no note on a plain start').toHaveCount(0);
 
+    // Build B here stamps its own builtAt (writeNextBuild's default, #941), the way a real deploy's own
+    // __TC_BUILT_AT__ always would even when the version string does not change.
     deploys.deployNext();
     await leaveAndReturn(page);
     await expectBuildB(page);
@@ -109,6 +111,29 @@ test.describe('PWA updates', () => {
 
     await page.reload();
     await expect(page.getByTestId('updated-note'), 'the note shows once').toHaveCount(0);
+  });
+
+  test('after a same-build switch (same version, same builtAt) the page updates but shows no «Обновлено» note (#941)', async ({
+    page,
+  }, testInfo) => {
+    await openInstalled(page, '/overview');
+    await expect(page.getByTestId('updated-note'), 'no note on a plain start').toHaveCount(0);
+
+    // A later route registration overrides the beforeEach one for matching requests (Playwright runs routes
+    // last-registered-first): this swaps in a build that is byte-identical in build identity too (`sameBuild`),
+    // the rare "nothing actually changed" deploy the note must stay quiet for (#941).
+    const sameBuild = writeNextBuild(`worker-${testInfo.workerIndex}-same`, { sameBuild: true });
+    const sameDeploys = await routeDeploys(page.context(), new URL(page.url()).origin, sameBuild);
+    sameDeploys.deployNext();
+    await leaveAndReturn(page);
+    await expectBuildB(page);
+
+    await expect(page.getByTestId('updated-note'), 'no note when the build did not change').toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('tc.updated-from.v1')), 'the mark is consumed').toBeNull();
+    await expectAccessible(page, 'the page after a same-build switch');
+
+    await page.reload();
+    await expect(page.getByTestId('updated-note'), 'still no note on a later reload').toHaveCount(0);
   });
 
   test('a broken worker heals itself: caches cleared, worker unregistered, one load past it', async ({

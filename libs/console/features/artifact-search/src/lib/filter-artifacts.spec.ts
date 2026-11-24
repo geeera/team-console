@@ -1,6 +1,6 @@
 import type { Artifact } from '@console/entities/artifact';
 import { ARTIFACT_TYPES } from '@shared/contracts';
-import { artifactTypeCounts, filterArtifacts } from './filter-artifacts';
+import { artifactQueryTerms, artifactTypeCounts, filterArtifacts } from './filter-artifacts';
 
 function artifact(index: number): Artifact {
   const type = ARTIFACT_TYPES[index % ARTIFACT_TYPES.length] ?? 'decision';
@@ -45,6 +45,22 @@ describe('filterArtifacts', () => {
     expect(filterArtifacts(items, { type: null, query: '<b>' })).toHaveLength(1);
   });
 
+  it('matches Turkish İ/ı against plain ASCII I/i, in either direction (#945)', () => {
+    // `toLocaleLowerCase()` alone lowers "İ" (dotted capital) to "i" + a combining dot above under the default
+    // (non-`tr`) locale, which never `includes()`-matches a plain "i" — the bug this fold closes.
+    const dottedTitle = [{ ...artifact(1), title: 'İstanbul köprüsü' }];
+    expect(filterArtifacts(dottedTitle, { type: null, query: 'istanbul' })).toHaveLength(1);
+
+    // The dotless lowercase "ı" in a title should answer a plain ASCII "i" query the same way.
+    const dotlessTitle = [{ ...artifact(2), title: 'Kızılay meydanı' }];
+    expect(filterArtifacts(dotlessTitle, { type: null, query: 'kizilay' })).toHaveLength(1);
+
+    // And a query typed with the Turkish letters should find an ordinary ASCII (`en`) title.
+    const asciiTitle = [{ ...artifact(3), title: 'Izmir plan' }];
+    expect(filterArtifacts(asciiTitle, { type: null, query: 'İZMİR' })).toHaveLength(1);
+    expect(filterArtifacts(asciiTitle, { type: null, query: 'ızmır' })).toHaveLength(1);
+  });
+
   it('filters 250 artifacts in well under one frame (median of 20 runs < 16 ms)', () => {
     const runs = Array.from({ length: 20 }, (_, run) => {
       const started = performance.now();
@@ -52,6 +68,17 @@ describe('filterArtifacts', () => {
       return performance.now() - started;
     });
     expect(median(runs)).toBeLessThan(16);
+  });
+});
+
+describe('artifactQueryTerms', () => {
+  it('folds every Turkish I variant to the same plain "i" (tr input)', () => {
+    expect(artifactQueryTerms('İZMİR')).toEqual(['izmir']);
+    expect(artifactQueryTerms('Kızılay')).toEqual(['kizilay']);
+  });
+
+  it('folds ordinary ASCII the same way (en input)', () => {
+    expect(artifactQueryTerms('IZMIR Istanbul')).toEqual(['izmir', 'istanbul']);
   });
 });
 

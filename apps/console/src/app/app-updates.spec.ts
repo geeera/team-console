@@ -139,18 +139,37 @@ describe('AppUpdates', () => {
     await flush();
   }
 
-  describe('the «Обновлено» mark (#347)', () => {
-    it('leaves a mark for the next page when «Обновить» reloads the page', async () => {
+  describe('the «Обновлено» mark (#347, #941)', () => {
+    const identityOf = (builtAt: string): string => `${buildInfo.version}@${builtAt}`;
+
+    it('leaves the pre-activation build identity as a mark for the next page when «Обновить» reloads', async () => {
       const updates = start();
       await flush();
       await updates.activate();
 
-      expect(storage.getItem(UPDATED_MARK_KEY)).toBe('1');
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBe(identityOf(buildInfo.builtAt));
       expect(platform.reload).toHaveBeenCalledTimes(1);
     });
 
-    it('names the new version once after the reload and clears the mark', () => {
-      storage.setItem(UPDATED_MARK_KEY, '1');
+    it('sets the mark before calling activateUpdate, so a reload mid-activation still finds it', async () => {
+      const order: string[] = [];
+      storage.setItem = (key, value) => {
+        order.push('mark');
+        storage.items.set(key, value);
+      };
+      sw.activateUpdate.mockImplementation(async () => {
+        order.push('activate');
+        return true;
+      });
+      const updates = start();
+      await flush();
+      await updates.activate();
+
+      expect(order).toEqual(['mark', 'activate']);
+    });
+
+    it('names the new version once after the reload and clears the mark, when the stored identity differs', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf('some-older-deploy'));
       const updates = start();
 
       expect(updates.justUpdatedTo()).toBe(buildInfo.version);
@@ -158,6 +177,22 @@ describe('AppUpdates', () => {
 
       updates.dismissUpdated();
       expect(updates.justUpdatedTo()).toBeNull();
+    });
+
+    it('shows the note for a redeploy of the same version: builtAt alone differs', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf('an-earlier-deploy-of-the-same-version'));
+      const updates = start();
+
+      expect(updates.justUpdatedTo()).toBe(buildInfo.version);
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBeNull();
+    });
+
+    it('stays silent, but still clears the mark, when the stored identity equals the current one', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf(buildInfo.builtAt));
+      const updates = start();
+
+      expect(updates.justUpdatedTo()).toBeNull();
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBeNull();
     });
 
     it('stays silent on a plain start with no mark', () => {

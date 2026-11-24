@@ -17,6 +17,7 @@ import { ItemsApi, itemRouteOf, shownStatusOf } from '@console/entities/item';
 import { NetworkStatus } from '@console/shared/api';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Icon } from '@console/shared/ui';
+import { debounce } from '@console/shared/utils';
 import type { ItemSummaryDto } from '@shared/contracts';
 import { findQueryOf, githubIssueUrl, matchesOf, type FindProject, type FindQuery } from './find-query';
 
@@ -66,15 +67,11 @@ export class FindItem implements OnInit {
     return outcome.kind === 'found' ? outcome.items.slice(0, SHOWN_MAX) : [];
   });
   private all: ItemSummaryDto[] | null = null;
-  private timer: ReturnType<typeof setTimeout> | null = null;
+  private readonly debouncedSearch = debounce((value: string) => void this.search(value), FIND_DEBOUNCE_MS);
   private token = 0;
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => {
-      if (this.timer !== null) {
-        clearTimeout(this.timer);
-      }
-    });
+    inject(DestroyRef).onDestroy(() => this.debouncedSearch.cancel());
   }
 
   ngOnInit(): void {
@@ -87,10 +84,7 @@ export class FindItem implements OnInit {
 
   protected onInput(value: string): void {
     this.text.set(value);
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-    }
-    this.timer = setTimeout(() => void this.search(value), FIND_DEBOUNCE_MS);
+    this.debouncedSearch(value);
   }
 
   /** Enter on an exact number opens it directly. */

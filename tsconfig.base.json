@@ -106,7 +106,8 @@
       "@console/features/budget-stop": ["./libs/console/features/budget-stop/src/index.ts"],
       "@console/features/team-config": ["./libs/console/features/team-config/src/index.ts"],
       "@console/entities/actions-setup": ["./libs/console/entities/actions-setup/src/index.ts"],
-      "@console/features/actions-setup": ["./libs/console/features/actions-setup/src/index.ts"]
+      "@console/features/actions-setup": ["./libs/console/features/actions-setup/src/index.ts"],
+      "@console/shared/utils": ["./libs/console/shared/utils/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]
