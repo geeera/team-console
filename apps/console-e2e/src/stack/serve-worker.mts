@@ -12,6 +12,7 @@
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { unstable_getMiniflareWorkerOptions, unstable_readConfig } from 'wrangler';
+// Types only, from the hoisted copy; the value below is the Miniflare wrangler itself depends on.
 import type * as MiniflareModule from 'miniflare';
 import {
   parseServeWorkerOptions,
@@ -51,6 +52,8 @@ async function serve(options: ServeWorkerOptions): Promise<void> {
       inspectorPort: options.inspectorPort,
       // wrangler's own layout under --persist-to (`<dir>/v3/d1/…`), so the migrated template copies in as it is.
       resourcePersistencePath: join(resolve(options.persistTo), 'v3'),
+      // Miniflare's fallback `request.cf` rather than one fetched from workers.cloudflare.com: the stack stays offline.
+      cf: false,
       log: new Log(LogLevel.INFO),
       // wrangler dev printed one line per request; the logs keep them as evidence.
       logRequests: true,
@@ -64,7 +67,11 @@ function describe(error: unknown): string {
   return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }
 
-serve(parseServeWorkerOptions(process.env[SERVE_WORKER_OPTIONS])).catch((error: unknown) => {
+async function main(): Promise<void> {
+  await serve(parseServeWorkerOptions(process.env[SERVE_WORKER_OPTIONS]));
+}
+
+main().catch((error: unknown) => {
   process.stderr.write(`serve-worker: ${describe(error)}\n`);
   process.exit(1);
 });
