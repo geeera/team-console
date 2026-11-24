@@ -28,6 +28,7 @@ export * from './lib/ledger/ledger';
 export * from './lib/menu/menu';
 export * from './lib/meter/meter';
 export * from './lib/list/list';
+export * from './lib/paper-note/paper-note';
 export * from './lib/picker-button/picker-button';
 export * from './lib/pinned-column/pinned-column';
 export * from './lib/receipt/receipt';

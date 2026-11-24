@@ -40,7 +40,8 @@ import { AppUpdates } from './app-updates';
       max-width: var(--dialog-max-w);
       margin-inline: auto;
       padding: var(--space-3) calc(var(--space-4) + var(--safe-right))
-        calc(var(--space-3) + var(--update-banner-safe, var(--safe-bottom))) calc(var(--space-4) + var(--safe-left));
+        calc(var(--space-3) + var(--update-banner-safe, var(--safe-bottom)))
+        calc(var(--space-4) + var(--safe-left));
     }
 
     /* The banner's tint is translucent; floating over the page, it needs paper under it to stay legible. */

@@ -3,12 +3,14 @@ import { TestBed } from '@angular/core/testing';
 import { SwUpdate, UnrecoverableStateEvent, VersionEvent } from '@angular/service-worker';
 import { PAGE_LOCATION } from '@console/shared/api';
 import { Subject } from 'rxjs';
+import { buildInfo } from './build-info';
 import {
   AppUpdates,
   QUIET_WAIT_MS,
   RECOVERY_GUARD_KEY,
   RECOVERY_GUARD_MS,
   UPDATE_CHECK_INTERVAL_MS,
+  UPDATED_MARK_KEY,
   UPDATE_PLATFORM,
   UpdatePlatform,
 } from './app-updates';
@@ -57,6 +59,9 @@ class MemoryStorage {
   }
   setItem(key: string, value: string): void {
     this.items.set(key, value);
+  }
+  removeItem(key: string): void {
+    this.items.delete(key);
   }
 }
 
@@ -133,6 +138,45 @@ describe('AppUpdates', () => {
     document.dispatchEvent(new Event('visibilitychange'));
     await flush();
   }
+
+  describe('the «Обновлено» mark (#347)', () => {
+    it('leaves a mark for the next page when «Обновить» reloads the page', async () => {
+      const updates = start();
+      await flush();
+      await updates.activate();
+
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBe('1');
+      expect(platform.reload).toHaveBeenCalledTimes(1);
+    });
+
+    it('names the new version once after the reload and clears the mark', () => {
+      storage.setItem(UPDATED_MARK_KEY, '1');
+      const updates = start();
+
+      expect(updates.justUpdatedTo()).toBe(buildInfo.version);
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBeNull();
+
+      updates.dismissUpdated();
+      expect(updates.justUpdatedTo()).toBeNull();
+    });
+
+    it('stays silent on a plain start with no mark', () => {
+      expect(start().justUpdatedTo()).toBeNull();
+    });
+
+    it('still reloads when the mark cannot be written', async () => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      storage.setItem = () => {
+        throw new Error('quota');
+      };
+      const updates = start();
+      await flush();
+      await updates.activate();
+
+      expect(platform.reload).toHaveBeenCalledTimes(1);
+      error.mockRestore();
+    });
+  });
 
   describe('checks', () => {
     it('checks on start and on every return to the foreground, not on hiding', async () => {

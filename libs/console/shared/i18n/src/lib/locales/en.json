@@ -4,7 +4,8 @@
     "environment": "Environment:",
     "update": {
       "ready": "A new version is available",
-      "apply": "Update"
+      "apply": "Update",
+      "done": "Updated to v{{version}}"
     },
     "session": {
       "expiredTitle": "Session expired — sign in again",
@@ -1925,6 +1926,9 @@
       "body": "The card a notification led to: the ring stays while it has focus.",
       "action": "Approve",
       "receiptVerb": "You: approved"
+    },
+    "paperNote": {
+      "text": "Updated to v1.2"
     },
     "recommendation": {
       "label": "Team recommends",
