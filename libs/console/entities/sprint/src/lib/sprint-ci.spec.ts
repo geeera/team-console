@@ -74,7 +74,7 @@ describe('SprintCiChip painting', () => {
     const { host } = await render('success');
     expect(host().querySelector('.sprint-ci__fill')?.getAttribute('aria-hidden')).toBe('true');
     expect(host().querySelector('tc-icon')).not.toBeNull();
-    expect(host().textContent?.trim()).toBe('CI прошёл');
+    expect(host().textContent?.trim()).toBe('CI пройден');
   });
 
   it('paints on arrival when the pull request last showed running (the board reloaded whole)', async () => {

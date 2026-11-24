@@ -55,13 +55,12 @@ async function watchPainting(page: Page): Promise<void> {
   await page.evaluate(() => {
     const seen = { painted: false };
     Object.assign(window, { __ciPainted: seen });
-    new MutationObserver((records) => {
-      for (const record of records) {
-        if (record.target instanceof HTMLElement && record.target.classList.contains('sprint-ci-chip--painting')) {
-          seen.painted = true;
-        }
+    // A chip created after a reload carries the class from its first render, so rows added count too.
+    new MutationObserver(() => {
+      if (document.querySelector('.sprint-ci-chip--painting') !== null) {
+        seen.painted = true;
       }
-    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   });
 }
 
