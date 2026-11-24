@@ -92,7 +92,7 @@ const meta: Meta<Args> = {
 export default meta;
 type Story = StoryObj<Args>;
 
-/** Three phone screens, «+3» on the last, «Все экраны (6)» and the summary line. */
+/** Three phone screens in a small fan, «+3» as the corner of the next card, «Все экраны (6)» and the summary line. */
 export const Ready: Story = {};
 export const ReadyPhone: Story = { ...phoneViewport };
 export const Dark: Story = { ...darkTheme };

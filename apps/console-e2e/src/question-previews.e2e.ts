@@ -32,6 +32,27 @@ test.beforeAll(async ({ stack }) => {
   await seed(stack, ['geeera/team-console']);
 });
 
+const tiltOf = (page: Page, index: number): Promise<string> =>
+  previews(page).nth(index).locator('xpath=..').evaluate((li) => getComputedStyle(li).rotate);
+
+test('#350: the previews lie in a small fan that opens on hover, and flat under reduced motion', async ({ page }) => {
+  await showCard(page, '/p/team-console/questions');
+  await animationsSettled(page);
+  await expect.poll(() => tiltOf(page, 0)).toBe('-2deg');
+  expect(await tiltOf(page, 1)).toBe('none');
+  await expect.poll(() => tiltOf(page, 2)).toBe('2deg');
+
+  await previews(page).nth(1).hover();
+  await expect.poll(() => tiltOf(page, 0)).toBe('-4deg');
+  await expect.poll(() => tiltOf(page, 2)).toBe('4deg');
+  await animationsSettled(page);
+  await expectAccessible(page, 'design card with the fan open');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect.poll(() => tiltOf(page, 0)).toMatch(/^(none|-?0deg)$/);
+  await expect.poll(() => tiltOf(page, 2)).toMatch(/^(none|-?0deg)$/);
+});
+
 for (const path of ['/p/team-console/questions', '/needs-you']) {
   test(`${path}: the design card shows three screens, «+4» and «Все экраны (7)»`, async ({ page }) => {
     await showCard(page, path);

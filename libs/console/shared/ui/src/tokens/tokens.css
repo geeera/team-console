@@ -192,6 +192,7 @@
   --stagger: 30ms; /* 0 under reduced motion */
   --motion-shift: 8px; /* = --space-2; 0 under reduced motion, the single switch that removes movement */
   --press-scale: 0.98; /* 1 under reduced motion */
+  --fan-tilt: 2deg; /* the previews on a question card lie in a small fan (#350); 0 under reduced motion */
   /* #409: how long Undo stays offered after a move (the toast's hairline); `UNDO_DURATION_MS` in TS */
   --undo-ms: 10000ms;
 
@@ -351,6 +352,7 @@
     --stagger: 0ms;
     --motion-shift: 0px;
     --press-scale: 1;
+    --fan-tilt: 0deg;
   }
 }
 
@@ -364,4 +366,5 @@
   --stagger: 0ms;
   --motion-shift: 0px;
   --press-scale: 1;
+  --fan-tilt: 0deg;
 }
