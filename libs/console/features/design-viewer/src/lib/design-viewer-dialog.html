@@ -166,7 +166,13 @@
     </button>
   </tc-state-block>
   } @else {
-  <div class="viewer__screen" [class.viewer__screen--zoomed]="zoomed()">
+  @for (key of [screen.path]; track key) {
+  <div
+    class="viewer__screen"
+    [class.viewer__screen--zoomed]="zoomed()"
+    [attr.data-move]="move()"
+    data-testid="viewer-page"
+  >
     @if (!isLoaded(screen)) {
     <div
       class="viewer__skeleton"
@@ -188,6 +194,7 @@
       (error)="onFailed(screen)"
     />
   </div>
+  }
   } } } @case ('grid') {
   <h3 class="tc-sr-only" [id]="id + '-grid'">{{ 'designs.viewer.gridTitle' | transloco }}</h3>
   @if (screens().length === 0) {
