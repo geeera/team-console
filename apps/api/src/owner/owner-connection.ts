@@ -25,7 +25,10 @@ const MAX_PASSES = LEASE_WAIT_ATTEMPTS + 4;
 
 type TokenColumn = 'access_token_enc' | 'refresh_token_enc';
 
-/** `user-id-changed`: refused, nothing stored or revoked (#831). */
+/**
+ * `user-id-changed`: refused, nothing stored or revoked (#831). Not logged here: the caller logs the refusal once,
+ * with what became of the fresh grant (#901).
+ */
 export type ConnectOutcome = 'connected' | 'user-id-changed';
 
 interface PreviousPair {
@@ -168,7 +171,7 @@ export class OwnerConnection implements OwnerTokenSource {
   async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<ConnectOutcome> {
     const previous = await this.repo.find(this.environment);
     if (previous !== null && previous.user_id !== user.id) {
-      return this.refuseChangedUserId(user.login);
+      return 'user-id-changed';
     }
     const retired = previous === null ? null : await this.previousPair(previous);
     const stored = await this.repo.connect({
@@ -180,7 +183,7 @@ export class OwnerConnection implements OwnerTokenSource {
     });
     // The read above is only the fast path: the upsert re-checks the id, so a racing callback cannot swap it (#889).
     if (!stored) {
-      return this.refuseChangedUserId(user.login);
+      return 'user-id-changed';
     }
     if (retired !== null) {
       try {
@@ -239,14 +242,6 @@ export class OwnerConnection implements OwnerTokenSource {
       }
       throw error;
     }
-  }
-
-  private refuseChangedUserId(login: string): ConnectOutcome {
-    this.logger.warn('owner connect refused: the GitHub user id changed since the last connect', {
-      securitySignal: 'owner-user-id-changed',
-      login,
-    });
-    return 'user-id-changed';
   }
 
   /** The previous row's tokens that can still be used: decrypted under the current key and not expired. */

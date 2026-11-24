@@ -244,7 +244,12 @@ export function createGitHubConnectionRoutes(github: ApiGitHub): Hono<WorkerHono
         if ((await connection.connect(user, pair)) === 'user-id-changed') {
           // Another GitHub account under the owner's login: its grant is not the stored connection's, so it goes.
           const revoked = await revokeUnwanted(c, oauth, pair.accessToken, 'grant');
-          logger.warn('owner connect refused: the GitHub user id is not the connected one', { revoked });
+          // The only line for this refusal: `connect` leaves the logging to its caller (#901).
+          logger.warn('owner connect refused: the GitHub user id is not the connected one', {
+            securitySignal: 'owner-user-id-changed',
+            login: user.login,
+            revoked,
+          });
           return backToSettings('user-id-changed');
         }
         logger.info('owner connected', { login: user.login });

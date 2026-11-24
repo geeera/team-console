@@ -534,9 +534,8 @@ describe('OwnerConnection.connect', () => {
 
     expect(fake.calls).toEqual([]);
     expect(await storedRow()).toEqual(before);
-    expect(parsedLogs(logs)).toContainEqual(
-      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
-    );
+    // The callback logs the refusal, once, with the revoke outcome (#901).
+    expect(logs).toEqual([]);
     await expect((await ownerConnection(fake)).getToken()).resolves.toBe(previous.accessToken);
   });
 
@@ -571,8 +570,7 @@ describe('OwnerConnection.connect', () => {
       version: 1,
     });
     expect(fake.calls).toEqual([]);
-    expect(parsedLogs(logs)).toContainEqual(
-      expect.objectContaining({ securitySignal: 'owner-user-id-changed', login: OWNER.login }),
-    );
+    // The callback logs the refusal, once, with the revoke outcome (#901).
+    expect(logs).toEqual([]);
   });
 });
