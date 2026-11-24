@@ -3,7 +3,6 @@
   block-size: 100%;
 }
 
-
 .ov {
   display: grid;
   gap: var(--space-2);
@@ -85,6 +84,19 @@
   color: var(--text-2);
   font-size: var(--fs-xs);
   overflow-wrap: break-word;
+}
+
+.ov__countdown {
+  color: var(--text-2);
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  line-height: var(--lh-snug);
+}
+
+/* The demo day itself: the line takes the accent. */
+.ov__countdown--today {
+  color: var(--accent-text);
+  font-weight: var(--fw-semibold);
 }
 
 .ov__foot {

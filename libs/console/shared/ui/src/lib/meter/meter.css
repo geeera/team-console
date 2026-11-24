@@ -12,3 +12,29 @@
   border-radius: inherit;
   background: var(--accent);
 }
+
+/* The fill grows by transform from its start edge (no layout), after `--meter-delay` when a row of meters is staggered. */
+.tc-meter__fill--appear {
+  transform-origin: left center;
+  animation: tc-meter-fill var(--dur-slow) var(--ease-standard) var(--meter-delay, 0ms) both;
+}
+
+@keyframes tc-meter-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+/* Reduced motion: filled at once, nothing to wait for. */
+@media (prefers-reduced-motion: reduce) {
+  :host-context(:root:not([data-motion='full'])) .tc-meter__fill--appear {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-meter__fill--appear {
+  animation: none;
+}
