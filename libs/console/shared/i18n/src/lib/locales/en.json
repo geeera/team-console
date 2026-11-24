@@ -4,7 +4,8 @@
     "environment": "Environment:",
     "update": {
       "ready": "A new version is available",
-      "apply": "Update"
+      "apply": "Update",
+      "done": "Updated to v{{version}}"
     },
     "session": {
       "expiredTitle": "Session expired — sign in again",
@@ -951,6 +952,13 @@
       "many": "{{n}} projects",
       "other": "{{n}} projects"
     },
+    "countdown": {
+      "one": "{{n}} day to the demo",
+      "few": "{{n}} days to the demo",
+      "many": "{{n}} days to the demo",
+      "other": "{{n}} days to the demo"
+    },
+    "countdownToday": "Demo today",
     "listLabel": "Projects and their sprints",
     "quiet": "Nothing for you",
     "quietLabel": "Projects with nothing for you",
@@ -1935,6 +1943,9 @@
     "seal": {
       "label": "Private"
     },
+    "paperNote": {
+      "text": "Updated to v1.2"
+    },
     "recommendation": {
       "label": "Team recommends",
       "choice": "/approve — start building to the plan for the 16 October demo",
@@ -1971,6 +1982,11 @@
       "list": "Issues",
       "title": "Story editor autosave",
       "tip": "Tier: heavy"
+    },
+    "countBadge": {
+      "row": "Needs you",
+      "label": "Waiting for you:",
+      "answer": "Answer one"
     },
     "roll": {
       "next": "Change the count",

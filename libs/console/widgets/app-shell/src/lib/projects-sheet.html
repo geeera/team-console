@@ -2,12 +2,12 @@
   <tc-list-row button (click)="go('/needs-you')">
     <tc-icon tc-row-leading name="inbox" />
     <span tc-row-title>{{ 'shell.needsYou' | transloco }}</span>
-    @if (needsYou.total(); as total) {
-    <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ total | localNumber }}</span>
-      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: total } }}</span>
-    </tc-chip>
-    }
+    <tc-count-badge
+      tc-row-trailing
+      [count]="needsYou.total()"
+      [text]="needsYou.total() | localNumber"
+      [label]="'shell.badge' | transloco: { n: needsYou.total() }"
+    />
   </tc-list-row>
   <tc-list-row button (click)="go('/overview')">
     <tc-icon tc-row-leading name="grid" />

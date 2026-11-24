@@ -14,6 +14,7 @@ import { SwUpdate, VersionEvent } from '@angular/service-worker';
 import { PAGE_LOCATION, reloginUrlOf } from '@console/shared/api';
 import { isPageScrollLocked } from '@console/shared/ui';
 import { TimeoutError, filter, firstValueFrom, timeout } from 'rxjs';
+import { buildInfo } from './build-info';
 import { hasUnsavedField } from './unsaved-input';
 
 /** How often an open, visible app asks for a new version; a start and every resume ask at once. */
@@ -27,6 +28,8 @@ export const QUIET_WAIT_MS = 3_000;
 export const RECOVERY_GUARD_MS = 10 * 60_000;
 /** `localStorage` key of the last self-heal's time (ms since the epoch). */
 export const RECOVERY_GUARD_KEY = 'tc.sw-recovery.v1';
+/** `localStorage` key set when an update is activated and read by the page that loads next (#347). */
+export const UPDATED_MARK_KEY = 'tc.updated-from.v1';
 
 /** ngsw's own words when a file it fetched is not the one its manifest hashed. */
 const HASH_MISMATCH = /hash mismatch/i;
@@ -39,10 +42,10 @@ export interface UpdatePlatform {
   reload(): void;
   now(): number;
   /** `null` where storage is unavailable; the self-heal then never runs, since its loop guard could not hold. */
-  readonly storage: Pick<Storage, 'getItem' | 'setItem'> | null;
+  readonly storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | null;
 }
 
-function storageOf(view: Window | null): Pick<Storage, 'getItem' | 'setItem'> | null {
+function storageOf(view: Window | null): UpdatePlatform['storage'] {
   try {
     return view?.localStorage ?? null;
   } catch (error: unknown) {
@@ -119,11 +122,17 @@ export class AppUpdates {
   private pendingHeal: string | null = null;
   private isStarted = false;
 
+  private readonly updatedTo = signal<string | null>(null);
+
+  /** The version this page just switched to after «Обновить» (#347), until the note that says so is gone. */
+  readonly justUpdatedTo = this.updatedTo.asReadonly();
+
   /** A newer version is downloaded and waits for «Обновить». */
   readonly ready = computed(() => this.isPending() && !this.isActivating());
 
   /** Wires the checks; a no-op without an enabled service worker (development builds, unsupported browsers). */
   start(): void {
+    this.consumeUpdatedMark();
     const updates = this.updates;
     if (this.isStarted || updates === null || !updates.isEnabled) {
       return;
@@ -151,12 +160,18 @@ export class AppUpdates {
     void this.check('start');
   }
 
+  /** The note is gone: it timed out or the owner left. */
+  dismissUpdated(): void {
+    this.updatedTo.set(null);
+  }
+
   /** «Обновить»: switches this page to the downloaded version and loads it. */
   async activate(): Promise<void> {
     if (this.isActivating()) {
       return;
     }
     this.isActivating.set(true);
+    this.markUpdating();
     try {
       await this.updates?.activateUpdate();
     } catch (error: unknown) {
@@ -164,6 +179,29 @@ export class AppUpdates {
       console.error('[updates] activateUpdate failed; reloading anyway', error);
     }
     this.platform.reload();
+  }
+
+  /** Leaves word for the next page that this reload is an update; a missing storage only means no note. */
+  private markUpdating(): void {
+    try {
+      this.platform.storage?.setItem(UPDATED_MARK_KEY, '1');
+    } catch (error: unknown) {
+      console.error('[updates] the updated mark could not be written', error);
+    }
+  }
+
+  /** Reads and clears the mark once. Only an activation writes it, so a plain reload never shows the note. */
+  private consumeUpdatedMark(): void {
+    try {
+      const storage = this.platform.storage;
+      if (storage === null || storage.getItem(UPDATED_MARK_KEY) === null) {
+        return;
+      }
+      storage.removeItem(UPDATED_MARK_KEY);
+      this.updatedTo.set(buildInfo.version);
+    } catch (error: unknown) {
+      console.error('[updates] the updated mark could not be read', error);
+    }
   }
 
   private isVisible(): boolean {

@@ -49,8 +49,8 @@
   </div>
   } @if (attention().length > 0) {
   <ul class="overview__grid" [attr.aria-label]="'overview.listLabel' | transloco" data-testid="overview-list">
-    @for (row of attention(); track row.project.slug) {
-    <ng-container *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: false }" />
+    @for (row of attention(); track row.project.slug; let place = $index) {
+    <ng-container *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: false, place }" />
     }
   </ul>
   } @if (quiet().length > 0) {
@@ -58,8 +58,10 @@
     {{ 'overview.quiet' | transloco }} <span class="overview__group-count">{{ quiet().length }}</span>
   </h2>
   <ul class="overview__grid" aria-labelledby="overview-quiet" data-testid="overview-quiet">
-    @for (row of quiet(); track row.project.slug) {
-    <ng-container *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: true }" />
+    @for (row of quiet(); track row.project.slug; let place = $index) {
+    <ng-container
+      *ngTemplateOutlet="tile; context: { $implicit: row, isQuiet: true, place: attention().length + place }"
+    />
     }
   </ul>
   } }
@@ -72,7 +74,7 @@
 }
 
 <!-- One card: the tile, and its own Commands (#222) opening the same panel as the space's. -->
-<ng-template #tile let-row let-isQuiet="isQuiet">
+<ng-template #tile let-row let-isQuiet="isQuiet" let-place="place">
   <li>
     <tc-overview-tile
       [class.ov--quiet]="isQuiet"
@@ -81,6 +83,7 @@
       [waiting]="row.waiting"
       [snooze]="row.snooze"
       [now]="now()"
+      [index]="place"
     >
       <div tc-tile-actions class="overview__acts">
         @if (isPhone()) {

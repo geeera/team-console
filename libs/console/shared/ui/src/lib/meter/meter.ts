@@ -1,16 +1,23 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 
 /**
  * A thin progress bar for a ratio the text next to it already states ("3 of 8 done"), so it is decorative:
  * `aria-hidden`, never the only carrier of the number. `max` 0 reads as empty, values outside 0…max are clamped.
  *
+ * With `appear` the fill grows from the start edge when the meter is first shown (#359); a caller staggers a row of
+ * meters through the `--meter-delay` custom property. Reduced motion shows the fill at once.
+ *
  * ```html
- * <tc-meter [value]="shipped" [max]="planned" />
+ * <tc-meter [value]="shipped" [max]="planned" appear />
  * ```
  */
 @Component({
   selector: 'tc-meter',
-  template: '<i class="tc-meter__fill" [style.inline-size.%]="percent()"></i>',
+  template: `<i
+    class="tc-meter__fill"
+    [class.tc-meter__fill--appear]="appear()"
+    [style.inline-size.%]="percent()"
+  ></i>`,
   styleUrl: './meter.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'tc-meter', 'aria-hidden': 'true' },
@@ -18,6 +25,8 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 export class Meter {
   readonly value = input.required<number>();
   readonly max = input.required<number>();
+  /** Fills from empty on first show instead of standing full-grown. */
+  readonly appear = input(false, { transform: booleanAttribute });
 
   protected readonly percent = computed(() => meterPercent(this.value(), this.max()));
 }

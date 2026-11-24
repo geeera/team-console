@@ -7,9 +7,10 @@ import { AppShell } from '@console/widgets/app-shell';
 import { appNameOf } from '@shared/contracts';
 import { SessionExpired } from './session-expired';
 import { UpdateBanner } from './update-banner';
+import { UpdatedNote } from './updated-note';
 
 @Component({
-  imports: [AppShell, SessionExpired, UpdateBanner],
+  imports: [AppShell, SessionExpired, UpdateBanner, UpdatedNote],
   selector: 'tc-root',
   template: `
     @if (session.expired()) {
@@ -18,6 +19,7 @@ import { UpdateBanner } from './update-banner';
       <tc-app-shell />
     }
     <tc-update-banner />
+    <tc-updated-note />
   `,
   // A block, so the update banner's sticky bottom has the whole page to travel in.
   styles: `
