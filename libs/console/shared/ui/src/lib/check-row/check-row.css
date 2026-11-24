@@ -36,6 +36,7 @@
 
 .tc-check-row__text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   gap: var(--space-1);
   min-width: 0;

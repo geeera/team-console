@@ -1,5 +1,6 @@
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: none;
   place-items: center;
   width: var(--app-tile);

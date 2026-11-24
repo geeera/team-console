@@ -40,6 +40,7 @@
   top: var(--switch-inset);
   left: var(--switch-inset);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: var(--switch-thumb);
   height: var(--switch-thumb);
   place-items: center;

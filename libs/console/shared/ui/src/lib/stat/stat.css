@@ -1,6 +1,7 @@
 :host {
   position: relative;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   gap: var(--space-1);
   min-width: 0;
@@ -43,6 +44,7 @@
 
 .tc-stat__value {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-px);
   min-width: 0;
   margin: 0;
