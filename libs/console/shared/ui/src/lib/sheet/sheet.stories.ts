@@ -520,13 +520,20 @@ export const Dark: Story = { ...darkTheme };
 export const ReducedMotion: Story = { ...reducedMotion };
 export const Phone: Story = { ...phoneViewport };
 
-/** #274: the one dialog shell with a form taller than the screen — title and actions stay, only the body scrolls. */
+/**
+ * #274: the one dialog shell with a form taller than the screen — title and actions stay, only the body scrolls.
+ * #352: the pinned action bar casts a paper shadow (`--shadow-1`) while text is hidden under it and drops it at the
+ * end of the form: scroll the body to the bottom to see it go.
+ */
 const longForm: Story = {
   decorators: [moduleMetadata({ imports: [LongFormHost] })],
   render: () => ({ template: '<tc-story-long-form-host />' }),
 };
 export const LongForm: Story = { ...longForm };
 export const LongFormPhone: Story = { ...longForm, ...phoneViewport };
+export const LongFormDark: Story = { ...longForm, ...darkTheme };
+/** Reduced motion: the footer's shadow switches on and off without a transition. */
+export const LongFormReducedMotion: Story = { ...longForm, ...reducedMotion };
 
 /** #277: the full-size shell of the design viewer — the large dialog on the Mac, the whole screen on the phone. */
 const full: Story = {
