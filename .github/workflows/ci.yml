@@ -62,14 +62,19 @@ jobs:
           # An empty NX_BASE would silently fall back to nx.json's defaultBase.
           [[ "${NX_BASE:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no base sha"; exit 1; }
           root_config='^(\.github/workflows/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|eslint\.config\.mjs$|vitest\.config\.mts$)'
-          # Captured first: `git diff | grep -q` under pipefail can fail on SIGPIPE and silently pick "affected".
-          changed=$(git diff --name-only "${NX_BASE}" "${NX_HEAD}")
+          # #973: the paths are listed NUL-separated with renames split (tools/ci/changed-paths.mjs); a plain
+          # `git diff --name-only | grep` misses a renamed-away root file and any path git has to quote.
+          # A plain assignment on its own line, never inside the `if`: a failing script must stop the step
+          # (set -e), not read as "no match" and silently pick "affected".
+          root_changed=$(node tools/ci/changed-paths.mjs "${NX_BASE}" "${NX_HEAD:-}" "${root_config}")
           if [ "${BASE_REF}" != "dev" ]; then
             mode="run-many"; why="release PR into ${BASE_REF}"
-          elif grep -Eq "${root_config}" <<< "${changed}"; then
+          elif [ "${root_changed}" = "true" ]; then
             mode="run-many"; why="root config or CI changed"
-          else
+          elif [ "${root_changed}" = "false" ]; then
             mode="affected"; why="changed since ${NX_BASE}"
+          else
+            echo "::error::changed-paths gave no answer"; exit 1
           fi
           echo "NX_MODE=${mode}" >> "$GITHUB_ENV"
           echo "::notice title=Nx scope::nx ${mode} (${why}; base ${NX_BASE}, head ${NX_HEAD})"
@@ -139,8 +144,12 @@ jobs:
   # attempts") — `timeout-minutes` never starts, and the run goes red for a change that could not have touched
   # the sweep. So the macOS job runs only when its inputs can have changed: anything under `apps/runner/` (the
   # templates, the spec, its vitest config), `libs/shared/contracts/` (the templates import `NODE_FILE` and
-  # `RUNNER_INSTALL_PREFIX` from there), this workflow and its composite action, or the toolchain pins the
+  # `RUNNER_INSTALL_PREFIX` from there), `libs/shared/plain-text/`, which contracts imports in turn, and
+  # `libs/shared/redaction/`, which the runner's config imports (#973; tools/workspace-checks/src/ci-scope.spec.ts
+  # walks the sweep spec's imports and fails when one lands outside this list),
+  # this workflow, its composite action and the script that makes this decision, or the toolchain pins the
   # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there.
+  # The script runs on the image's own Node (no setup-node, no `npm ci`): it uses Node builtins and git only.
   # `runner-darwin-sweep` is not itself one of dev's required status checks (branch ruleset 24176349 requires
   # `lint-test-build`, `secret-scan`, `sast`, `dependency-audit`, `e2e`, `runner-container`, `workflow-lint`), so
   # a skipped sweep never blocks a merge either way — scoping only saves minutes and avoids the queue below.
@@ -165,32 +174,31 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          paths='^(apps/runner/|libs/shared/contracts/|\.github/workflows/ci\.yml$|\.github/actions/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|vitest\.config\.mts$)'
-          # --no-renames + core.quotePath=false: a plain `git diff --name-only` only prints a renamed file's new
-          # path (missing the old one a rename-out-of-scope touched) and C-style-escapes non-ASCII paths, so
-          # either would let a change slip past the regex below (#955 review, ci.yml:170/:178).
+          paths='^(apps/runner/|libs/shared/contracts/|libs/shared/plain-text/|libs/shared/redaction/|\.github/workflows/ci\.yml$|\.github/actions/|tools/ci/changed-paths\.mjs$|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|vitest\.config\.mts$)'
+          # tools/ci/changed-paths.mjs lists the paths NUL-separated with renames split: a plain
+          # `git diff --name-only` prints only a renamed file's new path (missing the old one a
+          # rename-out-of-scope touched) and quotes any path holding a non-ASCII byte, a quote, a backslash or
+          # a control character, so either would let a change slip past the regex (#955 and #963 reviews, #973).
+          # It needs two full shas, and its answer is a plain assignment on its own line so that a failing
+          # script stops the step (set -e) instead of reading as "nothing changed".
+          head=$(git rev-parse --verify 'HEAD^{commit}')
           if [ "${EVENT}" = "pull_request" ]; then
             if [ "${BASE_REF}" != "dev" ]; then
               run=true; why="release PR into ${BASE_REF}"
             else
               # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
-              changed=$(git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD)
-              if grep -Eq "${paths}" <<< "${changed}"; then
-                run=true; why="runner, CI or toolchain files changed"
-              else
-                run=false; why="nothing under apps/runner, CI or the toolchain changed"
-              fi
+              base=$(git rev-parse --verify 'HEAD^1^{commit}')
+              run=$(node tools/ci/changed-paths.mjs "${base}" "${head}" "${paths}")
+              why="runner, CI or toolchain files changed: ${run}"
             fi
           elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            changed=$(git -c core.quotePath=false diff --no-renames --name-only "${BEFORE}" HEAD)
-            if grep -Eq "${paths}" <<< "${changed}"; then
-              run=true; why="runner, CI or toolchain files changed since ${BEFORE}"
-            else
-              run=false; why="nothing under apps/runner, CI or the toolchain changed since ${BEFORE}"
-            fi
+            run=$(node tools/ci/changed-paths.mjs "${BEFORE}" "${head}" "${paths}")
+            why="runner, CI or toolchain files changed since ${BEFORE}: ${run}"
           else
             run=true; why="no base to compare with"
           fi
+          # The job output gates the macOS job on the exact string 'true'; anything else must not reach it.
+          [[ "${run}" =~ ^(true|false)$ ]] || { echo "::error::changed-paths gave no answer"; exit 1; }
           echo "run=${run}" >> "$GITHUB_OUTPUT"
           echo "::notice title=Darwin sweep scope::${run} (${why})"
 
