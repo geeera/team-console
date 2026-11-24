@@ -5,6 +5,7 @@ import { localDayOf, TranslocoPipe, TranslocoService } from '@console/shared/i18
 import { Chip, Icon, type IconName, List, ListHeading, ListRow } from '@console/shared/ui';
 import type { ArtifactType } from '@shared/contracts';
 import { Artifact } from './artifact.model';
+import { highlightSegments, type TitleSegment } from './highlight-segments';
 
 /** The context of the design-row templates: the design issue artifact of that row. */
 export interface DesignRowContext {
@@ -13,7 +14,12 @@ export interface DesignRowContext {
 
 /** One entry of the list: an artifact, or the heading that opens its type's group (#766). */
 type Entry =
-  | { readonly kind: 'item'; readonly key: string; readonly item: Artifact }
+  | {
+      readonly kind: 'item';
+      readonly key: string;
+      readonly item: Artifact;
+      readonly title: readonly TitleSegment[];
+    }
   | { readonly kind: 'heading'; readonly key: string; readonly type: ArtifactType; readonly count: number };
 
 const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check', design: 'pencil', demo: 'play' };
@@ -57,7 +63,7 @@ const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check'
                 /></span>
               }
               <span tc-row-title dir="auto"
-                >{{ item.title }} <span class="tc-sr-only">{{ 'designs.row.open' | transloco }}</span></span
+                ><ng-container *ngTemplateOutlet="titleRuns; context: { $implicit: entry.title }" /> <span class="tc-sr-only">{{ 'designs.row.open' | transloco }}</span></span
               >
               <span tc-row-subtitle>
                 @if (designSubtitle(); as subtitle) {
@@ -84,7 +90,7 @@ const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check'
                 <tc-icon class="artifact__external" name="external" size="sm" />
               </span>
               <span tc-row-title dir="auto"
-                >{{ item.title }}
+                ><ng-container *ngTemplateOutlet="titleRuns; context: { $implicit: entry.title }" />
                 <span class="tc-sr-only">{{ 'artifacts.opensGitHub' | transloco }}</span></span
               >
               <span tc-row-subtitle>
@@ -102,11 +108,31 @@ const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check'
         }
       }
     </tc-list>
+    <ng-template #titleRuns let-runs>
+      @for (run of runs; track $index) { @if (run.isMatch) {<mark class="artifact__mark" data-testid="artifact-mark">{{ run.text }}</mark>} @else {{{ run.text }}} }
+    </ng-template>
   `,
   styles: `
     :host {
       --tc-list-card-min: var(--artifact-card-min);
       --tc-list-cols-max: var(--artifact-cols-max);
+    }
+
+    /*
+     * A search hit (#362): a marker bar behind the word, drawn left to right. The bar is the mark's own background,
+     * revealed by a clip from the left (a gradient would hide it from the contrast check); under reduced motion --dur-base collapses and it is there at once.
+     */
+    .artifact__mark {
+      border-radius: var(--r-sm);
+      background: var(--accent-soft);
+      color: inherit;
+      animation: artifact-mark-draw var(--dur-base) var(--ease-standard) both;
+    }
+
+    @keyframes artifact-mark-draw {
+      from {
+        clip-path: inset(0 100% 0 0);
+      }
     }
 
     .artifact__awaiting {
@@ -161,6 +187,9 @@ export class ArtifactList {
   /** Rendered as a design row's subtitle (number, screens, devices); the number alone without it. */
   readonly designSubtitle = input<TemplateRef<DesignRowContext> | null>(null);
 
+  /** The search's words: every hit in a title is marked (#362). Empty shows titles plain. */
+  readonly highlight = input<readonly string[]>([]);
+
   /** Each type opens with a heading on the cards (#766): set it while every type shows. */
   readonly grouped = input(false);
 
@@ -173,6 +202,7 @@ export class ArtifactList {
 
   protected readonly entries = computed<readonly Entry[]>(() => {
     const items = this.items();
+    const terms = this.highlight();
     const counts = new Map<ArtifactType, number>();
     for (const item of items) {
       counts.set(item.type, (counts.get(item.type) ?? 0) + 1);
@@ -189,7 +219,12 @@ export class ArtifactList {
         });
       }
       previous = item.type;
-      entries.push({ kind: 'item', key: `${item.type} ${item.url}`, item });
+      entries.push({
+        kind: 'item',
+        key: `${item.type} ${item.url}`,
+        item,
+        title: highlightSegments(item.title, terms),
+      });
     }
     return entries;
   });

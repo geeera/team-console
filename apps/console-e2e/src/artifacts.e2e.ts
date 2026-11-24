@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import type { ArtifactsResponse } from '@shared/contracts';
+import { animationsSettled } from './support/axe';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { seed } from './support/stack';
@@ -57,6 +58,36 @@ test.describe('the Artifacts section', () => {
     await page.getByRole('button', { name: ru('artifacts.noMatch.clear') }).click();
     await expect(rows).toHaveCount(body.items.length);
     await expect(query).toHaveValue('');
+  });
+
+  test('#362: a search underlines the found words once typing pauses; they show at once under reduced motion', async ({
+    page,
+  }) => {
+    await page.goto('/p/team-console/artifacts');
+    const rows = page.getByTestId('artifact');
+    await expect(rows.first()).toBeVisible();
+    await expect(page.getByTestId('artifact-mark')).toHaveCount(0);
+
+    const query = page.getByLabel(ru('artifacts.search'));
+    await query.fill('Paper Desk');
+    const found = await rows.count();
+    expect(found).toBeGreaterThan(0);
+    const marks = page.getByTestId('artifact-mark');
+    await expect(marks).toHaveCount(found * 2);
+    await expect(marks.first()).toHaveText(/paper/i);
+    await expect(rows.first()).toContainText('Paper Desk');
+    await animationsSettled(page);
+    await expectAccessible(page, 'Artifacts, search hits marked');
+
+    await query.fill('');
+    await expect(marks).toHaveCount(0);
+
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await query.fill('Paper');
+    await expect(marks.first()).toBeVisible();
+    expect(
+      await marks.first().evaluate((el) => getComputedStyle(el).animationDuration),
+    ).toBe('0.001s');
   });
 
   test('the keyboard reaches the type toggles, and a reload keeps the filter from the URL', async ({

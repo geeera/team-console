@@ -10,7 +10,8 @@ export interface ArtifactFilterValue {
 /** The longest query kept (URL and local state); longer input is cut, never refused. */
 export const ARTIFACT_QUERY_MAX_LENGTH = 200;
 
-function termsOf(query: string): string[] {
+/** The lower-cased words of a query: what `filterArtifacts` requires and the list underlines. */
+export function artifactQueryTerms(query: string): string[] {
   return query
     .slice(0, ARTIFACT_QUERY_MAX_LENGTH)
     .toLocaleLowerCase()
@@ -26,7 +27,7 @@ export function filterArtifacts(
   items: readonly Artifact[],
   filter: ArtifactFilterValue,
 ): readonly Artifact[] {
-  const terms = termsOf(filter.query);
+  const terms = artifactQueryTerms(filter.query);
   if (filter.type === null && terms.length === 0) {
     return items;
   }
