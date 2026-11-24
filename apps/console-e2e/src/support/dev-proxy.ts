@@ -80,6 +80,57 @@ export function retryingDevProxyDrops(api: APIRequestContext, delayMs: number = 
   });
 }
 
+/** The Fetch API's face of the same two drops: the proxy's 500, or Node's `fetch failed` whose cause is the reset. */
+async function isDevProxyDropResponse(response: Response): Promise<boolean> {
+  if (response.status !== 500) {
+    return false;
+  }
+  const [firstLine = ''] = (await response.clone().text()).trim().split('\n');
+  return LOST_CONNECTION_FIRST_LINE.test(firstLine.trim());
+}
+
+function isDevProxyFetchReset(error: unknown): boolean {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  const cause = error.cause;
+  return isDevProxyReset(error) || (cause instanceof Error && isDevProxyReset(cause)) || (hasCode(cause) && cause.code === 'ECONNRESET');
+}
+
+function hasCode(value: unknown): value is { code: unknown } {
+  return typeof value === 'object' && value !== null && 'code' in value;
+}
+
+/**
+ * `fetch` for the stack's own servers (the fake GitHub's `/_fake/*` seeding, also a `wrangler dev`): sends a non-GET
+ * request the dev proxy dropped once more, the same way as `retryingDevProxyDrops`.
+ */
+export async function fetchResendingDevProxyDrops(
+  input: string | URL,
+  init: RequestInit = {},
+  delayMs: number = RESEND_DELAY_MS,
+): Promise<Response> {
+  const method = (init.method ?? 'GET').toUpperCase();
+  if (method === 'GET' || method === 'HEAD') {
+    return fetch(input, init);
+  }
+  let first: Response;
+  try {
+    first = await fetch(input, init);
+  } catch (error: unknown) {
+    if (!isDevProxyFetchReset(error)) {
+      throw error;
+    }
+    await pause(delayMs);
+    return fetch(input, init);
+  }
+  if (!(await isDevProxyDropResponse(first))) {
+    return first;
+  }
+  await pause(delayMs);
+  return fetch(input, init);
+}
+
 function pause(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }

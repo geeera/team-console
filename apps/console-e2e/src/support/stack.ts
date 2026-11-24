@@ -1,6 +1,6 @@
 import { expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
 import { isEnvironment, type Environment } from '@shared/contracts';
-import { retryingDevProxyDrops } from './dev-proxy';
+import { fetchResendingDevProxyDrops, retryingDevProxyDrops } from './dev-proxy';
 
 /**
  * What a spec talks to. Locally (and in CI) every Playwright worker owns a `LocalStack`; with `BASE_URL` set the
@@ -56,9 +56,10 @@ function fakeOf(stack: Stack): string {
  * mock again, dated relative to today: Sprint 01 is the current sprint, its demo a week away.
  */
 export async function clearFakeMilestones(stack: Stack, repo: string): Promise<void> {
-  const response = await fetch(`${fakeOf(stack)}/_fake/milestones?repo=${encodeURIComponent(repo)}`, {
-    method: 'DELETE',
-  });
+  const response = await fetchResendingDevProxyDrops(
+    `${fakeOf(stack)}/_fake/milestones?repo=${encodeURIComponent(repo)}`,
+    { method: 'DELETE' },
+  );
   if (!response.ok) {
     throw new Error(`fake GitHub milestones: ${response.status}`);
   }
@@ -69,7 +70,7 @@ export async function clearFakeMilestones(stack: Stack, repo: string): Promise<v
  * api's mock again: what a later spec on the same worker expects.
  */
 export async function clearFakePulls(stack: Stack, repo: string): Promise<void> {
-  const response = await fetch(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, {
+  const response = await fetchResendingDevProxyDrops(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -79,7 +80,7 @@ export async function clearFakePulls(stack: Stack, repo: string): Promise<void> 
 
 /** A JSON POST to one of the fake GitHub's `/_fake/*` seeding endpoints; throws unless it answers 2xx. */
 export async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetch(`${fakeOf(stack)}${path}`, {
+  const response = await fetchResendingDevProxyDrops(`${fakeOf(stack)}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
