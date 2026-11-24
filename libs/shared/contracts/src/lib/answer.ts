@@ -49,9 +49,10 @@ export interface AnswerLookupRequest extends AnswerRequest {
 }
 
 /**
- * 200: the issue still takes this answer. `answer` is the comment the console already wrote with exactly this
- * answer since it was first sent (`replayed: true`), or `null` when none is on the issue and the answer may be
- * posted. An issue that no longer takes it answers the answer route's problems (`issue-closed`, `answer-*`).
+ * 200: `answer` is the comment the console already wrote with exactly this answer since it was first sent
+ * (`replayed: true`), even when the issue was closed or relabelled since (#266), or `null` when none is on the issue
+ * and the answer may be posted. When nothing was written and the issue no longer takes the answer, the answer
+ * route's problems (`issue-closed`, `answer-*`).
  */
 export interface AnswerLookupResponse {
   readonly answer: AnswerResponse | null;

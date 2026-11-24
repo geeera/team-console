@@ -631,7 +631,8 @@ export class RunnersRepo {
    * `userId` NULL is the local bypass alone; the route refuses the Access owner before the link (#837), so a claim
    * never writes `access-owner` here. Rows that hold it from before are handed to the user when the link is written
    * (#838, migration 0042: a trigger on `users.access_subject`, audited `auth.access-actor-adopted`, the one exception
-   * to the 0036 trigger). A future link route writes the link first and writes no such audit row of its own.
+   * to the 0036 trigger; #899, migration 0044: only to a linked user who is a member of the owner account). A future
+   * link route writes the link first and writes no such audit row of its own.
    */
   async claimEnroller(
     accountId: string,

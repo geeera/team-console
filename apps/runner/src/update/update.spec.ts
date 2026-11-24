@@ -45,7 +45,7 @@ const OLD_BUNDLE = 'old bundle\n';
 const release = (version: string | null, minimumVersion: string | null = null) =>
   vi.fn(async (): Promise<RunnerReleaseDto> => ({ version, minimumVersion }));
 
-async function refusal(promise: Promise<unknown>): Promise<UpdateProblem> {
+async function refused(promise: Promise<unknown>): Promise<UpdateError> {
   const error: unknown = await promise.then(
     () => null,
     (caught: unknown) => caught,
@@ -53,7 +53,11 @@ async function refusal(promise: Promise<unknown>): Promise<UpdateProblem> {
   if (!(error instanceof UpdateError)) {
     throw new Error(`expected an UpdateError, got ${String(error)}`);
   }
-  return error.problem;
+  return error;
+}
+
+async function refusal(promise: Promise<unknown>): Promise<UpdateProblem> {
+  return (await refused(promise)).problem;
 }
 
 describe('update: which version (C11 row 2, RR13)', () => {
@@ -443,6 +447,22 @@ describe('update: installing a release (C11 row 1)', () => {
   it('refuses when gh does not run', async () => {
     expect(await refusal(applyUpdate(TARGET, depsOf({ ghMissing: 'exit' })))).toBe('gh-missing');
     expect(await installedBundle()).toBe(OLD_BUNDLE);
+  });
+
+  // #900: `sudo … update` has a fixed PATH without Homebrew; "install gh" would send the owner the wrong way.
+  it.each(['enoent', 'exit'] as const)('as root, says gh is off root’s PATH and points to the manual update (%s)', async (ghMissing) => {
+    const { problem, message } = await refused(applyUpdate(TARGET, depsOf({ ghMissing }, { uid: 0 })));
+    expect(problem).toBe('gh-missing');
+    expect(message).toContain("only from root's PATH (/usr/bin:/bin)");
+    expect(message).toContain('updated by hand: docs/runbooks/runner.md › Update');
+    expect(message).not.toContain('install it (https://cli.github.com)');
+    expect(commands()).toEqual(['gh --version']);
+    expect(await installedBundle()).toBe(OLD_BUNDLE);
+  });
+
+  it('as a user, still says to install gh and log in', async () => {
+    const { message } = await refused(applyUpdate(TARGET, depsOf({ ghMissing: 'enoent' }, { uid: 501 })));
+    expect(message).toContain('install it (https://cli.github.com), run `gh auth login` as this user');
   });
 
   it('refuses when gh attestation verify fails, and never extracts the tarball', async () => {

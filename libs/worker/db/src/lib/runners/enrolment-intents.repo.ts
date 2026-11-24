@@ -15,6 +15,9 @@ import { runnerInsertStatement, type NewRunner } from './runners.repo';
  * exist for the caller (R-INT-2). The runner an approval creates is built from the row alone (R-INT-6) and written by
  * the same INSERT the one-time code uses. The audit row of a change travels in the change's own batch and is written
  * only when the change took effect.
+ *
+ * One write happens outside this repo (#899, migration 0044): the Access–GitHub link withdraws the live intents the
+ * owner made as `access-owner`, since the creator they name no longer matches the owner's actor.
  */
 
 export type StoredIntentState = 'pending' | 'bound' | 'approved' | 'used' | 'withdrawn';

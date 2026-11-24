@@ -1,3 +1,4 @@
+import { installationToken } from '../testing/github-kit';
 import {
   hasInferenceKeySecret,
   readActionsEnvironment,
@@ -145,7 +146,7 @@ describe('Actions setup readiness reads (#759)', () => {
     });
 
     it('refuses a body that is not the team-console Environment with 502 github-unexpected', async () => {
-      const token = new ScopedInstallationToken('environment-read', 1, 1, 'ghs_x');
+      const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
       const odd: FetchLike = async () => Response.json({ name: 'production', protection_rules: [] });
       const error = await readActionsEnvironment(odd, token, parseRepoName(STRICT.repo)).catch((caught: unknown) => caught);
       expect((error as GitHubError).problem.type).toBe('github-unexpected');
@@ -166,13 +167,13 @@ describe('Actions setup readiness reads (#759)', () => {
     });
 
     it('answers null when GitHub has no policy list (404)', async () => {
-      const token = new ScopedInstallationToken('environment-read', 1, 1, 'ghs_x');
+      const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
       const missing: FetchLike = async () => Response.json({ message: 'Not Found' }, { status: 404 });
       await expect(readDeploymentBranchPolicies(missing, token, parseRepoName(STRICT.repo))).resolves.toBeNull();
     });
 
     it('marks a list longer than one page as incomplete', async () => {
-      const token = new ScopedInstallationToken('environment-read', 1, 1, 'ghs_x');
+      const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
       const paged: FetchLike = async () => Response.json({ total_count: 101, branch_policies: [{ name: 'main', type: 'branch' }] });
       await expect(readDeploymentBranchPolicies(paged, token, parseRepoName(STRICT.repo))).resolves.toMatchObject({
         complete: false,
@@ -202,7 +203,7 @@ describe('Actions setup readiness reads (#759)', () => {
   });
 
   it('takes an environment-read token only, whatever a cast says', async () => {
-    const dispatch = new ScopedInstallationToken('actions-dispatch', 1, 1, 'ghs_x');
+    const dispatch = new ScopedInstallationToken('actions-dispatch', 1, 1, installationToken('x'));
     const forged = dispatch as unknown as ScopedInstallationToken<'environment-read'>;
     await expect(hasInferenceKeySecret(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(TypeError);
     await expect(readActionsEnvironment(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(TypeError);

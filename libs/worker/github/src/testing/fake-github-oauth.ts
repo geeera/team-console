@@ -15,6 +15,12 @@
  * so a grant revoke ends the earlier pair too. `DELETE …/token` ends that access token only; its refresh token stays
  * redeemable, because GitHub's docs do not promise more and the console must not count on it. Redeeming a refresh
  * token ends it and the access token of its own pair only (#831).
+ *
+ * Not confirmed against real GitHub yet (#901): that last rule follows GitHub's documentation, which says only that
+ * a refresh token is single-use. If GitHub also ended the other access tokens of the grant, the pair a reconnect has
+ * just stored would get a 401 on first use and be refreshed. The owner checks this after the first real reconnect
+ * (`docs/runbooks/deploy-and-rollback.md`, "Owner reconnect: check the fresh token on real GitHub"); record the
+ * result and its date here, and change the rule if GitHub differs.
  */
 
 export interface FakeUser {

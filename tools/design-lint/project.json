@@ -10,6 +10,7 @@
       "cache": true,
       "inputs": [
         "default",
+        { "env": "NX_BASE" },
         "{workspaceRoot}/libs/console/**/*.css",
         "{workspaceRoot}/apps/console/src/**/*.css",
         "{workspaceRoot}/libs/console/**/*.ts",

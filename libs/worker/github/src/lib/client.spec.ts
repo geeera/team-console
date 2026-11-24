@@ -1,5 +1,6 @@
 import {
   SENTINEL_TOKEN,
+  installationToken,
   appFlow,
   generateAppKey,
   json,
@@ -42,7 +43,7 @@ async function rejection(promise: Promise<unknown>): Promise<GitHubError> {
   throw new Error('expected a GitHubError');
 }
 
-function fixedTokens(token = 'ghs_fixed'): RequestTokenSource & { invalidated: string[] } {
+function fixedTokens(token = installationToken('fixed')): RequestTokenSource & { invalidated: string[] } {
   const invalidated: string[] = [];
   return {
     kind: 'installation',
@@ -60,7 +61,7 @@ describe('GitHubClient.getJson', () => {
     await expect(client.getJson(githubPath`/repos/${REPO}`, isRepo)).resolves.toMatchObject({
       full_name: 'geeera/team-console',
     });
-    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer ghs_fixed');
+    expect(github.calls[0]?.headers.get('authorization')).toBe(`Bearer ${installationToken('fixed')}`);
   });
 
   it('answers 502 github-unexpected when the body does not pass the guard', async () => {
@@ -119,7 +120,7 @@ describe('GitHubClient.getJson', () => {
     const error = await rejection(new GitHubClient(github.fetch, tokens).getJson(githubPath`/x`, isRepo));
     expect(error.problem).toMatchObject({ type: 'github-auth', status: 503 });
     expect(github.calls).toHaveLength(2);
-    expect(tokens.invalidated).toEqual(['ghs_fixed']);
+    expect(tokens.invalidated).toEqual([installationToken('fixed')]);
   });
 });
 
@@ -511,7 +512,7 @@ describe('GitHubClient.paginateBounded', () => {
 });
 
 describe('the installation-list token source (#194, ADR 0003 decision 6 as amended)', () => {
-  function listTokens(token = 'ghs_list'): InstallationListTokenSource & { invalidated: string[] } {
+  function listTokens(token = installationToken('list')): InstallationListTokenSource & { invalidated: string[] } {
     const invalidated: string[] = [];
     return {
       kind: 'installation-list',
@@ -594,7 +595,7 @@ describe('the installation-list token source (#194, ADR 0003 decision 6 as amend
     expect(github.calls.map((call) => call.url)).toEqual([
       'https://api.github.com/installation/repositories?per_page=100',
     ]);
-    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer ghs_list');
+    expect(github.calls[0]?.headers.get('authorization')).toBe(`Bearer ${installationToken('list')}`);
   });
 
   it('follows Link through three pages, then stops at the end', async () => {
@@ -670,7 +671,7 @@ describe('the installation-list token source (#194, ADR 0003 decision 6 as amend
     const tokens = listTokens();
     const list = await GitHubClient.listInstallationRepositories(github.fetch, tokens, { maxPages: 1 });
     expect(list.items).toHaveLength(1);
-    expect(tokens.invalidated).toEqual(['ghs_list']);
+    expect(tokens.invalidated).toEqual([installationToken('list')]);
   });
 });
 
@@ -687,7 +688,7 @@ describe('GitHubClient.getBytes (#277)', () => {
 
     expect(result).toEqual({ kind: 'bytes', bytes: bytesOf('PNG!') });
     expect(github.calls[0]?.headers.get('accept')).toBe(RAW);
-    expect(github.calls[0]?.headers.get('authorization')).toBe('Bearer ghs_fixed');
+    expect(github.calls[0]?.headers.get('authorization')).toBe(`Bearer ${installationToken('fixed')}`);
   });
 
   it('reports too-large from Content-Length and cancels the body unread', async () => {

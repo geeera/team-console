@@ -1,3 +1,4 @@
+import { installationToken } from '../testing/github-kit';
 import type { Logger } from '@worker/core';
 import { GitHubAppAuth } from './app-auth';
 import { GitHubError } from './errors';
@@ -176,7 +177,7 @@ describe('mintScoped (#759 named kinds)', () => {
       if (path.endsWith('/access_tokens')) {
         return Response.json(
           {
-            token: 'ghs_broader',
+            token: installationToken('broader'),
             expires_at: new Date(Date.now() + 3_600_000).toISOString(),
             permissions: { actions: 'read', environments: 'read', secrets: 'read' },
             repository_selection: 'selected',
@@ -195,7 +196,7 @@ describe('mintScoped (#759 named kinds)', () => {
     const auth = new GitHubAppAuth(mock.credentials, { fetch: broader });
     const error = await rejection(auth.mintScoped('environment-read', TEAM_CONSOLE, audit));
     expect((error as GitHubError).problem.type).toBe('github-unexpected');
-    expect(revoked).toEqual(['Bearer ghs_broader']);
+    expect(revoked).toEqual([`Bearer ${installationToken('broader')}`]);
     expect(events.at(-1)).toMatchObject({ outcome: 'failed', failure: 'scope-mismatch', githubStatus: 201 });
   });
 

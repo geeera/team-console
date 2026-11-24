@@ -105,6 +105,7 @@ describe('migrations on a fresh D1', () => {
       '0041_actions_workflow_state.sql',
       '0042_access_owner_link_adopts_actor.sql',
       '0043_scrub_scope.sql',
+      '0044_access_owner_link_member_and_intents.sql',
     ]);
   });
 
