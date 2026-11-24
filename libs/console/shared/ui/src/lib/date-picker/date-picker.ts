@@ -100,6 +100,12 @@ export class DatePicker implements ControlValueAccessor, Validator {
   readonly inputId = input<string | null>(null);
   readonly describedBy = input<string | null>(null);
   readonly invalid = input(false, { transform: booleanAttribute });
+  /** A day to circle with a small stamp (#346: the current demo), with its accessible words, already translated. */
+  readonly markedDay = input<string | null>(null);
+  readonly markedLabel = input('');
+  /** A run of days to shade with pencil hatching (#346: the freeze); `null` ends are open. */
+  readonly hatchedRange = input<DayBounds | null>(null);
+  readonly hatchedLabel = input('');
 
   readonly problemChange = output<DatePickerProblem | null>();
 
@@ -237,6 +243,10 @@ export class DatePicker implements ControlValueAccessor, Validator {
       today,
       bounds,
       isDateDisabled: this.isDateDisabled(),
+      markedDay: this.markedDay(),
+      markedLabel: this.markedLabel(),
+      hatchedRange: this.hatchedRange(),
+      hatchedLabel: this.hatchedLabel(),
       lang: this.transloco.getActiveLang(),
     };
     this.isOpen.set(true);
