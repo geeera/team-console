@@ -10,8 +10,9 @@
 //       after the build, before anything ships: that exact stamp is compiled into the bundle the api Worker
 //       serves (catches a build that ignored or overrode the define, or a stale cached output).
 //
-// Fails closed: a missing file, a missing or non-string define, a value that is not a JSON string literal, or a
-// stamp not in the stamp step's exact shape all fail. No npm dependency, same as the other deploy guards.
+// Fails closed: a missing file, a missing or non-string define, a value that is not a JSON string literal, a
+// stamp not in the stamp step's exact shape, or one that this run cannot have written (too old, or in the
+// future) all fail. No npm dependency, same as the other deploy guards.
 'use strict';
 
 const fs = require('node:fs');
@@ -22,7 +23,16 @@ const DEFINE_KEY = '__TC_BUILT_AT__';
 // bare UTC timestamp still passes.
 const STAMP = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z( \([0-9a-f]{7,40}\))?$/;
 
-/** Throws unless `stamp` is a real UTC timestamp in the stamp step's shape (so not "local", empty or garbage). */
+// #973: the stamp step runs seconds before the config check and the deploy job is capped at 20 minutes, so an
+// older stamp was not written by this run (a stamped define committed by mistake, a restored cache). An hour
+// leaves room for a slow build; the future tolerance only covers a clock step between the two steps.
+const MAX_STAMP_AGE_MS = 60 * 60 * 1000;
+const MAX_STAMP_FUTURE_MS = 5 * 60 * 1000;
+
+/**
+ * Returns `stamp`'s instant in epoch milliseconds. Throws unless it is a real UTC timestamp in the stamp step's
+ * shape (so not "local", empty or garbage).
+ */
 function assertValidStamp(stamp) {
   if (typeof stamp !== 'string') {
     throw new Error(`${DEFINE_KEY} is missing or not a string`);
@@ -44,6 +54,33 @@ function assertValidStamp(stamp) {
   if (Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 19) !== iso) {
     throw new Error(`${DEFINE_KEY} ${JSON.stringify(stamp)} is not a valid date and time`);
   }
+  return parsed.getTime();
+}
+
+/** Throws unless `stamp` is valid and was taken within the last hour of `nowMs`. */
+function assertFreshStamp(stamp, nowMs) {
+  const ageMs = nowMs - assertValidStamp(stamp);
+  if (ageMs > MAX_STAMP_AGE_MS) {
+    throw new Error(
+      `${DEFINE_KEY} ${JSON.stringify(stamp)} is ${Math.floor(ageMs / 60000)} minutes old — this run's stamp step did not write it`,
+    );
+  }
+  if (ageMs < -MAX_STAMP_FUTURE_MS) {
+    throw new Error(`${DEFINE_KEY} ${JSON.stringify(stamp)} is in the future`);
+  }
+}
+
+/**
+ * Makes `text` safe as the message of a `::error::` workflow command (#973, SECURITY note on PR #962). The
+ * runner reads one command per line and decodes `%0A`/`%0D`/`%25` in the message, so a raw line break would
+ * end the annotation and let the rest of the text start a command of its own (`::add-mask::`,
+ * `::stop-commands::`), and a literal `%0A` would be decoded into one. Line breaks and every other control
+ * character become one space; `%` is escaped the way @actions/core does it.
+ */
+function toAnnotationText(text) {
+  return String(text)
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, ' ')
+    .replace(/%/g, '%25');
 }
 
 /**
@@ -110,7 +147,7 @@ function assertStampInBundle(stamp, browserDirectory) {
   }
 }
 
-module.exports = { assertValidStamp, readStamp, assertStampInBundle };
+module.exports = { assertValidStamp, assertFreshStamp, readStamp, assertStampInBundle, toAnnotationText };
 
 function main(argv) {
   const [mode, projectJsonPath, browserDirectory] = argv;
@@ -124,6 +161,7 @@ function main(argv) {
   }
   try {
     const stamp = readStamp(fs.readFileSync(projectJsonPath, 'utf8'));
+    assertFreshStamp(stamp, Date.now());
     if (isBundle) {
       assertStampInBundle(stamp, browserDirectory);
     }
@@ -131,7 +169,9 @@ function main(argv) {
     return 0;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    process.stderr.write(`::error::console build stamp check (${mode}) failed: ${reason}. See #960.\n`);
+    process.stderr.write(
+      `::error::console build stamp check (${mode}) failed: ${toAnnotationText(reason)}. See #960.\n`,
+    );
     return 1;
   }
 }

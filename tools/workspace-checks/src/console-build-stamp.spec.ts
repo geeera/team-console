@@ -23,33 +23,57 @@ const deploy = parse(readFileSync(join(workspaceRoot, '.github/workflows/deploy.
   readonly jobs: Readonly<Record<string, { readonly steps?: readonly Step[] }>>;
 };
 const steps = deploy.jobs['deploy']?.steps ?? [];
-const indexOf = (predicate: (step: Step) => boolean): number => steps.findIndex(predicate);
+const indexesOf = (predicate: (step: Step) => boolean): readonly number[] =>
+  steps.flatMap((step, index) => (predicate(step) ? [index] : []));
 
 const BROWSER_DIR = 'dist/apps/console/browser';
+const PROJECT_JSON = 'apps/console/project.json';
+const GUARD = 'tools/deploy-guard/check-built-at.js';
+
+/** True when `run` is exactly `node <guard> <args>`: one plain command, no shell operator that could mask its exit. */
+const isGuard = (step: Step, ...args: readonly string[]): boolean =>
+  (step.run ?? '')
+    .trim()
+    .split(/[ \t]+/)
+    .join(' ') === ['node', GUARD, ...args].join(' ');
+const writesStamp = (step: Step): boolean => step.run?.includes('__TC_BUILT_AT__') === true;
+const buildsConsole = (step: Step): boolean =>
+  /\bnx\b[^\n]*\s-t\s+build\b/.test(step.run ?? '') && !/storybook/i.test(step.run ?? '');
+/** A step that can publish or holds a credential: wrangler in any form, or anything handed a secret. */
+const canShip = (step: Step): boolean =>
+  step.uses?.startsWith('cloudflare/wrangler-action@') === true ||
+  /\bwrangler\b/.test(step.run ?? '') ||
+  JSON.stringify(step).includes('secrets.');
 
 describe('deploy.yml console build-stamp check', () => {
-  const stamp = indexOf((step) => step.run?.includes('__TC_BUILT_AT__') === true);
-  const configCheck = indexOf(
-    (step) => step.run === 'node tools/deploy-guard/check-built-at.js config apps/console/project.json',
-  );
-  const build = indexOf((step) => step.run?.startsWith('npx nx run-many -t build') === true);
-  const bundleCheck = indexOf(
-    (step) =>
-      step.run ===
-      `node tools/deploy-guard/check-built-at.js bundle apps/console/project.json ${BROWSER_DIR}`,
-  );
-  const firstWrangler = indexOf((step) => step.uses?.startsWith('cloudflare/wrangler-action@') === true);
+  const stamps = indexesOf(writesStamp);
+  const configChecks = indexesOf((step) => isGuard(step, 'config', PROJECT_JSON));
+  const builds = indexesOf(buildsConsole);
+  const bundleChecks = indexesOf((step) => isGuard(step, 'bundle', PROJECT_JSON, BROWSER_DIR));
+  const shipping = indexesOf(canShip);
 
-  it('checks the stamp right after the stamp step and the bundle right after the build, before anything ships', () => {
-    expect(stamp).toBeGreaterThanOrEqual(0);
-    expect(configCheck).toBe(stamp + 1);
-    expect(build).toBe(configCheck + 1);
-    expect(bundleCheck).toBe(build + 1);
-    expect(firstWrangler).toBeGreaterThan(bundleCheck);
+  // #973 (REVIEW on PR #962): the invariant, not the line layout. A step may be added or moved between these,
+  // as long as the order holds, the stamp is written once and the console is built once (a second stamp or a
+  // rebuild after its check would ship something the check never saw).
+  it('stamps, checks the stamp, builds, checks the bundle, and only then ships', () => {
+    expect(stamps).toHaveLength(1);
+    expect(configChecks).toHaveLength(1);
+    expect(builds).toHaveLength(1);
+    expect(bundleChecks).toHaveLength(1);
+    expect(shipping.length).toBeGreaterThan(0);
+
+    const order = [stamps[0] ?? -1, configChecks[0] ?? -1, builds[0] ?? -1, bundleChecks[0] ?? -1];
+    expect(order).toEqual([...new Set(order)].sort((a, b) => a - b));
+    expect(Math.min(...shipping)).toBeGreaterThan(Math.max(...order));
+  });
+
+  it('names the guard script only in those two exact commands', () => {
+    const naming = indexesOf((step) => JSON.stringify(step).includes('check-built-at'));
+    expect(naming).toEqual([...configChecks, ...bundleChecks]);
   });
 
   it('runs both checks unconditionally, for every environment, and never lets them pass on failure', () => {
-    for (const index of [configCheck, bundleCheck]) {
+    for (const index of [...configChecks, ...bundleChecks]) {
       expect(steps[index]?.if).toBeUndefined();
       expect(steps[index]?.['continue-on-error']).toBeUndefined();
       expect(steps[index]?.run).not.toContain('${{');
