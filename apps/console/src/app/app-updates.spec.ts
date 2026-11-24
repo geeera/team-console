@@ -140,12 +140,14 @@ describe('AppUpdates', () => {
   }
 
   describe('the «Обновлено» mark (#347, #941)', () => {
-    it('leaves the pre-activation version as a mark for the next page when «Обновить» reloads', async () => {
+    const identityOf = (builtAt: string): string => `${buildInfo.version}@${builtAt}`;
+
+    it('leaves the pre-activation build identity as a mark for the next page when «Обновить» reloads', async () => {
       const updates = start();
       await flush();
       await updates.activate();
 
-      expect(storage.getItem(UPDATED_MARK_KEY)).toBe(buildInfo.version);
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBe(identityOf(buildInfo.builtAt));
       expect(platform.reload).toHaveBeenCalledTimes(1);
     });
 
@@ -166,8 +168,8 @@ describe('AppUpdates', () => {
       expect(order).toEqual(['mark', 'activate']);
     });
 
-    it('names the new version once after the reload and clears the mark, when the stored version differs', () => {
-      storage.setItem(UPDATED_MARK_KEY, 'some-older-version');
+    it('names the new version once after the reload and clears the mark, when the stored identity differs', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf('some-older-deploy'));
       const updates = start();
 
       expect(updates.justUpdatedTo()).toBe(buildInfo.version);
@@ -177,8 +179,16 @@ describe('AppUpdates', () => {
       expect(updates.justUpdatedTo()).toBeNull();
     });
 
-    it('stays silent, but still clears the mark, when the stored version equals the current one', () => {
-      storage.setItem(UPDATED_MARK_KEY, buildInfo.version);
+    it('shows the note for a redeploy of the same version: builtAt alone differs', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf('an-earlier-deploy-of-the-same-version'));
+      const updates = start();
+
+      expect(updates.justUpdatedTo()).toBe(buildInfo.version);
+      expect(storage.getItem(UPDATED_MARK_KEY)).toBeNull();
+    });
+
+    it('stays silent, but still clears the mark, when the stored identity equals the current one', () => {
+      storage.setItem(UPDATED_MARK_KEY, identityOf(buildInfo.builtAt));
       const updates = start();
 
       expect(updates.justUpdatedTo()).toBeNull();

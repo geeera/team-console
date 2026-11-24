@@ -29,11 +29,20 @@ export const RECOVERY_GUARD_MS = 10 * 60_000;
 /** `localStorage` key of the last self-heal's time (ms since the epoch). */
 export const RECOVERY_GUARD_KEY = 'tc.sw-recovery.v1';
 /**
- * `localStorage` key set, to the version active just before activating, when an update is activated; read by the
- * page that loads next (#347, #941). The stored value is the pre-activation version, not a plain flag, so that
- * page can tell a real version change from a reload that landed back on the same build.
+ * `localStorage` key set, to the build active just before activating, when an update is activated; read by the
+ * page that loads next (#347, #941). The stored value is the pre-activation build identity, not a plain flag, so
+ * that page can tell a real build change from a reload that landed back on the same one.
  */
 export const UPDATED_MARK_KEY = 'tc.updated-from.v1';
+
+/**
+ * Identifies a build well enough to tell two deploys apart even when neither bumps `package.json`'s version
+ * (the common case, #941): `builtAt` is the deploy run's own stamp (`__TC_BUILT_AT__`, deploy.yml's "Stamp the
+ * console build"), unique per run.
+ */
+function buildIdentityOf(): string {
+  return `${buildInfo.version}@${buildInfo.builtAt}`;
+}
 
 /** ngsw's own words when a file it fetched is not the one its manifest hashed. */
 const HASH_MISMATCH = /hash mismatch/i;
@@ -192,7 +201,7 @@ export class AppUpdates {
    */
   private markUpdating(): void {
     try {
-      this.platform.storage?.setItem(UPDATED_MARK_KEY, buildInfo.version);
+      this.platform.storage?.setItem(UPDATED_MARK_KEY, buildIdentityOf());
     } catch (error: unknown) {
       console.error('[updates] the updated mark could not be written', error);
     }
@@ -200,8 +209,9 @@ export class AppUpdates {
 
   /**
    * Reads and clears the mark once. Only an activation writes it, so a plain reload never shows the note. The
-   * note itself only fires when the stored (pre-activation) version differs from this page's: an activation that
-   * landed back on the same build (same version string, or activateUpdate failed) has nothing to announce.
+   * note itself only fires when the stored (pre-activation) build identity differs from this page's: an
+   * activation that landed back on the same build (activateUpdate failed, or a redeploy of the very same build)
+   * has nothing to announce. The text still names only the version, not the deploy stamp.
    */
   private consumeUpdatedMark(): void {
     try {
@@ -209,12 +219,12 @@ export class AppUpdates {
       if (storage === null) {
         return;
       }
-      const storedVersion = storage.getItem(UPDATED_MARK_KEY);
-      if (storedVersion === null) {
+      const storedIdentity = storage.getItem(UPDATED_MARK_KEY);
+      if (storedIdentity === null) {
         return;
       }
       storage.removeItem(UPDATED_MARK_KEY);
-      if (storedVersion !== buildInfo.version) {
+      if (storedIdentity !== buildIdentityOf()) {
         this.updatedTo.set(buildInfo.version);
       }
     } catch (error: unknown) {
