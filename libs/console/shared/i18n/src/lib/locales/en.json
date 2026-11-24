@@ -1952,6 +1952,10 @@
       "title": "Story editor autosave",
       "tip": "Tier: heavy"
     },
+    "roll": {
+      "next": "Change the count",
+      "label": "Open PRs"
+    },
     "stat": {
       "done": "Done",
       "doneValue": "3 of 9",

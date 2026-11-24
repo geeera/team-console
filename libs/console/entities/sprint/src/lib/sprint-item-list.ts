@@ -24,8 +24,9 @@ function isIssue(item: SprintListItem): item is SprintIssue {
   imports: [Chip, List, ListRow, NgTemplateOutlet, SprintCiChip, SprintTierIcon, Tooltip, TranslocoPipe],
   template: `
     <tc-list>
-      @for (item of items(); track item.number) {
+      @for (item of items(); track item.number; let index = $index) {
         <tc-list-row
+          [class.sprint-item--unfold]="isUnfolding(index)"
           [href]="item.url ?? ''"
           external
           [link]="consoleLinkOf(item)"
@@ -98,7 +99,14 @@ export class SprintItemList {
   /** The project of console-tracker rows: a row without a GitHub link opens `/p/:slug/t/:n`. */
   readonly slug = input<string | null>(null);
   /** A control per issue row (the Move menu, #558); declared here so the list owns where it sits. */
+  /** Rows from this index on open their height as they arrive ("Show N more"); `null`: none animates. */
+  readonly unfoldFrom = input<number | null>(null);
   readonly rowAction = input<TemplateRef<{ $implicit: SprintIssue }> | null>(null);
+
+  protected isUnfolding(index: number): boolean {
+    const from = this.unfoldFrom();
+    return from !== null && index >= from;
+  }
 
   protected consoleLinkOf(item: SprintListItem): string[] | null {
     const slug = this.slug();

@@ -23,3 +23,35 @@
   font-size: var(--fs-xs);
   color: var(--text-2);
 }
+
+/*
+ * "Show N more" opens the extra rows like a folded sheet unfolding: their height grows in. `interpolate-size` lets
+ * a height reach `auto`; where it is unsupported the rows simply appear.
+ */
+.sprint-item--unfold {
+  interpolate-size: allow-keywords;
+  overflow: clip;
+  animation: sprint-item-unfold var(--dur-slow) var(--ease-standard) both;
+}
+
+@keyframes sprint-item-unfold {
+  from {
+    block-size: 0;
+    opacity: 0;
+  }
+  to {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
+/* Reduced motion: the rows open without any height animation. */
+@media (prefers-reduced-motion: reduce) {
+  .sprint-item--unfold {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .sprint-item--unfold {
+  animation: none;
+}

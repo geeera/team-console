@@ -1,0 +1,66 @@
+:host {
+  /* Both values share one cell, so the box keeps one line of the wider of the two. */
+  display: inline-grid;
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 100%;
+  overflow: clip;
+  vertical-align: bottom;
+}
+
+.tc-roll__out,
+.tc-roll__in {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tc-roll__out {
+  animation: tc-roll-out var(--dur-base) var(--ease-standard) both;
+}
+
+.tc-roll__in--rolling {
+  animation: tc-roll-in var(--dur-base) var(--ease-standard) both;
+}
+
+@keyframes tc-roll-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+
+@keyframes tc-roll-in {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion: the new value stands at once; the old one is never shown. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-roll__out {
+    display: none;
+  }
+
+  .tc-roll__in--rolling {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-roll__out {
+  display: none;
+}
+
+:host-context(:root[data-motion='reduce']) .tc-roll__in--rolling {
+  animation: none;
+}
