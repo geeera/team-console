@@ -2287,6 +2287,7 @@
       "enrollerOnly": "Only the owner who enrolled this runner can add projects to it: it may run on their Claude subscription. You can still remove projects from it.",
       "openTeam": "Open team settings",
       "enrollerNotSoleOwner": "Only the account's sole owner can claim a runner. Enrol the runner again.",
+      "enrollerUnlinked": "You can claim a runner only once your console sign-in is linked to your GitHub account. Until then, enrol the runner again.",
       "enrollerSet": "The console already knows who enrolled this runner. Refresh the list.",
       "actionsNotReady": "GitHub Actions isn't ready for {{project}} yet: {{items}}. Nothing changed.",
       "actionsNotReadyBare": "GitHub Actions isn't ready for {{project}} yet. Nothing changed."
