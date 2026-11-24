@@ -1,6 +1,7 @@
 /* #409: a paper slip on the Mac, the body of a bottom sheet on the phone (the sheet is the frame there). */
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   align-content: start;
   color: var(--text);
 }
@@ -39,6 +40,7 @@
 
 .tc-menu__head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-px);
   padding: var(--space-2) var(--space-4);
 }
@@ -125,6 +127,7 @@
 
 .tc-menu__icon {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   place-items: center;
   min-height: calc(var(--fs-sm) * var(--lh-body));
   color: var(--text-2);
