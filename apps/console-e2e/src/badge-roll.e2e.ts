@@ -17,9 +17,7 @@ test.beforeAll(async ({ stack }) => {
   }
 });
 
-test.beforeEach(({}, testInfo) => {
-  test.skip(testInfo.project.name === 'iphone', 'the sidebar badge is the wide layout');
-});
+test.skip(({ isMobile }) => isMobile, 'the sidebar badge is the wide layout');
 
 async function serveWaiting(page: Page): Promise<(count: number) => void> {
   let count = 2;
