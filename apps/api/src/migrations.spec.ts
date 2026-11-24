@@ -104,7 +104,44 @@ describe('migrations on a fresh D1', () => {
       '0040_operator_stops.sql',
       '0041_actions_workflow_state.sql',
       '0042_access_owner_link_adopts_actor.sql',
+      '0043_scrub_scope.sql',
       '0044_access_owner_link_member_and_intents.sql',
+    ]);
+  });
+
+  // #477: 0043 recreates four guards in place to admit the scrub marker; none is lost and none is added. What each
+  // admits and refuses, column by column, is `libs/worker/db/src/lib/tracker/scrub-guards.spec.ts`.
+  it('keep every guard of the scrubbable tables through 0043', async () => {
+    const { results } = await env.DB.prepare(
+      `SELECT tbl_name || '.' || name AS guard FROM sqlite_master
+       WHERE type = 'trigger' AND tbl_name IN ('comments', 'asks', 'item_requests', 'item_events', 'sprints')
+       ORDER BY 1`,
+    ).all<{ guard: string }>();
+    expect(results.map((row) => row.guard)).toEqual([
+      'asks.asks_answer_same_item_insert',
+      'asks.asks_answer_same_item_update',
+      'asks.asks_answered_once',
+      'asks.asks_append_only_delete',
+      'asks.asks_append_only_update',
+      'asks.asks_commands_answerable',
+      'asks.asks_never_replaced',
+      'asks.asks_withdrawn_once',
+      'comments.comments_append_only_delete',
+      'comments.comments_append_only_update',
+      'comments.comments_never_replaced',
+      'comments.comments_reversal_once',
+      'comments.comments_reversal_same_item_insert',
+      'comments.comments_reversal_same_item_update',
+      'item_events.item_events_append_only_delete',
+      'item_events.item_events_append_only_update',
+      'item_events.item_events_duplicate_of_migration_only',
+      'item_events.item_events_never_replaced',
+      'item_requests.item_requests_append_only_delete',
+      'item_requests.item_requests_append_only_update',
+      'item_requests.item_requests_handled_once',
+      'item_requests.item_requests_never_replaced',
+      'sprints.sprints_title_key_kept',
+      'sprints.sprints_title_key_required',
     ]);
   });
 

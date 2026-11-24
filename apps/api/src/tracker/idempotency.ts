@@ -28,6 +28,11 @@ export interface TrackerWrite {
   readonly requestHash: string;
   /** The JSON body, `undefined` when there is none or it is not JSON (the route's check then refuses it). */
   readonly body: unknown;
+  /**
+   * A body was sent and is not JSON (#477 security review). `body` is `undefined` then too, so a route for which no
+   * body means something (the scrub: "the history alone") must refuse on this before it reads `body`.
+   */
+  readonly bodyMalformed: boolean;
 }
 
 /** Completes the claimed key inside the write's own batch, so the key is done exactly when the rows exist. */
@@ -79,11 +84,13 @@ export async function trackerWriteOf(c: Context): Promise<TrackerWrite | Respons
   }
   const raw = await c.req.text();
   let body: unknown;
+  let bodyMalformed = false;
   try {
     body = raw === '' ? undefined : (JSON.parse(raw) as unknown);
   } catch {
     // Malformed JSON is the client's input, answered by the route's check; the parser's message is dropped.
     body = undefined;
+    bodyMalformed = true;
   }
   const scope = scopeOf(c.get('identity'));
   const requestHash = await sha256Hex(
@@ -91,7 +98,7 @@ export async function trackerWriteOf(c: Context): Promise<TrackerWrite | Respons
   );
   // 32 hex characters (128 bits) of the scope keep the row's key short; `.` never occurs in a client key.
   const claimKey = `${(await sha256Hex(scope)).slice(0, 32)}.${key}`;
-  return { key, claimKey, requestHash, body };
+  return { key, claimKey, requestHash, body, bodyMalformed };
 }
 
 /**

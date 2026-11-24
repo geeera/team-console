@@ -1,5 +1,5 @@
 import { isAskCommand, type AskCategory, type AskCommand, type ItemSource } from '@shared/contracts';
-import type { TrackerActor } from './item-events.repo';
+import { SCRUBBED_TEXT, type TrackerActor } from './item-events.repo';
 
 export interface AskRecord {
   readonly id: number;
@@ -71,6 +71,16 @@ export function askRecordOf(row: AskRow): AskRecord {
  */
 export class AsksRepo {
   constructor(private readonly db: D1Database) {}
+
+  /**
+   * Masks the text of the item's asks `ids` (#477, migration 0043), for the batch of `ItemEventsRepo.scrub`. The
+   * category, commands, answer and withdrawal stay, so an open ask is still answerable.
+   */
+  scrubStatement(itemId: number, ids: readonly number[]): D1PreparedStatement {
+    return this.db
+      .prepare(`UPDATE asks SET ask = ?3 WHERE item_id = ?1 AND id IN (SELECT value FROM json_each(?2))`)
+      .bind(itemId, JSON.stringify(ids), SCRUBBED_TEXT);
+  }
 
   /** The item's open ask (at most one, by the partial unique index), whatever its source. */
   async findOpen(itemId: number): Promise<AskRecord | null> {

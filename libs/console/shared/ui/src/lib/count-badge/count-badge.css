@@ -1,0 +1,47 @@
+:host {
+  display: inline-flex;
+}
+
+:host([hidden]) {
+  display: none;
+}
+
+/* The number rolls to 0 first (--dur-base), then the pill shrinks into a dot and goes. */
+.tc-count-badge__pill--leaving {
+  animation: tc-count-badge-shrink var(--dur-fast) var(--ease-exit) var(--dur-base) both;
+}
+
+@keyframes tc-count-badge-shrink {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: scale(0.35);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0);
+  }
+}
+
+@keyframes tc-count-badge-fade {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: no shrink; the pill fades out (--dur-fade does not collapse, so the exit stays readable). */
+@media (prefers-reduced-motion: reduce) {
+  :host-context(:root:not([data-motion='full'])) .tc-count-badge__pill--leaving {
+    animation: tc-count-badge-fade var(--dur-fade) var(--ease-exit) both;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-count-badge__pill--leaving {
+  animation: tc-count-badge-fade var(--dur-fade) var(--ease-exit) both;
+}

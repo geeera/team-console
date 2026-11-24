@@ -124,6 +124,7 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/projects/:slug/items/:key/decisions': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/requests': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/events/scrub': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/sprints/:number/scrub': 'tracker-matrix',
   'POST /api/v1/projects/:slug/items/:key/asks': 'job-only',
   'POST /api/v1/projects/:slug/requests/:id/handled': 'job-only',
   // #445: `backlog link-pr`, the developers and the orchestrator only (the owner gets 403 pr-link-role).

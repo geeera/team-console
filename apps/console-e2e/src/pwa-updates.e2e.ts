@@ -92,6 +92,25 @@ test.describe('PWA updates', () => {
     expect(new URL(page.url()).pathname).toBe('/overview');
   });
 
+  test('after the switch a paper note says «Обновлено до vX.Y» and leaves by itself (#347)', async ({
+    page,
+  }) => {
+    await openInstalled(page, '/overview');
+    await expect(page.getByTestId('updated-note'), 'no note on a plain start').toHaveCount(0);
+
+    deploys.deployNext();
+    await leaveAndReturn(page);
+    await expectBuildB(page);
+
+    const note = page.getByRole('status').filter({ hasText: /^\s*Обновлено до v\d/ });
+    await expect(note).toBeVisible();
+    await expectAccessible(page, 'the «Обновлено» note');
+    await expect(page.getByTestId('updated-note')).toHaveCount(0, { timeout: 10_000 });
+
+    await page.reload();
+    await expect(page.getByTestId('updated-note'), 'the note shows once').toHaveCount(0);
+  });
+
   test('a broken worker heals itself: caches cleared, worker unregistered, one load past it', async ({
     page,
   }) => {
@@ -162,7 +181,9 @@ test.describe('PWA updates', () => {
         await openInstalled(page, '/p/team-console/board');
 
         // An open sheet holds the switch back, which leaves the banner up (as in the first test).
-        await page.getByRole('button', { name: (locale === 'ru-RU' ? ru : en)('shell.openSwitcher') }).click();
+        await page
+          .getByRole('button', { name: (locale === 'ru-RU' ? ru : en)('shell.openSwitcher') })
+          .click();
         await expect(page.getByRole('dialog')).toBeVisible();
         deploys.deployNext();
         await leaveAndReturn(page);

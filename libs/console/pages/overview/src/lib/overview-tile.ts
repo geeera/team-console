@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, input } from '@an
 import { toSignal } from '@angular/core/rxjs-interop';
 import { RouterLink } from '@angular/router';
 import { spaceUrlOf, type OverviewProject } from '@console/entities/project';
-import { demoDayOf } from '@console/entities/sprint';
+import { daysUntilDemo, demoDayOf } from '@console/entities/sprint';
 import { snoozeWhenOf } from '@console/features/snooze';
 import {
   localDayOf,
@@ -20,6 +20,10 @@ const TEAM_TONE: Readonly<Record<OverviewTeamState, ChipTone>> = {
   failing: 'danger',
   unknown: 'warning',
 };
+
+/** The step between neighbouring cards' meters (#359); past this many cards the rest fill with the last. */
+const METER_STAGGER_MS = 40;
+const MAX_STAGGERED_CARDS = 8;
 
 /** Not read in this request: the Worker's subrequest budget ran out first; the next request continues. */
 export const OVERVIEW_PENDING_PROBLEM = 'github-request-budget';
@@ -56,13 +60,34 @@ const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
       @if (row.kind === 'read') {
         <span class="ov__line" data-testid="sprint">
           @if (row.sprint; as sprint) {
-            <span dir="auto">{{ sprint.title }}</span> · {{ 'overview.demo' | transloco: { date: demoDate() } }}
+            <span dir="auto">{{ sprint.title }}</span> ·
+            {{ 'overview.demo' | transloco: { date: demoDate() } }}
           } @else {
             {{ 'overview.noSprint' | transloco }}
           }
         </span>
         @if (row.sprint; as sprint) {
-          <tc-meter class="ov__meter" [value]="sprint.shipped" [max]="sprint.planned" />
+          @if (countdown(); as days) {
+            <span
+              class="ov__countdown"
+              [class.ov__countdown--today]="days.n === 0"
+              data-testid="countdown"
+              [attr.data-days]="days.n"
+            >
+              @if (days.n === 0) {
+                {{ 'overview.countdownToday' | transloco }}
+              } @else {
+                {{ 'overview.countdown' | translocoPlural: days.n }}
+              }
+            </span>
+          }
+          <tc-meter
+            class="ov__meter"
+            appear
+            [style.--meter-delay.ms]="meterDelay()"
+            [value]="sprint.shipped"
+            [max]="sprint.planned"
+          />
         }
         <span class="ov__foot">
           <span class="ov__progress" data-testid="progress">
@@ -120,6 +145,8 @@ export class OverviewTile {
   readonly waiting = input(0);
   /** The project's snooze (#221); shown while it mutes at `now`. */
   readonly snooze = input<SnoozeDto>(NOT_SNOOZED);
+  /** The card's place in the list, so neighbouring meters fill one after another (#359). */
+  readonly index = input(0);
   /** The page's clock, so a snooze that ends while the page is open loses its line. */
   readonly now = input(Date.now());
 
@@ -139,6 +166,20 @@ export class OverviewTile {
     const row = this.project();
     return row.kind === 'read' && row.sprint !== null ? localDayOf(demoDayOf(row.sprint.dueOn), lang) : '';
   });
+
+  /** Whole days to the demo day on the page's clock; `null` without a sprint or once the demo has passed. */
+  protected readonly countdown = computed<{ readonly n: number } | null>(() => {
+    const row = this.project();
+    if (row.kind !== 'read' || row.sprint === null) {
+      return null;
+    }
+    const days = daysUntilDemo(row.sprint.dueOn, new Date(this.now()));
+    return days < 0 ? null : { n: days };
+  });
+
+  protected readonly meterDelay = computed(
+    () => Math.min(this.index(), MAX_STAGGERED_CARDS) * METER_STAGGER_MS,
+  );
 
   protected readonly snoozeLine = computed<string | null>(() => {
     const snooze = this.snooze();
