@@ -426,7 +426,7 @@ the reason, and `pauseLiftsAtNextRun` replaces "paused by you" when the next run
 `PLUGIN_COUNTS_OWNER_PAUSE` in `@worker/run-log` (`owner-pause.ts`); `fixtures/owner-pause.json` (the real `cmd_start`
 over the issue's reproduction) fails the golden spec until the switch agrees with the vendored plugin.
 
-Web push, server (#11; the client is #36): `@worker/push` — `checkPushSubscription` (endpoint allow-list: `https:`, push-service
+Web push, server (#11; the client follows below): `@worker/push` — `checkPushSubscription` (endpoint allow-list: `https:`, push-service
 hosts only, no IP literal or port; `p256dh` 65 bytes `0x04`, `auth` 16 bytes), `checkVapidConfig`, `questionNotification` /
 `testNotification` (ngsw `notification` payloads; the tap URL is built only here, `/p/{slug}/questions#{n}` or `/needs-you`; text
 cleaned and cut to 120), the `ru|en` copy in `copy.ts` («вы»), and `PushSender.sendToAll(store, message)` (sequential; 404/410
@@ -438,6 +438,27 @@ secret `VAPID_PRIVATE_KEY`; any of them unusable → 503 `push-misconfigured`. L
 `@worker/push/testing`'s `FakePushService`: hands out subscriptions, decrypts every delivery, verifies the JWT) + `--var
 PUSH_FAKE_ORIGIN:http://127.0.0.1:9997` and a throwaway pair from `node tools/owner-setup/vapid-keygen.js` as `--var`s; never a
 real push service.
+Web push, client (#36): three libs, no custom service worker (Angular's `SwPush`/ngsw). `@console/entities/push`: `PushApi`
+(`publicKey`, `devices`, `save`, `remove`, `sendTest` over `/api/v1/push/*`; answers checked by `isPushConfigDto` and its
+siblings, else `UnexpectedPushResponse`; `subscriptionRequestOf`, `deviceIdOf` = SHA-256 of the endpoint, so a device finds itself
+in `devices()`), `PushDevice` (this browser's permission and subscription through `SwPush`; reading never asks, only `subscribe()`
+can show the prompt), `PushStore` (`phase` `checking|off|asking|saving|on|denied`, `view` = the phase or why push cannot work
+here, `failure` `server|offline|device`; `refresh()` only reads; `enable()` is the one way to the permission prompt and is
+called from a click only; a subscription the Worker refused is kept and re-saved without a second prompt; `turnOff()`,
+`sendTest(language)`), and the tap side: `pushTargetOf(url)` accepts only `/needs-you` or `/p/{slug}/questions#{n}` (digits
+only, same origin) and nothing else, `PushTaps` / `providePushTaps()` (started in `app.config.ts`) routes a tap inside an app
+that is already open, rebuilding the route from the checked parts, and `injectQuestionArrival()` gives the questions screen
+the item to show per navigation (a repeat tap is a new arrival). Its `index.ts` re-exports whole files only (`export *`), so
+the eager `providePushTaps` does not pull the store into the initial bundle (`tools/workspace-checks`, #123).
+`@console/features/push-subscribe`: `PushSettingsCard` (`tc-push-settings-card`, the Notifications block of Settings: every
+state of the store, enable, re-check, test send, turn off), `PushNudge` (`tc-push-nudge`, one quiet line on Needs you while
+push is off on this device; its Turn on asks from that tap; on iPhone Safari it leads to Settings › App and the Home Screen
+steps via `FOCUS_APP_SETTINGS_STATE`; Close hides it) and `PushNudgeMemory` (`PUSH_NUDGE_KEY` = `tc.push-nudge.v1`, kept on
+the device only). `@console/shared/platform` (domain-free): `Platform` / `platformOf(signals)` / `platformSignalsOf(window)`
+with `WebPushSupport` `ok|install|old-ios|in-app|no-push` (iOS pushes to installed web apps only, from 16.4) and
+`SettingsHost`; `AppBadge` / `setAppBadge(navigator, count)` (the app icon's number is Needs you: `app-shell` sets it after
+each refresh and clears it at 0; result `set|cleared|unsupported|refused`; a push itself does not change it in v1, ADR 0001);
+`deviceStorageOf` (device-local `localStorage` with an in-memory fallback); the install pieces are under "Install prompt".
 Webhooks (#12): `apps/hooks` `POST /hooks/github` — 405 → 503 `webhook-misconfigured` (empty `WEBHOOK_SECRET`) → 413 (1 MB read) →
 401 (strict `sha256=` HMAC, `WEBHOOK_SECRET` + `WEBHOOK_SECRET_PREVIOUS`) → dedupe (`WebhookDeliveriesRepo`, delivery id and body
 SHA-256) → registry row + `installation_id` → `cache_epoch` bump → `own_writes` → author gate (`isTrustedAuthor`) → pure `mapEvent`
