@@ -11,12 +11,13 @@
     <span tc-row-subtitle class="switcher__snoozed" data-testid="switcher-snoozed">
       <tc-icon name="bell-off" size="sm" />{{ 'shell.snoozed' | transloco }}
     </span>
-    } @if (countOf(project.slug); as count) {
-    <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count | localNumber }}</span>
-      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
-    </tc-chip>
     }
+    <tc-count-badge
+      tc-row-trailing
+      [count]="countOf(project.slug)"
+      [text]="countOf(project.slug) | localNumber"
+      [label]="'shell.badge' | transloco: { n: countOf(project.slug) }"
+    />
     <button
       tc-icon-button
       tc-row-action
@@ -65,12 +66,13 @@
     <span tc-row-subtitle class="switcher__snoozed" data-testid="switcher-snoozed">
       <tc-icon name="bell-off" size="sm" />{{ 'shell.snoozed' | transloco }}
     </span>
-    } @if (countOf(project.slug); as count) {
-    <tc-chip tc-row-trailing tone="accent">
-      <span aria-hidden="true">{{ count | localNumber }}</span>
-      <span class="tc-sr-only">{{ 'shell.badge' | transloco: { n: count } }}</span>
-    </tc-chip>
     }
+    <tc-count-badge
+      tc-row-trailing
+      [count]="countOf(project.slug)"
+      [text]="countOf(project.slug) | localNumber"
+      [label]="'shell.badge' | transloco: { n: countOf(project.slug) }"
+    />
     <button
       tc-icon-button
       tc-row-action

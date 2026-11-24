@@ -1952,6 +1952,11 @@
       "title": "Story editor autosave",
       "tip": "Tier: heavy"
     },
+    "countBadge": {
+      "row": "Needs you",
+      "label": "Waiting for you:",
+      "answer": "Answer one"
+    },
     "roll": {
       "next": "Change the count",
       "label": "Open PRs"
