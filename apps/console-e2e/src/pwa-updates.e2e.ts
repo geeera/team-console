@@ -92,7 +92,7 @@ test.describe('PWA updates', () => {
     expect(new URL(page.url()).pathname).toBe('/overview');
   });
 
-  test('after the switch a paper note says «Обновлено до vX.Y» and leaves by itself (#347)', async ({
+  test('after a same-version switch the page updates but shows no «Обновлено» note (#941)', async ({
     page,
   }) => {
     await openInstalled(page, '/overview');
@@ -102,13 +102,15 @@ test.describe('PWA updates', () => {
     await leaveAndReturn(page);
     await expectBuildB(page);
 
-    const note = page.getByRole('status').filter({ hasText: /^\s*Обновлено до v\d/ });
-    await expect(note).toBeVisible();
-    await expectAccessible(page, 'the «Обновлено» note');
-    await expect(page.getByTestId('updated-note')).toHaveCount(0, { timeout: 10_000 });
+    // Build B here carries the stack's own buildInfo.version, same as build A (most deploys don't bump
+    // package.json, #927's deviation note): the mark is still written and consumed on reload, but the note
+    // itself only fires once the stored and current versions actually differ (#941).
+    await expect(page.getByTestId('updated-note'), 'no note when the version did not change').toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem('tc.updated-from.v1')), 'the mark is consumed').toBeNull();
+    await expectAccessible(page, 'the page after a same-version switch');
 
     await page.reload();
-    await expect(page.getByTestId('updated-note'), 'the note shows once').toHaveCount(0);
+    await expect(page.getByTestId('updated-note'), 'still no note on a later reload').toHaveCount(0);
   });
 
   test('a broken worker heals itself: caches cleared, worker unregistered, one load past it', async ({
