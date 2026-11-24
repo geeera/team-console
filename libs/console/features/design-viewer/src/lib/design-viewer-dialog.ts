@@ -316,10 +316,14 @@ export class DesignViewerDialog {
   /**
    * The turn animation (`data-move`) has finished playing. Reset to `'none'` so a later re-render that recreates
    * this element for an unrelated reason (a round trip through «Все экраны», a manifest reload) does not replay a
-   * move that already happened (#944).
+   * move that already happened (#944). `.viewer__img` plays its own `viewer-settle` animation and its
+   * `animationend` bubbles up to this handler too, so only react to the event when this element is the one that
+   * animated (#953).
    */
-  protected onTurnEnd(): void {
-    this.move.set('none');
+  protected onTurnEnd(event: AnimationEvent): void {
+    if (event.target === event.currentTarget) {
+      this.move.set('none');
+    }
   }
 
   protected reloadManifest(): void {

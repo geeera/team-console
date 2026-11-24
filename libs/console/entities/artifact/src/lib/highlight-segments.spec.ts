@@ -69,4 +69,28 @@ describe('highlightSegments', () => {
       { text: ' köprüsü', isMatch: false },
     ]);
   });
+
+  it('marks an all-caps Greek title ending in Σ for a lowercase query, final sigma included (#950)', () => {
+    // "ΣΑΣ".toLowerCase() picks the word-final "ς" for the last letter, but folding the title one character at
+    // a time (as the title is folded here) gives the medial "σ" instead; both sides must agree.
+    expect(highlightSegments('ΣΑΣ είναι εδώ', ['σας'])).toEqual([
+      { text: 'ΣΑΣ', isMatch: true },
+      { text: ' είναι εδώ', isMatch: false },
+    ]);
+  });
+
+  it('marks a title with an astral (surrogate-pair) character before the match at the right offsets', () => {
+    // "🎉" and "𝐀" are each one surrogate pair (2 UTF-16 code units, 1 code point): the match on "Board" must
+    // land after them, not one unit short or long.
+    expect(highlightSegments('🎉 Board phone lanes', ['board'])).toEqual([
+      { text: '🎉 ', isMatch: false },
+      { text: 'Board', isMatch: true },
+      { text: ' phone lanes', isMatch: false },
+    ]);
+    expect(highlightSegments('𝐀 board game', ['board'])).toEqual([
+      { text: '𝐀 ', isMatch: false },
+      { text: 'board', isMatch: true },
+      { text: ' game', isMatch: false },
+    ]);
+  });
 });

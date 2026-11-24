@@ -209,6 +209,23 @@ describe('DesignViewer', () => {
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
   });
 
+  it('does not reset the mark on a child\'s animationend bubbling up, only its own (#953)', async () => {
+    await open();
+    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
+
+    // `.viewer__img` plays its own `viewer-settle` animation; its bubbled `animationend` must not reset `move`.
+    byTestId('viewer-screen')?.dispatchEvent(new Event('animationend', { bubbles: true }));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
+
+    // The page's own animationend still resets it.
+    byTestId('viewer-page')?.dispatchEvent(new Event('animationend', { bubbles: true }));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
+  });
+
   it('turns the page on a touch swipe, not on a short or vertical move', async () => {
     await open();
     allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));

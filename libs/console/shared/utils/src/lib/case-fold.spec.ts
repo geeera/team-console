@@ -21,4 +21,12 @@ describe('caseFold', () => {
   it('leaves other scripts to the ordinary locale fold (Cyrillic)', () => {
     expect(caseFold('СТЕКЕ')).toBe('стеке');
   });
+
+  it('folds the Greek final sigma (Σ at the end of a word) to the medial σ, same as a non-final one (#950)', () => {
+    // Plain .toLowerCase() picks the final sigma "ς" only when the capital Σ ends the string ("ΣΑΣ" → "σας"),
+    // which disagrees with folding the same letter alone ("Σ" → "σ") — this is what a per-character fold hits.
+    expect(caseFold('ΣΑΣ')).toBe('σασ');
+    expect(caseFold('Σ')).toBe('σ');
+    expect(caseFold('ς')).toBe('σ');
+  });
 });
