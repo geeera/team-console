@@ -116,6 +116,8 @@ interface Harness {
   eventsReply: (() => Response) | undefined;
   /** Labels the issue shows from its second read on (#193: a label change between the gate and the POST). */
   labelsOnReread: readonly string[] | undefined;
+  /** Issues as the team changed them since the fixture (#266: closed or relabelled after the answer landed). */
+  issues: Record<string, Issue>;
 }
 
 function toRequest(call: GitHubCall): Request {
@@ -137,6 +139,7 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
     commentReply: undefined,
     eventsReply: undefined,
     labelsOnReread: undefined,
+    issues: {},
     stub: stubGitHub(async (call) => {
       const path = call.url.pathname;
       if (call.method === 'POST' && path.endsWith('/comments')) {
@@ -153,7 +156,7 @@ function harness(options: { instantSleep?: boolean } = {}): Harness {
       }
       const issue = /^\/repos\/geeera\/team-console\/issues\/(\d+)$/.exec(path);
       if (call.method === 'GET' && issue !== null) {
-        const found = ISSUES[issue[1] ?? ''];
+        const found = h.issues[issue[1] ?? ''] ?? ISSUES[issue[1] ?? ''];
         const isReread = h.stub.calls.filter((made) => made.url.pathname === path).length > 1;
         return found === undefined
           ? json(404, { message: 'Not Found' })
@@ -611,6 +614,63 @@ describe('the item re-read before a late repeat (#120): POST …/answer/lookup',
     expect(notAllowed.status).toBe(422);
     expect((await problemOf(notAllowed)).slug).toBe('answer-not-allowed');
     expect(posts(h)).toEqual([]);
+  });
+
+  it('still returns the receipt when the team closed the issue after the lost answer landed (#266)', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const body = { command: 'approve', ownerSaid: 'да' };
+    const created = (await (await answer(h, 7, body)).json()) as Record<string, unknown>;
+
+    h.issues['7'] = { state: 'closed', labels: ['kind:question'] };
+    h.clock += 61_000;
+    const response = await lookup(h, 7, { ...body, sentAgoMs: 61_000 });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ answer: { ...created, replayed: true } });
+    expect(posts(h)).toHaveLength(1);
+    expect(h.fake.comments).toHaveLength(1);
+  });
+
+  it('still returns the receipt when the issue was relabelled so it no longer waits (#266)', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const body = { command: 'approve', ownerSaid: 'да' };
+    const created = (await (await answer(h, 7, body)).json()) as Record<string, unknown>;
+
+    h.issues['7'] = { state: 'open', labels: ['kind:chore'] };
+    h.clock += 61_000;
+    const response = await lookup(h, 7, { ...body, sentAgoMs: 61_000 });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ answer: { ...created, replayed: true } });
+    expect(posts(h)).toHaveLength(1);
+  });
+
+  it('still returns the receipt when the issue now waits for another command (#266)', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    const body = { command: 'approve', ownerSaid: 'да' };
+    const created = (await (await answer(h, 7, body)).json()) as Record<string, unknown>;
+
+    h.issues['7'] = { state: 'open', labels: ['needs:owner', 'kind:chore'] };
+    h.clock += 61_000;
+    const response = await lookup(h, 7, { ...body, sentAgoMs: 61_000 });
+
+    expect(await response.json()).toEqual({ answer: { ...created, replayed: true } });
+    expect(posts(h)).toHaveLength(1);
+  });
+
+  it('answers the problem, not a receipt, when nothing was written for this answer on a closed issue', async () => {
+    const h = harness();
+    await seedConnection(h.fake);
+    await answer(h, 7, { command: 'approve', ownerSaid: 'да' });
+    h.issues['7'] = { state: 'closed', labels: ['kind:question'] };
+    h.clock += 61_000;
+
+    const response = await lookup(h, 7, { command: 'approve', ownerSaid: 'другое', sentAgoMs: 61_000 });
+    expect(response.status).toBe(409);
+    expect(posts(h)).toHaveLength(1);
   });
 
   it.each([
