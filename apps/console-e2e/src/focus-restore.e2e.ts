@@ -88,6 +88,9 @@ for (const viewport of RESUME_VIEWPORTS) {
     await page.goto(`/p/${SLUG}/questions`);
     const banner = page.getByTestId('paused-banner');
     await expect(banner).toBeVisible();
+    // #357: the pause is a note with a paperclip; once resumed it lifts away and leaves the page.
+    await expect(banner).toHaveClass(/tc-banner--note/);
+    await expect(banner.locator('.tc-banner__clip')).toBeVisible();
     await banner.getByTestId('banner-resume').focus();
     await page.keyboard.press('Enter');
     const confirm = page.getByRole('alertdialog');

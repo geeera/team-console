@@ -1446,7 +1446,7 @@
       "alreadyPaused": "{{name}} is already paused. Nothing changed.",
       "alreadyPausedSince": "{{name}} is already paused since {{time}}. Nothing changed.",
       "alreadyRunning": "{{name}} is already running. Nothing changed.",
-      "requested": "Requested: {{slot}}",
+      "requested": "Sent: {{slot}}",
       "requestedDetail": "It shows up in the run log in a few minutes.",
       "overlap": "{{slot}}: a run is already in progress since {{time}}. Not starting a second one.",
       "requestedAlready": "{{slot}} was requested at {{time}} and isn’t in the run log yet. Not starting a second one before {{until}}.",

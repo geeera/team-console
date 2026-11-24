@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { booleanAttribute, ChangeDetectionStrategy, Component, input } from '@angular/core';
+import { Icon } from '../icon/icon';
 
 export type BannerTone = 'warning' | 'danger';
 
@@ -14,10 +15,17 @@ export type BannerTone = 'warning' | 'danger';
  *   <div tc-banner-actions><button tc-button size="sm" type="button">Resume</button></div>
  * </div>
  * ```
+ *
+ * `note` turns it into a paper note held by a paperclip (#357): it drops into place on entry, and a caller that
+ * wants it to lift away on removal adds `animate.leave="tc-banner--leaving"`.
  */
 @Component({
   selector: '[tc-banner]',
+  imports: [Icon],
   template: `
+    @if (note()) {
+      <tc-icon class="tc-banner__clip" name="paperclip" />
+    }
     <ng-content select="[tc-banner-icon]" />
     <ng-content select="[tc-banner-text]" />
     <ng-content select="[tc-banner-actions]" />
@@ -28,8 +36,11 @@ export type BannerTone = 'warning' | 'danger';
     class: 'tc-banner',
     '[class.tc-banner--warning]': 'tone() === "warning"',
     '[class.tc-banner--danger]': 'tone() === "danger"',
+    '[class.tc-banner--note]': 'note()',
   },
 })
 export class Banner {
   readonly tone = input<BannerTone>('warning');
+  /** A paper note with a paperclip instead of a flat strip. */
+  readonly note = input(false, { transform: booleanAttribute });
 }

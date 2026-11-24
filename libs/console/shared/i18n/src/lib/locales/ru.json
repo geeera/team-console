@@ -1446,7 +1446,7 @@
       "alreadyPaused": "{{name}} уже на паузе. Ничего не изменено.",
       "alreadyPausedSince": "{{name}} уже на паузе с {{time}}. Ничего не изменено.",
       "alreadyRunning": "{{name}} уже в работе. Ничего не изменено.",
-      "requested": "Запрошено: {{slot}}",
+      "requested": "Отправлено: {{slot}}",
       "requestedDetail": "Прогон появится в журнале через пару минут.",
       "overlap": "{{slot}}: прогон уже идёт с {{time}}. Второй не запускаем.",
       "requestedAlready": "{{slot}}: запрошено в {{time}}, в журнале ещё нет. Второй не запускаем до {{until}}.",
