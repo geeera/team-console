@@ -1,6 +1,7 @@
 /* A project's environment (#750): sections per environment instead of #104's tabs; the rest is the #104 layout. */
 .penv__section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -40,6 +41,7 @@
 
 .penv__part {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 

@@ -13,6 +13,7 @@
 
 .env__list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
   min-width: 0;
 }
@@ -40,6 +41,7 @@
 
   .env--guide-open .env__list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .env--guide-open .env__guide {
@@ -52,6 +54,7 @@
 
 .env__head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -63,16 +66,19 @@
 
 .env__panel {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
 }
 
 .env__group {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-3);
 }
 
 .env__group-head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
 }
 
