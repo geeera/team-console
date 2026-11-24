@@ -96,6 +96,12 @@ export class SheetContainer extends CdkDialogContainer {
   /** Whether the body overflows: only then is it a tab stop (the designer's axe finding on #194). */
   protected readonly scrollable = signal(false);
 
+  /**
+   * Whether text is still hidden under the footer: the body scrolls and is not at its end (#352). Only then does the
+   * pinned action bar cast its paper shadow; at the end of the content the shadow goes, which says "read it all".
+   */
+  protected readonly hasTextBelow = signal(false);
+
   /** Whether the dialog footer wrapped, so its actions stack full width with the primary on top (#325). */
   protected readonly stackedFooter = signal(false);
   /** The footer width at which it last stacked: a wider footer is worth trying as a row again. */
@@ -134,16 +140,23 @@ export class SheetContainer extends CdkDialogContainer {
     });
     afterNextRender(() => {
       const body = this.body().nativeElement;
-      const measure = (): void => this.scrollable.set(body.scrollHeight > body.clientHeight + 1);
-      measure();
+      this.measureBody();
       if (typeof ResizeObserver === 'undefined') {
         return;
       }
-      const observer = new ResizeObserver(measure);
+      const observer = new ResizeObserver(() => this.measureBody());
       observer.observe(body);
       observer.observe(this.content().nativeElement);
       destroyRef.onDestroy(() => observer.disconnect());
     });
+  }
+
+  /** Runs on every scroll and resize of the body: whether it overflows, and whether any of it is still below. */
+  protected measureBody(): void {
+    const body = this.body().nativeElement;
+    this.scrollable.set(body.scrollHeight > body.clientHeight + 1);
+    // 1 px of slack, as for `scrollable`: sub-pixel scroll positions never leave the shadow on at the end.
+    this.hasTextBelow.set(body.scrollHeight - body.scrollTop - body.clientHeight > 1);
   }
 
   /**
