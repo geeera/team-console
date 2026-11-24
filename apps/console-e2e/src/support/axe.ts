@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import type { Page } from '@playwright/test';
+import { settled } from './motion';
 
 // WCAG 2.2 A/AA plus axe's best practices; only these impacts fail the run (#14).
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
@@ -20,18 +21,76 @@ export interface BlockingViolation {
 }
 
 /**
- * Waits until every finite animation has finished: mid-way through a sheet's entrance its text is still partly
- * transparent, and axe would measure contrast on a frame no one reads. Endless ones (spinners) are left alone.
+ * Resolves once the page has gone `quietMs` without a DOM mutation, or `timeoutMs` has passed regardless (a
+ * continuously updating region, e.g. a live countdown, must not hang the scan). A widget that mounts from its own
+ * async store — the GitHub repositories block on `/overview`, independent of the route's own fade — can still be
+ * arriving, and with it a fresh fade of its own, after the route-enter animation already finished and was waited
+ * on (#952); checking only "no animation running right now" misses that.
+ */
+async function domIdle(page: Page, quietMs: number, timeoutMs: number): Promise<void> {
+  await page.evaluate(
+    ({ quietMs, timeoutMs }) =>
+      new Promise<void>((resolve) => {
+        let quietTimer: ReturnType<typeof setTimeout>;
+        const finish = () => {
+          clearTimeout(deadline);
+          observer.disconnect();
+          resolve();
+        };
+        const observer = new MutationObserver(() => {
+          clearTimeout(quietTimer);
+          quietTimer = setTimeout(finish, quietMs);
+        });
+        quietTimer = setTimeout(finish, quietMs);
+        const deadline = setTimeout(finish, timeoutMs);
+        observer.observe(document.documentElement, { childList: true, subtree: true, attributes: true });
+      }),
+    { quietMs, timeoutMs },
+  );
+}
+
+/** Resolves once `frames` animation frames in a row saw no finite animation running. */
+async function quietForFrames(page: Page, frames: number): Promise<boolean> {
+  return page.evaluate((frameCount) => {
+    const running = () =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity,
+        );
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return (async () => {
+      for (let i = 0; i < frameCount; i++) {
+        if (running()) {
+          return false;
+        }
+        await nextFrame();
+      }
+      return !running();
+    })();
+  }, frames);
+}
+
+/**
+ * Waits until every finite animation has finished: mid-way through a sheet's entrance, or the #506 route fade/rise,
+ * its text is still partly transparent, and axe would measure contrast on a frame no one reads. Endless ones
+ * (spinners, the live dot) are left alone.
+ *
+ * A DOM swap's animation (a navigation, an `@if` block replaced) is not always constructed on the very first frame
+ * read — more so under CPU load (#952, seen on CI and reproduced locally under load) — so a single `settled()`
+ * snapshot can race the animation's own start and return before it begins. Only four quiet frames in a row are
+ * trusted; anything seen running is waited out and the quiet check runs again, in case another one started meanwhile.
  */
 export async function animationsSettled(page: Page): Promise<void> {
-  await page.waitForFunction(() =>
-    document
-      .getAnimations()
-      .every(
-        (animation) =>
-          animation.playState !== 'running' || animation.effect?.getTiming().iterations === Infinity,
-      ),
-  );
+  await domIdle(page, 80, 2000);
+  const attempts = 20;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (await quietForFrames(page, 4)) {
+      return;
+    }
+    await settled(page);
+  }
 }
 
 /**
