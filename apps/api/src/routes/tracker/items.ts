@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import {
   checkCreateItemInput,
   checkQueueMoveInput,
+  checkScrubItemInput,
   checkUpdateItemInput,
   isFlagName,
   isItemKind,
@@ -15,13 +16,18 @@ import {
 import { withoutInvisibles } from '@shared/plain-text';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import {
+  AsksRepo,
+  CommentsRepo,
   ItemEventsRepo,
+  ItemRequestsRepo,
   ItemsRepo,
   LabelsRepo,
   SprintsRepo,
   TrackerProjectsRepo,
   planQueueMove,
+  scrubIdsMissing,
   type ItemFilter,
+  type ScrubRowKind,
   type TrackerProject,
 } from '@worker/db';
 import { transitionRefusal, type ItemTransition } from '../../auth/policy';
@@ -51,6 +57,7 @@ import {
 import { withOneRetry } from '../../tracker/effect-batch';
 import { idempotent } from '../../tracker/idempotency';
 import { planItemUpdate, queueMoveTransition } from '../../tracker/item-change';
+import { scrubAuditStatement } from '../../tracker/scrub-audit';
 import { frozenSprintRefusal } from '../../tracker/sprint-freeze';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
@@ -506,8 +513,10 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
         return c.json(body);
       })
 
-      // #462 (ADR 0008 row 2-0): incident response for a secret that reached an item's title or body. The owner corrects
-      // the item, then masks the old text its created/edited events keep; the scrub records itself as a `scrubbed` event.
+      // #462 (ADR 0008 row 2-0), #477: incident response for a secret that reached an item's stored text, after the
+      // secret itself is rotated. With no members it masks the old title and body the item's created/edited/imported
+      // events keep (the owner corrects the item itself with a PATCH); with members it masks exactly the comments,
+      // asks and request reasons it names. The scrub records itself as a `scrubbed` event and an audit row.
       .post('/:slug/items/:key/events/scrub', guard.scrub, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
         const context = await trackerWriteContextOf(c);
         if (context instanceof Response) {
@@ -532,16 +541,45 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
           write,
           (ref, status) => respond(Number(ref), status === 201 ? 201 : 200),
           async (complete) => {
-            if (!isEmptyBody(write.body)) {
-              return invalid(c, 'item-invalid', 'body', 'A scrub takes no members; send {} or no body');
+            const input = checkScrubItemInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'item-invalid', input.field, input.detail);
             }
-            const scrub = await events.scrub(item.id, actor, new Date().toISOString(), [
-              complete(201, 'event', { newestEventOf: item.id }),
-            ]);
-            c.get('logger').info('tracker item events scrubbed', {
+            const scope = input.value;
+            // Every named row must be this item's own, or nothing is masked: ids are numbers, safe to name back.
+            for (const kind of SCRUB_ROW_KINDS) {
+              const missing = await scrubIdsMissing(c.env.DB, kind, item.id, scope[kind]);
+              if (missing.length > 0) {
+                return invalid(c, 'item-invalid', kind, SCRUB_MISSING_DETAIL[kind](missing));
+              }
+            }
+            const at = new Date().toISOString();
+            const scrub = await events.scrub(
+              item.id,
+              actor,
+              at,
+              [
+                ...(scope.comments.length > 0
+                  ? [new CommentsRepo(c.env.DB).scrubStatement(item.id, scope.comments)]
+                  : []),
+                ...(scope.asks.length > 0
+                  ? [new AsksRepo(c.env.DB).scrubStatement(item.id, scope.asks)]
+                  : []),
+                ...(scope.requests.length > 0
+                  ? [new ItemRequestsRepo(c.env.DB).scrubReasonStatement(item.id, scope.requests)]
+                  : []),
+                scrubAuditStatement(c, project, at, { item: item.number, ...scope }),
+                complete(201, 'event', { newestEventOf: item.id }),
+              ],
+              scope,
+            );
+            c.get('logger').info('tracker item scrubbed', {
               slug: project.slug,
               number: item.number,
               events: scrub.masked,
+              comments: scope.comments.length,
+              asks: scope.asks.length,
+              requests: scope.requests.length,
             });
             return respond(scrub.eventId, 201);
           },
@@ -550,10 +588,9 @@ export function createTrackerItemRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<A
   );
 }
 
-/** No body, or an empty JSON object. */
-function isEmptyBody(body: unknown): boolean {
-  return (
-    body === undefined ||
-    (typeof body === 'object' && body !== null && !Array.isArray(body) && Object.keys(body).length === 0)
-  );
-}
+const SCRUB_ROW_KINDS = ['comments', 'asks', 'requests'] as const satisfies readonly ScrubRowKind[];
+const SCRUB_MISSING_DETAIL: Readonly<Record<ScrubRowKind, (ids: readonly number[]) => string>> = {
+  comments: (ids) => `Not comments of this item: ${ids.join(', ')}`,
+  asks: (ids) => `Not asks of this item: ${ids.join(', ')}`,
+  requests: (ids) => `Not answered requests of this item: ${ids.join(', ')}`,
+};

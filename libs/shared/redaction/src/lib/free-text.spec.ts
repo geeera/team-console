@@ -11,8 +11,18 @@ const OPAQUE = 'Zx9_'.repeat(10) + 'abc';
 const SAMPLES: Readonly<Record<SecretKind, string>> = {
   'github-token': join('gh', 'p_', TAIL),
   'gitlab-token': join('gl', 'pat-', 'A1b2C3d4E5f6G7h8I9j0'),
-  jwt: join(b64url('{"alg":"HS256","typ":"JWT"}'), '.', b64url('{"sub":"job-1","exp":1}'), '.', 'c2lnbmF0dXJl'),
-  'private-key': join('-----BEGIN ', 'RSA PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END ', 'RSA PRIVATE KEY-----'),
+  jwt: join(
+    b64url('{"alg":"HS256","typ":"JWT"}'),
+    '.',
+    b64url('{"sub":"job-1","exp":1}'),
+    '.',
+    'c2lnbmF0dXJl',
+  ),
+  'private-key': join(
+    '-----BEGIN ',
+    'RSA PRIVATE KEY-----\nMIIEvQIBADANBg\n-----END ',
+    'RSA PRIVATE KEY-----',
+  ),
   'job-token': join('tc', 'j_', OPAQUE),
   'enrolment-code': join('tc', 'e_', OPAQUE),
   'enrolment-poll-token': join('tc', 'ep_', OPAQUE),

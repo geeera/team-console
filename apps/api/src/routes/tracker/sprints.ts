@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   checkCreateSprintInput,
+  checkScrubSprintInput,
   checkUpdateSprintInput,
   isSprintState,
   type TrackerSprintListDto,
@@ -12,8 +13,9 @@ import type { ApiEnv } from '../../env';
 import { bodySecretRefusal } from '../../tracker/body-secret';
 import { invalid, trackerProjectOf } from '../../tracker/context';
 import { sprintDtoOf } from '../../tracker/dto';
-import { TEXT_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
+import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../../tracker/http';
 import { idempotent } from '../../tracker/idempotency';
+import { scrubAuditStatement } from '../../tracker/scrub-audit';
 import { trackerWriteContextOf } from '../../tracker/write-context';
 
 type Context = WorkerContext<ApiEnv>;
@@ -58,120 +60,171 @@ export function createTrackerSprintRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
     read: trackerAccess('GET /api/v1/projects/:slug/sprints/:number'),
     create: trackerAccess('POST /api/v1/projects/:slug/sprints'),
     change: trackerAccess('PATCH /api/v1/projects/:slug/sprints/:number'),
+    scrub: trackerAccess('POST /api/v1/projects/:slug/sprints/:number/scrub'),
   };
-  return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/:slug/sprints', guard.list, async (c) => {
-      const project = await trackerProjectOf(c);
-      if (project instanceof Response) {
-        return project;
-      }
-      const state = c.req.query('state') ?? 'all';
-      if (state !== 'all' && !isSprintState(state)) {
-        return invalid(c, 'query-invalid', 'state', 'state is open, closed or all');
-      }
-      const repo = new SprintsRepo(c.env.DB);
-      const [sprints, counts] = await Promise.all([repo.list(project.slug, state), repo.openItemCounts(project.slug)]);
-      const body: TrackerSprintListDto = {
-        sprints: sprints.map((sprint) => sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0)),
-        backlogOpenCount: counts.backlog,
-      };
-      c.header('Cache-Control', 'no-store');
-      return c.json(body);
-    })
+  return (
+    new Hono<WorkerHonoEnv<ApiEnv>>()
+      .get('/:slug/sprints', guard.list, async (c) => {
+        const project = await trackerProjectOf(c);
+        if (project instanceof Response) {
+          return project;
+        }
+        const state = c.req.query('state') ?? 'all';
+        if (state !== 'all' && !isSprintState(state)) {
+          return invalid(c, 'query-invalid', 'state', 'state is open, closed or all');
+        }
+        const repo = new SprintsRepo(c.env.DB);
+        const [sprints, counts] = await Promise.all([
+          repo.list(project.slug, state),
+          repo.openItemCounts(project.slug),
+        ]);
+        const body: TrackerSprintListDto = {
+          sprints: sprints.map((sprint) => sprintDtoOf(sprint, counts.bySprintId.get(sprint.id) ?? 0)),
+          backlogOpenCount: counts.backlog,
+        };
+        c.header('Cache-Control', 'no-store');
+        return c.json(body);
+      })
 
-    .get('/:slug/sprints/:number', guard.read, async (c) => {
-      const project = await trackerProjectOf(c);
-      if (project instanceof Response) {
-        return project;
-      }
-      const number = c.req.param('number');
-      return SPRINT_NUMBER.test(number) ? sprintResponse(c, project, Number(number), 200) : sprintNotFound(c);
-    })
+      .get('/:slug/sprints/:number', guard.read, async (c) => {
+        const project = await trackerProjectOf(c);
+        if (project instanceof Response) {
+          return project;
+        }
+        const number = c.req.param('number');
+        return SPRINT_NUMBER.test(number)
+          ? sprintResponse(c, project, Number(number), 200)
+          : sprintNotFound(c);
+      })
 
-    .post('/:slug/sprints', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c);
-      if (context instanceof Response) {
-        return context;
-      }
-      const { project, policyActor, write } = context;
-      return idempotent(
-        c,
-        write,
-        (ref, status) => sprintResponse(c, project, Number(ref), status === 201 ? 201 : 200),
-        async (complete) => {
-          const input = checkCreateSprintInput(write.body);
-          if (!input.ok) {
-            return invalid(c, 'sprint-invalid', input.field, input.detail);
-          }
-          // The title is validated plain text already (`checkCreateSprintInput`); this only judges it for secrets.
-          const { title, description } = input.value;
-          const secret = bodySecretRefusal(c, policyActor, { title, description });
-          if (secret !== null) {
-            return secret;
-          }
-          const repo = new SprintsRepo(c.env.DB);
-          const number = await repo.nextNumber(project.slug);
-          // An owner-entered name is compared ignoring case as the console's dialog does; 0026's unique index refuses
-          // the same name again when two creates pass this check together. Without a title the repo picks a free
-          // `Sprint NN` itself, so a create without a title cannot be refused for its name (#554).
-          if (title != null && (await repo.findByTitle(project.slug, title)) !== null) {
-            return titleTaken(c);
-          }
-          const created = await repo.create(
-            project.slug,
-            number,
-            { ...input.value, at: new Date().toISOString() },
-            [complete(201, 'sprint', { value: String(number) })],
-          );
-          if (created === 'title-taken') {
-            return titleTaken(c);
-          }
-          if (created === 'number-taken') {
-            return problem(c, {
-              type: 'sprint-exists',
-              title: 'Another sprint took this number',
-              status: 409,
-              detail: 'A sprint was created at the same moment; send the request again',
-            });
-          }
-          c.get('logger').info('tracker sprint created', { slug: project.slug, number });
-          return sprintResponse(c, project, number, 201);
-        },
-      );
-    })
+      .post('/:slug/sprints', guard.create, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const { project, policyActor, write } = context;
+        return idempotent(
+          c,
+          write,
+          (ref, status) => sprintResponse(c, project, Number(ref), status === 201 ? 201 : 200),
+          async (complete) => {
+            const input = checkCreateSprintInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'sprint-invalid', input.field, input.detail);
+            }
+            // The title is validated plain text already (`checkCreateSprintInput`); this only judges it for secrets.
+            const { title, description } = input.value;
+            const secret = bodySecretRefusal(c, policyActor, { title, description });
+            if (secret !== null) {
+              return secret;
+            }
+            const repo = new SprintsRepo(c.env.DB);
+            const number = await repo.nextNumber(project.slug);
+            // An owner-entered name is compared ignoring case as the console's dialog does; 0026's unique index refuses
+            // the same name again when two creates pass this check together. Without a title the repo picks a free
+            // `Sprint NN` itself, so a create without a title cannot be refused for its name (#554).
+            if (title != null && (await repo.findByTitle(project.slug, title)) !== null) {
+              return titleTaken(c);
+            }
+            const created = await repo.create(
+              project.slug,
+              number,
+              { ...input.value, at: new Date().toISOString() },
+              [complete(201, 'sprint', { value: String(number) })],
+            );
+            if (created === 'title-taken') {
+              return titleTaken(c);
+            }
+            if (created === 'number-taken') {
+              return problem(c, {
+                type: 'sprint-exists',
+                title: 'Another sprint took this number',
+                status: 409,
+                detail: 'A sprint was created at the same moment; send the request again',
+              });
+            }
+            c.get('logger').info('tracker sprint created', { slug: project.slug, number });
+            return sprintResponse(c, project, number, 201);
+          },
+        );
+      })
 
-    .patch('/:slug/sprints/:number', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
-      const context = await trackerWriteContextOf(c);
-      if (context instanceof Response) {
-        return context;
-      }
-      const { project, policyActor, write } = context;
-      const param = c.req.param('number');
-      const number = SPRINT_NUMBER.test(param) ? Number(param) : null;
-      return idempotent(
-        c,
-        write,
-        (ref) => sprintResponse(c, project, Number(ref), 200),
-        async (complete) => {
-          const repo = new SprintsRepo(c.env.DB);
-          // Sprints are never deleted, so one that exists now still exists for the update below.
-          if (number === null || (await repo.findByNumber(project.slug, number)) === null) {
-            return sprintNotFound(c);
-          }
-          const input = checkUpdateSprintInput(write.body);
-          if (!input.ok) {
-            return invalid(c, 'sprint-invalid', input.field, input.detail);
-          }
-          const secret = bodySecretRefusal(c, policyActor, { description: input.value.description });
-          if (secret !== null) {
-            return secret;
-          }
-          await repo.update(project.slug, number, input.value, new Date().toISOString(), [
-            complete(200, 'sprint', { value: String(number) }),
-          ]);
-          c.get('logger').info('tracker sprint changed', { slug: project.slug, number });
-          return sprintResponse(c, project, number, 200);
-        },
-      );
-    });
+      .patch('/:slug/sprints/:number', guard.change, writeLimit(TEXT_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const { project, policyActor, write } = context;
+        const param = c.req.param('number');
+        const number = SPRINT_NUMBER.test(param) ? Number(param) : null;
+        return idempotent(
+          c,
+          write,
+          (ref) => sprintResponse(c, project, Number(ref), 200),
+          async (complete) => {
+            const repo = new SprintsRepo(c.env.DB);
+            // Sprints are never deleted, so one that exists now still exists for the update below.
+            if (number === null || (await repo.findByNumber(project.slug, number)) === null) {
+              return sprintNotFound(c);
+            }
+            const input = checkUpdateSprintInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'sprint-invalid', input.field, input.detail);
+            }
+            const secret = bodySecretRefusal(c, policyActor, { description: input.value.description });
+            if (secret !== null) {
+              return secret;
+            }
+            await repo.update(project.slug, number, input.value, new Date().toISOString(), [
+              complete(200, 'sprint', { value: String(number) }),
+            ]);
+            c.get('logger').info('tracker sprint changed', { slug: project.slug, number });
+            return sprintResponse(c, project, number, 200);
+          },
+        );
+      })
+
+      // #477: incident response for a secret in a sprint's title or description, after the secret itself is rotated.
+      // The named fields become the marker and an audit row records which; a sprint row keeps no history to mask.
+      .post('/:slug/sprints/:number/scrub', guard.scrub, writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const context = await trackerWriteContextOf(c);
+        if (context instanceof Response) {
+          return context;
+        }
+        const { project, write } = context;
+        const param = c.req.param('number');
+        const number = SPRINT_NUMBER.test(param) ? Number(param) : null;
+        return idempotent(
+          c,
+          write,
+          (ref) => sprintResponse(c, project, Number(ref), 200),
+          async (complete) => {
+            const repo = new SprintsRepo(c.env.DB);
+            if (number === null || (await repo.findByNumber(project.slug, number)) === null) {
+              return sprintNotFound(c);
+            }
+            const input = checkScrubSprintInput(write.body);
+            if (!input.ok) {
+              return invalid(c, 'sprint-invalid', input.field, input.detail);
+            }
+            const { fields } = input.value;
+            const scrubbed = await repo.scrub(project.slug, number, fields, [
+              scrubAuditStatement(c, project, new Date().toISOString(), { sprint: number, fields }),
+              complete(200, 'sprint', { value: String(number) }),
+            ]);
+            if (scrubbed === 'title-taken') {
+              // Another sprint was named exactly as the marker title; the owner renames nothing here, so say why.
+              return problem(c, {
+                type: 'sprint-exists',
+                title: 'Another sprint holds the scrubbed title',
+                status: 409,
+                detail: 'A sprint of this project is already titled as the scrub would title this one',
+              });
+            }
+            c.get('logger').info('tracker sprint scrubbed', { slug: project.slug, number, fields });
+            return sprintResponse(c, project, number, 200);
+          },
+        );
+      })
+  );
 }

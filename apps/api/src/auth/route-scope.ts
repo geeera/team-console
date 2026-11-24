@@ -94,6 +94,7 @@ export const ROUTE_SCOPES = {
   [`GET ${P}/sprints/:number`]: PROJECT,
   [`POST ${P}/sprints`]: PROJECT,
   [`PATCH ${P}/sprints/:number`]: PROJECT,
+  [`POST ${P}/sprints/:number/scrub`]: PROJECT,
   [`GET ${P}/labels`]: PROJECT,
   [`POST ${P}/labels`]: PROJECT,
   // Pull requests (#463): the mirror in D1; `?fresh=1` is the account's (never a job's) and reads by `repo_id`.

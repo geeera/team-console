@@ -170,8 +170,11 @@ export const TRACKER_MATRIX = {
   // R5 and threat-model invariant 1: the owner's decisions and wishes are never a job's write.
   [`POST ${P}/items/:key/decisions`]: OWNER_ONLY('Only the owner decides; a decision is never a job write'),
   [`POST ${P}/items/:key/requests`]: OWNER_ONLY('A request to the PM is the owner’s own wish'),
-  // #462: masking the audit trail is incident response; no job rewrites history, its own included.
+  // #462: masking the audit trail is incident response; no job rewrites history, its own included. #477: the same
+  // route masks the item's comments, asks and request reasons, and a sprint's text has its own; the PM plans sprints
+  // but does not scrub one.
   [`POST ${P}/items/:key/events/scrub`]: OWNER_ONLY('Only the owner scrubs an item’s history'),
+  [`POST ${P}/sprints/:number/scrub`]: OWNER_ONLY('Only the owner scrubs a sprint’s text'),
   // #445: `backlog link-pr`; a developer links only an item it holds (`item-not-held`, judged by the route).
   [`POST ${P}/items/:key/pr-links`]: {
     owner: false,
