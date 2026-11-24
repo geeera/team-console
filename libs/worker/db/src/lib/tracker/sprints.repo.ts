@@ -1,5 +1,6 @@
 import { sprintTitleKeyOf, sprintTitleOf, type SprintState } from '@shared/contracts';
 import { isConstraintError } from './constraint-error';
+import { SCRUBBED_TEXT } from './item-events.repo';
 
 export interface SprintRecord {
   readonly id: number;
@@ -172,6 +173,49 @@ export class SprintsRepo {
           return 'title-taken';
         }
       }
+    }
+  }
+
+  /**
+   * The owner's scrub of a sprint's text (#477): the named fields become the marker, with `extra` in the same batch.
+   * A masked title is `[scrubbed] <number>`, since a project's titles are unique (0026), and its key follows it
+   * (0030). Number, dates and state are not in the statement. `title-taken` when another sprint already holds that
+   * very title: nothing of the batch was written.
+   */
+  async scrub(
+    slug: string,
+    number: number,
+    fields: readonly ('title' | 'description')[],
+    extra: readonly D1PreparedStatement[] = [],
+  ): Promise<'scrubbed' | 'title-taken'> {
+    const title = `${SCRUBBED_TEXT} ${String(number)}`;
+    try {
+      await this.db.batch([
+        this.db
+          .prepare(
+            `UPDATE sprints SET
+               title = CASE WHEN ?3 THEN ?4 ELSE title END,
+               title_key = CASE WHEN ?3 THEN ?5 ELSE title_key END,
+               description = CASE WHEN ?6 THEN ?7 ELSE description END
+             WHERE project_slug = ?1 AND number = ?2`,
+          )
+          .bind(
+            slug,
+            number,
+            fields.includes('title') ? 1 : 0,
+            title,
+            sprintTitleKeyOf(title),
+            fields.includes('description') ? 1 : 0,
+            SCRUBBED_TEXT,
+          ),
+        ...extra,
+      ]);
+      return 'scrubbed';
+    } catch (error: unknown) {
+      if (isConstraintError(error, 'UNIQUE constraint failed: sprints.')) {
+        return 'title-taken';
+      }
+      throw error;
     }
   }
 

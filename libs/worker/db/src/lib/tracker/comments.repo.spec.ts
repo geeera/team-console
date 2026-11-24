@@ -136,10 +136,12 @@ describe('CommentsRepo', () => {
     ).rejects.toThrow(/CHECK constraint failed/);
   });
 
-  it('exposes no update or delete (append-only in the repo API too)', () => {
+  // #477: the one update is the owner's scrub, which migration 0043's trigger confines to masking the body
+  // (`scrub-guards.spec.ts`).
+  it('exposes no update or delete but the scrub (append-only in the repo API too)', () => {
     const methods = Object.getOwnPropertyNames(CommentsRepo.prototype).filter(
       (name) => name !== 'constructor',
     );
-    expect(methods.sort()).toEqual(['create', 'find', 'list']);
+    expect(methods.sort()).toEqual(['create', 'find', 'list', 'scrubStatement']);
   });
 });
