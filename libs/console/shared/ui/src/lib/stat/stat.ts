@@ -9,6 +9,7 @@ import {
   viewChild,
 } from '@angular/core';
 import { Icon, IconName } from '../icon/icon';
+import { Roll } from '../roll/roll';
 
 export type StatTone = 'neutral' | 'success' | 'danger';
 
@@ -57,9 +58,16 @@ export class Stats {
  */
 @Component({
   selector: 'div[tc-stat]',
-  imports: [Icon, NgTemplateOutlet],
+  imports: [Icon, NgTemplateOutlet, Roll],
   template: `
-    <ng-template #value><ng-content /></ng-template>
+    <ng-template #projected><ng-content /></ng-template>
+    <ng-template #value>
+      @if (rollingValue(); as text) {
+        <tc-roll [value]="text" />
+      } @else {
+        <ng-container [ngTemplateOutlet]="projected" />
+      }
+    </ng-template>
     <dt class="tc-stat__label">
       @if (icon(); as icon) {
         <tc-icon class="tc-stat__icon" [name]="icon" size="sm" />
@@ -102,6 +110,11 @@ export class Stat {
   readonly tone = input<StatTone>('neutral');
   /** A glyph before the label that says the state without colour (✗, ✓, ▷); coloured by the tone. */
   readonly icon = input<IconName | null>(null);
+  /**
+   * The value as text, for a number that changes while the tile is on screen: it rolls to the new value. Without it
+   * the projected content is the value and changes without motion.
+   */
+  readonly rollingValue = input<string | null>(null);
   /** A second, quieter line under the value ("3 still open"). */
   readonly sub = input<string | null>(null);
   /** Makes the tile a button with this accessible name; `null` keeps it plain. */

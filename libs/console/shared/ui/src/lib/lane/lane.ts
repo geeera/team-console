@@ -15,6 +15,7 @@ import {
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { map, switchMap } from 'rxjs';
 import { BREAKPOINTS, type Breakpoint } from '../../tokens/breakpoints';
+import { Roll } from '../roll/roll';
 
 let nextLaneId = 0;
 
@@ -43,6 +44,7 @@ type LaneDirection = 'forward' | 'backward';
  */
 @Component({
   selector: 'tc-lanes',
+  imports: [Roll],
   template: `
     @if (tabbed()) {
       <div class="tc-lanes__switch" role="group" [attr.aria-label]="label()">
@@ -58,7 +60,7 @@ type LaneDirection = 'forward' | 'backward';
           >
             <!-- The hidden comma is for the name only: "Blocked, 3" reads as a lane and its count. -->
             <span class="tc-lanes__cell-name">{{ lane.heading() }}</span
-            ><span class="tc-sr-only">, </span><span class="tc-lanes__cell-count">{{ lane.count() }}</span>
+            ><span class="tc-sr-only">, </span><tc-roll class="tc-lanes__cell-count" [value]="lane.count()" />
           </button>
         }
       </div>
@@ -143,6 +145,7 @@ export class Lanes {
  */
 @Component({
   selector: 'tc-lane',
+  imports: [Roll],
   template: `
     <div class="tc-lane__bar">
       <div
@@ -154,7 +157,7 @@ export class Lanes {
       >
         <!-- &ngsp; keeps one space so the heading reads "In progress 2", not "In progress2". -->
         <span class="tc-lane__title">{{ heading() }}</span
-        >&ngsp;<span class="tc-lane__count">{{ count() }}</span>
+        >&ngsp;<tc-roll class="tc-lane__count" [value]="count()" />
       </div>
       <!-- Beside the heading, never inside it: a control would join the heading's name. -->
       <ng-content select="[tc-lane-action]" />
