@@ -1,5 +1,6 @@
 .policy {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
 }
 
@@ -12,6 +13,7 @@
 
 .policy__fallback {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -22,6 +24,7 @@
 
 .policy__fallback-list {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: 0;
   padding-inline-start: var(--space-5);

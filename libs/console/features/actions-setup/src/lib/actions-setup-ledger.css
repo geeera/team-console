@@ -18,6 +18,7 @@
 
 .subs {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   margin: 0;
   padding: 0;
@@ -70,6 +71,7 @@
 
 .how {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   margin: 0;
   padding-left: var(--space-5);
@@ -80,6 +82,7 @@
 
 .how > li {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   overflow-wrap: anywhere;
 }

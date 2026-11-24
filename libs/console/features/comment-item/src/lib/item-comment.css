@@ -1,6 +1,7 @@
 /* #409: a ruled card with the hint under its label. */
 .tc-item-comment__box {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
   padding: var(--space-3);
   border: var(--border-w) solid var(--border-strong);

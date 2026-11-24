@@ -1,6 +1,7 @@
 /* Shared by every step of the add-runner wizard: one column, the step heading, quiet meta lines. */
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   /* A grid item of the wizard: without this, a command region as wide as its longest line widens the sheet. */
   min-width: 0;

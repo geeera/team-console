@@ -92,6 +92,7 @@ import type { RunnerPlatform } from '../add-runner.model';
   styles: `
     .params {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-4);
     }
 

@@ -78,6 +78,7 @@ let nextFormId = 0;
   styles: `
     .runner-projects-form {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-4);
     }
 
