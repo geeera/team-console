@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { seed } from './support/stack';
 
 /**
@@ -32,9 +33,6 @@ const styleOf = (page: Page, selector: string) =>
       shift: style.getPropertyValue('--motion-shift'),
     };
   });
-
-const settled = (page: Page) =>
-  page.evaluate(() => Promise.all(document.getAnimations().map((animation) => animation.finished)));
 
 test('a section change fades and rises the new page; the space itself stays still', async ({ page }) => {
   await openQuestionsFromBoard(page);

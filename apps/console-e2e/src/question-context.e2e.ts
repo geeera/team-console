@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { seed } from './support/stack';
 
 /**
@@ -130,6 +131,7 @@ for (const path of ['/needs-you', '/p/team-console/questions']) {
     await page.goto(path);
     const cards = page.locator('li[data-number]');
     await expect(cards.first()).toBeVisible();
+    await settled(page);
     const [first, second] = await Promise.all([cards.nth(0).boundingBox(), cards.nth(1).boundingBox()]);
     const width = page.viewportSize()?.width ?? 0;
     if (width >= 1440) {
