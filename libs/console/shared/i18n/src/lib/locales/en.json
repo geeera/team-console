@@ -1539,6 +1539,8 @@
       "title": "Move the {{sprint}} demo?",
       "body": "The demo is now on {{date}}; freeze is {{range}}, through demo day: the team takes no new issues and checks stage.",
       "field": "Demo date",
+      "markedDay": "current demo day",
+      "frozenDay": "freeze",
       "freeze": "Freeze: {{range}}",
       "same": "The date hasn’t changed",
       "empty": "Pick a date.",
@@ -1735,6 +1737,10 @@
     }
   },
   "stories": {
+    "demoLeaf": {
+      "in": "Demo 16 October · in {{n}} d",
+      "today": "Demo today, 16 October"
+    },
     "common": {
       "settings": "Settings"
     },
@@ -1938,7 +1944,9 @@
       "done": "You: done",
       "detail": "Plan for the 16 October demo",
       "meta": "#72 · 14:05 · recorded as owner",
-      "unknown": "Unknown whether the run started"
+      "unknown": "Unknown whether the run started",
+      "longDetail": "Run started on the team runner, but the service answered with an unusually long explanation that has to wrap onto several lines without breaking the layout\nSecond line of the detail",
+      "longMeta": "14:05 · recorded as owner · https://example.com/runs/1234567890/very/long/run/log/path/that/should/wrap"
     },
     "lane": {
       "aria": "Issues by status",
@@ -2054,7 +2062,9 @@
       "label": "Demo date",
       "hint": "The demo is at 12:00 Kyiv time.",
       "selected": "Selected: {{date}}",
-      "none": "nothing selected"
+      "none": "nothing selected",
+      "marked": "current demo day",
+      "hatched": "freeze"
     },
     "ledger": {
       "status": "Status",

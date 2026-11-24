@@ -20,6 +20,54 @@ class Host {
   readonly verb = signal('You: approve');
 }
 
+@Component({
+  imports: [Receipt],
+  template: `
+    <tc-receipt [flush]="flush()" [hasGlyph]="hasGlyph()">
+      <span tc-receipt-verb>Verb</span>
+    </tc-receipt>
+  `,
+})
+class InputsHost {
+  readonly flush = signal(false);
+  readonly hasGlyph = signal(true);
+}
+
+describe('Receipt inputs', () => {
+  async function render() {
+    await TestBed.configureTestingModule({ imports: [InputsHost] }).compileComponents();
+    const fixture = TestBed.createComponent(InputsHost);
+    await fixture.whenStable();
+    return {
+      fixture,
+      receipt: (fixture.nativeElement as HTMLElement).querySelector('tc-receipt') as HTMLElement,
+    };
+  }
+
+  it('adds the flush host class only when flush is set', async () => {
+    const { fixture, receipt } = await render();
+    expect(receipt.classList).not.toContain('tc-receipt--flush');
+
+    fixture.componentInstance.flush.set(true);
+    await fixture.whenStable();
+    expect(receipt.classList).toContain('tc-receipt--flush');
+  });
+
+  it('renders no glyph when hasGlyph is false and brings it back when true', async () => {
+    const { fixture, receipt } = await render();
+    expect(receipt.querySelector('.tc-receipt__icon tc-icon')).not.toBeNull();
+
+    fixture.componentInstance.hasGlyph.set(false);
+    await fixture.whenStable();
+    expect(receipt.querySelector('.tc-receipt__icon')).toBeNull();
+    expect(receipt.querySelector('tc-icon')).toBeNull();
+
+    fixture.componentInstance.hasGlyph.set(true);
+    await fixture.whenStable();
+    expect(receipt.querySelector('tc-icon')).not.toBeNull();
+  });
+});
+
 describe('Receipt and Recommendation', () => {
   async function render() {
     await TestBed.configureTestingModule({ imports: [Host] }).compileComponents();

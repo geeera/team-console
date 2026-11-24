@@ -1,5 +1,5 @@
 import type { ActorKind, CommentKind, ItemSource } from '@shared/contracts';
-import type { TrackerActor } from './item-events.repo';
+import { SCRUBBED_TEXT, type TrackerActor } from './item-events.repo';
 
 export interface CommentRecord {
   readonly id: number;
@@ -48,10 +48,20 @@ const toRecord = (row: CommentRow): CommentRecord => ({
 
 /**
  * Comments on items (migration 0013). Append-only (ADR 0006 decision 5): a correction is a new comment, so there is
- * no update or delete here, and triggers refuse both.
+ * no delete here and the one update is the owner's scrub of a body (#477, migration 0043); triggers refuse the rest.
  */
 export class CommentsRepo {
   constructor(private readonly db: D1Database) {}
+
+  /**
+   * Masks the body of the item's comments `ids` (#477), for the batch of `ItemEventsRepo.scrub`. Author, kind, time
+   * and the reversal mark stay; the trigger admits no other value than the marker.
+   */
+  scrubStatement(itemId: number, ids: readonly number[]): D1PreparedStatement {
+    return this.db
+      .prepare(`UPDATE comments SET body = ?3 WHERE item_id = ?1 AND id IN (SELECT value FROM json_each(?2))`)
+      .bind(itemId, JSON.stringify(ids), SCRUBBED_TEXT);
+  }
 
   /** Oldest first, after the comment id `after` (the cursor), at most `limit`. */
   async list(itemId: number, after: number, limit: number): Promise<CommentRecord[]> {
