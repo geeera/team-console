@@ -57,6 +57,16 @@ describe('App', () => {
   let router: Router;
   let pageLocation: { href: string; assigned: string[]; assign(url: string): void };
 
+  // Pay the one-time costs (App JIT compile, Vite transform of each lazy route chunk) here, not in whichever
+  // test runs first: that is what timed out #237. Cold CI transforms can exceed the 10s default hook budget.
+  const WARMUP_TIMEOUT_MS = 30_000;
+  beforeAll(async () => {
+    await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
+    await Promise.all(
+      appRoutes.flatMap((route) => [route.loadComponent?.(), route.loadChildren?.()]).filter(Boolean),
+    );
+  }, WARMUP_TIMEOUT_MS);
+
   beforeEach(() => {
     pageLocation = {
       href: 'https://console.test/p/a/questions',
