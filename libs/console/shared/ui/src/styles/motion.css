@@ -1,0 +1,67 @@
+/*
+ * Shared motion classes (#506). Features use these; no per-feature keyframes for a plain enter or leave.
+ * Only `transform` and `opacity` move (iPhone budget). Reduced motion: no shift, slide or stagger, every
+ * enter is an opacity fade over --dur-fade (the tokens zero --motion-shift and --stagger).
+ */
+@keyframes m-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift));
+  }
+}
+
+@keyframes m-push {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-shift) * 3));
+  }
+}
+
+@keyframes m-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes m-leave {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A new page or a live insert: fade and rise. */
+.m-enter {
+  animation: m-enter var(--dur-base) var(--ease-enter) both;
+}
+
+/* Drill-in (list to detail): fade and slide in from the side. */
+.m-push {
+  animation: m-push var(--dur-base) var(--ease-standard) both;
+}
+
+/* Back, tab panel, data replacing a skeleton: opacity only. */
+.m-fade {
+  animation: m-fade var(--dur-fast) var(--ease-standard) both;
+}
+
+/* Exit: fades what is already closed; pair with `leave()`. */
+.m-leave {
+  animation: m-leave var(--dur-fast) var(--ease-exit) both;
+  pointer-events: none;
+}
+
+/* Row of a list on first load or reload: set `--i` (0-based) on the first 8 rows only. */
+.m-stagger {
+  animation: m-enter var(--dur-base) var(--ease-enter) both;
+  animation-delay: calc(min(var(--i, 0), 7) * var(--stagger));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion='full']) :is(.m-enter, .m-push, .m-stagger) {
+    animation-duration: var(--dur-fade);
+  }
+}
+
+:root[data-motion='reduce'] :is(.m-enter, .m-push, .m-stagger) {
+  animation-duration: var(--dur-fade);
+}

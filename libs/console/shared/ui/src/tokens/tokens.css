@@ -188,6 +188,10 @@
   --dur-pulse: 1600ms;
   --lift: -2px; /* a card raised on hover (#766); none under reduced motion */
   --seal-recoil: 0.99; /* the card's give under the release seal (#361); 1 (still) under reduced motion */
+  /* #506 motion language: one step for a staggered list (max 8 rows), one offset for every enter, one press give */
+  --stagger: 30ms; /* 0 under reduced motion */
+  --motion-shift: 8px; /* = --space-2; 0 under reduced motion, the single switch that removes movement */
+  --press-scale: 0.98; /* 1 under reduced motion */
   /* #409: how long Undo stays offered after a move (the toast's hairline); `UNDO_DURATION_MS` in TS */
   --undo-ms: 10000ms;
 
@@ -344,6 +348,9 @@
     --dur-sig: 1ms;
     --lift: 0px;
     --seal-recoil: 1;
+    --stagger: 0ms;
+    --motion-shift: 0px;
+    --press-scale: 1;
   }
 }
 
@@ -354,4 +361,7 @@
   --dur-sig: 1ms;
   --lift: 0px;
   --seal-recoil: 1;
+  --stagger: 0ms;
+  --motion-shift: 0px;
+  --press-scale: 1;
 }
