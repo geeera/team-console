@@ -149,6 +149,45 @@ test('#278: private repositories from GitHub are marked, and the missing step li
   await expect(row(page, 'geeera/private-product')).toBeVisible();
 });
 
+test('#348: a private repository wears a seal with a hint, and rows new after «Обновить» lay out one by one', async ({
+  page,
+}) => {
+  const arrivals: InstallationRepositoryDto[] = [
+    { fullName: 'geeera/fresh-one', private: true, registration: { state: 'none' } },
+    { fullName: 'geeera/fresh-two', private: false, registration: { state: 'none' } },
+  ];
+  // Only the owner's «Обновить» (`?fresh=1`) brings the two new repositories; the first load is the stack's own list.
+  await page.route(`**${INSTALLATION_REPOSITORIES_URL}*`, async (route) => {
+    const response = await route.fetch();
+    if (new URL(route.request().url()).search !== '?fresh=1') {
+      await route.fulfill({ response });
+      return;
+    }
+    const body = (await response.json()) as InstallationRepositoriesDto;
+    await route.fulfill({ response, json: { ...body, repositories: [...body.repositories, ...arrivals] } });
+  });
+  await page.goto('/overview');
+
+  const seal = row(page, 'geeera/private-product').locator('tc-seal');
+  await expect(seal).toHaveAttribute('title', ru('overview.repos.row.private'));
+  await expect(seal).toContainText(ru('overview.repos.row.private'));
+  await expect(row(page, 'geeera/fresh-one')).toHaveCount(0);
+  await expect(section(page).locator('.repo--new'), 'the first list lays out nothing').toHaveCount(0);
+
+  await section(page).getByTestId('repos-refresh').click();
+
+  const first = row(page, 'geeera/fresh-one');
+  const second = row(page, 'geeera/fresh-two');
+  await expect(first).toBeVisible();
+  await expect(first).toHaveClass(/repo--new/);
+  await expect(second).toHaveClass(/repo--new/);
+  await expect(first).toHaveCSS('animation-delay', '0s');
+  await expect(second).toHaveCSS('animation-delay', '0.03s');
+  await expect(row(page, 'geeera/private-product')).not.toHaveClass(/repo--new/);
+  await expect(first.locator('tc-seal')).toBeVisible();
+  await expectAccessible(page, 'All projects with new repositories after a refresh');
+});
+
 /**
  * #374: long enough to overflow the text column at 1440 px too, so the check means the same on both widths, and
  * within GitHub's 100 characters with its suffix (the client drops a longer name as not a repository).

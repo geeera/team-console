@@ -1940,6 +1940,9 @@
       "action": "Approve",
       "receiptVerb": "You: approved"
     },
+    "seal": {
+      "label": "Private"
+    },
     "paperNote": {
       "text": "Updated to v1.2"
     },
