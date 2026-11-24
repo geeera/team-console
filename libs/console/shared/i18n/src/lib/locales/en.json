@@ -55,7 +55,10 @@
   },
   "needsYou": {
     "title": "Needs you",
-    "emptyTitle": "Nothing needs you right now",
+    "clear": {
+      "stamp": "All decided",
+      "title": "The desk is clear. The team is working"
+    },
     "emptyHint": "The teams are working; you'll get a notification when that changes.",
     "lead": "Waiting: {{n}} · projects: {{k}}",
     "omitted": "Not read this time: {{names}}",
@@ -192,6 +195,9 @@
     }
   },
   "questions": {
+    "seal": {
+      "release": "To release · {{date}}"
+    },
     "listLabel": "Questions for you",
     "emptyTitle": "Nothing in this project needs you",
     "loadFailed": "Couldn't load the questions",
@@ -222,15 +228,15 @@
       "approve": "Approve.",
       "approveDesign": "Approve.",
       "reject": "Reject.",
-      "go": "Hold the demo.",
-      "no-go": "Move the demo."
+      "go": "Release it.",
+      "no-go": "Hold the release."
     },
     "outcome": {
       "ifApprove": "If you approve",
       "ifApproveDesign": "If you approve",
       "ifReject": "If you reject",
-      "ifGo": "If you hold the demo",
-      "ifNoGo": "If you move the demo"
+      "ifGo": "If you release",
+      "ifNoGo": "If you hold it"
     },
     "cost": "Cost and risk:",
     "costMissing": "No cost given — ask the PM",
@@ -1446,7 +1452,7 @@
       "alreadyPaused": "{{name}} is already paused. Nothing changed.",
       "alreadyPausedSince": "{{name}} is already paused since {{time}}. Nothing changed.",
       "alreadyRunning": "{{name}} is already running. Nothing changed.",
-      "requested": "Requested: {{slot}}",
+      "requested": "Sent: {{slot}}",
       "requestedDetail": "It shows up in the run log in a few minutes.",
       "overlap": "{{slot}}: a run is already in progress since {{time}}. Not starting a second one.",
       "requestedAlready": "{{slot}} was requested at {{time}} and isn’t in the run log yet. Not starting a second one before {{until}}.",
@@ -1537,7 +1543,7 @@
       "same": "The date hasn’t changed",
       "empty": "Pick a date.",
       "past": "That date has passed (Kyiv time). Pick today or later.",
-      "afterNext": "The {{next}} demo ({{date}}) is on or before that date. Move that one first.",
+      "afterNext": "That date is not before the {{next}} demo ({{date}}). Pick a date before it, or move the {{next}} demo first.",
       "freezeNow": "Freeze starts at once: no new issues will be taken in this sprint.",
       "ok": "Move to {{date}}",
       "btn": "Move",
@@ -1748,6 +1754,7 @@
       "longLabel": "Open the runner settings of this account"
     },
     "card": {
+      "seal": "To release · 16.10",
       "kind": "Question",
       "title": "Approve the Paper Desk kit and tokens?",
       "body": "Tokens, primitives and Storybook are ready. The team recommends approving and closing the issue.",
@@ -1800,6 +1807,8 @@
       "commands": "Commands"
     },
     "stateBlock": {
+      "deskStamp": "All decided",
+      "deskTitle": "The desk is clear. The team is working",
       "emptyTitle": "Nothing is waiting",
       "emptyDescription": "All team questions are closed. Check back later.",
       "errorTitle": "Couldn't load projects",
@@ -2296,6 +2305,7 @@
       "enrollerOnly": "Only the owner who enrolled this runner can add projects to it: it may run on their Claude subscription. You can still remove projects from it.",
       "openTeam": "Open team settings",
       "enrollerNotSoleOwner": "Only the account's sole owner can claim a runner. Enrol the runner again.",
+      "enrollerUnlinked": "You can claim a runner only once your console sign-in is linked to your GitHub account. Until then, enrol the runner again.",
       "enrollerSet": "The console already knows who enrolled this runner. Refresh the list.",
       "actionsNotReady": "GitHub Actions isn't ready for {{project}} yet: {{items}}. Nothing changed.",
       "actionsNotReadyBare": "GitHub Actions isn't ready for {{project}} yet. Nothing changed."

@@ -59,21 +59,46 @@ As root it starts node through `/usr/bin/env -i` with only this environment (#89
 | --- | --- |
 | `PATH` | Always `/usr/sbin:/usr/bin:/sbin:/bin`, whatever the caller's. The launcher itself runs every command by full path. |
 | `HOME` | The default `TC_RUNNER_HOME` is under it. sudo sets it. |
-| `TC_*` | The runner's own settings: `TC_RUNNER_HOME`, `TC_ENROL_CODE`, `TC_ENROLMENT`, `TC_RUNNER_KEY_STORE`, … |
+| `TC_*` | The runner's own settings: `TC_RUNNER_HOME`, `TC_ENROL_CODE`, `TC_ENROLMENT`, `TC_RUNNER_KEY_STORE`, … Only those sudo itself lets through; see below. |
 | `LANG`, `LC_*`, `TERM` | The locale and the terminal of `setup` and `claude setup-token`. |
 | `SUDO_USER`, `SUDO_UID`, `SUDO_GID` | `setup` opens the sign-in page in the browser of the user who ran sudo. |
 
-A value that holds a newline is dropped. Because `PATH` is fixed, `sudo … team-console-runner update` finds no
-Homebrew `gh` and refuses ("gh missing"); a root-owned `user` backend install is updated by hand anyway (see
-"Update (decision 10, RR13)"). Run as your own user, the launcher passes your environment through unchanged. A release older than 0.2.0
-ships no node and so cannot run as root: update it first.
+A value that holds a newline is dropped. Run as your own user, the launcher passes your environment through
+unchanged. A release older than 0.2.0 ships no node and so cannot run as root: update it first.
+
+**Which `TC_*` variables reach root under sudo (#900).** The launcher keeps every `TC_*` it is given, but sudo decides
+what it is given. With the default `env_reset`, sudo drops the `TC_*` variables of your shell:
+
+| How it is set | Reaches root's node |
+| --- | --- |
+| `export TC_RUNNER_HOME=…` (or `TC_X=… sudo …`), then `sudo …/team-console-runner …` | No. sudo drops it before the launcher starts. This is why `setup` and `enrol` under sudo take `--enrolment` and `--code -` and not `TC_ENROLMENT` / `TC_ENROL_CODE` from your shell. |
+| On sudo's command line: `sudo TC_RUNNER_HOME=… …/team-console-runner …` | Yes, as written. |
+| `sudo --preserve-env=TC_RUNNER_HOME …` or `sudo -E …` | Yes, with the value your shell holds. |
+| A `Defaults env_keep += "TC_*"` line in sudoers (not in the default file; do not add one) | Yes, every time. |
+
+A `TC_*` that does reach root is passed to root's node as it is, with no further check. Most of them are data
+(`TC_RUNNER_HOME`, `TC_ENROL_CODE`, `TC_ENROLMENT`, `TC_RUNNER_KEY_STORE`, `TC_CONSOLE_URL`, `TC_CONSOLE_AUDIENCE`,
+`TC_INFERENCE_API_KEY`). One names a program: `TC_CLAUDE_COMMAND`, which `run-once --oidc` runs as the Claude Code
+CLI. Setting it under sudo runs that program as root, so only the caller who already is root can do it, and no step
+in this runbook does. Never pass a `TC_*` under sudo that you did not type yourself.
+
+**`sudo … team-console-runner update` refuses.** Because root's `PATH` is fixed, a Homebrew `gh` is not on it, and
+`update` does not run a `gh` the login user could replace. The refusal says so: "update as root runs `gh` only from
+root's PATH (/usr/sbin:/usr/bin:/sbin:/bin) and could not run one there … A root-owned install is updated by hand".
+`gh` is installed; nothing needs installing. Update a root-owned `user` backend install by hand, as
+"Update (decision 10, RR13)" › "`user` backend" below says (download, `gh attestation verify` as your own user,
+`sudo tar`).
 
 `install --backend user` refuses a directory, bundle, `job-exec` or `node` that is not root-owned or that anyone else
 can write, and, once `update` has run, a `releases/` directory or a `current` link (and the release it names) that is
 not root's alone (#884), because the sudoers rule and the LaunchDaemon name those files. `current` must name a release
 directly in `releases/` (#894). On macOS it also refuses any of them that carries an ACL entry letting anyone but root
-write (#894, read with `ls -lde`), so a bad prefix fails at install and not at the service's first start; `self-check`
-reports the same as L3-8. Run `install --dry-run` first. It lists every step and changes
+write (#894, read with `ls -lde`). The same holds for every directory above the release directory and above each link
+target, up to `/` (#900), as the launcher checks at each root start, so a bad prefix or a bad directory above it
+fails at install and not at the service's first start; `self-check` reports the same as L3-8. The refusal names the
+path to fix. For `current` it also names the reason (#900): `is a directory, not a link` (or `a file`), `is a link
+owned by uid <n>, not by root`, `is a link, but …/releases does not exist`, `is a link that leads nowhere`, or `points
+to <path>, which is not directly in …/releases`. Run `install --dry-run` first. It lists every step and changes
 nothing. Then run the same command with `--yes`. Run the launcher by its full path, or put
 `/usr/local/lib/team-console-runner/bin` on `PATH`. Do not symlink the launcher elsewhere, because it finds the bundle
 relative to its own path.
@@ -592,7 +617,8 @@ must be logged in as that user. The image is separate. Take the new digest from 
 "The container image"), set `container.image` in `config.json` to it, run `docker pull <ref>`, and restart.
 
 **`user` backend** (root-owned install directory): `update` refuses there by design, because `_tcrunner` must not be
-able to replace what root installed. Update by hand, as an admin:
+able to replace what root installed. `sudo … update` refuses too: root's fixed `PATH` holds no Homebrew `gh`, and the
+message points here. Update by hand, as an admin:
 
 1. Download and verify the new tarball as in "Get a release and verify it".
 2. Run `sudo tar -xzf team-console-runner-<v>-<platform>.tar.gz --no-same-owner -C /usr/local/lib/team-console-runner`.

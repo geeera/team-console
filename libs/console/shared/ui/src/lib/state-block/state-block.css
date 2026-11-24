@@ -69,3 +69,51 @@
 .tc-state-block__actions:empty {
   display: none;
 }
+
+/* The clear desk: an empty sheet of paper with a green stamp, the title in the serif as its one line. */
+:host(.tc-state-block--desk) {
+  padding: var(--space-8) var(--space-4);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.tc-state-block__stamp {
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-w-strong) solid var(--success-text);
+  border-radius: var(--r-sm);
+  color: var(--success-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  transform: rotate(-6deg);
+}
+
+/* The same gesture as an answered card's stamp: it lands bigger and turned, then settles. */
+.tc-state-block__stamp--pressed {
+  animation: tc-desk-stamp var(--dur-sig) var(--ease-emph) both;
+}
+
+@keyframes tc-desk-stamp {
+  from {
+    opacity: 0;
+    transform: rotate(-18deg) scale(1.5);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(-6deg) scale(1);
+  }
+}
+
+/* Reduced motion: the stamp is simply there, with no strike. */
+@media (prefers-reduced-motion: reduce) {
+  .tc-state-block__stamp--pressed {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .tc-state-block__stamp--pressed {
+  animation: none;
+}

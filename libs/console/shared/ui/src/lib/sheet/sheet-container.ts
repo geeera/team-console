@@ -96,6 +96,12 @@ export class SheetContainer extends CdkDialogContainer {
   /** Whether the body overflows: only then is it a tab stop (the designer's axe finding on #194). */
   protected readonly scrollable = signal(false);
 
+  /**
+   * Whether text is still hidden under the footer: the body scrolls and is not at its end (#352). Only then does the
+   * pinned action bar cast its paper shadow; at the end of the content the shadow goes, which says "read it all".
+   */
+  protected readonly hasTextBelow = signal(false);
+
   /** Whether the dialog footer wrapped, so its actions stack full width with the primary on top (#325). */
   protected readonly stackedFooter = signal(false);
   /** The footer width at which it last stacked: a wider footer is worth trying as a row again. */
@@ -134,19 +140,30 @@ export class SheetContainer extends CdkDialogContainer {
     });
     afterNextRender(() => {
       const body = this.body().nativeElement;
-      const measure = (): void => this.scrollable.set(body.scrollHeight > body.clientHeight + 1);
-      measure();
+      this.measureBody();
       if (typeof ResizeObserver === 'undefined') {
         return;
       }
-      const observer = new ResizeObserver(measure);
+      const observer = new ResizeObserver(() => this.measureBody());
       observer.observe(body);
       observer.observe(this.content().nativeElement);
       destroyRef.onDestroy(() => observer.disconnect());
     });
   }
 
-  /** A wrapped row stacks; a stacked footer that grew wider than when it stacked is tried as a row again. */
+  /** Runs on every scroll and resize of the body: whether it overflows, and whether any of it is still below. */
+  protected measureBody(): void {
+    const body = this.body().nativeElement;
+    this.scrollable.set(body.scrollHeight > body.clientHeight + 1);
+    // 1 px of slack, as for `scrollable`: sub-pixel scroll positions never leave the shadow on at the end.
+    this.hasTextBelow.set(body.scrollHeight - body.scrollTop - body.clientHeight > 1);
+  }
+
+  /**
+   * A wrapped row stacks; a stacked footer that grew wider than when it stacked is tried as a row again.
+   * Known edge (#327): the check is one-way on width, so a label that shrinks while stacked (a language switch, a
+   * shorter busy label) does not bring the row back until the footer itself gets wider.
+   */
   private fitFooter(foot: HTMLElement): void {
     // Free-form content lays itself out; only the role buttons are stacked by the frame.
     if (this.footer.freeForm() !== null) {
@@ -154,7 +171,9 @@ export class SheetContainer extends CdkDialogContainer {
     }
     const width = foot.clientWidth;
     if (!this.stackedFooter()) {
-      const [first, ...rest] = Array.from(foot.children) as HTMLElement[];
+      const [first, ...rest] = Array.from(foot.children).filter(
+        (child): child is HTMLElement => child instanceof HTMLElement,
+      );
       if (first !== undefined && rest.some((item) => item.offsetTop > first.offsetTop)) {
         this.stackedAtWidth = width;
         this.restack(foot, true);
@@ -166,7 +185,8 @@ export class SheetContainer extends CdkDialogContainer {
 
   /** Reordering moves the buttons in the DOM, which drops focus: put it back on the same button. */
   private restack(foot: HTMLElement, stacked: boolean): void {
-    const focused = foot.contains(document.activeElement) ? (document.activeElement as HTMLElement) : null;
+    const active = document.activeElement;
+    const focused = active instanceof HTMLElement && foot.contains(active) ? active : null;
     this.stackedFooter.set(stacked);
     if (focused !== null) {
       afterNextRender(() => focused.focus({ preventScroll: true }), { injector: this.injector });

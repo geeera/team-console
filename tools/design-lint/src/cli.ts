@@ -1,7 +1,8 @@
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { globSync } from 'node:fs';
-import { findGridsWithoutColumns, gridFilesOverBaseline } from './grid-columns.ts';
+import { findGridsWithoutColumns, gridBaselineRaises, gridFilesOverBaseline } from './grid-columns.ts';
 import { findNativePickers } from './native-pickers.ts';
 import { extractInlineStyles, findRawValues } from './raw-values.ts';
 
@@ -119,11 +120,39 @@ if (gridOver.length > 0) {
     `\ndesign-lint: more display: grid rule(s) without grid-template-columns than the baseline allows in ${gridOver.length} file(s) (an implicit auto track overflows, #839); set the columns, e.g. minmax(0, 1fr), or add "grid-columns-ok: <why>" inside the rule.`,
   );
 }
-const gridFixed = Object.keys(gridBaseline).filter((file) => (gridCounts[file] ?? 0) < (gridBaseline[file] ?? 0));
+/**
+ * The baseline may only shrink: compare it with the one at the base commit. CI exports NX_BASE (the PR's merge-base,
+ * or the previous commit on a push), see ci.yml. Without a base (a local run) the check is skipped.
+ */
+const readBaselineAt = (ref: string): Record<string, number> | undefined => {
+  const path = relative(root, GRID_BASELINE_FILE);
+  try {
+    const raw = execFileSync('git', ['show', `${ref}:${path}`], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return JSON.parse(raw) as Record<string, number>;
+  } catch (error) {
+    // The file is new at this commit (the rule's first PR): nothing to compare with. Anything else is a real failure.
+    if (error instanceof Error && /exists on disk, but not in|does not exist in|path .* does not exist/.test(error.message)) {
+      return undefined;
+    }
+    throw error;
+  }
+};
+const baseRef = process.env['NX_BASE']?.trim();
+const gridRaised = baseRef ? gridBaselineRaises(gridBaseline, readBaselineAt(baseRef) ?? gridBaseline) : [];
+if (gridRaised.length > 0) {
+  console.error(
+    `\ndesign-lint: grid-columns-baseline.json raises the count for ${gridRaised.join(', ')} compared with ${baseRef}. The baseline may only shrink; set the columns instead, or add "grid-columns-ok: <why>" inside the rule.`,
+  );
+}
+const gridFixed =Object.keys(gridBaseline).filter((file) => (gridCounts[file] ?? 0) < (gridBaseline[file] ?? 0));
 if (gridFixed.length > 0) {
   console.log(`design-lint: ${gridFixed.length} file(s) are below their grid baseline; lower it with --write-grid-baseline.`);
 }
-if (failures > 0 || nativePickers > 0 || gridOver.length > 0) {
+if (failures > 0 || nativePickers > 0 || gridOver.length > 0 || gridRaised.length > 0) {
   process.exit(1);
 }
 console.log(`design-lint: ${stylesheetsChecked} stylesheet(s) use tokens only; no native date/time inputs; no new implicit grid columns.`);

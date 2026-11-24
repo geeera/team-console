@@ -252,6 +252,10 @@ test('go asks for confirmation first, then writes exactly one /go', async ({
     .getByRole('button', { name: ru('answer.command.go') })
     .click();
 
+  // #361: the release card is sealed with the day before it folds away.
+  await expect(demo.locator('.tc-card__stamp--seal .tc-card__seal-text')).toHaveText(
+    new RegExp(`^${ru('questions.seal.release', { date: '@' }).replace('@', '\\d{2}\\.\\d{2}')}$`),
+  );
   await expect(demo).toHaveCount(0);
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 90005);
@@ -267,7 +271,7 @@ test('go asks for confirmation first, then writes exactly one /go', async ({
  * content happens to render at, and exactly where it would sit fully hidden under the tab bar without
  * scroll-padding.
  */
-test('focusing the release card\'s override button scrolls it clear of the sticky bottom tab bar', async ({
+test("focusing the release card's override button scrolls it clear of the sticky bottom tab bar", async ({
   page,
   outsideRequests,
 }) => {

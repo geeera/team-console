@@ -25,7 +25,10 @@ const MAX_PASSES = LEASE_WAIT_ATTEMPTS + 4;
 
 type TokenColumn = 'access_token_enc' | 'refresh_token_enc';
 
-/** `user-id-changed`: refused, nothing stored or revoked (#831). */
+/**
+ * `user-id-changed`: refused, nothing stored or revoked (#831). Not logged here: the caller logs the refusal once,
+ * with what became of the fresh grant (#901).
+ */
 export type ConnectOutcome = 'connected' | 'user-id-changed';
 
 interface PreviousPair {
@@ -162,12 +165,13 @@ export class OwnerConnection implements OwnerTokenSource {
    * profile name goes to the user row, not here (#775).
    *
    * The previous pair is read before the write and retired only after it succeeds, so a failed write leaves the
-   * old connection working. Retiring is best effort and logged; see `retirePrevious`.
+   * old connection working. Retiring is best effort and logged, whatever it throws: once the write has succeeded
+   * the answer is `connected`; see `retirePrevious`.
    */
   async connect(user: Pick<GitHubUser, 'login' | 'id'>, pair: UserTokenPair): Promise<ConnectOutcome> {
     const previous = await this.repo.find(this.environment);
     if (previous !== null && previous.user_id !== user.id) {
-      return this.refuseChangedUserId(user.login);
+      return 'user-id-changed';
     }
     const retired = previous === null ? null : await this.previousPair(previous);
     const stored = await this.repo.connect({
@@ -179,10 +183,19 @@ export class OwnerConnection implements OwnerTokenSource {
     });
     // The read above is only the fast path: the upsert re-checks the id, so a racing callback cannot swap it (#889).
     if (!stored) {
-      return this.refuseChangedUserId(user.login);
+      return 'user-id-changed';
     }
     if (retired !== null) {
-      await this.retirePrevious(retired);
+      try {
+        await this.retirePrevious(retired);
+      } catch (error: unknown) {
+        // The new pair is stored: failing the callback now would revoke it and leave a row that cannot be used
+        // (#901). An unexpected failure is logged and the previous pair is left to lapse at GitHub.
+        this.logger.error('owner reconnect: retiring the previous pair failed unexpectedly', {
+          securitySignal: 'owner-previous-pair-not-retired',
+          error,
+        });
+      }
     }
     return 'connected';
   }
@@ -229,14 +242,6 @@ export class OwnerConnection implements OwnerTokenSource {
       }
       throw error;
     }
-  }
-
-  private refuseChangedUserId(login: string): ConnectOutcome {
-    this.logger.warn('owner connect refused: the GitHub user id changed since the last connect', {
-      securitySignal: 'owner-user-id-changed',
-      login,
-    });
-    return 'user-id-changed';
   }
 
   /** The previous row's tokens that can still be used: decrypted under the current key and not expired. */

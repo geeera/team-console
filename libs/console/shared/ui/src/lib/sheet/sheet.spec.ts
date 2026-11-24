@@ -227,9 +227,7 @@ describe('Sheet', () => {
     expect(focusables.indexOf(link)).toBeGreaterThan(
       focusables.findIndex((el) => el.classList.contains('tc-confirm__message')),
     );
-    expect(focusables.indexOf(link)).toBeLessThan(
-      focusables.findIndex((el) => el.tagName === 'BUTTON'),
-    );
+    expect(focusables.indexOf(link)).toBeLessThan(focusables.findIndex((el) => el.tagName === 'BUTTON'));
 
     // Following the link is not an answer: the dialog stays open and open-sheets.
     link.click();
@@ -580,6 +578,63 @@ describe('Sheet', () => {
       expect(body.getAttribute('role')).toBeNull();
     });
 
+    describe('#352: the pinned footer casts its shadow only while text is hidden under it', () => {
+      /** jsdom has no layout: the body's measurements are set by hand, then a scroll is dispatched. */
+      function scrollTo(body: HTMLElement, { scrollHeight, clientHeight, scrollTop }: Record<string, number>): void {
+        Object.defineProperty(body, 'scrollHeight', { configurable: true, value: scrollHeight });
+        Object.defineProperty(body, 'clientHeight', { configurable: true, value: clientHeight });
+        Object.defineProperty(body, 'scrollTop', { configurable: true, value: scrollTop });
+        body.dispatchEvent(new Event('scroll'));
+      }
+
+      async function openWithFooter() {
+        sheet.open(WithFooter, { title: 'Long', data: { text: 'x' } });
+        await settle();
+        const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+        return {
+          body: dialog.querySelector('.tc-sheet__body') as HTMLElement,
+          lifted: () => dialog.querySelector('.tc-sheet__foot')?.classList.contains('tc-sheet__foot--lifted'),
+        };
+      }
+
+      it('has no shadow while the content fits', async () => {
+        const { lifted } = await openWithFooter();
+        expect(lifted()).toBe(false);
+      });
+
+      it('casts the shadow while the body has more below, and drops it at the end', async () => {
+        const { body, lifted } = await openWithFooter();
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 0 });
+        await settle();
+        expect(lifted()).toBe(true);
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 250 });
+        await settle();
+        expect(lifted()).toBe(true);
+
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 500 });
+        await settle();
+        expect(lifted()).toBe(false);
+      });
+
+      it('treats a sub-pixel gap at the end as the end', async () => {
+        const { body, lifted } = await openWithFooter();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 499.5 });
+        await settle();
+        expect(lifted()).toBe(false);
+      });
+
+      it('brings the shadow back when scrolled up from the end', async () => {
+        const { body, lifted } = await openWithFooter();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 500 });
+        await settle();
+        scrollTo(body, { scrollHeight: 900, clientHeight: 400, scrollTop: 100 });
+        await settle();
+        expect(lifted()).toBe(true);
+      });
+    });
+
     it('gives a wide dialog its own panel class', async () => {
       sheet.open(Content, { title: 'Add', data: { text: 'x' }, width: 'wide' });
       await settle();
@@ -780,5 +835,133 @@ describe('Sheet as a dialog with the New task options (#107)', () => {
     expect(dialog.querySelector('.tc-sheet__subtitle')).toBeNull();
     const ids = (dialog.getAttribute('aria-labelledby') ?? '').split(' ');
     expect(ids).toHaveLength(1);
+  });
+});
+
+/** Captures the observers the sheet creates so a test can fire them and see them disconnected (#327). */
+class FakeResizeObserver {
+  static instances: FakeResizeObserver[] = [];
+  readonly targets: Element[] = [];
+  readonly disconnect = vi.fn();
+
+  constructor(private readonly callback: () => void) {
+    FakeResizeObserver.instances.push(this);
+  }
+
+  observe(target: Element): void {
+    this.targets.push(target);
+  }
+
+  fire(): void {
+    this.callback();
+  }
+}
+
+describe('Sheet footer stacking (#325, #327)', () => {
+  let sheet: Sheet;
+  let wrapped: boolean;
+  let footWidth: number;
+  const offsetTop = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'offsetTop');
+  const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth');
+
+  beforeEach(async () => {
+    FakeResizeObserver.instances = [];
+    wrapped = false;
+    footWidth = 200;
+    vi.stubGlobal('ResizeObserver', FakeResizeObserver);
+    // The test DOM has no layout: the primary "wraps" to a second line while `wrapped` is set.
+    Object.defineProperty(HTMLElement.prototype, 'offsetTop', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return wrapped && this.classList.contains('ok') ? 40 : 0;
+      },
+    });
+    Object.defineProperty(Element.prototype, 'clientWidth', {
+      configurable: true,
+      get(this: Element) {
+        return this.classList.contains('tc-sheet__foot') ? footWidth : 0;
+      },
+    });
+    await TestBed.configureTestingModule({
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    sheet = TestBed.inject(Sheet);
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    if (offsetTop) Object.defineProperty(HTMLElement.prototype, 'offsetTop', offsetTop);
+    if (clientWidth) Object.defineProperty(Element.prototype, 'clientWidth', clientWidth);
+    overlay()?.remove();
+  });
+
+  async function openActions(): Promise<{ dialog: HTMLElement; footObserver: FakeResizeObserver }> {
+    sheet.open(WithActions, { title: 'Snooze', data: { text: 'until' } });
+    await settle();
+    TestBed.tick();
+    const dialog = overlay().querySelector('tc-sheet-container') as HTMLElement;
+    const foot = dialog.querySelector('.tc-sheet__foot');
+    const footObserver = FakeResizeObserver.instances.find((observer) =>
+      observer.targets.includes(foot as Element),
+    );
+    if (footObserver === undefined) {
+      throw new Error('the dialog footer is not observed');
+    }
+    return { dialog, footObserver };
+  }
+
+  async function refit(observer: FakeResizeObserver): Promise<void> {
+    observer.fire();
+    TestBed.tick();
+    await settle();
+    TestBed.tick();
+  }
+
+  it('stacks the primary over the secondary when the row wraps, and keeps focus on the same button', async () => {
+    const { dialog, footObserver } = await openActions();
+    expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+    (dialog.querySelector('.ok') as HTMLButtonElement).focus();
+
+    wrapped = true;
+    await refit(footObserver);
+
+    expect(footerButtons(dialog)).toEqual(['Snooze', 'Cancel']);
+    expect(dialog.querySelector('.tc-sheet__foot')?.classList).toContain('tc-sheet__foot--stacked');
+    expect(document.activeElement).toBe(dialog.querySelector('.ok'));
+  });
+
+  it('does not stack a row that fits', async () => {
+    const { dialog, footObserver } = await openActions();
+
+    await refit(footObserver);
+
+    expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+  });
+
+  it('tries the row again only once the stacked footer is wider than when it stacked', async () => {
+    const { dialog, footObserver } = await openActions();
+    wrapped = true;
+    await refit(footObserver);
+    expect(footerButtons(dialog)).toEqual(['Snooze', 'Cancel']);
+
+    wrapped = false;
+    await refit(footObserver);
+    expect(footerButtons(dialog)).toEqual(['Snooze', 'Cancel']);
+
+    footWidth = 320;
+    await refit(footObserver);
+    expect(footerButtons(dialog)).toEqual(['Cancel', 'Snooze']);
+  });
+
+  it('disconnects the footer observer when the dialog closes', async () => {
+    const { footObserver } = await openActions();
+    expect(footObserver.disconnect).not.toHaveBeenCalled();
+
+    sheet.closeAll();
+    await settle();
+    TestBed.tick();
+
+    expect(footObserver.disconnect).toHaveBeenCalled();
   });
 });

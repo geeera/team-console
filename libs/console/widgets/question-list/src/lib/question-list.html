@@ -152,12 +152,23 @@
   }
 </section>
 } @if (rows().length === 0 && attentionCount() === 0) {
+@if (isAllProjects() && !emptyTitle()) {
+<!-- #354: the whole inbox is clear. The stamp is pressed on only when the list emptied while this page was open. -->
 <tc-state-block
   kind="empty"
   data-testid="empty"
-  [title]="emptyTitle() || ((isAllProjects() ? 'needsYou.emptyTitle' : 'questions.emptyTitle') | transloco)"
+  [stamp]="'needsYou.clear.stamp' | transloco"
+  [pressed]="hadRows()"
+  [title]="'needsYou.clear.title' | transloco"
+/>
+} @else {
+<tc-state-block
+  kind="empty"
+  data-testid="empty"
+  [title]="emptyTitle() || ('questions.emptyTitle' | transloco)"
   [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
+}
 } @else if (rows().length > 0) {
 <ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
   @for (row of visibleRows(); track row.key) {
@@ -167,6 +178,7 @@
       [item]="row.item"
       [showProject]="isAllProjects()"
       [stamp]="row.answer !== null ? toneOf(row.answer.command) : null"
+      [seal]="sealOf(row)"
       [embedOrigins]="embedOrigins()"
     >
       <!-- #276/#290: only the team's own design items; content is created even where the card would not show it. -->

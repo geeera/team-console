@@ -19,6 +19,11 @@ export interface UserRecord {
    * one `auth.access-actor-adopted` audit row. The 0036 rule that an enroller is never changed has one exception for it
    * (`access-owner` -> the linked user). A future link route therefore writes the link first, in one statement, and must
    * not write its own `auth.access-actor-adopted` row or move those columns itself; with two linked users nothing moves.
+   *
+   * #899 (migration 0044): the hand-over needs the linked user to be a member of the owner account, and happens at
+   * whichever of the link and that membership is written last. It also withdraws the live enrolment intents made as
+   * `access-owner` (their `created_by` is never rewritten, so nobody could reach them after the link); the audit row
+   * counts them as `intents`.
    */
   readonly accessSubject: string | null;
   readonly createdAt: string;

@@ -36,13 +36,21 @@ const STAMP_GLYPH: Record<CardStamp, IconName> = {
     '[class.tc-card--stamped]': 'stamp() !== null',
     '[class.tc-card--negative]': 'stamp() === "negative"',
     '[class.tc-card--neutral]': 'stamp() === "neutral"',
+    '[class.tc-card--sealed]': 'isSealed()',
     '[class.tc-card--flush]': 'flush()',
   },
 })
 export class Card {
   readonly stamp = input<CardStamp | null>(null);
+  /**
+   * A big round seal in place of the stamp's glyph (#361: «В релиз · 16.10» on a release card), already translated;
+   * only with a `stamp`. Decorative like the stamp: the answer's receipt carries the same fact as text.
+   */
+  readonly seal = input<string | null>(null);
   /** No margin indent; the phone layout and lists use this. */
   readonly flush = input(false, { transform: booleanAttribute });
+
+  protected readonly isSealed = computed(() => this.stamp() !== null && !!this.seal());
 
   protected readonly stampGlyph = computed<IconName | null>(() => {
     const stamp = this.stamp();

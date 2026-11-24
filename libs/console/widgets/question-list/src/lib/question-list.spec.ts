@@ -2,11 +2,12 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationInitStatus, Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { ANSWERED_ITEMS_STORAGE, AnsweredItems, NEEDS_YOU_URL } from '@console/entities/project';
 import { NEEDS_YOU_ITEMS_URL, projectQuestionsUrl } from '@console/entities/question';
 import { answerUrl } from '@console/features/answer-question';
-import { provideConsoleI18n } from '@console/shared/i18n';
+import { localShortDayOf, provideConsoleI18n } from '@console/shared/i18n';
 import { ANSWERS } from '@shared/owner-grammar';
 import type {
   NeedsYouDto,
@@ -229,6 +230,45 @@ describe('QuestionList', () => {
     expect(root.querySelector('li[data-number="73"] tc-question-card')).not.toBeNull();
   });
 
+  it('a release answered /go is sealed with the day (#361); an approved question gets the plain stamp', async () => {
+    const { settle, root, fixture } = await render(null);
+    http
+      .expectOne(NEEDS_YOU_ITEMS_URL)
+      .flush(
+        needsYouBody([
+          needsYouItem(TC, 10, { section: 'release', allowedCommands: ['go', 'no-go', 'override'] }),
+          needsYouItem(TC, 72),
+        ]),
+      );
+    await settle();
+
+    // Now: an answer older than the TTL is not remembered.
+    const answeredAt = new Date().toISOString();
+    const answers = TestBed.inject(AnsweredItems);
+    const url = 'https://example.test/issues/1#c';
+    answers.record({ slug: TC.slug, number: 10, command: 'go', url, answeredAt });
+    answers.record({ slug: TC.slug, number: 72, command: 'approve', url, answeredAt });
+    for (const [number, command, section] of [
+      [10, 'go', 'release'],
+      [72, 'approve', 'question'],
+    ] as const) {
+      const row = fixture.debugElement.query(By.css(`li[data-number="${number}"] tc-answer-question`));
+      const card = fixture.debugElement.query(By.css(`li[data-number="${number}"] tc-question-card`));
+      row.triggerEventHandler('answered', {
+        item: card.componentInstance.item(),
+        response: { commentId: 1, url, section, command, replayed: false },
+      });
+    }
+    await settle();
+
+    expect(
+      root.querySelector('li[data-number="10"] .tc-card__stamp--seal .tc-card__seal-text')?.textContent,
+    ).toBe(`В релиз · ${localShortDayOf(answeredAt)}`);
+    expect(root.querySelector('li[data-number="72"] .tc-card__stamp')).not.toBeNull();
+    expect(root.querySelector('li[data-number="72"] .tc-card__stamp--seal')).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, STAMP_HOLD_MS + 50));
+  });
+
   it('an answered item still listed after a reload shows its receipt; one GitHub dropped is forgotten', async () => {
     const { settle, root, fixture } = await render(TC);
     TestBed.inject(AnsweredItems).record({
@@ -328,8 +368,47 @@ describe('QuestionList', () => {
     await settle();
 
     expect(root.querySelector('[data-testid="empty"]')?.textContent).toContain(
-      'От вас сейчас ничего не нужно',
+      'Стол чист. Команда работает',
     );
+  });
+
+  describe('clear desk (#354)', () => {
+    const stampOf = (root: HTMLElement): HTMLElement | null => root.querySelector('[data-testid="desk-stamp"]');
+
+    it('an inbox that opens empty shows the stamp already there, with the one serif line', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(stampOf(root)?.textContent?.trim()).toBe('Всё решено');
+      expect(stampOf(root)?.classList.contains('tc-state-block__stamp--pressed')).toBe(false);
+      expect(root.querySelector('[data-testid="empty"] .tc-state-block__title')?.textContent?.trim()).toBe(
+        'Стол чист. Команда работает',
+      );
+    });
+
+    it('presses the stamp on when the list becomes empty while the page is open', async () => {
+      const { fixture, settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([needsYouItem(TC, 72)]));
+      await settle();
+      expect(stampOf(root)).toBeNull();
+
+      void fixture.debugElement.query(By.directive(QuestionList)).componentInstance.reload();
+      await tick();
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(stampOf(root)?.classList.contains('tc-state-block__stamp--pressed')).toBe(true);
+    });
+
+    it('one project’s questions keep the plain empty block', async () => {
+      const { settle, root } = await render(TC);
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
+      expect(stampOf(root)).toBeNull();
+    });
   });
 
   it('a response of the wrong shape is an error, not a half-rendered list', async () => {
@@ -544,7 +623,9 @@ describe('QuestionList', () => {
       });
       await settle();
 
-      const rows = root.querySelectorAll('[data-testid="project-attention"] [data-testid="concurrency-stop"]');
+      const rows = root.querySelectorAll(
+        '[data-testid="project-attention"] [data-testid="concurrency-stop"]',
+      );
       expect(rows).toHaveLength(1);
       expect(rows[0]?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
         'Acme: задания не запускаются — тариф аккаунта не допускает ни одного задания одновременно. В очереди: 2. Этот лимит меняет оператор консоли.',
@@ -569,9 +650,10 @@ describe('QuestionList', () => {
 
     it('a broken file is one danger row to the project’s Actions setup page, with when it was checked', async () => {
       const { settle, root } = await render(null);
-      http
-        .expectOne(NEEDS_YOU_ITEMS_URL)
-        .flush({ ...needsYouBody([]), projects: [project({ drift: 'modified', checkedAt: '2026-11-20T09:00:00.000Z' })] });
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+        ...needsYouBody([]),
+        projects: [project({ drift: 'modified', checkedAt: '2026-11-20T09:00:00.000Z' })],
+      });
       await settle();
 
       const rows = root.querySelectorAll('[data-testid="project-attention"] [data-testid="actions-drift"]');
@@ -580,21 +662,26 @@ describe('QuestionList', () => {
       expect(row.getAttribute('href')).toBe('/settings/projects/acme/actions');
       expect(row.classList).toContain('tc-banner--danger');
       expect(row.textContent).toContain('Acme: запуск на GitHub Actions сломался — проверьте настройку');
-      expect(row.querySelector('[data-testid="actions-drift-checked"]')?.textContent).toMatch(/^Проверено 20 ноября в \d{2}:\d{2}$/);
+      expect(row.querySelector('[data-testid="actions-drift-checked"]')?.textContent).toMatch(
+        /^Проверено 20 ноября в \d{2}:\d{2}$/,
+      );
       expect(root.querySelector('[data-testid="empty"]')).toBeNull();
       expect(root.querySelector('[data-testid="lead"]')?.textContent).toContain('проектов: 1');
     });
 
     it('an older release is a warning that asks for an update, not a breakage', async () => {
       const { settle, root } = await render(null);
-      http
-        .expectOne(NEEDS_YOU_ITEMS_URL)
-        .flush({ ...needsYouBody([]), projects: [project({ drift: 'release', checkedAt: '2026-11-20T09:00:00.000Z' })] });
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+        ...needsYouBody([]),
+        projects: [project({ drift: 'release', checkedAt: '2026-11-20T09:00:00.000Z' })],
+      });
       await settle();
 
       const row = root.querySelector('[data-testid="actions-drift"]') as HTMLAnchorElement;
       expect(row.classList).toContain('tc-banner--warning');
-      expect(row.textContent).toContain('Acme: для GitHub Actions есть новая версия workflow — проверьте настройку');
+      expect(row.textContent).toContain(
+        'Acme: для GitHub Actions есть новая версия workflow — проверьте настройку',
+      );
     });
   });
 });

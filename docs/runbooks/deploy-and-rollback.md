@@ -186,6 +186,53 @@ incident (threat model C11): whoever holds the key mints their own tokens, so th
    Ask them to rotate `TC_INFERENCE_API_KEY` if the default branch has no ruleset.
 6. Unsuspend, lift the stop and record the timeline on the incident issue.
 
+## Owner reconnect: check the fresh token on real GitHub (#831, #901)
+
+A reconnect over an existing connection stores the new token pair, then retires the previous one: it revokes the old
+access token and redeems the old refresh token once, so the old chain ends (`OwnerConnection.retirePrevious`). The
+specs and the e2e run against the fake GitHub, which assumes what GitHub documents: a redemption ends only its own
+pair, and the freshly stored pair stays live. **Real GitHub has not been exercised.** The owner runs this check once
+on dev, after the first deploy that carries #887, and again on stage before the first release. Nothing in CI can do
+it: it needs the owner's GitHub session.
+
+The console has no button for it, because Settings offers Connect only while nothing is connected. Start it by hand:
+
+1. Open `https://team-console-dev.geeera.workers.dev/settings`, with GitHub shown as connected.
+2. In the browser's developer console on that page (same origin, so the CSRF check passes):
+
+   ```js
+   const start = await (await fetch('/api/v1/github/connect', { method: 'POST' })).json();
+   console.log(start.authorizeUrl);
+   ```
+
+   Open the printed address only if it starts with `https://github.com/login/oauth/authorize?`, in the same tab.
+   GitHub may ask you to authorize or pass you straight through. The console comes back to Settings with GitHub
+   still connected; a refusal shows a notice instead and changes nothing.
+3. Workers Logs of `team-console-dev`, for that callback, show these lines in order: `owner reconnect: the previous
+   access token was revoked`, `owner reconnect: the previous redeemed access token was revoked`, `owner reconnect:
+   the previous refresh chain was ended`, `owner connected`. A `... was not revoked` or `... was not ended` warning
+   names its `reason`; an error `owner reconnect: retiring the previous pair failed unexpectedly` is a bug to file.
+   Either way the new connection is stored.
+4. Within a few minutes, do one thing that writes to GitHub as the owner (answer a question from the console, or
+   send a request to the PM) and confirm on GitHub that it arrived under your account.
+5. Read the row:
+
+   ```sh
+   npx wrangler d1 execute team-console-dev --env dev --remote --config apps/api/wrangler.jsonc --command \
+     "SELECT version, connected_at, updated_at FROM owner_connections WHERE environment = 'dev'"
+   ```
+
+What the result means:
+
+| Step 4 | Row | Meaning | Do |
+| ------ | --- | ------- | -- |
+| Worked | `updated_at` equals `connected_at` | The fresh access token was used as stored. GitHub behaves as the fake does. | Record the date in the header comment of `libs/worker/github/src/testing/fake-github-oauth.ts` by a PR. |
+| Worked | `updated_at` is later than `connected_at` | GitHub rejected the fresh access token and the console refreshed it (a token lives 8 hours and is refreshed only in its last 30 minutes, so a refresh this early means a 401). The redemption ended more than its own pair. One extra round trip, no outage. | File a `kind:finding` issue: make the fake end every access token of the grant on a redemption, and record the finding in its header comment. |
+| Failed with "connection lost" (403 `github-owner-not-connected`) | The row is gone | The redemption ended the new chain too. | Connect again from Settings: with no stored row nothing is retired, so this connection holds. File a `sev:high` bug to stop redeeming the previous refresh token on reconnect. |
+
+Until the first row of the table is recorded in the fake's header comment, treat the reconnect path as unverified
+against real GitHub.
+
 ## What this does not cover
 
 - **Production** is out of scope for #25 (`stage` → `main` only after the owner's recorded **go** on the

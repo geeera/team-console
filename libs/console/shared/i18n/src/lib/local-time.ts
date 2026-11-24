@@ -24,6 +24,17 @@ export function localDayOf(value: string | Date | number, lang: string): string 
     : new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long' }).format(date);
 }
 
+/** "16.10": day and month in the reader's time zone, two digits each, whatever the language (a seal's date). */
+export function localShortDayOf(value: string | Date | number): string {
+  const date = dateOf(value);
+  if (date === null) {
+    return '';
+  }
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}.${month}`;
+}
+
 const CALENDAR_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /** A `YYYY-MM-DD` calendar day as a UTC date, so formatting it in UTC never moves it to the day before or after. */
@@ -39,7 +50,9 @@ export function localCalendarDayOf(day: string, lang: string): string {
   const date = calendarDateOf(day);
   return date === null
     ? ''
-    : new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
+    : new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+        date,
+      );
 }
 
 /** "12–14 октября" / "30 September – 2 October": two calendar days, both included, as one range. */
@@ -49,7 +62,11 @@ export function localCalendarRangeOf(from: string, to: string, lang: string): st
   if (start === null || end === null) {
     return '';
   }
-  const format = new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' });
+  const format = new Intl.DateTimeFormat(intlLocaleOf(lang), {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  });
   return start.getTime() === end.getTime() ? format.format(start) : format.formatRange(start, end);
 }
 
