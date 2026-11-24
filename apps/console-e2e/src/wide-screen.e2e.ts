@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { seed } from './support/stack';
 
 /**
@@ -110,6 +111,7 @@ test.describe('wide screens (#766)', () => {
       await page.keyboard.press('Tab');
       await expect(links.nth(next)).toBeFocused();
     }
+    await settled(page);
     const [first, third, fourth] = await Promise.all(
       [0, 2, 3].map((index) => links.nth(index).boundingBox()),
     );
@@ -156,6 +158,7 @@ test.describe('wide screens (#766)', () => {
       await page.setViewportSize({ width, height: HEIGHT });
       await page.goto(QUESTIONS);
       await expect(page.locator('.questions__list > li').first()).toBeVisible();
+      await settled(page);
       const [main, body, title] = await Promise.all(
         ['main', '.space__body', '.space__title'].map((selector) =>
           page.locator(selector).first().boundingBox(),
@@ -174,6 +177,7 @@ test.describe('wide screens (#766)', () => {
     page,
   }) => {
     const columnsOf = async (): Promise<number> => {
+      await settled(page);
       const [tasks, pulls, runs] = await Promise.all(
         ['.board__tasks', '.board__pulls', '.board__runs'].map((selector) =>
           page.locator(selector).boundingBox(),

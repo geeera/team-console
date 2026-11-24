@@ -2,6 +2,7 @@ import type { APIRequestContext, Locator, Page } from '@playwright/test';
 import type { SprintDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
+import { settled } from './support/motion';
 import {
   clearFakeMilestones,
   fakePost,
@@ -187,6 +188,7 @@ test('the key status is on the first screen: sprint, demo date and the four tile
 
   if (isPhone(page)) {
     // 2×2: Done and CI side by side, Runs and «waiting» under them; the tabs right after.
+    await settled(page);
     const boxes = await Promise.all(
       ['done-stat', 'ci-stat', 'team-stat', 'waiting-stat'].map((id) => page.getByTestId(id).boundingBox()),
     );
@@ -254,6 +256,7 @@ for (const lang of ['ru', 'en'] as const) {
     // The Add button is the standard control height, centred on its row.
     const row = repos.locator('[data-repo="geeera/private-product"]');
     const add = row.getByTestId('repo-add');
+    await settled(page);
     const [rowBox, addBox] = [await row.boundingBox(), await add.boundingBox()];
     expect(addBox?.height ?? 0).toBeLessThanOrEqual(isPhone(page) ? 44.5 : 34.5);
     const rowMiddle = (rowBox?.y ?? 0) + (rowBox?.height ?? 0) / 2;
@@ -421,6 +424,7 @@ for (const { name, viewport, pane } of MID_WIDTHS) {
       await page.waitForLoadState('networkidle');
     }
 
+    await settled(page);
     const tasks = await page.locator('.board__tasks').boundingBox();
     const pulls = page.getByTestId('pulls');
     const pullsBox = await pulls.boundingBox();

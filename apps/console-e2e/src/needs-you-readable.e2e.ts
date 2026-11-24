@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { seed } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
@@ -138,6 +139,7 @@ test('the push nudge is one line and the first card fits above the fold with the
 
   const viewport = page.viewportSize()?.height ?? 0;
   const cards = page.locator('li[data-number]');
+  await settled(page);
   const firstButtons = await cards.nth(0).locator('[data-command]').last().boundingBox();
   const second = await cards.nth(1).boundingBox();
   expect((firstButtons?.y ?? Infinity) + (firstButtons?.height ?? 0)).toBeLessThanOrEqual(viewport);
