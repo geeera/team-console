@@ -134,11 +134,66 @@ jobs:
           TC_RUNNER_TEST_IMAGE: tc-runner:ci-fake
         run: npx vitest run --config apps/runner/vitest.config.mts src/integration/container.integration.spec.ts
 
+  # #947: GitHub's hosted macOS arm64 pool is capacity-constrained; a `macos-latest` job can sit queued for 20+
+  # minutes and then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after
+  # multiple attempts") — `timeout-minutes` never starts, and the run goes red for a change that could not have
+  # touched the sweep. So the macOS job runs only when its inputs can have changed: anything under `apps/runner/`
+  # (the templates, the spec, its vitest config), this workflow and its composite action, or the toolchain pins the
+  # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there. A skipped job
+  # satisfies a required check, so the gate reads the same either way. Decided here on Linux (git only, no API
+  # call, as `lint-test-build`'s "Select projects" does), not on the macOS runner the decision is meant to spare.
+  runner-darwin-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Does this change reach the Darwin sweep?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          paths='^(apps/runner/|\.github/workflows/ci\.yml$|\.github/actions/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|vitest\.config\.mts$)'
+          if [ "${EVENT}" = "pull_request" ]; then
+            if [ "${BASE_REF}" != "dev" ]; then
+              run=true; why="release PR into ${BASE_REF}"
+            else
+              # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
+              changed=$(git diff --name-only HEAD^1 HEAD)
+              if grep -Eq "${paths}" <<< "${changed}"; then
+                run=true; why="runner, CI or toolchain files changed"
+              else
+                run=false; why="nothing under apps/runner, CI or the toolchain changed"
+              fi
+            fi
+          elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            changed=$(git diff --name-only "${BEFORE}" HEAD)
+            if grep -Eq "${paths}" <<< "${changed}"; then
+              run=true; why="runner, CI or toolchain files changed since ${BEFORE}"
+            else
+              run=false; why="nothing under apps/runner, CI or the toolchain changed since ${BEFORE}"
+            fi
+          else
+            run=true; why="no base to compare with"
+          fi
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Darwin sweep scope::${run} (${why})"
+
   # #651: the Darwin branch of the job-exec sweep spec (`it.runIf(process.platform === 'darwin')` in
   # apps/runner/src/install/templates.spec.ts) only ever ran on the Linux runners above, so it never actually
   # executed in CI. A dedicated macOS job for just that one spec file keeps the minutes small instead of
   # moving the whole runner suite (or `lint-test-build`) onto a macOS runner.
   runner-darwin-sweep:
+    needs: runner-darwin-scope
+    if: needs.runner-darwin-scope.outputs.run == 'true'
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
