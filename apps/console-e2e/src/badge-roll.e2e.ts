@@ -35,8 +35,11 @@ async function serveWaiting(page: Page): Promise<(count: number) => void> {
   };
 }
 
-const refreshWaiting = (page: Page): Promise<void> =>
-  page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+async function refreshWaiting(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
 
 test('the badge rolls down to the new count, then shrinks out at zero', async ({ page }) => {
   const setCount = await serveWaiting(page);
