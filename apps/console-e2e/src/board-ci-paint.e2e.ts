@@ -37,15 +37,17 @@ async function passAfterFirstRead(page: Page): Promise<void> {
   let reads = 0;
   await page.route(SPRINT, async (route) => {
     const response = await route.fetch();
-    const body = (await response.json()) as SprintDto;
+    const read = (await response.json()) as SprintDto;
     reads += 1;
-    if (reads > 1) {
-      for (const pull of body.openPullRequests) {
-        if (pull.number === PULL) {
-          pull.ci = 'success';
-        }
-      }
-    }
+    const body: SprintDto =
+      reads > 1
+        ? {
+            ...read,
+            openPullRequests: read.openPullRequests.map((pull) =>
+              pull.number === PULL ? { ...pull, ci: 'success' } : pull,
+            ),
+          }
+        : read;
     await route.fulfill({ response, json: body });
   });
 }
