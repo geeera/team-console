@@ -57,17 +57,15 @@ describe('App', () => {
   let router: Router;
   let pageLocation: { href: string; assigned: string[]; assign(url: string): void };
 
-  // Two one-time costs land on whichever test runs first otherwise: JIT-compiling the App tree (Ivy caches
-  // compiled templates on the component classes, not on the TestBed instance `afterEach` tears down) and Vite
-  // transforming each lazy route's chunk on its first `import()` (measured locally at 150-350ms per chunk, the
-  // actual cause of #237's timeout — not a race in the window-title effect). Paying both here, under the hook
-  // timeout (10s), keeps them off the 5s per-test budget regardless of which test happens to navigate there first.
+  // Pay the one-time costs (App JIT compile, Vite transform of each lazy route chunk) here, not in whichever
+  // test runs first: that is what timed out #237. Cold CI transforms can exceed the 10s default hook budget.
+  const WARMUP_TIMEOUT_MS = 30_000;
   beforeAll(async () => {
     await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
     await Promise.all(
       appRoutes.flatMap((route) => [route.loadComponent?.(), route.loadChildren?.()]).filter(Boolean),
     );
-  });
+  }, WARMUP_TIMEOUT_MS);
 
   beforeEach(() => {
     pageLocation = {
