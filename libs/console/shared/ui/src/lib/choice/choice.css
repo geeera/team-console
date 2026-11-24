@@ -38,6 +38,7 @@
 
 .tc-choice__text {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-px);
   min-width: 0;
 }
