@@ -41,7 +41,9 @@ describe('parseServeWorkerOptions', () => {
     ['vars as a list', { ...api, vars: ['ENVIRONMENT:local'] }],
     ['an empty env', { ...api, env: '' }],
   ])('throws on %s', (_case, options) => {
-    expect(() => parseServeWorkerOptions(JSON.stringify(options))).toThrow('does not hold a valid set of options');
+    expect(() => parseServeWorkerOptions(JSON.stringify(options))).toThrow(
+      'does not hold a valid set of options',
+    );
   });
 });
 

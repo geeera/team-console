@@ -28,7 +28,7 @@ export default defineConfig({
   forbidOnly: isCI,
   // No retries: a flaky step is a bug to fix, and a retried answer would hit the 60 s replay window anyway.
   retries: 0,
-  // Two stacks of two wrangler processes each plus the browsers fit a CI runner and a laptop alike.
+  // Two stacks of three Miniflare servers each plus the browsers fit a CI runner and a laptop alike.
   workers: 2,
   timeout: 30_000,
   expect: { timeout: 10_000 },

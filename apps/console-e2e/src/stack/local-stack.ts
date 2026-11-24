@@ -102,12 +102,18 @@ class StackProcess {
     });
     child.on('exit', (code, exitSignal) => {
       const how = this.stopStart === null ? 'EXITED UNEXPECTEDLY' : 'stopped by the harness';
-      appendLog(logPath, `=== ${new Date().toISOString()} ${label} ${how} (code ${code}, signal ${exitSignal}) ===`);
+      appendLog(
+        logPath,
+        `=== ${new Date().toISOString()} ${label} ${how} (code ${code}, signal ${exitSignal}) ===`,
+      );
     });
   }
 
   static spawn(label: string, options: ServeWorkerOptions, logPath: string): StackProcess {
-    appendLog(logPath, `=== ${new Date().toISOString()} ${label} start: serve-worker ${describeOptions(options)} ===`);
+    appendLog(
+      logPath,
+      `=== ${new Date().toISOString()} ${label} start: serve-worker ${describeOptions(options)} ===`,
+    );
     const logStart = statSync(logPath).size;
     const log = openSync(logPath, 'a');
     try {
@@ -298,7 +304,9 @@ async function bundleWorker(config: string, outdir: string, logPath: string): Pr
   const scripts = readdirSync(outdir).filter((file) => file.endsWith('.js'));
   const [script] = scripts;
   if (script === undefined || scripts.length > 1) {
-    throw new Error(`${config}: expected one bundled script in ${outdir}, found ${scripts.join(', ') || 'none'}`);
+    throw new Error(
+      `${config}: expected one bundled script in ${outdir}, found ${scripts.join(', ') || 'none'}`,
+    );
   }
   return join(outdir, script);
 }
@@ -436,7 +444,10 @@ export class LocalStack {
       }
     }
     if (failures.length > 0) {
-      throw new AggregateError(failures, `${this.name}: ${failures.length} part(s) of the stack did not stop`);
+      throw new AggregateError(
+        failures,
+        `${this.name}: ${failures.length} part(s) of the stack did not stop`,
+      );
     }
   }
 

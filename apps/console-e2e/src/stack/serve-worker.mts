@@ -13,17 +13,23 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { unstable_getMiniflareWorkerOptions, unstable_readConfig } from 'wrangler';
 import type * as MiniflareModule from 'miniflare';
-import { parseServeWorkerOptions, SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
+import {
+  parseServeWorkerOptions,
+  SERVE_WORKER_OPTIONS,
+  type ServeWorkerOptions,
+} from './serve-worker-options.mts';
 
 const requireFromWrangler = createRequire(import.meta.resolve('wrangler'));
-const { convertV4MiniflareOptions, Log, LogLevel, Miniflare } = requireFromWrangler('miniflare') as typeof MiniflareModule;
-
+const { convertV4MiniflareOptions, Log, LogLevel, Miniflare } = requireFromWrangler(
+  'miniflare',
+) as typeof MiniflareModule;
 
 async function serve(options: ServeWorkerOptions): Promise<void> {
   const config = unstable_readConfig({ config: options.config, env: options.env });
   // wrangler's own typing of these options is loose; they are Miniflare's v4 worker options.
   const fromConfig = {
-    ...(unstable_getMiniflareWorkerOptions(config, options.env).workerOptions as MiniflareModule.V4WorkerOptions),
+    ...(unstable_getMiniflareWorkerOptions(config, options.env)
+      .workerOptions as MiniflareModule.V4WorkerOptions),
   };
   // The script is one self-contained bundle; Miniflare 5's v4 converter refuses a worker that names module rules.
   delete fromConfig.modulesRules;
