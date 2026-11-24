@@ -151,6 +151,8 @@ export class Tabs {
     '[attr.aria-labelledby]': 'isTabbed() ? tabId : null',
     '[attr.tabindex]': 'isTabbed() ? -1 : null',
     '[hidden]': 'isTabbed() && !isSelected()',
+    // #506 "Tab switch": the panel crossfades in, no movement; revealing from [hidden] restarts the animation.
+    '[class.m-fade]': 'isTabbed()',
   },
 })
 export class TabPanel implements OnInit {

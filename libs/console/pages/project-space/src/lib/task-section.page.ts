@@ -36,7 +36,13 @@ import { BoardSectionPage } from './board-section.page';
   `,
   styleUrl: './task-section.page.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  host: { class: 'task-section', '[class.task-section--phone]': 'isPhone()' },
+  // The pane on a Mac reuses the board beside it (no motion); the iPhone page is a drill-in, not a generic
+  // route enter (#506 catalogue "Drill-in on iPhone"), so it opts out of `.m-route`'s fade-and-rise for `m-push`.
+  host: {
+    class: 'task-section m-route-skip',
+    '[class.task-section--phone]': 'isPhone()',
+    '[class.m-push]': 'isPhone()',
+  },
 })
 export class TaskSectionPage {
   private readonly route = inject(ActivatedRoute);
