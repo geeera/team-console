@@ -222,7 +222,8 @@ jobs:
 
   # #14: the Playwright suite (apps/console-e2e) on every PR, whatever it touches — it is the regression guard for
   # the demo path. Each Playwright worker starts its own fake GitHub and the api bundle on a fresh local D1 (the
-  # same `wrangler dev dist/apps/api/main.js` the Docker image runs); nothing reaches GitHub or Cloudflare.
+  # bundle the Docker image runs, on Miniflare directly rather than `wrangler dev`, #957); nothing reaches GitHub or
+  # Cloudflare.
   # One job per Playwright project instead of one job for all three (#404): `iphone` and `desktop` run the full
   # suite (the bulk of the ~350 tests) and are now the long pole at roughly half the old wall time each; the much
   # smaller `iphone-webkit` project (the demo path only) stays quick. Each shard rebuilds the app itself — no

@@ -126,7 +126,8 @@ class StackProcess {
           ...process.env,
           [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
           WRANGLER_SEND_METRICS: 'false',
-          NO_COLOR: '1',
+          // Plain logs: Playwright sets FORCE_COLOR for its workers, and it would override NO_COLOR.
+          FORCE_COLOR: '0',
         },
       });
       return new StackProcess(child, label, logPath, logStart);
