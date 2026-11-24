@@ -4,7 +4,7 @@ import { NavigationEnd, Router } from '@angular/router';
 import { NeedsYouCounts, ProjectsStore, spaceLocationOf, spaceUrlOf } from '@console/entities/project';
 import { LocalNumberPipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { PersistedStateStore } from '@console/shared/persisted-state';
-import { Chip, Icon, IconButton, List, ListRow } from '@console/shared/ui';
+import { CountBadge, Icon, IconButton, List, ListRow } from '@console/shared/ui';
 import { isSnoozeActive, ProjectDto } from '@shared/contracts';
 import { filter, map } from 'rxjs';
 
@@ -19,7 +19,7 @@ const SNOOZE_TICK_MS = 60_000;
  */
 @Component({
   selector: 'tc-project-switcher',
-  imports: [Chip, Icon, IconButton, List, ListRow, LocalNumberPipe, TranslocoPipe],
+  imports: [CountBadge, Icon, IconButton, List, ListRow, LocalNumberPipe, TranslocoPipe],
   templateUrl: './project-switcher.html',
   styleUrl: './project-switcher.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

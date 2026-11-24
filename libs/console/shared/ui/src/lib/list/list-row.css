@@ -102,6 +102,7 @@
 
 .tc-list-row__leading:empty,
 .tc-list-row__trailing:empty,
+.tc-list-row__trailing:has(> [hidden]:only-child),
 .tc-list-row__trailing-text:empty,
 .tc-list-row__subtitle:empty,
 .tc-list-row__detail:empty {
