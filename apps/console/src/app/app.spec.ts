@@ -57,6 +57,18 @@ describe('App', () => {
   let router: Router;
   let pageLocation: { href: string; assigned: string[]; assign(url: string): void };
 
+  // Two one-time costs land on whichever test runs first otherwise: JIT-compiling the App tree (Ivy caches
+  // compiled templates on the component classes, not on the TestBed instance `afterEach` tears down) and Vite
+  // transforming each lazy route's chunk on its first `import()` (measured locally at 150-350ms per chunk, the
+  // actual cause of #237's timeout — not a race in the window-title effect). Paying both here, under the hook
+  // timeout (10s), keeps them off the 5s per-test budget regardless of which test happens to navigate there first.
+  beforeAll(async () => {
+    await TestBed.configureTestingModule({ imports: [App] }).compileComponents();
+    await Promise.all(
+      appRoutes.flatMap((route) => [route.loadComponent?.(), route.loadChildren?.()]).filter(Boolean),
+    );
+  });
+
   beforeEach(() => {
     pageLocation = {
       href: 'https://console.test/p/a/questions',
