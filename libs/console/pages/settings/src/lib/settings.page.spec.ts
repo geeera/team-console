@@ -7,6 +7,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { HEALTH_URL } from '@console/entities/app-info';
 import {
   ENVIRONMENT_COPY_LOADER,
+  EnvironmentCopy,
   loadEnvironmentCopyChunks,
   type EnvironmentCopyChunks,
 } from '@console/entities/environment';
@@ -222,6 +223,9 @@ describe('SettingsPage', () => {
 
     fail = false;
     (failed.querySelector('button') as HTMLButtonElement).click();
+    // Try again imports the real chunks (file reads under vitest), which a fixed number of ticks does not cover on a
+    // loaded CI machine (#947): wait on the load itself — `ready()` hands back the promise the click started.
+    expect(await TestBed.inject(EnvironmentCopy).ready()).toBe(true);
     await settle();
     expect(root().querySelector('[data-testid="env-copy-failed"]')).toBeNull();
     expect(text('[data-testid="env-entry-chip"]')).toBe('Не задано: 2');
