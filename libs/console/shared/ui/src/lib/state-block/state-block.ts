@@ -33,6 +33,7 @@ const ICONS: Record<Exclude<StateKind, 'loading'>, IconName> = {
     '[class.tc-state-block--loading]': 'kind() === "loading"',
     '[class.tc-state-block--compact]': 'compact()',
     '[class.tc-state-block--custom-icon]': 'icon() !== null',
+    '[class.tc-state-block--desk]': 'hasDesk()',
     '[attr.role]': 'role()',
     '[attr.aria-live]': 'kind() === "loading" ? "polite" : null',
     '[attr.aria-busy]': 'kind() === "loading" ? "true" : null',
@@ -50,6 +51,13 @@ export class StateBlock {
    * for "this could not be read", which is neither "nothing here" nor an alert. Ignored while loading.
    */
   readonly icon = input<IconName | null>(null);
+
+  /** The words on the clear desk's stamp (already translated); only an empty, regular block shows it. */
+  readonly stamp = input<string>('');
+  /** The stamp is pressed on with its gesture instead of being there already. */
+  readonly pressed = input(false, { transform: booleanAttribute });
+
+  protected readonly hasDesk = computed(() => this.kind() === 'empty' && !this.compact() && this.stamp() !== '');
 
   protected readonly glyph = computed<IconName | null>(() => {
     const kind = this.kind();

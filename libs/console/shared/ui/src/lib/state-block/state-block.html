@@ -1,4 +1,6 @@
-@if (kind() === 'loading') {
+@if (hasDesk()) {
+<span class="tc-state-block__stamp" [class.tc-state-block__stamp--pressed]="pressed()" data-testid="desk-stamp">{{ stamp() }}</span>
+} @else if (kind() === 'loading') {
 <tc-spinner class="tc-state-block__icon" [size]="compact() ? 'sm' : 'lg'" />
 } @else if (glyph(); as name) {
 <tc-icon class="tc-state-block__icon" [name]="name" [size]="compact() ? 'md' : 'xl'" />

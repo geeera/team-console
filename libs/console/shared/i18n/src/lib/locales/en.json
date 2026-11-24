@@ -55,7 +55,10 @@
   },
   "needsYou": {
     "title": "Needs you",
-    "emptyTitle": "Nothing needs you right now",
+    "clear": {
+      "stamp": "All decided",
+      "title": "The desk is clear. The team is working"
+    },
     "emptyHint": "The teams are working; you'll get a notification when that changes.",
     "lead": "Waiting: {{n}} · projects: {{k}}",
     "omitted": "Not read this time: {{names}}",
@@ -1800,6 +1803,8 @@
       "commands": "Commands"
     },
     "stateBlock": {
+      "deskStamp": "All decided",
+      "deskTitle": "The desk is clear. The team is working",
       "emptyTitle": "Nothing is waiting",
       "emptyDescription": "All team questions are closed. Check back later.",
       "errorTitle": "Couldn't load projects",
