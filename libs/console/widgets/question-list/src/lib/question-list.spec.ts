@@ -368,8 +368,47 @@ describe('QuestionList', () => {
     await settle();
 
     expect(root.querySelector('[data-testid="empty"]')?.textContent).toContain(
-      'От вас сейчас ничего не нужно',
+      'Стол чист. Команда работает',
     );
+  });
+
+  describe('clear desk (#354)', () => {
+    const stampOf = (root: HTMLElement): HTMLElement | null => root.querySelector('[data-testid="desk-stamp"]');
+
+    it('an inbox that opens empty shows the stamp already there, with the one serif line', async () => {
+      const { settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(stampOf(root)?.textContent?.trim()).toBe('Всё решено');
+      expect(stampOf(root)?.classList.contains('tc-state-block__stamp--pressed')).toBe(false);
+      expect(root.querySelector('[data-testid="empty"] .tc-state-block__title')?.textContent?.trim()).toBe(
+        'Стол чист. Команда работает',
+      );
+    });
+
+    it('presses the stamp on when the list becomes empty while the page is open', async () => {
+      const { fixture, settle, root } = await render(null);
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([needsYouItem(TC, 72)]));
+      await settle();
+      expect(stampOf(root)).toBeNull();
+
+      void fixture.debugElement.query(By.directive(QuestionList)).componentInstance.reload();
+      await tick();
+      http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
+      await settle();
+
+      expect(stampOf(root)?.classList.contains('tc-state-block__stamp--pressed')).toBe(true);
+    });
+
+    it('one project’s questions keep the plain empty block', async () => {
+      const { settle, root } = await render(TC);
+      http.expectOne(projectQuestionsUrl(TC.slug)).flush({ items: [] });
+      await settle();
+
+      expect(root.querySelector('[data-testid="empty"]')).not.toBeNull();
+      expect(stampOf(root)).toBeNull();
+    });
   });
 
   it('a response of the wrong shape is an error, not a half-rendered list', async () => {

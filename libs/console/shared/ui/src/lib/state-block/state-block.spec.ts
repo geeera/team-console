@@ -6,12 +6,22 @@ import { StateBlock, StateKind } from './state-block';
 
 @Component({
   imports: [StateBlock],
-  template: `<tc-state-block [kind]="kind()" [title]="title()" [icon]="icon()" />`,
+  template: `<tc-state-block
+    [kind]="kind()"
+    [title]="title()"
+    [icon]="icon()"
+    [stamp]="stamp()"
+    [pressed]="pressed()"
+    [compact]="compact()"
+  />`,
 })
 class Host {
   readonly kind = signal<StateKind>('loading');
   readonly title = signal('');
   readonly icon = signal<IconName | null>(null);
+  readonly stamp = signal('');
+  readonly pressed = signal(false);
+  readonly compact = signal(false);
 }
 
 describe('StateBlock', () => {
@@ -80,5 +90,54 @@ describe('StateBlock', () => {
     fixture.componentInstance.icon.set(null);
     await fixture.whenStable();
     expect(glyph()).toBe(check);
+  });
+
+  describe('clear desk (#354)', () => {
+    async function desk() {
+      const view = await render();
+      view.fixture.componentInstance.kind.set('empty');
+      view.fixture.componentInstance.title.set('The desk is clear');
+      view.fixture.componentInstance.stamp.set('All decided');
+      await view.fixture.whenStable();
+      const stamp = () => view.block.querySelector<HTMLElement>('[data-testid="desk-stamp"]');
+      return { ...view, stamp };
+    }
+
+    it('shows the stamp words above the title, in place of the glyph, on a sheet', async () => {
+      const { block, stamp, title } = await desk();
+      expect(stamp()?.textContent?.trim()).toBe('All decided');
+      expect(title()).toBe('The desk is clear');
+      expect(block.querySelector('tc-icon')).toBeNull();
+      expect(block.classList.contains('tc-state-block--desk')).toBe(true);
+      expect(stamp()?.nextElementSibling?.classList.contains('tc-state-block__title')).toBe(true);
+    });
+
+    it('is there already unless the caller says the list just emptied', async () => {
+      const { fixture, stamp } = await desk();
+      expect(stamp()?.classList.contains('tc-state-block__stamp--pressed')).toBe(false);
+
+      fixture.componentInstance.pressed.set(true);
+      await fixture.whenStable();
+      expect(stamp()?.classList.contains('tc-state-block__stamp--pressed')).toBe(true);
+    });
+
+    it('stays the ordinary empty block without stamp words, compact, or in another kind', async () => {
+      const { fixture, block, stamp } = await desk();
+      fixture.componentInstance.stamp.set('');
+      await fixture.whenStable();
+      expect(stamp()).toBeNull();
+      expect(block.querySelector('tc-icon')).not.toBeNull();
+      expect(block.classList.contains('tc-state-block--desk')).toBe(false);
+
+      fixture.componentInstance.stamp.set('All decided');
+      fixture.componentInstance.compact.set(true);
+      await fixture.whenStable();
+      expect(stamp()).toBeNull();
+
+      fixture.componentInstance.compact.set(false);
+      fixture.componentInstance.kind.set('error');
+      await fixture.whenStable();
+      expect(stamp()).toBeNull();
+    });
   });
 });

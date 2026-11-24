@@ -251,7 +251,15 @@ export class QuestionList {
       .join(', '),
   );
 
+  /** True once the list has shown a row; an empty state after that is a transition, not where the page opened. */
+  protected readonly hadRows = signal(false);
+
   constructor() {
+    effect(() => {
+      if (this.rows().length > 0) {
+        untracked(() => this.hadRows.set(true));
+      }
+    });
     effect(() => {
       const project = this.project();
       untracked(() => {
