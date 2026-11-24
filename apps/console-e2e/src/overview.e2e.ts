@@ -70,6 +70,66 @@ test.describe('with two active projects', () => {
     await expect(page.getByTestId('stats').or(page.getByTestId('no-sprint'))).toBeVisible();
   });
 
+  /** The browser's own calendar day, `days` from today, as the board's `dueOn`. */
+  const dayFromToday = (days: number): string => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+      .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0'))
+      .join('-');
+  };
+
+  /** The stack's own overview, with the first project's sprint moved to the day asked for. */
+  async function moveDemo(page: Page, dueOn: string): Promise<void> {
+    await page.route(`**${OVERVIEW}`, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.json()) as OverviewDto;
+      const projects = body.projects.map((project) =>
+        project.kind === 'read' && project.slug === 'team-console' && project.sprint !== null
+          ? { ...project, sprint: { ...project.sprint, dueOn } }
+          : project,
+      );
+      await route.fulfill({ response, json: { ...body, projects } });
+    });
+  }
+
+  test('#359: the card counts the days to the demo and its meter fills from empty', async ({ page }) => {
+    await moveDemo(page, dayFromToday(3));
+    await openOverview(page);
+
+    const countdown = tileOf(page, 'team-console').getByTestId('countdown');
+    await expect(countdown).toHaveText(ru('overview.countdown.few', { n: 3 }));
+    await expect(countdown).not.toHaveClass(/ov__countdown--today/);
+    await expect(countdown).toHaveCSS('font-family', /Source Serif 4/);
+    const fill = tileOf(page, 'team-console').locator('.tc-meter__fill');
+    await expect(fill).toHaveClass(/tc-meter__fill--appear/);
+    await expect(fill, 'the fill grows over a real duration').not.toHaveCSS('animation-duration', '0s');
+    await expectAccessible(page, 'All projects with the demo countdown');
+  });
+
+  test('#359: on the demo day the card says so in the accent', async ({ page }) => {
+    await moveDemo(page, dayFromToday(0));
+    await openOverview(page);
+
+    const countdown = tileOf(page, 'team-console').getByTestId('countdown');
+    await expect(countdown).toHaveText(ru('overview.countdownToday'));
+    await expect(countdown).toHaveClass(/ov__countdown--today/);
+    await expectAccessible(page, 'All projects on the demo day');
+  });
+
+  test('#359: under reduced motion the meters are filled at once, the text is unchanged', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await moveDemo(page, dayFromToday(3));
+    await openOverview(page);
+
+    await expect(tileOf(page, 'team-console').getByTestId('countdown')).toHaveText(
+      ru('overview.countdown.few', { n: 3 }),
+    );
+    await expect(tileOf(page, 'team-console').locator('.tc-meter__fill')).toHaveCSS('animation-name', 'none');
+  });
+
   test('the keyboard reaches a tile and Enter opens its board', async ({ page }) => {
     await openOverview(page);
     const target = tileOf(page, 'team-console');
