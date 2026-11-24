@@ -71,8 +71,15 @@ try {
   fs.writeFileSync(path.join(browser, 'main-ABC.js'), 'const b={version:"0.1.0",builtAt:"local"};');
   assert.throws(() => assertStampInBundle(STAMP, browser), /not compiled into any script/);
 
-  fs.writeFileSync(path.join(browser, 'chunks', 'chunk-DEF.js'), `const b={version:"0.1.0",builtAt:"${STAMP}"};`);
-  assertStampInBundle(STAMP, browser);
+  // The stamp only inside a longer string or a comment is not the inlined define.
+  fs.writeFileSync(path.join(browser, 'main-ABC.js'), `const b={builtAt:"local"};/* ${STAMP} */const c="x${STAMP}";`);
+  assert.throws(() => assertStampInBundle(STAMP, browser), /not compiled into any script/);
+
+  // Whatever quote the minifier picks (the production build emits a template literal).
+  for (const quote of ['`', '"', "'"]) {
+    fs.writeFileSync(path.join(browser, 'chunks', 'chunk-DEF.js'), `const b={version:"0.1.0",builtAt:${quote}${STAMP}${quote}};`);
+    assertStampInBundle(STAMP, browser);
+  }
   assert.throws(() => assertStampInBundle('2026-11-24T09:41:08Z (686b1da)', browser), /not compiled/);
   assert.throws(() => assertStampInBundle(STAMP, path.join(tmp, 'missing')), /ENOENT/);
 

@@ -77,13 +77,21 @@ function listScripts(directory) {
   );
 }
 
-/** Throws unless some script in `browserDirectory` carries `stamp` (already validated, so it holds no quotes). */
+/**
+ * Throws unless some script in `browserDirectory` carries `stamp` as a string literal. The minifier picks the quote
+ * (the production build emits a template literal); a validated stamp holds no quote, backslash or `${`, so each
+ * quoted form is its literal source text.
+ */
 function assertStampInBundle(stamp, browserDirectory) {
   const scripts = listScripts(browserDirectory);
   if (scripts.length === 0) {
     throw new Error(`no .js files under ${browserDirectory} — is this the console build output?`);
   }
-  const isInlined = scripts.some((file) => fs.readFileSync(file, 'utf8').includes(`"${stamp}"`));
+  const literals = ['"', "'", '`'].map((quote) => `${quote}${stamp}${quote}`);
+  const isInlined = scripts.some((file) => {
+    const source = fs.readFileSync(file, 'utf8');
+    return literals.some((literal) => source.includes(literal));
+  });
   if (!isInlined) {
     throw new Error(`${JSON.stringify(stamp)} is not compiled into any script under ${browserDirectory}`);
   }
