@@ -34,6 +34,7 @@ let nextRunLogId = 0;
         <tc-sprint-run-list
           [runs]="team().recentRuns"
           [runLogUrl]="team().runLogUrl"
+          [teamState]="team().state"
           [label]="'board.runs.githubLog' | transloco"
         />
       }
