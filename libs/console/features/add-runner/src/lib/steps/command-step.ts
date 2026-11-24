@@ -141,6 +141,7 @@ let nextCommandId = 0;
   styles: `
     .command__steps {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-3);
       margin: 0;
       padding-inline-start: var(--space-5);
@@ -154,6 +155,7 @@ let nextCommandId = 0;
 
     .command__steps li {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
     }
 

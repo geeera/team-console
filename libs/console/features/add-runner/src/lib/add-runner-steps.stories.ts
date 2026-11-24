@@ -42,7 +42,8 @@ const INSTALL = {
   'darwin-x64': 'curl --proto =https --tlsv1.2 -fsSL https://github.com/… && sudo sh -c … (Intel)',
 };
 
-const frame = (inner: string): string => `<div style="max-width: var(--sheet-dialog-w); display: grid; gap: var(--space-5)">${inner}</div>`;
+const frame = (inner: string): string =>
+  `<div style="max-width: var(--sheet-dialog-w); display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-5)">${inner}</div>`;
 
 /** Step 1 while the owner count is unknown: the D3 line in its conditional wording (#878). */
 export const Params: Story = {

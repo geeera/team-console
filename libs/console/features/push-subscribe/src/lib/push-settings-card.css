@@ -1,5 +1,6 @@
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 /* Where to allow notifications again: a path through the system's own settings, set apart from the prose. */
@@ -27,6 +28,7 @@
 /* The number as the Home Screen icon shows it; the sentence next to it says the same in words. */
 .push__badge-count {
   display: inline-grid;
+  grid-template-columns: minmax(0, 1fr);
   flex: none;
   place-items: center;
   min-width: var(--chip-h);

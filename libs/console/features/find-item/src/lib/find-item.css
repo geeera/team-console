@@ -1,6 +1,7 @@
 /* #409: the search field as a ruled index line, results as index cards in one list. */
 .tc-find {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-4);
   max-width: var(--log-max);
   margin: 0 auto;
@@ -24,6 +25,7 @@
 
 .tc-find__form {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
 }
 
@@ -69,6 +71,7 @@
 
 .tc-find__results {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -121,6 +124,7 @@
 
 .tc-find__note {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   padding: var(--space-4);
   border-radius: var(--r-md);

@@ -1,6 +1,7 @@
 /* The wizard's frame: the step column and the step 3 footer (spec §7: «Подтвердить» on top on the phone). */
 .wizard {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-5);
 }
 

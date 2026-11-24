@@ -26,6 +26,7 @@ import { WIZARD_STEPS, type WizardStep } from '../add-runner.model';
   styles: `
     :host {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
     }
 

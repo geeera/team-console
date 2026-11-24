@@ -62,6 +62,7 @@ import { ACTIONS_NOT_READY, type ActionsSetupDto, type ProjectDispatchDto } from
   styles: `
     :host {
       display: grid;
+      grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
     }
     .switch__fix,
