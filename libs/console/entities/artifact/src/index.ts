@@ -5,3 +5,5 @@ export { ArtifactsStore } from './lib/artifacts.store';
 export type { ArtifactsFailure, ArtifactsState } from './lib/artifacts.store';
 export { ArtifactList } from './lib/artifact-list';
 export type { DesignRowContext } from './lib/artifact-list';
+export { highlightSegments } from './lib/highlight-segments';
+export type { TitleSegment } from './lib/highlight-segments';
