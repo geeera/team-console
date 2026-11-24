@@ -188,8 +188,9 @@ describe('RepositoryListView', () => {
       await fixture.whenStable();
 
       expect(freshKeys()).toEqual(['geeera/alpha', 'geeera/beta']);
-      expect(row('geeera/alpha').style.animationDelay).toBe('0ms');
-      expect(row('geeera/beta').style.animationDelay).toBe('30ms');
+      // The delay itself (`--i` x the #506 `--stagger` token) is computed in CSS; the e2e suite checks the result.
+      expect(row('geeera/alpha').style.getPropertyValue('--i')).toBe('0');
+      expect(row('geeera/beta').style.getPropertyValue('--i')).toBe('1');
       expect(row('geeera/storify').classList.contains('repo--new')).toBe(false);
     });
 
@@ -210,7 +211,7 @@ describe('RepositoryListView', () => {
       ref.setInput('repositories', [...LIST, ...many]);
       await fixture.whenStable();
 
-      expect(row('geeera/new-11').style.animationDelay).toBe('240ms');
+      expect(row('geeera/new-11').style.getPropertyValue('--i')).toBe('8');
     });
   });
 
