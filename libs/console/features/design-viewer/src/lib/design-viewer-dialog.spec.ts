@@ -185,6 +185,30 @@ describe('DesignViewer', () => {
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('prev');
   });
 
+  it('resets the mark once the turn animation ends, so a device switch plays once per switch (#944)', async () => {
+    await open();
+    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
+
+    byTestId('viewer-page')?.dispatchEvent(new Event('animationend', { bubbles: true }));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
+
+    // A round trip through «Все экраны» recreates this element (the @for re-key); the earlier device switch must
+    // not replay just because it is drawn again.
+    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'grid')?.dispatchEvent(new Event('click'));
+    await settle();
+    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'images')?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
+
+    // A later, genuine device switch still turns the page.
+    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'mac')?.dispatchEvent(new Event('click'));
+    await settle();
+    expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
+  });
+
   it('turns the page on a touch swipe, not on a short or vertical move', async () => {
     await open();
     allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
