@@ -1,6 +1,13 @@
 <!-- On the phone the shell's top bar already shows the name; the heading stays for assistive tech. -->
 <header class="space__head">
-  <h1 class="space__title" tabindex="-1" [class.tc-sr-only]="isPhone()">{{ project()?.displayName ?? slug() }}</h1>
+  <!-- #506 catalogue "Route change … project": the router reuses this component across projects (same path
+       shape), so nothing here naturally remounts on a switch; keying on the slug recreates the heading so `m-enter`
+       plays again instead of the name just changing in place. -->
+  @for (s of [slug()]; track s) {
+    <h1 class="space__title m-enter" tabindex="-1" [class.tc-sr-only]="isPhone()">
+      {{ project()?.displayName ?? slug() }}
+    </h1>
+  }
   @if (!isPhone()) {
   <nav tc-tab-bar [attr.aria-label]="'space.sections' | transloco">
     @for (item of sections; track item.section) {
