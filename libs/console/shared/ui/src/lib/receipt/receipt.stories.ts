@@ -58,6 +58,28 @@ export const WithStatusChip: Story = {
     `,
   }),
 };
+/** The commands-panel result (#114): a multi-line detail and a long meta that wraps full width under the body. */
+export const LongContent: Story = {
+  render: () => ({
+    template: `
+      <tc-receipt tone="warning" style="max-width: calc(var(--measure) / 2)">
+        <span tc-receipt-verb>{{ 'stories.receipt.unknown' | transloco }}</span>
+        <span tc-receipt-detail style="white-space: pre-line">{{ 'stories.receipt.longDetail' | transloco }}</span>
+        <span tc-receipt-meta>{{ 'stories.receipt.longMeta' | transloco }}</span>
+      </tc-receipt>
+    `,
+  }),
+};
+/** The needs-you batch receipt: a verb only, no detail or meta, so the empty meta line must not take space. */
+export const VerbOnly: Story = {
+  render: () => ({
+    template: `
+      <tc-receipt>
+        <span tc-receipt-verb>{{ 'stories.receipt.done' | transloco }}</span>
+      </tc-receipt>
+    `,
+  }),
+};
 export const Dark: Story = { ...darkTheme, render: () => ({ template: allTones }) };
 export const ReducedMotion: Story = { ...reducedMotion, render: () => ({ template: allTones }) };
 export const Phone: Story = { ...phoneViewport, render: () => ({ template: allTones }) };
