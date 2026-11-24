@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import type { DesignManifestDto } from '@shared/contracts';
 import { animationsSettled } from './support/axe';
-import { fetchResendingDevProxyDrops } from './support/dev-proxy';
+import { fetchResendingIdleResets } from './support/idle-reset';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { clearFakePulls, seed } from './support/stack';
@@ -275,7 +275,7 @@ test('recovers when the design moved to another commit after the list was loaded
   await expect(first).toHaveAttribute('src', /17600176001760017600176001760017600176aa/);
 
   const movedSha = 'b'.repeat(40);
-  const seeded = await fetchResendingDevProxyDrops(`${stack.fakeURL}/_fake/pulls`, {
+  const seeded = await fetchResendingIdleResets(`${stack.fakeURL}/_fake/pulls`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
