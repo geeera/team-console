@@ -17,9 +17,16 @@
   (retry)="retry()"
   (refresh)="refresh()"
 >
-  <section tc-callout tc-repos-connect tone="warning" aria-labelledby="repos-connect" data-testid="repos-need-connect">
+  <section
+    tc-callout
+    tc-repos-connect
+    tone="warning"
+    aria-labelledby="repos-connect"
+    data-testid="repos-need-connect"
+  >
     <h3 tc-callout-title id="repos-connect">
-      {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco }}
+      {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') |
+      transloco }}
     </h3>
     <p>
       @if (connection.view() === 'lost') { {{ 'overview.repos.lost.body' | transloco }} } @else { {{
