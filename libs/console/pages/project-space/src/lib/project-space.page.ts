@@ -90,7 +90,7 @@ const SECTION_ICONS: Record<SpaceSection, IconName> = {
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [SpacePane],
   host: {
-    class: 'tc-space',
+    class: 'tc-space m-route-skip',
     '[class.tc-space--phone]': 'isPhone()',
     '[class.tc-space--pane]': 'isPaneOpen()',
     '[class.tc-space--cards]': 'hasCardGrid()',
