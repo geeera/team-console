@@ -59,7 +59,7 @@ describe('SprintRunList strip', () => {
   it('shows the breathing dot with its words only while the team is working', async () => {
     const working = await render([run('running')], 'running');
     expect(working.root.querySelector('[data-testid="team-working"]')?.textContent?.trim()).toBe('В работе');
-    expect(working.root.querySelector('.run-strip__dot')?.getAttribute('aria-hidden')).toBe('true');
+    expect(working.root.querySelector('tc-live-dot')?.getAttribute('aria-hidden')).toBe('true');
     TestBed.resetTestingModule();
 
     const paused = await render([run('finished')], 'paused');
@@ -72,18 +72,19 @@ describe('SprintRunList strip', () => {
   });
 
   it('pauses the dot while the tab is hidden and resumes it on return', async () => {
-    const { fixture, strip } = await render([run('running')], 'running');
+    const { fixture, root } = await render([run('running')], 'running');
+    const dot = (): Element | null => root.querySelector('tc-live-dot');
     const visibility = vi.spyOn(document, 'visibilityState', 'get');
 
     visibility.mockReturnValue('hidden');
     document.dispatchEvent(new Event('visibilitychange'));
     fixture.detectChanges();
-    expect(strip()?.classList.contains('run-strip--paused')).toBe(true);
+    expect(dot()?.classList.contains('tc-live-dot--paused')).toBe(true);
 
     visibility.mockReturnValue('visible');
     document.dispatchEvent(new Event('visibilitychange'));
     fixture.detectChanges();
-    expect(strip()?.classList.contains('run-strip--paused')).toBe(false);
+    expect(dot()?.classList.contains('tc-live-dot--paused')).toBe(false);
     visibility.mockRestore();
   });
 });

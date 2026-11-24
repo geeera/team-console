@@ -1,0 +1,39 @@
+:host {
+  display: inline-block;
+  flex: none;
+  align-self: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  border-radius: var(--r-round);
+  background: var(--accent);
+  animation: tc-live-dot var(--dur-pulse) var(--ease-standard) infinite;
+}
+
+:host(.tc-live-dot--success) {
+  background: var(--success-text);
+}
+
+@keyframes tc-live-dot {
+  50% {
+    opacity: var(--live-dot-dip, 0.5);
+  }
+}
+
+:host(.tc-live-dot--deep) {
+  --live-dot-dip: 0.3;
+}
+
+:host(.tc-live-dot--paused) {
+  animation-play-state: paused;
+}
+
+/* --dur-pulse never collapses under reduced motion (it would flicker): stop the animation instead. */
+@media (prefers-reduced-motion: reduce) {
+  :host {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) {
+  animation: none;
+}

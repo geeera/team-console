@@ -141,7 +141,7 @@ test('a working team shows a breathing dot and the last five runs as stamps', as
   await page.goto('/p/team-console/board?tab=runs');
   const strip = page.getByTestId('run-strip');
   await expect(strip.getByTestId('team-working')).toHaveText(ru('board.team.running'));
-  const dot = strip.locator('.run-strip__dot');
+  const dot = strip.locator('tc-live-dot');
   await expect(dot).toHaveCSS('animation-iteration-count', 'infinite');
   await expect(dot).toHaveAttribute('aria-hidden', 'true');
 
@@ -162,7 +162,7 @@ test('a working team shows a breathing dot and the last five runs as stamps', as
 test('under reduced motion the dot stays still', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/p/team-console/board?tab=runs');
-  const dot = page.getByTestId('run-strip').locator('.run-strip__dot');
+  const dot = page.getByTestId('run-strip').locator('tc-live-dot');
   await expect(dot).toBeVisible();
   await expect(dot).toHaveCSS('animation-name', 'none');
 });

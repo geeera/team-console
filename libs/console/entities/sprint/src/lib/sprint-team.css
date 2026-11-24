@@ -21,27 +21,6 @@
   color: var(--accent-text);
 }
 
-/* The team works: the dot breathes, opacity 1 → 0.5 and back, once per --dur-pulse. */
-.run-strip__dot {
-  flex: none;
-  width: var(--space-2);
-  height: var(--space-2);
-  border-radius: var(--r-round);
-  background: var(--accent);
-  animation: run-strip-breathe var(--dur-pulse) var(--ease-standard) infinite;
-}
-
-@keyframes run-strip-breathe {
-  50% {
-    opacity: 0.5;
-  }
-}
-
-/* A hidden tab stops the pulse; it resumes on return. */
-.run-strip--paused .run-strip__dot {
-  animation-play-state: paused;
-}
-
 /* The latest runs as small stamps: filled finished, hollow in progress, reddish failed, dashed unknown. */
 .run-strip__stamps {
   display: inline-flex;
@@ -71,15 +50,4 @@
   border-color: var(--border-strong);
   border-style: dashed;
   background: transparent;
-}
-
-/* Reduced motion: the dot stays still at full strength. */
-@media (prefers-reduced-motion: reduce) {
-  .run-strip__dot {
-    animation: none;
-  }
-}
-
-:host-context(:root[data-motion='reduce']) .run-strip__dot {
-  animation: none;
 }
