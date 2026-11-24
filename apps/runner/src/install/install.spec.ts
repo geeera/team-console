@@ -7,6 +7,7 @@ import { ACL_POLICY_CASES } from '../testing/acl-policy-cases';
 import {
   InstallError,
   assertAllowedPaths,
+  assertRootOwnedPrefix,
   describeStep,
   hasForeignWriteAcl,
   planInstall,
@@ -603,7 +604,6 @@ describe('install --backend user: every directory above the release, up to /', (
   });
 
   it('skips the ACL question off macOS but not the walk (the prefix check is shared)', async () => {
-    const { assertRootOwnedPrefix } = await import('./install');
     const linux = fakeHost({ platform: 'linux', acls: { '/usr/local': [HOSTILE_ACE] } });
     await expect(assertRootOwnedPrefix(linux, PREFIX)).resolves.toBeUndefined();
     expect(linux.queries).toEqual([]);
