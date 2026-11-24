@@ -1,4 +1,4 @@
-import { findGridsWithoutColumns, gridFilesOverBaseline } from './grid-columns';
+import { findGridsWithoutColumns, gridBaselineRaises, gridFilesOverBaseline } from './grid-columns';
 
 const lines = (css: string) => findGridsWithoutColumns(css).map((found) => `${found.line}:${found.selector}`);
 
@@ -46,5 +46,44 @@ describe('gridFilesOverBaseline', () => {
 
   it('lets a file with fewer findings than its baseline pass', () => {
     expect(gridFilesOverBaseline({ 'a.css': 1 }, { 'a.css': 3 })).toEqual([]);
+  });
+});
+
+describe('gridBaselineRaises', () => {
+  it('flags a file whose baseline count went up, or a file the base did not list', () => {
+    expect(gridBaselineRaises({ 'a.css': 3, 'b.css': 1, 'c.css': 1 }, { 'a.css': 2, 'b.css': 1 })).toEqual([
+      'a.css',
+      'c.css',
+    ]);
+  });
+
+  it('lets the baseline shrink, or drop a file', () => {
+    expect(gridBaselineRaises({ 'a.css': 1 }, { 'a.css': 3, 'b.css': 2 })).toEqual([]);
+  });
+});
+
+describe('findGridsWithoutColumns with nested CSS', () => {
+  it('flags a grid rule that nests another rule', () => {
+    expect(lines('.a {\n  display: grid;\n  .b { color: red; }\n}')).toEqual(['1:.a']);
+  });
+
+  it('flags a grid rule that nests an @media block, and a nested grid itself', () => {
+    expect(lines('.a { display: grid; @media (min-width: 40rem) { gap: 1px; } }')).toEqual(['1:.a']);
+    expect(lines('.a { color: red; & .b { display: grid; } }')).toEqual(['1:& .b']);
+  });
+
+  it('judges the parent and the nested rule separately', () => {
+    expect(lines('.a { display: grid; grid-template-columns: 1fr; .b { display: grid; } }')).toEqual(['1:.b']);
+    expect(lines('.a { display: grid; .b { grid-template-columns: 1fr; } }')).toEqual(['1:.a']);
+  });
+
+  it('keeps declarations that come after a nested block with their rule', () => {
+    expect(lines('.a { .b { color: red; } display: grid; }')).toEqual(['1:.a']);
+    expect(lines('.a { .b { color: red; } display: grid; grid-template-columns: 1fr; }')).toEqual([]);
+  });
+
+  it('honours the annotation only in the rule that carries it', () => {
+    expect(lines('.a { display: grid; /* grid-columns-ok: icons */ .b { color: red; } }')).toEqual([]);
+    expect(lines('.a { display: grid; .b { /* grid-columns-ok: icons */ color: red; } }')).toEqual(['1:.a']);
   });
 });
