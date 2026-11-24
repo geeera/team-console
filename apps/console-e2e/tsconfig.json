@@ -3,7 +3,9 @@
   "compilerOptions": {
     "lib": ["es2022", "dom"],
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+    // serve-worker.mts runs on Node's type stripping, which resolves only the real file name.
+    "allowImportingTsExtensions": true
   },
-  "include": ["playwright.config.ts", "src/**/*.ts"]
+  "include": ["playwright.config.ts", "src/**/*.ts", "src/**/*.mts"]
 }

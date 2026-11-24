@@ -1,6 +1,6 @@
 import { expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
 import { isEnvironment, type Environment } from '@shared/contracts';
-import { fetchResendingDevProxyDrops, retryingDevProxyDrops } from './dev-proxy';
+import { fetchResendingIdleResets, resendingIdleResets } from './idle-reset';
 
 /**
  * What a spec talks to. Locally (and in CI) every Playwright worker owns a `LocalStack`; with `BASE_URL` set the
@@ -14,13 +14,8 @@ export interface Stack {
   readonly isLocal: boolean;
   /** Fresh database and api isolate. Local stacks only. */
   reset(): Promise<void>;
-  /** Every time a local server stopped serving on its own (a workerd crash, wrangler exiting); none for a target. */
+  /** Every time a local server stopped serving on its own (a workerd crash, its process exiting); none for a target. */
   incidents(): readonly string[];
-  /**
-   * Every request `wrangler dev`'s proxy dropped on its way to the Worker (see `support/dev-proxy.ts`); the server
-   * kept serving. Reported on the test, never a failure by itself: the request's own answer decides.
-   */
-  devProxyDrops(): readonly string[];
 }
 
 export interface FakeComment {
@@ -56,7 +51,7 @@ function fakeOf(stack: Stack): string {
  * mock again, dated relative to today: Sprint 01 is the current sprint, its demo a week away.
  */
 export async function clearFakeMilestones(stack: Stack, repo: string): Promise<void> {
-  const response = await fetchResendingDevProxyDrops(
+  const response = await fetchResendingIdleResets(
     `${fakeOf(stack)}/_fake/milestones?repo=${encodeURIComponent(repo)}`,
     { method: 'DELETE' },
   );
@@ -70,7 +65,7 @@ export async function clearFakeMilestones(stack: Stack, repo: string): Promise<v
  * api's mock again: what a later spec on the same worker expects.
  */
 export async function clearFakePulls(stack: Stack, repo: string): Promise<void> {
-  const response = await fetchResendingDevProxyDrops(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, {
+  const response = await fetchResendingIdleResets(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, {
     method: 'DELETE',
   });
   if (!response.ok) {
@@ -80,7 +75,7 @@ export async function clearFakePulls(stack: Stack, repo: string): Promise<void> 
 
 /** A JSON POST to one of the fake GitHub's `/_fake/*` seeding endpoints; throws unless it answers 2xx. */
 export async function fakePost(stack: Stack, path: string, body: unknown): Promise<void> {
-  const response = await fetchResendingDevProxyDrops(`${fakeOf(stack)}${path}`, {
+  const response = await fetchResendingIdleResets(`${fakeOf(stack)}${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -148,14 +143,14 @@ export async function routeGitHubToFake(context: BrowserContext, stack: Stack): 
 
 /**
  * An API client that passes the Worker's CSRF check the way the browser does. On the local stack it resends a request
- * `wrangler dev`'s proxy dropped before the Worker saw it (#947, `support/dev-proxy.ts`); a target has no such proxy.
+ * workerd's 5 s idle close failed before the Worker read it (#957, `support/idle-reset.ts`); a target never closes so soon.
  */
 export async function apiClient(stack: Stack): Promise<APIRequestContext> {
   const api = await playwrightRequest.newContext({
     baseURL: stack.baseURL,
     extraHTTPHeaders: { 'Sec-Fetch-Site': 'same-origin' },
   });
-  return stack.isLocal ? retryingDevProxyDrops(api) : api;
+  return stack.isLocal ? resendingIdleResets(api) : api;
 }
 
 /** Which environment the target says it is (`local` for the local stack and the Docker image, `stage` for stage). */

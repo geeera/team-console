@@ -758,9 +758,14 @@ wrangler dev/CLI flag, never a `wrangler.jsonc` setting.
 
 E2e (#14): `npx nx e2e console-e2e` (builds first; browsers once with `npx playwright install chromium webkit`).
 Projects `iphone` (Chromium, 390 px), `desktop` (1440 px), `iphone-webkit` (the demo path only). Each Playwright
-worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus the Docker image's
-command (`wrangler dev dist/apps/api/main.js`, fresh local D1, mock mode) wired to it — and specs call
-`stack.reset()` / `seed()` for a fresh database; logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each `wrangler dev` lifetime is appended between `===` marker lines, wrangler's own debug log sits beside it as `*.wrangler-debug.log`, and a test fails with the reason when a stack server crashed or exited while it ran, #230). `wrangler dev` drops a non-GET request whose keep-alive connection the other end closed at exactly 5 s idle — a 500 «Error: Network connection lost.» from its proxy, or a `socket hang up`/`ECONNRESET` on the client's own reused socket (#947, `support/dev-proxy.ts`): `apiClient`, the `request` fixture and the fake GitHub's `/_fake/*` helpers (`fetchResendingDevProxyDrops`) resend such a request once after 250 ms, the drop is a `dev-proxy-drop` annotation on the test rather than an incident, and a browser request that hits it fails its spec's own assertion. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
+worker starts its own stack in `apps/console-e2e/src/stack/local-stack.ts` — the fake GitHub plus what the Docker image
+runs (the `dist/apps/api/main.js` bundle with `apps/api/wrangler.jsonc --env dev`, fresh local D1, mock mode) wired to
+it — and specs call `stack.reset()` / `seed()` for a fresh database. One deliberate divergence from the image's command
+(#957): every stack server runs on Miniflare directly (`stack/serve-worker.mts`, Node type stripping; wrangler's own
+Miniflare, its bindings, D1, assets and vars read from the wrangler config by `unstable_getMiniflareWorkerOptions`; the
+fakes bundled by `wrangler deploy --dry-run`), not through `wrangler dev`, whose ProxyWorker answered a non-GET request
+on a keep-alive connection closed at 5 s idle with a 500 «Error: Network connection lost.» the Worker never saw — browser
+requests included (#947). Logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each server lifetime is appended between `===` marker lines, and a test fails with the reason when a stack server crashed or exited while it ran, #230). workerd itself still closes an idle keep-alive connection at 5 s, and Node's clients (not browsers) do not resend a request written to such a socket (`socket hang up`/`ECONNRESET`), so `apiClient`, the `request` fixture and the fake GitHub's `/_fake/*` helpers (`fetchResendingIdleResets`) resend it once after 250 ms (`support/idle-reset.ts`): the Worker never read it. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the
@@ -772,7 +777,7 @@ none, so a spec for such a target uses `request`); with the token set the run ke
 Worker tests run in workerd through `@cloudflare/vitest-pool-workers` (`SELF.fetch`, an isolated in-memory D1
 migrated in `src/test-setup.ts`); `apps/api/test-assets` stands in for the Angular build. `wrangler`,
 `@cloudflare/vitest-pool-workers` and `compatibility_date` move together (one workerd for dev, Docker and tests) —
-one exception (#230): `wrangler` is 4.130.0 for `wrangler dev` (e2e, Docker, `nx build`), the first release where a
-dropped dev-proxy connection no longer kills the dev server, while `@cloudflare/vitest-pool-workers` 0.22.0 (the
+one exception (#230): `wrangler` is 4.130.0 for `wrangler dev` (Docker, `nx build`, and the Miniflare the e2e stack
+runs on), the first release where a dropped dev-proxy connection no longer kills the dev server, while `@cloudflare/vitest-pool-workers` 0.22.0 (the
 latest release) keeps its own nested wrangler 4.124.0 and `deploy.yml` still pins 4.124.0. Realign when a pool
 release catches up.
