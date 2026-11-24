@@ -175,6 +175,7 @@ test('the buttons, the arrow keys and a swipe move one screen; the position is a
   await swipe(120);
   await expect(position).toHaveText('2 из 5 · detail');
 
+  await animationsSettled(page);
   // The zoom toggle: 100% width inside the stage, which becomes the one scroller; the header and footer stay.
   const zoom = page.getByTestId('viewer-zoom');
   await expect(zoom).toHaveAttribute('aria-pressed', 'false');
@@ -194,6 +195,34 @@ test('the buttons, the arrow keys and a swipe move one screen; the position is a
   await expect(page.getByTestId('viewer-screen-failed')).toContainText(ru('designs.viewer.state.failed.title'));
   await expect(page.getByTestId('viewer-next')).toHaveAttribute('aria-disabled', 'true');
   await expectAccessible(page, 'Design viewer, a screen that did not load');
+});
+
+test('#349: a page turn slides the next screen in from its side; reduced motion only fades it', async ({
+  page,
+}) => {
+  await openViewer(page);
+  await deviceButton(page, 'phone').click();
+  await deviceButton(page, 'mac').click();
+  await expect(page.getByTestId('viewer-page')).toHaveAttribute('data-move', 'device');
+  await animationsSettled(page);
+  await deviceButton(page, 'phone').click();
+  await animationsSettled(page);
+
+  await page.getByTestId('viewer-next').click();
+  const turned = page.getByTestId('viewer-page');
+  await expect(turned).toHaveAttribute('data-move', 'next');
+  await expect(turned).toHaveCSS('animation-name', /viewer-turn-next$/);
+  await animationsSettled(page);
+  await page.getByTestId('viewer-prev').click();
+  await expect(page.getByTestId('viewer-page')).toHaveCSS('animation-name', /viewer-turn-prev$/);
+  await animationsSettled(page);
+  await expectAccessible(page, 'Design viewer, after a page turn');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByTestId('viewer-next').click();
+  const faded = page.getByTestId('viewer-page');
+  await expect(faded).toHaveCSS('animation-duration', '0.12s');
+  await expect(page.getByTestId('viewer-screen')).toHaveCSS('animation-name', 'none');
 });
 
 test('«Все экраны» lists every screen of the device; a cell opens it in «Картинки»', async ({ page }) => {

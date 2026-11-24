@@ -67,6 +67,73 @@
   overflow: hidden;
 }
 
+/*
+ * A page turned (#349): the new screen slides in from the side it came from and settles from a lifted shadow to the
+ * resting one. Transform, opacity and shadow only. Reduced motion: no shift (--motion-shift is 0), a fade over --dur-fade.
+ */
+@keyframes viewer-turn-next {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-shift) * 4));
+  }
+}
+
+@keyframes viewer-turn-prev {
+  from {
+    opacity: 0;
+    transform: translateX(calc(var(--motion-shift) * -4));
+  }
+}
+
+@keyframes viewer-turn-device {
+  from {
+    opacity: 0;
+    transform: scale(var(--press-scale));
+  }
+}
+
+@keyframes viewer-settle {
+  from {
+    box-shadow: var(--shadow-2);
+  }
+}
+
+.viewer__screen[data-move='next'],
+.viewer__screen[data-move='prev'] {
+  animation: viewer-turn-next var(--dur-slow) var(--ease-standard) both;
+}
+
+.viewer__screen[data-move='prev'] {
+  animation-name: viewer-turn-prev;
+}
+
+.viewer__screen[data-move='next'] .viewer__img,
+.viewer__screen[data-move='prev'] .viewer__img {
+  animation: viewer-settle var(--dur-slow) var(--ease-standard) both;
+}
+
+.viewer__screen[data-move='device'] {
+  animation: viewer-turn-device var(--dur-base) var(--ease-standard) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :host-context(:root:not([data-motion='full'])) .viewer__screen[data-move] {
+    animation-duration: var(--dur-fade);
+  }
+
+  :host-context(:root:not([data-motion='full'])) .viewer__screen[data-move] .viewer__img {
+    animation: none;
+  }
+}
+
+:host-context(:root[data-motion='reduce']) .viewer__screen[data-move] {
+  animation-duration: var(--dur-fade);
+}
+
+:host-context(:root[data-motion='reduce']) .viewer__screen[data-move] .viewer__img {
+  animation: none;
+}
+
 .viewer__screen--zoomed {
   flex: none;
   display: block;
