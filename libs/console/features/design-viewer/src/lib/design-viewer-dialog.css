@@ -71,17 +71,10 @@
  * A page turned (#349): the new screen slides in from the side it came from and settles from a lifted shadow to the
  * resting one. Transform, opacity and shadow only. Reduced motion: no shift (--motion-shift is 0), a fade over --dur-fade.
  */
-@keyframes viewer-turn-next {
+@keyframes viewer-turn {
   from {
     opacity: 0;
-    transform: translateX(calc(var(--motion-shift) * 4));
-  }
-}
-
-@keyframes viewer-turn-prev {
-  from {
-    opacity: 0;
-    transform: translateX(calc(var(--motion-shift) * -4));
+    transform: translateX(calc(var(--motion-shift) * 4 * var(--turn-dir)));
   }
 }
 
@@ -100,11 +93,12 @@
 
 .viewer__screen[data-move='next'],
 .viewer__screen[data-move='prev'] {
-  animation: viewer-turn-next var(--dur-slow) var(--ease-standard) both;
+  --turn-dir: 1;
+  animation: viewer-turn var(--dur-slow) var(--ease-standard) both;
 }
 
 .viewer__screen[data-move='prev'] {
-  animation-name: viewer-turn-prev;
+  --turn-dir: -1;
 }
 
 .viewer__screen[data-move='next'] .viewer__img,
