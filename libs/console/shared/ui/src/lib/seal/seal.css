@@ -11,3 +11,12 @@
   box-shadow: var(--shadow-1);
   cursor: default;
 }
+
+/* The hidden word hangs from the seal's top edge: its text rect (taller than the 1px box) then sits on the row's line. */
+:host {
+  position: relative;
+}
+
+.tc-sr-only {
+  inset-block-start: 0;
+}
