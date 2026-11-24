@@ -3,9 +3,21 @@ import {
   localCalendarRangeOf,
   localDayOf,
   localNumberOf,
+  localShortDayOf,
   localTimeOf,
   localUsdOf,
 } from './local-time';
+
+describe('localShortDayOf', () => {
+  it('writes day.month with two digits, whatever the language', () => {
+    expect(localShortDayOf(new Date(2026, 9, 16, 12, 0))).toBe('16.10');
+    expect(localShortDayOf(new Date(2026, 0, 5, 23, 59))).toBe('05.01');
+  });
+
+  it('gives an empty string for an unreadable value', () => {
+    expect(localShortDayOf('not a date')).toBe('');
+  });
+});
 
 describe('localTimeOf / localDayOf', () => {
   // A local wall-clock time, so the expectation does not depend on the runner's time zone.

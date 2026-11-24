@@ -9,11 +9,15 @@
   <span class="tc-card__meta"><ng-content select="[tc-card-meta]" /></span>
 </div>
 @if (stampGlyph(); as glyph) {
-<span class="tc-card__stamp" aria-hidden="true">
+<span class="tc-card__stamp" [class.tc-card__stamp--seal]="isSealed()" aria-hidden="true">
   <svg viewBox="0 0 64 64" focusable="false">
     <circle class="tc-card__stamp-ring" cx="32" cy="32" r="28" />
     <circle class="tc-card__stamp-inner" cx="32" cy="32" r="23" />
   </svg>
+  @if (isSealed()) {
+  <span class="tc-card__seal-text">{{ seal() }}</span>
+  } @else {
   <tc-icon class="tc-card__stamp-glyph" [name]="glyph" size="xl" />
+  }
 </span>
 }

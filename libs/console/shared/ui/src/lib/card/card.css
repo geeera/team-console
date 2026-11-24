@@ -179,6 +179,52 @@
   }
 }
 
+/* The release seal (#361): the stamp grown large, its words where the mark was; the card recoils under it. */
+.tc-card__stamp--seal {
+  width: var(--seal-size);
+  height: var(--seal-size);
+  top: calc(50% - var(--seal-size) / 2);
+}
+
+.tc-card__seal-text {
+  position: relative;
+  max-width: 70%;
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--ls-caps);
+  text-align: center;
+  text-transform: uppercase;
+  text-wrap: balance;
+  animation: tc-seal-text var(--dur-base) var(--ease-enter) var(--dur-fast) both;
+}
+
+:host(.tc-card--sealed) {
+  animation: tc-card-recoil var(--dur-sig) var(--ease-emph) both;
+}
+
+@keyframes tc-card-recoil {
+  0% {
+    transform: none;
+  }
+  35% {
+    transform: scale(var(--seal-recoil));
+  }
+  100% {
+    transform: none;
+  }
+}
+
+@keyframes tc-seal-text {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
 /* Reduced motion: the token durations already collapse to a frame; the fade stays. */
 @media (prefers-reduced-motion: reduce) {
   .tc-card__stamp {
