@@ -2,6 +2,8 @@
 // Not a Vitest spec: ci.yml runs changed-paths.mjs before `npm ci`, so its test needs only Node and git too.
 // Run by security.yml's `workflow-lint` job next to tools/ci/audit-gate.test.mjs. Every case builds a real
 // scratch repository: what is under test is git's own listing of awkward paths, not a string we made up.
+// Every tools/ci test at once: `node --test "tools/ci/*.test.mjs"`. The glob, quoted, not the directory
+// (#1013): Node 22 and later read `node --test tools/ci/` as a file to run and fail on it.
 import assert from 'node:assert';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
