@@ -18,7 +18,8 @@ The specs are fast, so always running them is cheaper than keeping a hand-writte
 each spec happens to read.
 
 The wildcard covers files that belong to a project. Root files that no project owns (`Dockerfile`, `.github/`,
-`.product-team/`) affect nothing in the graph, so CI also runs `nx run workspace-checks:test` unconditionally on the
-affected path (the "Workspace checks (always)" step in `.github/workflows/ci.yml`).
+`.product-team/`) affect nothing in the graph, so CI also puts `workspace-checks` in a test shard whatever the scope
+(`--always workspace-checks` in the "Test" step of `.github/workflows/ci.yml`; `ci-scope.spec.ts` holds that name to
+this project's `project.json`).
 
 When adding a project, nothing needs updating here. Do not narrow the wildcard to a list.

@@ -1,4 +1,4 @@
-import { workspaceRoot } from '@nx/devkit';
+import { createProjectGraphAsync, workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
@@ -16,6 +16,7 @@ interface Step {
   readonly id?: string;
   readonly run?: string;
   readonly uses?: string;
+  readonly env?: Readonly<Record<string, string>>;
   readonly with?: Readonly<Record<string, unknown>>;
 }
 
@@ -199,12 +200,73 @@ describe('ci.yml scope decisions', () => {
       'listed=$(npx nx show projects --affected --base="${NX_BASE}" --head="${NX_HEAD}" --with-target test --json)',
       'listed=$(npx nx show projects --with-target test --json)',
     ]);
-    // workspace-checks whatever the scope (#71), and the same `--always`/`--weights` in every shard.
+    // workspace-checks whatever the scope (#71), and the same `--always`/`--weights` in every shard. `--scope`
+    // (#999) is what lets the script tell a full run that lists nothing from an affected run with nothing to do.
     expect(lines.filter((line) => line.includes('shard-projects.mjs'))).toEqual([
-      'projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")',
+      'projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --scope "${NX_MODE}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")',
     ]);
     expect(lines).toContain('npx nx run-many -t test --projects="${projects}"');
     expect(patternOf(selectProjects, 'root_config').test('tools/ci/shard-projects.mjs')).toBe(true);
+  });
+
+  // #999: with nothing to run a shard used to end green on a notice, in a full run too.
+  it('lets a test shard end without running a test only in an affected run', () => {
+    const lines = withoutComments(testShard)
+      .split('\n')
+      .map((line) => line.trim());
+    const emptyAt = lines.indexOf('if [ -z "${projects}" ]; then');
+    const skipAt = lines.indexOf('exit 0');
+    expect(emptyAt).toBeGreaterThan(-1);
+    expect(lines.filter((line) => line === 'exit 0')).toHaveLength(1);
+    // The full-run failure sits between "the shard is empty" and the only `exit 0`.
+    expect(lines.slice(emptyAt + 1, skipAt).slice(0, 4)).toEqual([
+      'if [ "${NX_MODE}" != "affected" ]; then',
+      'echo "::error title=Test shard ${SHARD}::a full run gave this shard no project to test"',
+      'exit 1',
+      'fi',
+    ]);
+  });
+
+  describe('the projects the test shards name', () => {
+    let testProjects: ReadonlySet<string>;
+    const shardStep = stepsOf('lint-test-build-shard').find(
+      (step) => step.name?.startsWith('Test (') === true,
+    );
+    const namedBy = (option: string): readonly string[] =>
+      [...withoutComments(testShard).matchAll(new RegExp(`${option} ([\\w@./,-]+)`, 'g'))].flatMap((match) =>
+        (match[1] ?? '').split(','),
+      );
+
+    beforeAll(async () => {
+      const graph = await createProjectGraphAsync({ exitOnError: false, resetDaemonClient: true });
+      testProjects = new Set(
+        Object.values(graph.nodes)
+          .filter((node) => Object.hasOwn(node.data.targets ?? {}, 'test'))
+          .map((node) => node.name),
+      );
+    });
+
+    // #999: `--always workspace-checks` is a name in a workflow. Renamed away, `nx run-many --projects=` fails
+    // in a full run, but the guard must say why before CI does.
+    it('always runs the project tools/workspace-checks/project.json names, which has a test target', () => {
+      const project = JSON.parse(
+        readFileSync(join(workspaceRoot, 'tools/workspace-checks/project.json'), 'utf8'),
+      ) as { readonly name: string };
+      expect(namedBy('--always')).toEqual([project.name]);
+      expect([...testProjects]).toContain(project.name);
+    });
+
+    // #999: TEST_WEIGHTS is kept by hand. A weight for a project that was renamed or lost its tests is ignored
+    // by shard-projects.mjs, so the heavy project silently counts 1 and the shards drift apart.
+    it('weighs only projects that exist and have a test target', () => {
+      const weights = (shardStep?.env?.['TEST_WEIGHTS'] ?? '').split(',').map((entry) => entry.split('='));
+      expect(weights.length).toBeGreaterThan(0);
+      for (const [name, weight] of weights) {
+        expect([...testProjects], `TEST_WEIGHTS names ${name}`).toContain(name);
+        expect(weight, `the weight of ${name}`).toMatch(/^[1-9][0-9]{0,4}$/);
+      }
+      expect(new Set(weights.map(([name]) => name)).size).toBe(weights.length);
+    });
   });
 
   // #992: the shards must split the list the scope job decided on, for the commit it decided on.

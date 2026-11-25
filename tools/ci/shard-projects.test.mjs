@@ -9,8 +9,10 @@ import {
   InputError,
   parseNames,
   parseProjects,
+  parseScope,
   parseShard,
   parseWeights,
+  selectShard,
   splitIntoShards,
 } from './shard-projects.mjs';
 
@@ -107,6 +109,31 @@ assert.deepStrictEqual(splitIntoShards(['a', 'b', 'a'], 2), [['a'], ['b']]);
 assert.deepStrictEqual(splitIntoShards(['a'], 3), [['a'], [], []]);
 assert.deepStrictEqual(splitIntoShards([], 2), [[], []]);
 
+// --- parseScope / selectShard (#999): a full run with nothing to test is an error, an affected one is not. ---
+assert.strictEqual(parseScope('affected'), 'affected');
+assert.strictEqual(parseScope('run-many'), 'run-many');
+for (const bad of ['', 'all', 'Run-Many', 'run-many ', 'affected,run-many', undefined]) {
+  assertInputError(() => parseScope(bad), '--scope is neither affected nor run-many');
+}
+const shardOf = (options) => selectShard({ index: 1, total: 2, ...options });
+assert.deepStrictEqual(shardOf({ listed: ['a', 'b', 'c'], scope: 'run-many' }), ['a', 'c']);
+assert.deepStrictEqual(shardOf({ listed: ['a'], always: ['b'], index: 2, scope: 'run-many' }), ['b']);
+// Nothing listed: `--always` must not hide it, in the shard that gets the always-project or in the other one.
+for (const index of [1, 2]) {
+  assertInputError(
+    () => shardOf({ listed: [], always: ['workspace-checks'], index, scope: 'run-many' }),
+    'a full run listed no project with a test target',
+  );
+}
+assertInputError(
+  () => shardOf({ listed: ['a'], index: 2, scope: 'run-many' }),
+  'a full run left this shard no project to test',
+);
+// An affected run, and a call that names no scope, may have nothing to do.
+assert.deepStrictEqual(shardOf({ listed: [], scope: 'affected' }), []);
+assert.deepStrictEqual(shardOf({ listed: [], always: ['workspace-checks'], index: 2 }), []);
+assert.deepStrictEqual(shardOf({ listed: [], always: ['workspace-checks'] }), ['workspace-checks']);
+
 // --- The script itself: one line on stdout, or nothing and a non-zero exit. ---
 const run = (args, input) => spawnSync(process.execPath, [SCRIPT, ...args], { input, encoding: 'utf8' });
 const list = JSON.stringify(['api', 'runner', 'console', 'hooks']);
@@ -129,9 +156,23 @@ assert.deepStrictEqual(always.flatMap((line) => line.split(',')).sort(), [
   'workspace-checks',
 ]);
 // An empty shard is an empty line and success: the caller skips it out loud.
-const empty = run(['2/2'], '["api"]');
-assert.strictEqual(empty.status, 0);
-assert.strictEqual(empty.stdout, '\n');
+for (const scope of [[], ['--scope', 'affected']]) {
+  const empty = run(['2/2', ...scope], '["api"]');
+  assert.strictEqual(empty.status, 0);
+  assert.strictEqual(empty.stdout, '\n');
+  const nothingAffected = run(['2/2', ...scope, '--always', 'workspace-checks'], '[]');
+  assert.strictEqual(nothingAffected.status, 0);
+  assert.strictEqual(nothingAffected.stdout, '\n');
+}
+// A full run splits as any other when there is something in every shard.
+const full = [1, 2].map((index) => run([`${index}/2`, '--scope', 'run-many', ...weights], list));
+assert.deepStrictEqual(
+  full.map((result) => [result.status, result.stdout]),
+  [
+    [0, 'runner\n'],
+    [0, 'api,console,hooks\n'],
+  ],
+);
 
 // Fails closed, with constant text: nothing of the input reaches the workflow command.
 for (const [args, input] of [
@@ -145,6 +186,13 @@ for (const [args, input] of [
   [['1/2', '--only', 'api'], list],
   [['1/2', '--weights', 'api=fast'], list],
   [['1/2', '--always', '--all'], list],
+  [['1/2', '--scope', 'everything'], list],
+  [['1/2', '--scope'], list],
+  // #999: a full run that would test nothing, in either shard, with or without the always-project.
+  [['1/2', '--scope', 'run-many', '--always', 'workspace-checks'], '[]'],
+  [['2/2', '--scope', 'run-many', '--always', 'workspace-checks'], '[]'],
+  [['1/2', '--scope', 'run-many'], '[]'],
+  [['2/2', '--scope', 'run-many'], '["api"]'],
 ]) {
   const failed = run(args, input);
   assert.strictEqual(failed.status, 1, JSON.stringify(args));

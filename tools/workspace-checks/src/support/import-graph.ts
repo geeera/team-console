@@ -74,14 +74,19 @@ const SOURCE_OF_EMITTED: Readonly<Record<string, readonly string[]>> = {
   '.cjs': ['.cts'],
 };
 
+const DIRECTORY_INDEX = ['index.ts', 'index.tsx', 'index.mts', 'index.cts'] as const;
+
 /** The paths `base` can name as an import target, in the order the compiler tries them. */
 function candidatesOf(base: string): readonly string[] {
   const emitted = extname(base);
   const sources = (SOURCE_OF_EMITTED[emitted] ?? []).map(
     (source) => `${base.slice(0, -emitted.length)}${source}`,
   );
+  // #999: a directory import finds `index.mts` / `index.cts` too, as bundler resolution and a tsconfig alias
+  // to a directory do; without them the walk threw "cannot resolve" on a workspace that compiles.
+  const indexes = DIRECTORY_INDEX.map((index) => join(base, index));
   // `base` itself last: an import with its extension spelled out, or a `.json` file, which is data.
-  return [...sources, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx'), base];
+  return [...sources, `${base}.ts`, `${base}.tsx`, ...indexes, base];
 }
 
 /** The file `base` names as an import target, if there is one. */
