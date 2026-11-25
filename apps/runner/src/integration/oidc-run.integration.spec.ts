@@ -43,6 +43,61 @@ import { startLocalStack, type LocalStack } from '../testing/local-stack';
 const SLUG = 'acme-app';
 const REPO_ID = 880_669;
 const AUDIENCE = 'team-console:local';
+/** What `/proc/<pid>/cmdline` holds once the step's pid has exec'd its way from bash to the runner's node. */
+const RUNNER_BUNDLE = 'team-console-runner.mjs';
+
+const hasErrnoCode = (error: unknown, ...codes: string[]): boolean =>
+  error instanceof Error && 'code' in error && typeof error.code === 'string' && codes.includes(error.code);
+
+/** `/proc/<pid>/cmdline`, or '' when the process has no memory image: it is exiting, a zombie, or reaped. */
+async function cmdlineOf(pid: number): Promise<string> {
+  try {
+    return await readFile(`/proc/${String(pid)}/cmdline`, 'utf8');
+  } catch (error: unknown) {
+    if (hasErrnoCode(error, 'ENOENT', 'ESRCH')) {
+      return '';
+    }
+    throw error;
+  }
+}
+
+/** One read of the runner's `/proc/<pid>/environ`. `whole` is false when the runner exited while it was read. */
+interface EnvironSample {
+  environ: string;
+  whole: boolean;
+}
+
+/**
+ * Reads the environment of `pid` if it runs the runner's bundle, else nothing.
+ *
+ * The runner can exit between any two of these reads, before the spec's own `exit` event (#1018). From the moment
+ * the kernel drops its memory image, `cmdline` reads empty, an `environ` already open reads short or empty, and a new
+ * open of `environ` fails with EACCES, because procfs hands a task without an image to root. The pid stays that way
+ * until it is reaped, then is ENOENT. So `cmdline` is read again afterwards: still the runner means the read saw a
+ * live image from start to end, and EACCES is accepted only when the image is gone. EACCES from a live runner would
+ * mean it changed uid or went non-dumpable, which this spec does not know of, and fails.
+ */
+async function sampleRunnerEnviron(pid: number): Promise<EnvironSample | undefined> {
+  if (!(await cmdlineOf(pid)).includes(RUNNER_BUNDLE)) {
+    return undefined;
+  }
+  let environ = '';
+  let refused: unknown;
+  try {
+    environ = await readFile(`/proc/${String(pid)}/environ`, 'utf8');
+  } catch (error: unknown) {
+    if (!hasErrnoCode(error, 'ENOENT', 'ESRCH', 'EACCES')) {
+      throw error;
+    }
+    refused = hasErrnoCode(error, 'EACCES') ? error : undefined;
+  }
+  const after = await cmdlineOf(pid);
+  if (refused !== undefined && after !== '') {
+    throw new Error(`/proc/${String(pid)}/environ refused a live process (${JSON.stringify(after)})`, { cause: refused });
+  }
+  // Nothing read is nothing to check; a short read still must not hold the token.
+  return environ === '' ? undefined : { environ, whole: after.includes(RUNNER_BUNDLE) };
+}
 
 describe('integration: run-once --oidc against the local stack', () => {
   let stack: LocalStack;
@@ -295,19 +350,13 @@ describe('integration: run-once --oidc against the local stack', () => {
     child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk.toString()));
     const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
     // What the job sees of its supervisor: on Linux, /proc/<pid>/environ of the runner the step exec'd (same uid).
-    const environSamples: string[] = [];
+    const environSamples: EnvironSample[] = [];
     if (process.platform === 'linux' && child.pid !== undefined) {
       const pid = child.pid;
       while (child.exitCode === null && child.signalCode === null) {
-        try {
-          const cmdline = await readFile(`/proc/${String(pid)}/cmdline`, 'utf8');
-          if (cmdline.includes('team-console-runner.mjs')) {
-            environSamples.push(await readFile(`/proc/${String(pid)}/environ`, 'utf8'));
-          }
-        } catch (error: unknown) {
-          if (!(error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ESRCH'))) {
-            throw error;
-          }
+        const sample = await sampleRunnerEnviron(pid);
+        if (sample !== undefined) {
+          environSamples.push(sample);
         }
         await new Promise((resolve) => setTimeout(resolve, 25));
       }
@@ -326,9 +375,12 @@ describe('integration: run-once --oidc against the local stack', () => {
     expect(done.job).toMatchObject({ state: 'finished', dispatch: 'actions', result: { summary: 'Done: nothing to do' } });
     expect(tokens.audiences.at(-1)).toBe(AUDIENCE);
     if (process.platform === 'linux') {
-      expect(environSamples.length).toBeGreaterThan(0);
-      for (const environ of environSamples) {
-        expect(environ).toContain('TC_JOB_ID=');
+      // At least one read of the running runner's whole environment, or the checks below prove nothing.
+      expect(environSamples.filter((sample) => sample.whole).length).toBeGreaterThan(0);
+      for (const { environ, whole } of environSamples) {
+        if (whole) {
+          expect(environ).toContain('TC_JOB_ID=');
+        }
         expect(environ).not.toContain('ACTIONS_ID_TOKEN_REQUEST_TOKEN=');
         expect(environ).not.toContain(actionsSecrets.idTokenRequestToken);
       }
