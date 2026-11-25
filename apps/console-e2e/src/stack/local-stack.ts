@@ -14,6 +14,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { startCloseRelay, type CloseRelay } from './close-relay';
+import { STACK_PARENT_PID } from './orphan-watch.mts';
 import { signal } from './process-signal';
 import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
 import { forgetServer, recordServer, SERVER_TOKEN_FLAG, stopStaleServers } from './stale-servers';
@@ -112,6 +113,7 @@ class StackProcess {
           stdio: ['ignore', log, log],
           env: stackEnv({
             [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
+            [STACK_PARENT_PID]: String(process.pid),
             // Plain logs, whatever colour setting the parent runs with.
             FORCE_COLOR: '0',
           }),

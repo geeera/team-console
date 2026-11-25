@@ -1,6 +1,6 @@
 export interface OrphanWatchOptions {
   /** The parent at start; a different one later means the first is gone. */
-  readonly parentPid?: number;
+  readonly parentPid?: number | undefined;
   readonly currentParentPid?: () => number;
   readonly intervalMs?: number;
 }
@@ -20,6 +20,18 @@ export function onOrphaned(stop: () => void, options: OrphanWatchOptions = {}): 
     }
   }, options.intervalMs ?? 1_000);
   return () => clearInterval(timer);
+}
+
+/** The variable `local-stack.ts` names its own pid in, for the server it starts. */
+export const STACK_PARENT_PID = 'STACK_PARENT_PID';
+
+/**
+ * The pid in `raw`, or `undefined` for anything that is not one. A server whose parent is killed while the server
+ * is still loading already sees the re-parented pid in `process.ppid`, and would watch that one for ever (#993);
+ * the pid the parent wrote down itself has no such gap.
+ */
+export function parentPidFrom(raw: string | undefined): number | undefined {
+  return raw !== undefined && /^[1-9]\d*$/.test(raw) ? Number(raw) : undefined;
 }
 
 export type StopOutcome =

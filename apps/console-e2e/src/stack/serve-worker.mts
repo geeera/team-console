@@ -16,7 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { unstable_getMiniflareWorkerOptions, unstable_readConfig } from 'wrangler';
 // Types only, from the hoisted copy; the value below is the Miniflare wrangler itself depends on.
 import type * as MiniflareModule from 'miniflare';
-import { onOrphaned, stopWithin } from './orphan-watch.mts';
+import { onOrphaned, parentPidFrom, STACK_PARENT_PID, stopWithin } from './orphan-watch.mts';
 import {
   parseServeWorkerOptions,
   SERVE_WORKER_OPTIONS,
@@ -62,7 +62,7 @@ async function serve(options: ServeWorkerOptions): Promise<void> {
       logRequests: true,
     }),
   );
-  onOrphaned(() => void stopOrphaned(miniflare));
+  onOrphaned(() => void stopOrphaned(miniflare), { parentPid: parentPidFrom(process.env[STACK_PARENT_PID]) });
   const url = await miniflare.ready;
   process.stdout.write(`serve-worker: ${options.config} ready on ${url.href}\n`);
 }

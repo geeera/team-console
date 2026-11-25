@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { onOrphaned, stopWithin } from './orphan-watch.mts';
+import { onOrphaned, parentPidFrom, stopWithin } from './orphan-watch.mts';
 
 describe('onOrphaned', () => {
   beforeEach(() => {
@@ -55,6 +55,30 @@ describe('onOrphaned', () => {
     vi.advanceTimersByTime(1_000);
 
     expect(stop).not.toHaveBeenCalled();
+  });
+});
+
+describe('parentPidFrom', () => {
+  it('reads the pid the parent wrote down', () => {
+    expect(parentPidFrom('4242')).toBe(4242);
+  });
+
+  it.each([undefined, '', '0', '-1', '42x', '4.2', ' 42'])('answers none for %j', (raw) => {
+    expect(parentPidFrom(raw)).toBeUndefined();
+  });
+
+  it('lets a server whose parent died before the watch began stop at the first check', () => {
+    vi.useFakeTimers();
+    try {
+      const stop = vi.fn();
+      onOrphaned(stop, { parentPid: parentPidFrom('4242'), currentParentPid: () => 1, intervalMs: 100 });
+
+      vi.advanceTimersByTime(100);
+
+      expect(stop).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
