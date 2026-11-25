@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { isAlive, signal } from './process-signal';
+import { signal } from './process-signal';
 
 /**
  * Stack servers a run left behind (#982). A server normally stops with its Playwright worker, or by itself when the
@@ -9,7 +9,9 @@ import { isAlive, signal } from './process-signal';
  * port, and the next start stops whatever a record still points at before it needs that port.
  *
  * A pid alone is not proof — the system reuses pids — so each server is started with a random token on its command
- * line, and a record is acted on only while the process with its pid still carries that token.
+ * line, and its group is killed only while the process with the recorded pid still carries that token. One more case:
+ * the server itself was killed and the workerd it forked lives on, holding the port. The group's id cannot be reused
+ * while the group has members, so a group with no leader whose members are all workerd is that server's.
  */
 export interface ServerRecord {
   /** The server's pid, which is also its process group. */
@@ -22,18 +24,22 @@ export interface ServerRecord {
 export const SERVER_TOKEN_FLAG = '--stack-server=';
 
 const KILL_TIMEOUT_MS = 5_000;
+const WORKERD = /(^|\/)workerd(\s|$)/;
+
+export interface GroupMember {
+  readonly pid: number;
+  readonly command: string;
+}
 
 export interface StaleServerControl {
-  /** The command line of `pid`; `null` when there is no such process. */
-  commandOf(pid: number): string | null;
-  killGroup(pid: number): void;
-  isAlive(pid: number): boolean;
+  /** Every running process of the group `pgid` with its command line; none when the group is gone. */
+  groupOf(pgid: number): GroupMember[];
+  killGroup(pgid: number): void;
 }
 
 const SYSTEM_CONTROL: StaleServerControl = {
-  commandOf,
-  killGroup: (pid) => signal(-pid, 'SIGKILL', pid),
-  isAlive,
+  groupOf,
+  killGroup: (pgid) => signal(-pgid, 'SIGKILL', pgid),
 };
 
 function recordPath(dir: string, port: number): string {
@@ -81,20 +87,56 @@ function readRecord(path: string): ServerRecord | null {
     : null;
 }
 
-function commandOf(pid: number): string | null {
-  const proc = `/proc/${pid}/cmdline`;
-  if (existsSync('/proc/self/cmdline')) {
-    return existsSync(proc) ? readFileSync(proc, 'utf8').replaceAll('\0', ' ') : null;
-  }
-  try {
-    return execFileSync('ps', ['-ww', '-o', 'command=', '-p', String(pid)], { encoding: 'utf8' });
-  } catch (error: unknown) {
-    // ps exits 1 for a pid that does not exist; anything else (no ps at all) is a real failure.
-    if (error instanceof Error && 'status' in error && error.status === 1) {
-      return null;
+function groupOf(pgid: number): GroupMember[] {
+  return existsSync('/proc/self/stat') ? groupFromProc(pgid) : groupFromPs(pgid);
+}
+
+/**
+ * Linux: `/proc/<pid>/stat` is `pid (comm) state ppid pgrp …`, and `comm` may hold spaces and brackets itself. A
+ * zombie (`Z`) is left out: it holds no port, and under a pid 1 that reaps nothing (a CI container) it never leaves.
+ */
+function groupFromProc(pgid: number): GroupMember[] {
+  const members: GroupMember[] = [];
+  for (const entry of readdirSync('/proc')) {
+    if (!/^\d+$/.test(entry)) {
+      continue;
     }
-    throw error;
+    try {
+      const stat = readFileSync(`/proc/${entry}/stat`, 'utf8');
+      const [state, , pgrp] = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+      if (Number(pgrp) === pgid && state !== 'Z') {
+        const command = readFileSync(`/proc/${entry}/cmdline`, 'utf8').replaceAll('\0', ' ').trim();
+        members.push({ pid: Number(entry), command });
+      }
+    } catch (error: unknown) {
+      // A process that exited between the listing and the read is simply not in the group any more.
+      if (error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ESRCH')) {
+        continue;
+      }
+      throw error;
+    }
   }
+  return members;
+}
+
+function groupFromPs(pgid: number): GroupMember[] {
+  const listing = execFileSync('ps', ['-A', '-ww', '-o', 'pid=,pgid=,stat=,command='], {
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  return parsePsListing(listing, pgid);
+}
+
+/** The members of `pgid` in the output of `ps -o pid=,pgid=,stat=,command=`, zombies (`Z…`) left out as above. */
+export function parsePsListing(listing: string, pgid: number): GroupMember[] {
+  const members: GroupMember[] = [];
+  for (const line of listing.split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*)$/.exec(line);
+    if (match !== null && Number(match[2]) === pgid && !(match[3] ?? '').startsWith('Z')) {
+      members.push({ pid: Number(match[1]), command: (match[4] ?? '').trim() });
+    }
+  }
+  return members;
 }
 
 /**
@@ -118,7 +160,7 @@ export async function stopStaleServers(
   const stopped: string[] = [];
   for (const path of paths) {
     const record = readRecord(path);
-    if (record !== null && isRecorded(record, control)) {
+    if (record !== null && isRecorded(record, control.groupOf(record.pid))) {
       control.killGroup(record.pid);
       await gone(record, control);
       stopped.push(`${record.label} (pid ${record.pid})`);
@@ -128,18 +170,22 @@ export async function stopStaleServers(
   return stopped;
 }
 
-function isRecorded(record: ServerRecord, control: StaleServerControl): boolean {
-  return control.commandOf(record.pid)?.includes(`${SERVER_TOKEN_FLAG}${record.token}`) === true;
+function isRecorded(record: ServerRecord, group: readonly GroupMember[]): boolean {
+  const leader = group.find((member) => member.pid === record.pid);
+  if (leader !== undefined) {
+    return leader.command.includes(`${SERVER_TOKEN_FLAG}${record.token}`);
+  }
+  return group.length > 0 && group.every((member) => WORKERD.test(member.command));
 }
 
 async function gone(record: ServerRecord, control: StaleServerControl): Promise<void> {
   const deadline = Date.now() + KILL_TIMEOUT_MS;
-  while (control.isAlive(record.pid)) {
+  while (control.groupOf(record.pid).length > 0) {
     if (Date.now() > deadline) {
       throw new Error(
         `${record.label} (pid ${record.pid}) is still running ${KILL_TIMEOUT_MS} ms after SIGKILL`,
       );
     }
-    await new Promise<void>((done) => setTimeout(done, 50));
+    await new Promise<void>((done) => setTimeout(done, 100));
   }
 }

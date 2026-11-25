@@ -8,8 +8,10 @@ import { isAlive } from './process-signal';
 import {
   forgetServer,
   recordServer,
+  parsePsListing,
   SERVER_TOKEN_FLAG,
   stopStaleServers,
+  type GroupMember,
   type StaleServerControl,
 } from './stale-servers';
 
@@ -20,7 +22,7 @@ const children: ChildProcess[] = [];
 function startIdleServer(token: string): Promise<number> {
   const child = spawn(
     process.execPath,
-    ['-e', 'setInterval(() => {}, 1000)', `${SERVER_TOKEN_FLAG}${token}`],
+    ['-e', 'setInterval(() => {}, 1000)', '--', `${SERVER_TOKEN_FLAG}${token}`],
     { detached: true, stdio: 'ignore' },
   );
   children.push(child);
@@ -30,8 +32,29 @@ function startIdleServer(token: string): Promise<number> {
   });
 }
 
-function control(over: Partial<StaleServerControl>): StaleServerControl {
-  return { commandOf: () => null, killGroup: vi.fn(), isAlive: () => false, ...over };
+/** A process table the fake control answers from; `killGroup` empties the group. */
+/** How the stand-in with `pid` ended; waits for this process to reap it (until then it is a zombie). */
+function exitSignal(pid: number): Promise<NodeJS.Signals | null> {
+  const child = children.find((candidate) => candidate.pid === pid);
+  if (child === undefined) {
+    throw new Error(`no stand-in server with pid ${pid}`);
+  }
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve(child.signalCode);
+  }
+  return new Promise((ended) => child.once('exit', (_code, signal) => ended(signal)));
+}
+
+function control(groups: Record<number, GroupMember[]>): StaleServerControl & { killed: number[] } {
+  const killed: number[] = [];
+  return {
+    killed,
+    groupOf: (pgid) => groups[pgid] ?? [],
+    killGroup: (pgid) => {
+      killed.push(pgid);
+      groups[pgid] = [];
+    },
+  };
 }
 
 beforeEach(() => {
@@ -56,7 +79,7 @@ describe('stopStaleServers', () => {
     const stopped = await stopStaleServers(dir);
 
     expect(stopped).toEqual([`worker-0 api (pid ${pid})`]);
-    expect(isAlive(pid)).toBe(false);
+    expect(await exitSignal(pid)).toBe('SIGKILL');
     expect(readdirSync(dir)).toEqual([]);
   });
 
@@ -72,39 +95,70 @@ describe('stopStaleServers', () => {
   });
 
   it('drops the record of a server that is already gone, without signalling anything', async () => {
-    const killGroup = vi.fn();
+    const table = control({});
     recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api' });
 
-    const stopped = await stopStaleServers(dir, undefined, control({ killGroup }));
+    const stopped = await stopStaleServers(dir, undefined, table);
 
     expect(stopped).toEqual([]);
-    expect(killGroup).not.toHaveBeenCalled();
+    expect(table.killed).toEqual([]);
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('kills the workerd a killed server left holding its port: a group without its leader, all workerd', async () => {
+    const table = control({
+      4242: [
+        { pid: 4250, command: '/repo/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve -' },
+      ],
+    });
+    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api' });
+
+    const stopped = await stopStaleServers(dir, undefined, table);
+
+    expect(stopped).toEqual(['worker-0 api (pid 4242)']);
+    expect(table.killed).toEqual([4242]);
+  });
+
+  it('leaves a leaderless group alone when a member is not workerd', async () => {
+    const table = control({
+      4242: [
+        { pid: 4250, command: '/repo/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve -' },
+        { pid: 4251, command: 'vim notes-on-workerd.md' },
+      ],
+    });
+    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api' });
+
+    const stopped = await stopStaleServers(dir, undefined, table);
+
+    expect(stopped).toEqual([]);
+    expect(table.killed).toEqual([]);
     expect(readdirSync(dir)).toEqual([]);
   });
 
   it('stops only the servers on the given ports', async () => {
-    const killGroup = vi.fn();
+    const table = control({
+      4242: [{ pid: 4242, command: `node serve-worker.mts ${SERVER_TOKEN_FLAG}a` }],
+      4343: [{ pid: 4343, command: `node serve-worker.mts ${SERVER_TOKEN_FLAG}b` }],
+    });
     recordServer(dir, 8700, { pid: 4242, token: 'a', label: 'worker-0 api' });
     recordServer(dir, 8710, { pid: 4343, token: 'b', label: 'worker-1 api' });
-    const commandOf = (pid: number): string =>
-      `node serve-worker.mts ${SERVER_TOKEN_FLAG}${pid === 4242 ? 'a' : 'b'}`;
 
-    const stopped = await stopStaleServers(dir, [8700, 8701], control({ commandOf, killGroup }));
+    const stopped = await stopStaleServers(dir, [8700, 8701], table);
 
     expect(stopped).toEqual(['worker-0 api (pid 4242)']);
-    expect(killGroup).toHaveBeenCalledExactlyOnceWith(4242);
+    expect(table.killed).toEqual([4242]);
     expect(readdirSync(dir)).toEqual(['8710.json']);
   });
 
-  it('drops a record cut short by a kill mid-write: it names nothing to stop', async () => {
-    const killGroup = vi.fn();
+  it('drops a record cut short by a kill mid-write, and one that names pid 1: neither names a server', async () => {
+    const table = control({ 1: [{ pid: 1, command: `init ${SERVER_TOKEN_FLAG}t` }] });
     writeFileSync(join(dir, '8700.json'), '{"pid": 42');
     writeFileSync(join(dir, '8701.json'), JSON.stringify({ pid: 1, token: 't', label: 'init' }));
 
-    const stopped = await stopStaleServers(dir, undefined, control({ commandOf: () => 't', killGroup }));
+    const stopped = await stopStaleServers(dir, undefined, table);
 
     expect(stopped).toEqual([]);
-    expect(killGroup).not.toHaveBeenCalled();
+    expect(table.killed).toEqual([]);
     expect(readdirSync(dir)).toEqual([]);
   });
 
@@ -116,7 +170,10 @@ describe('stopStaleServers', () => {
     vi.useFakeTimers();
     try {
       recordServer(dir, 8700, { pid: 4242, token: 'a', label: 'worker-0 api' });
-      const stuck = control({ commandOf: () => `${SERVER_TOKEN_FLAG}a`, isAlive: () => true });
+      const stuck: StaleServerControl = {
+        groupOf: () => [{ pid: 4242, command: `node ${SERVER_TOKEN_FLAG}a` }],
+        killGroup: vi.fn(),
+      };
 
       const outcome = expect(stopStaleServers(dir, undefined, stuck)).rejects.toThrow(/still running/);
       await vi.advanceTimersByTimeAsync(6_000);
@@ -125,6 +182,32 @@ describe('stopStaleServers', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('parsePsListing', () => {
+  const listing = [
+    '    1     1 Ss   /sbin/launchd',
+    ' 4242  4242 S    node --experimental-strip-types serve-worker.mts --stack-server=abc',
+    ' 4250  4242 S    /repo/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary -',
+    ' 4260  4242 Z    (node)',
+    ' 5000  5000 R+   ps -A -ww -o pid=,pgid=,stat=,command=',
+    '',
+  ].join('\n');
+
+  it('picks the running members of the group with their whole command lines', () => {
+    expect(parsePsListing(listing, 4242)).toEqual([
+      { pid: 4242, command: 'node --experimental-strip-types serve-worker.mts --stack-server=abc' },
+      {
+        pid: 4250,
+        command: '/repo/node_modules/@cloudflare/workerd-darwin-arm64/bin/workerd serve --binary -',
+      },
+    ]);
+  });
+
+  it('answers none for a group that is gone or only has zombies left', () => {
+    expect(parsePsListing(listing, 9999)).toEqual([]);
+    expect(parsePsListing(' 4260  4242 Z    (node)\n', 4242)).toEqual([]);
   });
 });
 
