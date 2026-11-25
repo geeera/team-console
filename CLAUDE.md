@@ -780,7 +780,13 @@ side in one checkout do not clear each other's. The stack's processes get an all
 the start of each run, #997) instead of the developer's, so nothing they run reads or writes the real one. A server
 stops by itself when the worker that started it is gone
 (`stack/orphan-watch.mts`), and the next start stops whatever a killed run still left on its ports
-(`stack/stale-servers.ts`). Specs live in `src/*.e2e.ts`, find
+(`stack/stale-servers.ts`). Each server leaves a record there (`tmp/console-e2e[-<base>]/servers/<port>.json`, mode
+0600 in a directory of mode 0700, #1006, #1013) with its pid, a random token from its command line and `startedAt`,
+the moment the system started it: a live process is taken for that server, and its group killed, only when all
+three still fit, so a process that took the pid later is left alone. A group with a member the process table
+could not be read for is left alone as well (`stack/process-group.ts`), and the home and the records are only ever
+made in real directories of this user, never behind a symbolic link (`stack/private-directory.ts`).
+Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the

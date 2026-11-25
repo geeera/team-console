@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { groupOf, parseProcCmdline, parseProcStat, parsePsListing } from './process-group';
+import { groupOf, parseProcCmdline, parseProcStat, parsePsListing, procMember } from './process-group';
 
 describe('parsePsListing', () => {
   const listing = [
@@ -39,8 +39,31 @@ describe('parsePsListing', () => {
     ]);
   });
 
-  it('skips a line without a start time rather than taking command words for one', () => {
-    expect(parsePsListing(' 4242  4242 S    node serve-worker.mts\n', 4242)).toEqual([]);
+  it('keeps a line of the group without a start time as a member it could not read, its command words not taken for one', () => {
+    expect(parsePsListing(' 4242  4242 S    node serve-worker.mts\n', 4242)).toEqual([
+      { pid: 4242, argv: [], startedAt: '', unreadable: true },
+    ]);
+    expect(parsePsListing(' 4250  4242\n', 4242)).toEqual([
+      { pid: 4250, argv: [], startedAt: '', unreadable: true },
+    ]);
+  });
+
+  it('lists the member it could not read next to those it could, so the group is not judged by the rest', () => {
+    const cut = `${listing} 4270  4242 S    Wed Nov 25\n`;
+
+    expect(parsePsListing(cut, 4242).map((member) => [member.pid, member.unreadable])).toEqual([
+      [4242, undefined],
+      [4250, undefined],
+      [4270, true],
+    ]);
+  });
+
+  it('leaves out an unreadable line of another group, a zombie, and the later lines of a command with a line break', () => {
+    expect(parsePsListing(' 4242  9999 S    node serve-worker.mts\n', 4242)).toEqual([]);
+    expect(parsePsListing(' 4260  4242 Z    (node)\n', 4242)).toEqual([]);
+    expect(
+      parsePsListing(' 4242  4242 S    Wed Nov 25 18:33:54 2026     node -e a\nb 4242 4242\n\n', 4242),
+    ).toEqual([{ pid: 4242, argv: ['node', '-e', 'a'], startedAt: 'Wed Nov 25 18:33:54 2026' }]);
   });
 
   it('cannot give a word with spaces back: ps joined it with the rest, and every space splits', () => {
@@ -74,13 +97,13 @@ describe('parseProcCmdline', () => {
   });
 });
 
-describe('parseProcStat', () => {
-  /** A `/proc/<pid>/stat` line with `comm` and the three fields the group listing reads; the rest are zeros. */
-  function statLine(comm: string, state: string, pgrp: number, starttime: string): string {
-    const afterComm = [state, '1', String(pgrp), ...Array<string>(16).fill('0'), starttime, '0', '0'];
-    return `4242 (${comm}) ${afterComm.join(' ')}\n`;
-  }
+/** A `/proc/<pid>/stat` line with `comm` and the three fields the group listing reads; the rest are zeros. */
+function statLine(comm: string, state: string, pgrp: number, starttime: string): string {
+  const afterComm = [state, '1', String(pgrp), ...Array<string>(16).fill('0'), starttime, '0', '0'];
+  return `4242 (${comm}) ${afterComm.join(' ')}\n`;
+}
 
+describe('parseProcStat', () => {
   it('reads the state, the group and the start time in clock ticks', () => {
     expect(parseProcStat(statLine('node', 'S', 4242, '8675309'))).toEqual({
       state: 'S',
@@ -97,10 +120,58 @@ describe('parseProcStat', () => {
     });
   });
 
-  it('answers nothing for a line that ends before the start time, or carries no number there', () => {
-    expect(parseProcStat('4242 (node) S 1 4242 0\n')).toBeNull();
-    expect(parseProcStat(statLine('node', 'S', 4242, 'soon'))).toBeNull();
+  it('reads no start time from a line that ends before it, or carries no number there', () => {
+    expect(parseProcStat('4242 (node) S 1 4242 0\n')).toEqual({ state: 'S', pgrp: 4242, startedAt: null });
+    expect(parseProcStat(statLine('node', 'S', 4242, 'soon'))).toEqual({
+      state: 'S',
+      pgrp: 4242,
+      startedAt: null,
+    });
+  });
+
+  it('answers nothing for a line that does not tell the group', () => {
+    expect(parseProcStat('4242 (node) S 1\n')).toBeNull();
+    expect(parseProcStat('4242 (node) S 1 group 0\n')).toBeNull();
     expect(parseProcStat('')).toBeNull();
+  });
+});
+
+describe('procMember', () => {
+  const words = (): string => 'node\0serve-worker.mts\0';
+  const unread = (): string => {
+    throw new Error('the command line of this process is not read');
+  };
+
+  it('is the process with its words and start time when it is a running member of the group', () => {
+    expect(procMember(4250, 4242, statLine('node', 'S', 4242, '8675309'), words)).toEqual({
+      pid: 4250,
+      argv: ['node', 'serve-worker.mts'],
+      startedAt: '8675309',
+    });
+  });
+
+  it('is nothing for a process of another group and for a zombie, whose command lines are not read', () => {
+    expect(procMember(4250, 4242, statLine('node', 'S', 9999, '8675309'), unread)).toBeNull();
+    expect(procMember(4250, 4242, statLine('node', 'Z', 4242, '8675309'), unread)).toBeNull();
+    expect(procMember(4250, 4242, '4250 (node) S 1 9999 0\n', unread)).toBeNull();
+  });
+
+  it('keeps a member of the group without a start time as one it could not read', () => {
+    expect(procMember(4250, 4242, '4250 (node) S 1 4242 0\n', unread)).toEqual({
+      pid: 4250,
+      argv: [],
+      startedAt: '',
+      unreadable: true,
+    });
+  });
+
+  it('keeps a process whose line does not tell the group as one it could not read: it may be of this one', () => {
+    expect(procMember(4250, 4242, '4250 (node) S\n', unread)).toEqual({
+      pid: 4250,
+      argv: [],
+      startedAt: '',
+      unreadable: true,
+    });
   });
 });
 
