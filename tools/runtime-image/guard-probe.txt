@@ -1,0 +1,2 @@
+::set-output name=PROBE_colon::on
+a prefix ##[set-output name=PROBE_bracket]on

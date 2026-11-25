@@ -13,9 +13,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
   MIN_COMPARED,
+  PINNED_BY_OVERRIDE,
   checkRuntimeTree,
   installedPackages,
   isAtLeast,
+  overrideProblems,
   specialFiles,
 } from './check-runtime-tree.mjs';
 
@@ -46,7 +48,7 @@ const MANIFEST = {
   name: '@team-console/source',
   private: true,
   dependencies: { wrangler: WRANGLER },
-  overrides: { miniflare: { sharp: '0.35.5' } },
+  overrides: { miniflare: { sharp: '0.35.5', undici: '7.30.1' } },
 };
 
 function entry(key: string, version: string, extra: Partial<Entry> = {}): Entry {
@@ -118,6 +120,12 @@ describe('runtime tree check', () => {
   function linkBin(name: string, target: string): void {
     mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
     symlinkSync(target, join(root, 'node_modules/.bin', name));
+  }
+
+  /** A file a package ships, as a `bin` entry names it. */
+  function ship(path: string): void {
+    mkdirSync(dirname(join(root, path)), { recursive: true });
+    writeFileSync(join(root, path), '#!/usr/bin/env node\n');
   }
 
   it('passes when the lockfiles and the disk agree, and reports how many packages it compared', () => {
@@ -308,6 +316,9 @@ describe('runtime tree check', () => {
       install('node_modules/wrangler/node_modules/undici', '7.30.1', { name: 'undici', bin: 'cli.js' });
       install('node_modules/@img/colour', '1.0.0', { name: '@img/colour', bin: './colour.js' });
       writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
+      ship('node_modules/wrangler/bin/wrangler.js');
+      ship('node_modules/wrangler/node_modules/undici/cli.js');
+      ship('node_modules/@img/colour/colour.js');
       linkBin('wrangler', '../wrangler/bin/wrangler.js');
       linkBin('wrangler2', '../wrangler/bin/wrangler.js');
       // A string `bin` is linked under the package's name without its scope.
@@ -324,6 +335,7 @@ describe('runtime tree check', () => {
       install('node_modules/wrangler', WRANGLER, { bin: { wrangler: './bin/wrangler.js' } });
       install('node_modules/sharp', '0.35.5', { bin: 'cli.js' });
       install('node_modules/@img/colour', '1.0.0', { bin: { colour: 7 } });
+      ship('node_modules/wrangler/bin/wrangler.js');
       linkBin('wrangler', '../wrangler/bin/wrangler.js');
       linkBin('node', '../wrangler/bin/wrangler.js');
       linkBin('wrangler2', '../wrangler/templates/payload.js');
@@ -374,6 +386,110 @@ describe('runtime tree check', () => {
       }
     });
 
+    // #1013: the declared path was compared as written, while the kernel follows every link on the way.
+    describe('a declared .bin link that does not end at its own file', () => {
+      it('fails when a linked directory inside the package takes the path out of the tree', () => {
+        const packages = tree();
+        installAll(packages);
+        install('node_modules/wrangler', WRANGLER, { bin: { wrangler: 'cli.js' } });
+        ship('node_modules/wrangler/cli.js');
+        const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+        try {
+          mkdirSync(join(outside, 'deep'));
+          writeFileSync(join(outside, 'cli.js'), '');
+          // Lexically `wrangler/cli.js`; resolved, `<outside>/cli.js`.
+          symlinkSync(join(outside, 'deep'), join(root, 'node_modules/wrangler/sub'));
+          linkBin('wrangler', '../wrangler/sub/../cli.js');
+          expect(check(packages).problems).toEqual([
+            'node_modules/.bin/wrangler: reaches its file through another symlink',
+            'node_modules/wrangler/sub: a symlink in node_modules',
+          ]);
+        } finally {
+          rmSync(outside, { recursive: true, force: true });
+        }
+      });
+
+      it('fails when the declared file is itself a link to /bin/sh', () => {
+        const packages = tree();
+        installAll(packages);
+        install('node_modules/wrangler', WRANGLER, { bin: { wrangler: 'cli.js' } });
+        symlinkSync('/bin/sh', join(root, 'node_modules/wrangler/cli.js'));
+        linkBin('wrangler', '../wrangler/cli.js');
+        expect(check(packages).problems).toEqual([
+          'node_modules/.bin/wrangler: reaches its file through another symlink',
+          'node_modules/wrangler/cli.js: a symlink in node_modules',
+        ]);
+      });
+
+      it('fails when the declared file is a link to another file of the same package', () => {
+        const packages = tree();
+        installAll(packages);
+        install('node_modules/wrangler', WRANGLER, { bin: { wrangler: 'cli.js' } });
+        ship('node_modules/wrangler/templates/payload.js');
+        symlinkSync('templates/payload.js', join(root, 'node_modules/wrangler/cli.js'));
+        linkBin('wrangler', '../wrangler/cli.js');
+        expect(check(packages).problems).toEqual([
+          'node_modules/.bin/wrangler: reaches its file through another symlink',
+          'node_modules/wrangler/cli.js: a symlink in node_modules',
+        ]);
+      });
+
+      it('fails when the declared file is missing or is a directory', () => {
+        const packages = tree();
+        installAll(packages);
+        install('node_modules/wrangler', WRANGLER, { bin: { wrangler: 'cli.js', wrangler2: 'bin' } });
+        mkdirSync(join(root, 'node_modules/wrangler/bin'));
+        linkBin('wrangler', '../wrangler/cli.js');
+        linkBin('wrangler2', '../wrangler/bin');
+        expect(check(packages).problems).toEqual([
+          'node_modules/.bin/wrangler: links to wrangler/cli.js, which does not exist',
+          'node_modules/.bin/wrangler2: links to something that is not a regular file',
+        ]);
+      });
+
+      it("holds the .bin of a package's own node_modules the same way", () => {
+        const packages = tree();
+        installAll(packages);
+        const nested = 'node_modules/wrangler/node_modules';
+        install(`${nested}/undici`, '7.30.1', { bin: 'cli.js' });
+        symlinkSync('/bin/sh', join(root, nested, 'undici/cli.js'));
+        mkdirSync(join(root, nested, '.bin'));
+        symlinkSync('../undici/cli.js', join(root, nested, '.bin/undici'));
+        expect(check(packages).problems).toEqual([
+          `${nested}/.bin/undici: reaches its file through another symlink`,
+          `${nested}/undici/cli.js: a symlink in node_modules`,
+        ]);
+      });
+    });
+
+    // #1013: a package.json that is not JSON behind a .bin link is drift with a name, not a crash of the walk.
+    it('fails on a .bin link into a package whose package.json is not JSON', () => {
+      const packages = tree();
+      installAll(packages);
+      mkdirSync(join(root, 'node_modules/stranger'));
+      writeFileSync(join(root, 'node_modules/stranger/package.json'), '{ "bin": ');
+      linkBin('stranger', '../stranger/cli.js');
+      expect(check(packages).problems).toEqual([
+        'node_modules/.bin/stranger: links into stranger, whose package.json is not JSON',
+        'node_modules/stranger: on disk but not in the pruned lockfile',
+      ]);
+    });
+
+    it.each([
+      ['a list', '[]'],
+      ['a string', '"cli.js"'],
+      ['null', 'null'],
+    ])('fails on a .bin link into a package whose package.json is %s', (_case, manifest) => {
+      const packages = tree();
+      installAll(packages);
+      mkdirSync(join(root, 'node_modules/stranger'));
+      writeFileSync(join(root, 'node_modules/stranger/package.json'), manifest);
+      linkBin('stranger', '../stranger/cli.js');
+      expect(check(packages).problems).toContain(
+        'node_modules/.bin/stranger: stranger declares no "stranger" executable',
+      );
+    });
+
     // #1005: equal in the lockfile and on disk says nothing about a mode bit or a device node.
     it('fails on a setuid or setgid bit and on a fifo anywhere in node_modules', () => {
       const packages = tree();
@@ -404,6 +520,20 @@ describe('runtime tree check', () => {
       installAll(packages);
       expect(check(packages, packages, LINUX_X64, manifest).problems).toEqual([
         'package.json: the runtime manifest has no overrides',
+      ]);
+    });
+
+    // #1013: any non-empty map passed, whatever it held.
+    it("fails on overrides that are not in npm's shape or do not pin sharp and undici", () => {
+      const packages = tree();
+      installAll(packages);
+      const manifest = { ...MANIFEST, overrides: { miniflare: { sharp: 7, undici: '' }, note: null } };
+      expect(check(packages, packages, LINUX_X64, manifest).problems).toEqual([
+        'package.json: overrides."miniflare"."sharp" is neither a version nor a map of overrides',
+        'package.json: overrides."miniflare"."undici" is neither a version nor a map of overrides',
+        'package.json: overrides."note" is neither a version nor a map of overrides',
+        'package.json: no override pins sharp',
+        'package.json: no override pins undici',
       ]);
     });
 
@@ -585,6 +715,7 @@ describe('runtime tree check', () => {
       install('node_modules/a/fixtures/node_modules-like/c', '1.0.0');
       install('node_modules/a/.hidden', '1.0.0');
       install('node_modules/a', '1.0.0', { bin: 'cli.js' });
+      ship('node_modules/a/cli.js');
       linkBin('a', '../a/cli.js');
       writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
       expect(installedPackages(root)).toEqual({
@@ -616,18 +747,90 @@ describe('runtime tree check', () => {
     });
   });
 
+  describe('overrideProblems', () => {
+    it("accepts the workspace's own overrides, which are what the runtime manifest carries", () => {
+      const workspace: unknown = JSON.parse(
+        readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
+      );
+      expect(overrideProblems(workspace)).toEqual([]);
+      expect(PINNED_BY_OVERRIDE).toEqual(['sharp', 'undici']);
+    });
+
+    it.each([
+      ['a version at the top', { sharp: '0.35.5', undici: '7.30.1' }],
+      ['a version under its parent', { miniflare: { sharp: '0.35.5', undici: '7.30.1' } }],
+      ['a key with a range', { 'sharp@^0.34': '0.35.5', miniflare: { 'undici@7': '7.30.1' } }],
+      ['the package itself as `.`', { sharp: { '.': '0.35.5', 'detect-libc': '2.0.0' }, undici: '7.30.1' }],
+      ['a scoped package beside them', { '@img/colour': '1.0.0', sharp: '0.35.5', undici: '7.30.1' }],
+    ])('accepts %s', (_case, overrides) => {
+      expect(overrideProblems({ overrides }, ['sharp', 'undici'])).toEqual([]);
+    });
+
+    it.each([
+      ['a number', { sharp: 1 }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      ['an empty version', { sharp: '' }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      ['an empty map', { sharp: {} }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      ['a list', { sharp: ['0.35.5'] }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      ['null', { sharp: null }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      ['true', { sharp: true }, 'overrides."sharp" is neither a version nor a map of overrides'],
+      [
+        'a bad value two levels down',
+        { miniflare: { sharp: { '.': 5 } } },
+        'overrides."miniflare"."sharp"."." is neither a version nor a map of overrides',
+      ],
+      ['an empty name', { '': '1.0.0', sharp: '0.35.5' }, 'overrides."" names no package'],
+      ['`.` at the top, where no package owns the map', { '.': '1.0.0' }, 'overrides."." names no package'],
+    ])('reports %s', (_case, overrides, problem) => {
+      expect(overrideProblems({ overrides }, [])).toEqual([`package.json: ${problem}`]);
+    });
+
+    it('reports each required pin no override names with a version', () => {
+      // A pin only inside a name (`sharp-cli`) or as a parent (`undici: { … }`) is not a pin of the package.
+      const overrides = { 'sharp-cli': '1.0.0', undici: { 'some-dependency': '1.0.0' } };
+      expect(overrideProblems({ overrides })).toEqual([
+        'package.json: no override pins sharp',
+        'package.json: no override pins undici',
+      ]);
+    });
+  });
+
   describe('specialFiles', () => {
-    it('finds nothing in a tree of plain files, directories and links, and does not follow a link', () => {
+    // #1013: a link inside a package was reported by neither walk.
+    it('reports a symlink anywhere but the .bin links, and does not follow it', () => {
       install('node_modules/a', '1.0.0');
+      install('node_modules/@s/b/node_modules/c', '1.0.0');
       const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
       try {
         writeFileSync(join(outside, 'tool'), '');
         chmodSync(join(outside, 'tool'), 0o4755);
         symlinkSync(outside, join(root, 'node_modules/a/linked'));
-        expect(specialFiles(root)).toEqual([]);
+        symlinkSync('missing', join(root, 'node_modules/a/dangling'));
+        symlinkSync('/bin/sh', join(root, 'node_modules/@s/b/node_modules/c/sh'));
+        // The two places npm links executables in.
+        mkdirSync(join(root, 'node_modules/.bin'));
+        symlinkSync('../a/cli.js', join(root, 'node_modules/.bin/a'));
+        mkdirSync(join(root, 'node_modules/@s/b/node_modules/.bin'));
+        symlinkSync('../c/cli.js', join(root, 'node_modules/@s/b/node_modules/.bin/c'));
+        // A `.bin` a package ships among its own files is not one of them.
+        mkdirSync(join(root, 'node_modules/a/vendor/node_modules/.bin'), { recursive: true });
+        symlinkSync('/bin/sh', join(root, 'node_modules/a/vendor/node_modules/.bin/sh'));
+        mkdirSync(join(root, 'node_modules/a/.bin'));
+        symlinkSync('/bin/sh', join(root, 'node_modules/a/.bin/sh'));
+        expect(specialFiles(root)).toEqual([
+          'node_modules/@s/b/node_modules/c/sh: a symlink in node_modules',
+          'node_modules/a/.bin/sh: a symlink in node_modules',
+          'node_modules/a/dangling: a symlink in node_modules',
+          'node_modules/a/linked: a symlink in node_modules',
+          'node_modules/a/vendor/node_modules/.bin/sh: a symlink in node_modules',
+        ]);
       } finally {
         rmSync(outside, { recursive: true, force: true });
       }
+    });
+
+    it('finds nothing in a tree of plain files and directories', () => {
+      install('node_modules/a', '1.0.0');
+      expect(specialFiles(root)).toEqual([]);
     });
 
     it('keeps the sticky bit and the plain permission bits out of it', () => {
@@ -849,6 +1052,33 @@ describe('runtime tree check', () => {
         });
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('package.json: the runtime manifest has no overrides');
+      });
+
+      it('exits 1 on a .bin link into a package whose package.json is not JSON', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => {
+            mkdirSync(join(app(), 'node_modules/stranger'));
+            writeFileSync(join(app(), 'node_modules/stranger/package.json'), '{');
+            mkdirSync(join(app(), 'node_modules/.bin'));
+            symlinkSync('../stranger/cli.js', join(app(), 'node_modules/.bin/stranger'));
+          },
+        });
+        expect(result.status).toBe(1);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toContain(
+          'node_modules/.bin/stranger: links into stranger, whose package.json is not JSON',
+        );
+        expect(result.stderr).not.toContain(cannotCheck);
+      });
+
+      it('exits 1 on a symlink inside a package', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => symlinkSync('/bin/sh', join(app(), 'node_modules/sharp/sh')),
+        });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('node_modules/sharp/sh: a symlink in node_modules');
       });
 
       it('exits 1 on a setuid file in a package', () => {

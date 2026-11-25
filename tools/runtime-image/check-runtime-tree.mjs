@@ -5,8 +5,9 @@
 // The runtime image must hold exactly the packages the workspace lockfile pins for wrangler. Three things are
 // compared — the workspace lockfile, the pruned lockfile, and node_modules on disk — in both directions, and the
 // comparison has to cover a known minimum, so that reading the wrong directory cannot pass as "no drift".
-// Besides the packages: `.bin` holds only the executables its packages declare, nothing in node_modules is
-// setuid, setgid or a special file, and the manifest the tree was pruned under still carries the overrides.
+// Besides the packages: `.bin` holds only the executables its packages declare, each a regular file reached
+// through no other link; nothing else in node_modules is a symlink, setuid, setgid or a special file; and the
+// manifest the tree was pruned under still carries the overrides, in npm's shape and with the pins named below.
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,7 +26,11 @@ import { fileURLToPath } from 'node:url';
 export const MIN_COMPARED = 30;
 /** The `miniflare.sharp` override exists for a fix that landed in 0.35.5; an older sharp means it was dropped. */
 export const SHARP_FLOOR = '0.35.5';
+/** What the workspace's `overrides` exist to pin in this tree (#263); the Dockerfile lists both with `npm ls`. */
+export const PINNED_BY_OVERRIDE = ['sharp', 'undici'];
 const WRANGLER = 'node_modules/wrangler';
+/** Where npm links executables: `.bin/<name>` of the top node_modules or of a package's own. */
+const BIN_LINK = /^node_modules\/(?:(?:@[^/]+\/[^/.][^/]*|[^/.@][^/]*)\/node_modules\/)*\.bin\/[^/]+$/;
 
 /**
  * npm's own rule for `os`/`cpu`: a list of allowed values, or of `!`-prefixed refused ones.
@@ -37,6 +42,14 @@ function allows(list, value) {
   if (list.includes(`!${value}`)) return false;
   const allowed = list.filter((item) => !item.startsWith('!'));
   return allowed.length === 0 || allowed.includes(value) || allowed.includes('any');
+}
+
+/**
+ * @param {unknown} value
+ * @returns {value is Record<string, unknown>}
+ */
+function isRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -132,7 +145,9 @@ export function installedPackages(root) {
         unexpected.push(`${key}: links outside the packages of its node_modules`);
         continue;
       }
-      const problem = undeclaredExecutable(modules, name, target.split(sep).join('/'));
+      const problem =
+        undeclaredExecutable(modules, name, target.split(sep).join('/')) ??
+        unreachableFile(path, modules, target);
       if (problem) unexpected.push(`${key}: ${problem}`);
     }
   };
@@ -189,7 +204,15 @@ function undeclaredExecutable(modules, name, target) {
     lstatSync(join(modules, packageName), { throwIfNoEntry: false })?.isDirectory() === true &&
     lstatSync(manifestPath, { throwIfNoEntry: false })?.isFile() === true;
   if (!isReadable) return `links into ${packageName}, which has no package.json`;
-  const { bin } = /** @type {{ bin?: unknown }} */ (JSON.parse(readFileSync(manifestPath, 'utf8')));
+  /** @type {unknown} */
+  let manifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  } catch {
+    // Drift, not a check that could not be made: the link is on disk and nothing readable declares it.
+    return `links into ${packageName}, whose package.json is not JSON`;
+  }
+  const bin = isRecord(manifest) ? manifest['bin'] : undefined;
   /** @type {unknown} */
   let declared;
   // npm's two forms: one file under the package's own (unscoped) name, or a map of names to files.
@@ -205,9 +228,34 @@ function undeclaredExecutable(modules, name, target) {
 }
 
 /**
+ * What is wrong with the file a `.bin` link names, or undefined when it is a regular file at that very path.
+ * The declared path is compared as written, but the kernel resolves it: through a linked directory
+ * (`pkg/sub -> /usr/bin` with `../pkg/sub/../cli.js`) or a declared file that is itself a link to `/bin/sh`,
+ * the name on PATH would run something no lockfile entry covers (#1013).
+ * @param {string} link the absolute path of the `.bin` link
+ * @param {string} modules the absolute `node_modules` directory the `.bin` is in
+ * @param {string} target the link's target relative to `modules`, `..` and `.` already folded away
+ * @returns {string | undefined}
+ */
+function unreachableFile(link, modules, target) {
+  /** @type {string} */
+  let real;
+  try {
+    // The kernel's answer for the link as written. Folding `sub/..` first is what hides a linked `sub`, and
+    // Node's own `realpathSync` folds a link's target that way before it looks; libc's realpath does not.
+    real = realpathSync.native(link);
+  } catch {
+    return `links to ${target.split(sep).join('/')}, which does not exist`;
+  }
+  if (real !== join(realpathSync.native(modules), target)) return 'reaches its file through another symlink';
+  return lstatSync(real).isFile() ? undefined : 'links to something that is not a regular file';
+}
+
+/**
  * Every path under `<root>/node_modules` that no npm package installs and a container must not get by copy
- * (#1005): a setuid or setgid bit, on a file or a directory, and anything that is not a file, a directory or a
- * symlink (a device, a fifo, a socket). Symlinks are not followed; the walk above reports them.
+ * (#1005): a setuid or setgid bit, on a file or a directory, anything that is not a file, a directory or a
+ * symlink (a device, a fifo, a socket), and every symlink but the `.bin` links, which the walk above holds to
+ * their packages (#1013: the tree npm installs for wrangler has no other). Symlinks are not followed.
  * @param {string} root
  * @returns {string[]} one problem per path, the path relative to root
  */
@@ -217,7 +265,11 @@ export function specialFiles(root) {
   /** @param {string} key */
   const visit = (key) => {
     const stat = lstatSync(join(root, key), { throwIfNoEntry: false });
-    if (!stat || stat.isSymbolicLink()) return;
+    if (!stat) return;
+    if (stat.isSymbolicLink()) {
+      if (!BIN_LINK.test(key)) problems.push(`${key}: a symlink in node_modules`);
+      return;
+    }
     if (!stat.isFile() && !stat.isDirectory()) {
       problems.push(`${key}: a device, fifo or socket, not a file`);
       return;
@@ -232,18 +284,43 @@ export function specialFiles(root) {
 }
 
 /**
+ * What is wrong with the `overrides` of the manifest the tree was pruned under. npm's shape: a map of package
+ * names to a version, or to a map of the same for that package's own dependencies (`.` being the package
+ * itself). A non-empty map of anything else passed before (#1013), though npm would not read it as these pins.
  * @param {unknown} manifest the parsed runtime package.json
- * @returns {boolean} whether it carries at least one override
+ * @param {readonly string[]} [pinned] packages some override must name with a version
+ * @returns {string[]}
  */
-function hasOverrides(manifest) {
-  if (typeof manifest !== 'object' || manifest === null) return false;
-  const { overrides } = /** @type {{ overrides?: unknown }} */ (manifest);
-  return (
-    typeof overrides === 'object' &&
-    overrides !== null &&
-    !Array.isArray(overrides) &&
-    Object.keys(overrides).length > 0
-  );
+export function overrideProblems(manifest, pinned = PINNED_BY_OVERRIDE) {
+  const overrides = isRecord(manifest) ? manifest['overrides'] : undefined;
+  if (!isRecord(overrides) || Object.keys(overrides).length === 0) {
+    return ['package.json: the runtime manifest has no overrides'];
+  }
+  /** @type {string[]} */
+  const problems = [];
+  /** @type {Set<string>} */
+  const versioned = new Set();
+  /**
+   * @param {Record<string, unknown>} map
+   * @param {string} at
+   * @param {string | undefined} owner the package this map is the overrides of
+   */
+  const visit = (map, at, owner) => {
+    for (const [key, value] of Object.entries(map)) {
+      const path = `${at}.${JSON.stringify(key)}`;
+      // A key may carry a range (`sharp@^0.34`), and `.` is the package the map belongs to.
+      const name = key === '.' ? owner : key.replace(/(?!^)@.*$/, '');
+      if (name === undefined || name === '') problems.push(`package.json: ${path} names no package`);
+      else if (typeof value === 'string' && value !== '') versioned.add(name);
+      else if (isRecord(value) && Object.keys(value).length > 0) visit(value, path, name);
+      else problems.push(`package.json: ${path} is neither a version nor a map of overrides`);
+    }
+  };
+  visit(overrides, 'overrides', undefined);
+  for (const name of pinned) {
+    if (!versioned.has(name)) problems.push(`package.json: no override pins ${name}`);
+  }
+  return problems;
 }
 
 /**
@@ -320,11 +397,12 @@ export function checkRuntimeTree({
     else if (installedVersion(root, key) === undefined)
       problems.push(`${key}: on disk without a package.json`);
   }
-  problems.push(...specialFiles(root));
+  // A symlink where npm puts packages is in both walks; it is one problem.
+  for (const problem of specialFiles(root)) if (!problems.includes(problem)) problems.push(problem);
 
   // The tree was pruned under this manifest. Without the workspace's `overrides` npm is free to re-resolve the
   // packages they pin (sharp, undici) the next time it touches the tree (#263, #1005).
-  if (!hasOverrides(runtimeManifest)) problems.push('package.json: the runtime manifest has no overrides');
+  problems.push(...overrideProblems(runtimeManifest));
 
   // Not vacuous: the comparison covered the tree this image is built for.
   if (compared < minCompared) {

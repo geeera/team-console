@@ -9,6 +9,7 @@ import {
   baseImageOf,
   checkImageFiles,
   expectedFiles,
+  isLockfile,
   listFiles,
   rootsOf,
 } from './image-files.mjs';
@@ -105,16 +106,31 @@ describe('runtime image file list', () => {
     });
 
     // #819.4: the pruned lockfile is the runtime-deps stage's working file, not something the image runs on.
-    // The pattern is held to the file name: unanchored, `lock` also matched `/app/dist/blocklist` (#1005).
+    // The pattern is the script's own (#1013: this spec kept a copy, so the one the check uses was never run).
+    // It is held to the file name: unanchored, `lock` also matched `/app/dist/blocklist` (#1005).
     it('copies no lockfile into the image', () => {
-      const isLockfile = (path: string) => /(^|\/)(package-lock|npm-shrinkwrap)\.json$/.test(path);
       expect(RUNTIME_COPIES.filter((copy) => isLockfile(copy.path))).toEqual([]);
-      for (const path of ['/app/package-lock.json', '/app/npm-shrinkwrap.json', 'package-lock.json']) {
+      for (const path of [...LOCKFILES, 'package-lock.json', '/app/node_modules/a/npm-shrinkwrap.json']) {
         expect(isLockfile(path), path).toBe(true);
       }
       for (const path of ['/app/dist/blocklist', '/app/package-lock.json.d/x', '/app/my-package-lock.json']) {
         expect(isLockfile(path), path).toBe(false);
       }
+    });
+
+    it('fails on a lockfile as a line of the table, wherever it is, though the stage has it and the image matches', () => {
+      const path = '/app/apps/api/npm-shrinkwrap.json';
+      const changed = listings();
+      changed['runtime-deps'].push(file(path, 'lock'));
+      changed.runtime.push(
+        directory('/app/apps', OWNER),
+        directory('/app/apps/api', OWNER),
+        file(path, 'lock', OWNER),
+      );
+      const copies = [...COPIES, { stage: 'runtime-deps', path } as const];
+      expect(checkImageFiles(changed, copies).problems).toEqual([
+        `${path}: a lockfile in the table of copies`,
+      ]);
     });
 
     // #1005: the hidden lockfile sits inside the copied node_modules, so the table cannot keep it out.
@@ -227,6 +243,7 @@ describe('runtime image file list', () => {
       changed.runtime.push({ ...lock, ...OWNER });
       const copies = [...COPIES, { stage: 'runtime-deps', path } as const];
       expect(checkImageFiles(changed, copies).problems).toEqual([
+        `${path}: a lockfile in the table of copies`,
         `${path}: a lockfile of the runtime-deps stage, not of the image`,
       ]);
     });
