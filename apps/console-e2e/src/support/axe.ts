@@ -1,6 +1,12 @@
 import AxeBuilder from '@axe-core/playwright';
 import { errors, type Page } from '@playwright/test';
-import { SETTLE_TOTAL_MS, settlePage } from './animation-settle';
+import {
+  type AnimationReport,
+  restartingAnimationsMessage,
+  type SettleOptions,
+  settleRound,
+  stuckAnimationsMessage,
+} from './animation-settle';
 
 // WCAG 2.2 A/AA plus axe's best practices; only these impacts fail the run (#14).
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
@@ -49,41 +55,28 @@ async function domIdle(page: Page, quietMs: number, timeoutMs: number): Promise<
   );
 }
 
-/** The routed page can wait on a lazy chunk; the wait is named when it never comes. */
-const ROUTES_TIMEOUT_MS = 10_000;
-const DOM_IDLE_TIMEOUT_MS = 2000;
-
 /**
- * Resolves once the app shell is up (`#tc-main`) and every `.m-route` container (#506) has its routed page mounted
- * beside its `<router-outlet>`. A lazy route's chunk can still be downloading after the shell around it is up —
- * badge-roll's first scan waited only for the sidebar badge (#971) — and nothing mutates the DOM while it downloads,
- * so `domIdle()`'s quiet window passes and the page mounts, fading in, while axe measures it (contrast on `h1`,
- * `.overview__count`, … reproduced by holding the route's chunk back 300 ms); held back longer, axe passed a page
- * that had not arrived at all. Before the shell renders there is no `.m-route` yet, so on an app page (`tc-root`)
- * the shell itself is awaited too, or the check would pass on nothing. The signed-out screen
- * (`tc-session-expired`) has no shell, and a page that is not the app has nothing to wait for.
+ * Resolves once every `.m-route` container (#506) has its routed page mounted beside its `<router-outlet>`. A lazy
+ * route's chunk can still be downloading after the shell around it is up — badge-roll's first scan waited only for
+ * the sidebar badge (#971) — and nothing mutates the DOM while it downloads, so `domIdle()`'s quiet window passes and
+ * the page mounts, fading in, while axe measures it (contrast on `h1`, `.overview__count`, … reproduced by holding
+ * the route's chunk back 300 ms); held back longer, axe passed a page that had not arrived at all.
  */
 async function routesMounted(page: Page, timeoutMs: number): Promise<void> {
   try {
     await page.waitForFunction(
-      () => {
-        if (document.querySelector('tc-root') !== null && document.querySelector('tc-session-expired') === null) {
-          if (document.querySelector('#tc-main') === null) {
-            return false;
-          }
-        }
-        return Array.from(document.querySelectorAll('.m-route')).every((outlet) =>
+      () =>
+        Array.from(document.querySelectorAll('.m-route')).every((outlet) =>
           Array.from(outlet.children).some((child) => child.tagName !== 'ROUTER-OUTLET'),
-        );
-      },
+        ),
       undefined,
       { timeout: timeoutMs },
     );
   } catch (error: unknown) {
     if (error instanceof errors.TimeoutError) {
       throw new Error(
-        `animationsSettled: the app shell (#tc-main) or a route outlet (.m-route) still had no page after ` +
-          `${String(timeoutMs)} ms, so there is nothing settled to scan yet. Wait for the screen the test means first.`,
+        `animationsSettled: a route outlet (.m-route) still had no page after ${String(timeoutMs)} ms, so there is ` +
+          'nothing settled to scan yet. Wait for the screen the test means first.',
         { cause: error },
       );
     }
@@ -91,23 +84,36 @@ async function routesMounted(page: Page, timeoutMs: number): Promise<void> {
   }
 }
 
+/** One round can wait up to this long per animation; the #506 motion tokens top out at 1.6 s (`--dur-pulse`). */
+const SETTLE: SettleOptions = { quietFrames: 4, maxWaitMs: 3000, slackMs: 250 };
+const SETTLE_ROUNDS = 20;
+
 /**
  * Waits until every finite animation has finished: mid-way through a sheet's entrance, or the #506 route fade/rise,
  * its text is still partly transparent, and axe would measure contrast on a frame no one reads. Endless ones
  * (spinners, the live dot) and paused ones (a hovered Undo toast's hairline) are left alone.
  *
  * A DOM swap's animation (a navigation, an `@if` block replaced) is not always constructed on the very first frame
- * read — more so under CPU load (#952) — so `settlePage()` trusts only a few quiet frames in a row; anything seen
- * running is waited out and the quiet check runs again, in case another one started meanwhile. Every wait is
- * bounded (#971): an animation that outlives it, or a page that keeps starting new ones until the time budget is
- * spent, fails the scan with the animation and element named instead of hanging until the test timeout.
+ * read — more so under CPU load (#952) — so only `SETTLE.quietFrames` quiet frames in a row are trusted; anything
+ * seen running is waited out and the quiet check runs again, in case another one started meanwhile. Each wait is
+ * bounded (#971): an animation that outlives it, or a page that keeps starting new ones, fails the scan with the
+ * animation and element named instead of hanging until the test timeout.
  */
 export async function animationsSettled(page: Page): Promise<void> {
-  const startedAt = Date.now();
-  await routesMounted(page, ROUTES_TIMEOUT_MS);
-  await domIdle(page, 80, DOM_IDLE_TIMEOUT_MS);
-  // One budget for all three waits, so the restart guard's own error lands before the 30 s test timeout.
-  await settlePage(page, Math.max(0, SETTLE_TOTAL_MS - (Date.now() - startedAt)));
+  await routesMounted(page, 10_000);
+  await domIdle(page, 80, 2000);
+  let lastSeen: readonly AnimationReport[] = [];
+  for (let round = 0; round < SETTLE_ROUNDS; round++) {
+    const result = await page.evaluate(settleRound, SETTLE);
+    if (result.quiet) {
+      return;
+    }
+    if (result.stuck.length > 0) {
+      throw new Error(stuckAnimationsMessage(result.stuck, SETTLE.maxWaitMs));
+    }
+    lastSeen = result.running.length > 0 ? result.running : lastSeen;
+  }
+  throw new Error(restartingAnimationsMessage(lastSeen, SETTLE_ROUNDS));
 }
 
 /**

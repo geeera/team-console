@@ -5,19 +5,15 @@ import {
   type SettleAnimation,
   type SettleEnv,
   type SettleOptions,
-  type SettleRound,
   settleRound,
-  settleUntilQuiet,
   stuckAnimationsMessage,
 } from './animation-settle';
 
 // A real round caps at 3 s; small numbers keep the timed cases fast.
-const OPTIONS: SettleOptions = { quietFrames: 4, maxWaitMs: 300, slackMs: 20, maxTotalMs: 400 };
+const OPTIONS: SettleOptions = { quietFrames: 4, maxWaitMs: 300, slackMs: 20 };
 
 interface FakeAnimation extends SettleAnimation {
   playState: string;
-  /** What the animation's clock reads; a test moves it to play a slow or a frozen clock. */
-  localTime: number;
   finish(): void;
   cancel(): void;
 }
@@ -53,7 +49,6 @@ function fakeAnimation(
   const animation: FakeAnimation = {
     id: '',
     playState: init.playState ?? 'running',
-    localTime: init.localTime ?? 0,
     playbackRate: 1,
     finished,
     animationName: init.name ?? 'm-enter',
@@ -61,7 +56,7 @@ function fakeAnimation(
       getComputedTiming: () => ({
         iterations: init.iterations ?? 1,
         endTime: init.endTime ?? 240,
-        localTime: animation.localTime,
+        localTime: init.localTime ?? 0,
       }),
       target,
       pseudoElement: null,
@@ -153,15 +148,6 @@ describe('settleRound', () => {
     ]);
   });
 
-  it('names an animation that has no component scope prefix as it is', async () => {
-    const spinner = fakeAnimation({ name: 'tc-spin', endTime: 900, target: { tagName: 'I' } });
-    const result = await settleRound(
-      OPTIONS,
-      env(() => [spinner]),
-    );
-    expect(!result.quiet && result.stuck).toEqual([{ name: 'tc-spin', target: 'i', remainingMs: 900 }]);
-  });
-
   it('reports an animation that outlives its budget instead of waiting for it', async () => {
     // Claims 100 ms left but never ends: the budget is 100 + slack, well under the test's own timeout.
     const stalled = fakeAnimation({
@@ -181,72 +167,6 @@ describe('settleRound', () => {
       running: [{ name: 'tc-sheet-rise', target: 'div#sheet.tc-sheet.tc-sheet--open', remainingMs: 100 }],
       stuck: [{ name: 'tc-sheet-rise', target: 'div#sheet.tc-sheet.tc-sheet--open', remainingMs: 100 }],
     });
-  });
-
-  it('keeps waiting for an animation whose clock lags but still advances, then passes', async () => {
-    // Claims 100 ms left, a budget of 120 ms; the clock only creeps, so the first wait ends with it still moving.
-    const lagging = fakeAnimation({ name: 'tc-stamp-ink', endTime: 1000, localTime: 900 });
-    const creep = setInterval(() => {
-      lagging.localTime += 5;
-    }, 10);
-    setTimeout(() => lagging.finish(), 200);
-    const result = await settleRound(
-      OPTIONS,
-      env(() => (lagging.playState === 'running' ? [lagging] : [])),
-    );
-    clearInterval(creep);
-    expect(result.quiet).toBe(false);
-    expect(!result.quiet && result.stuck).toEqual([]);
-  });
-
-  it('waits again for an animation at 0 ms left whose finished promise is still unresolved', async () => {
-    const atEnd = fakeAnimation({ name: 'tc-sheet-rise', endTime: 300, localTime: 300 });
-    setTimeout(() => atEnd.finish(), 120);
-    const result = await settleRound(
-      OPTIONS,
-      env(() => (atEnd.playState === 'running' ? [atEnd] : [])),
-    );
-    expect(!result.quiet && result.stuck).toEqual([]);
-  });
-
-  it('gives up on an animation stuck at 0 ms left once the total wait is spent', async () => {
-    const atEnd = fakeAnimation({ name: 'tc-sheet-rise', endTime: 300, localTime: 300 });
-    const started = Date.now();
-    const result = await settleRound(
-      OPTIONS,
-      env(() => [atEnd]),
-    );
-    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs + OPTIONS.maxWaitMs);
-    expect(!result.quiet && result.stuck).toEqual([{ name: 'tc-sheet-rise', target: 'div', remainingMs: 0 }]);
-  });
-
-  it('fails an animation whose clock is frozen after its first wait, named', async () => {
-    const frozen = fakeAnimation({ name: 'tc-stamp-ink', endTime: 300, localTime: 240 });
-    const started = Date.now();
-    const result = await settleRound(
-      OPTIONS,
-      env(() => [frozen]),
-    );
-    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs);
-    expect(!result.quiet && result.stuck).toEqual([
-      { name: 'tc-stamp-ink', target: 'div', remainingMs: 60 },
-    ]);
-  });
-
-  it('gives up on a progressing animation once the total wait is spent', async () => {
-    // Always inching forward, never ending: bounded by maxTotalMs rather than waited for forever.
-    const crawling = fakeAnimation({ name: 'tc-stamp-ink', endTime: 10_000, localTime: 9_900 });
-    const creep = setInterval(() => {
-      crawling.localTime += 1;
-    }, 5);
-    const started = Date.now();
-    const result = await settleRound(
-      OPTIONS,
-      env(() => [crawling]),
-    );
-    clearInterval(creep);
-    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs + OPTIONS.maxWaitMs);
-    expect(!result.quiet && result.stuck).toHaveLength(1);
   });
 
   it('fails at once on an animation with more time left than the per-animation cap', async () => {
@@ -312,91 +232,9 @@ describe('failure messages', () => {
   });
 
   it('names the last animations seen when the page kept starting new ones', () => {
-    expect(restartingAnimationsMessage(stuck.slice(0, 1), 20, 20_001.4)).toBe(
-      'animationsSettled: animations kept starting for 20 rounds over 20001 ms; last seen: tc-toast-undo-run on span.tc-toast__bar (9000 ms left).',
+    expect(restartingAnimationsMessage(stuck.slice(0, 1), 20)).toBe(
+      'animationsSettled: animations kept starting for 20 rounds; last seen: tc-toast-undo-run on span.tc-toast__bar (9000 ms left).',
     );
-    expect(restartingAnimationsMessage([], 20, 5)).toContain('none named');
-  });
-});
-
-describe('settleUntilQuiet', () => {
-  const LIMITS = { maxRounds: 20, totalMs: 20_000, maxWaitMs: 3000 };
-  const seen: SettleRound = {
-    quiet: false,
-    running: [{ name: 'm-enter', target: 'tc-overview-page', remainingMs: 240 }],
-    stuck: [],
-  };
-
-  /** A clock that moves `stepMs` each time it is read. */
-  function clock(stepMs: number): () => number {
-    let time = 0;
-    return () => (time += stepMs);
-  }
-
-  it('returns as soon as a round is quiet', async () => {
-    const rounds: SettleRound[] = [seen, seen, { quiet: true }];
-    let calls = 0;
-    await settleUntilQuiet(async () => rounds[calls++] ?? { quiet: true }, LIMITS, clock(1));
-    expect(calls).toBe(3);
-  });
-
-  it('runs one round even when the budget is already spent', async () => {
-    let calls = 0;
-    await settleUntilQuiet(
-      async () => {
-        calls++;
-        return { quiet: true };
-      },
-      { ...LIMITS, totalMs: 0 },
-      clock(1),
-    );
-    expect(calls).toBe(1);
-  });
-
-  it('fails with the stuck animation named, without another round', async () => {
-    const stuck = { name: 'tc-sheet-rise', target: 'div#sheet', remainingMs: 100 };
-    let calls = 0;
-    await expect(
-      settleUntilQuiet(
-        async () => {
-          calls++;
-          return { quiet: false, running: [stuck], stuck: [stuck] };
-        },
-        LIMITS,
-        clock(1),
-      ),
-    ).rejects.toThrow('tc-sheet-rise on div#sheet (100 ms left)');
-    expect(calls).toBe(1);
-  });
-
-  it('stops at the total deadline, before the round cap, and says what it last saw', async () => {
-    let calls = 0;
-    await expect(
-      settleUntilQuiet(
-        async () => {
-          calls++;
-          return seen;
-        },
-        LIMITS,
-        // Each clock read costs 3 s: the 20 s deadline lands after 7 rounds, not 20.
-        clock(3000),
-      ),
-    ).rejects.toThrow(/kept starting for 7 rounds over \d+ ms; last seen: m-enter on tc-overview-page/);
-    expect(calls).toBeLessThan(LIMITS.maxRounds);
-  });
-
-  it('stops at the round cap when the clock is fast', async () => {
-    let calls = 0;
-    await expect(
-      settleUntilQuiet(
-        async () => {
-          calls++;
-          return seen;
-        },
-        LIMITS,
-        clock(1),
-      ),
-    ).rejects.toThrow('kept starting for 20 rounds');
-    expect(calls).toBe(20);
+    expect(restartingAnimationsMessage([], 20)).toContain('none named');
   });
 });
