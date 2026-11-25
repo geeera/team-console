@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test';
 import { blockingViolations } from './support/axe';
 import { expect, requireLocalStack, test } from './support/fixtures';
 import { seed } from './support/stack';
@@ -83,10 +84,146 @@ test.describe('question card', () => {
       // axe's selector for the node it flagged is the card title itself.
       const flagged = await Promise.all(
         (contrast[0]?.targets ?? []).map((target) =>
-          page.locator(target).evaluate((node) => node.matches('li[data-number="72"] tc-card [tc-card-title]')),
+          page
+            .locator(target)
+            .evaluate((node) => node.matches('li[data-number="72"] tc-card [tc-card-title]')),
         ),
       );
       expect(flagged).toContain(true);
     });
   }
+});
+
+/**
+ * Motion before the scan (#971): animations are finished, not waited for. No animation's own clock can hold the scan
+ * (a hovered Undo toast's paused hairline used to, for the whole test timeout) or fail it (WebKit's lagging clock
+ * under load did, #979/#980), and axe measures the end state.
+ */
+test.describe('animations before the scan', () => {
+  // Readable at full opacity only: mid-fade it fails contrast, which is what a scan that did not finish it reports.
+  const content = `<!doctype html>
+    <html lang="ru">
+      <head><title>axe gate</title></head>
+      <body style="background: #fff">
+        <main><h1>Проверка</h1><p id="slow" class="bar" style="color: #595959">Полоса</p></main>
+      </body>
+    </html>`;
+  const TEN_MINUTES_MS = 600_000;
+
+  const playState = (page: Page, id: string): Promise<string | undefined> =>
+    page.evaluate(
+      (animationId) => document.getAnimations().find((animation) => animation.id === animationId)?.playState,
+      id,
+    );
+
+  test('a long finite animation is finished, and the scan measures its end state', async ({ page }) => {
+    await page.setContent(content);
+    await page.locator('#slow').evaluate((bar, duration) => {
+      bar.animate({ opacity: [0.2, 1] }, { duration, fill: 'forwards', id: 'slow-fade' });
+    }, TEN_MINUTES_MS);
+
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await playState(page, 'slow-fade')).toBe('finished');
+  });
+
+  test('a paused animation is a still frame: neither waited for nor finished', async ({ page }) => {
+    await page.setContent(content);
+    // Like the Undo hairline it shrinks, not fades: a frame frozen at partial opacity would rightly fail contrast.
+    await page.locator('#slow').evaluate((bar, duration) => {
+      bar.animate({ transform: ['scaleX(1)', 'scaleX(0)'] }, { duration, id: 'hairline' }).pause();
+    }, TEN_MINUTES_MS);
+
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await playState(page, 'hairline')).toBe('paused');
+  });
+
+  test('an endless animation fails the scan, naming it and its element', async ({ page }) => {
+    await page.setContent(content);
+    await page.locator('#slow').evaluate((bar) => {
+      bar.animate({ opacity: [0.2, 1] }, { duration: 400, iterations: Infinity, id: 'pulse' });
+    });
+
+    await expect(blockingViolations(page)).rejects.toThrow(
+      /endless animation is still running under reduced motion.*: pulse on p#slow\.bar\./,
+    );
+  });
+
+  test('an animation that starts while axe runs gets the page scanned again', async ({ page }) => {
+    await page.setContent(content);
+    // axe-core assigns `window.axe` when it is injected for a scan: the fade starts then, once, mid-scan.
+    await page.evaluate((duration) => {
+      const state = window as unknown as { axe: unknown; fadesStarted: number };
+      let axe: unknown;
+      state.fadesStarted = 0;
+      Object.defineProperty(window, 'axe', {
+        configurable: true,
+        get: () => axe,
+        set: (value: unknown) => {
+          axe = value;
+          if (state.fadesStarted === 0) {
+            state.fadesStarted = 1;
+            document.querySelector('#slow')?.animate({ opacity: [0.2, 1] }, { duration, id: 'late-fade' });
+          }
+        },
+      });
+    }, TEN_MINUTES_MS);
+
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await page.evaluate(() => (window as unknown as { fadesStarted: number }).fadesStarted)).toBe(1);
+    expect(await playState(page, 'late-fade')).toBeUndefined();
+  });
+
+  test('the scan runs under reduced motion and puts the preference back', async ({ page }) => {
+    await page.setContent(content);
+    const reduced = () => page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+    // Recorded when axe is injected, i.e. during the scan.
+    await page.evaluate(() => {
+      const state = window as unknown as { axe: unknown; reducedDuringScan: boolean[] };
+      let axe: unknown;
+      state.reducedDuringScan = [];
+      Object.defineProperty(window, 'axe', {
+        configurable: true,
+        get: () => axe,
+        set: (value: unknown) => {
+          axe = value;
+          state.reducedDuringScan.push(matchMedia('(prefers-reduced-motion: reduce)').matches);
+        },
+      });
+    });
+    const duringScan = () =>
+      page.evaluate(() => (window as unknown as { reducedDuringScan: boolean[] }).reducedDuringScan);
+
+    expect(await reduced()).toBe(false);
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await duringScan()).toEqual([true]);
+    expect(await reduced()).toBe(false);
+
+    // A test that asked for reduced motion itself keeps it after the scan.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await reduced()).toBe(true);
+  });
+});
+
+/**
+ * A lazy route's chunk can arrive after the shell is up (#971, the badge-roll contrast failure): the scan must wait
+ * for the routed page, neither measuring it mid-fade nor passing before it exists. Held back 300 ms, this failed
+ * `color-contrast` on `h1`, `.overview__count`, … before the wait.
+ */
+test.describe('a route still loading', () => {
+  test.beforeAll(async ({ stack }) => {
+    requireLocalStack(stack);
+    await seed(stack, ['geeera/team-console']);
+  });
+
+  test('the scan waits for the routed page to mount and settle', async ({ page }) => {
+    await page.route('**/chunk-*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await route.fallback();
+    });
+    await page.goto('/overview');
+    await expect(page.locator('#tc-main')).toBeAttached();
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await page.locator('#tc-main tc-overview-page h1').isVisible()).toBe(true);
+  });
 });
