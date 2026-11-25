@@ -60,6 +60,10 @@ function assertValidStamp(stamp) {
 /** Throws unless `stamp` is valid and was taken within the last hour of `nowMs`. */
 function assertFreshStamp(stamp, nowMs) {
   const ageMs = nowMs - assertValidStamp(stamp);
+  // #983: NaN compares false both ways below, so a clock that is not a number would read as a fresh stamp.
+  if (!Number.isFinite(ageMs)) {
+    throw new Error(`cannot tell how old ${DEFINE_KEY} is: the current time is not a finite number`);
+  }
   if (ageMs > MAX_STAMP_AGE_MS) {
     throw new Error(
       `${DEFINE_KEY} ${JSON.stringify(stamp)} is ${Math.floor(ageMs / 60000)} minutes old — this run's stamp step did not write it`,
