@@ -104,8 +104,16 @@ describe('runtime image file list', () => {
     });
 
     // #819.4: the pruned lockfile is the runtime-deps stage's working file, not something the image runs on.
+    // The pattern is held to the file name: unanchored, `lock` also matched `/app/dist/blocklist` (#1005).
     it('copies no lockfile into the image', () => {
-      expect(RUNTIME_COPIES.filter((copy) => /lock|shrinkwrap/.test(copy.path))).toEqual([]);
+      const isLockfile = (path: string) => /(^|\/)(package-lock|npm-shrinkwrap)\.json$/.test(path);
+      expect(RUNTIME_COPIES.filter((copy) => isLockfile(copy.path))).toEqual([]);
+      for (const path of ['/app/package-lock.json', '/app/npm-shrinkwrap.json', 'package-lock.json']) {
+        expect(isLockfile(path), path).toBe(true);
+      }
+      for (const path of ['/app/dist/blocklist', '/app/package-lock.json.d/x', '/app/my-package-lock.json']) {
+        expect(isLockfile(path), path).toBe(false);
+      }
     });
 
     it('lists the whole base and final image, and only the copied paths of the stages between', () => {
@@ -241,6 +249,46 @@ describe('runtime image file list', () => {
       expect(check(changed).problems).toContain(
         '/app/node_modules/wrangler: type directory expected, link in the image',
       );
+    });
+
+    // #1005: a setuid file or a device in a source stage is copied as it is, so "the same as its stage" passed.
+    it('fails on a setuid or setgid bit in a copied tree, though the image has it exactly as its stage does', () => {
+      const changed = listings();
+      const setuid = { mode: '4755' };
+      const setgid = { mode: '2755' };
+      changed['runtime-deps'] = replaced(
+        changed['runtime-deps'],
+        '/app/node_modules/wrangler/package.json',
+        setuid,
+      );
+      changed.runtime = replaced(changed.runtime, '/app/node_modules/wrangler/package.json', setuid);
+      changed.build = replaced(changed.build, '/app/dist/apps/api', setgid);
+      changed.runtime = replaced(changed.runtime, '/app/dist/apps/api', setgid);
+      expect(check(changed).problems).toEqual([
+        '/app/dist/apps/api: setuid or setgid (mode 2755) in the build stage',
+        '/app/node_modules/wrangler/package.json: setuid or setgid (mode 4755) in the runtime-deps stage',
+      ]);
+    });
+
+    it('fails on a device, fifo or socket in a copied tree', () => {
+      const changed = listings();
+      const device: Entry = { path: '/app/node_modules/wrangler/null', type: 'other', mode: '666', ...ROOT };
+      changed['runtime-deps'].push(device);
+      changed.runtime.push({ ...device, ...OWNER });
+      expect(check(changed).problems).toEqual([
+        '/app/node_modules/wrangler/null: a device, fifo or socket in the runtime-deps stage',
+      ]);
+    });
+
+    it('leaves the base image its own setuid files and devices, and the sticky bit to anyone', () => {
+      const changed = listings();
+      const passwd = file('/usr/bin/passwd', 'passwd', ROOT, '4755');
+      const console_: Entry = { path: '/dev/console', type: 'other', mode: '600', ...ROOT };
+      changed.base.push(passwd, console_);
+      changed.runtime.push(passwd, console_);
+      changed.build = replaced(changed.build, '/app/dist/apps/api', { mode: '1777' });
+      changed.runtime = replaced(changed.runtime, '/app/dist/apps/api', { mode: '1777' });
+      expect(check(changed).problems).toEqual([]);
     });
 
     it('fails when a copy is not in its stage, or leaves /app', () => {
