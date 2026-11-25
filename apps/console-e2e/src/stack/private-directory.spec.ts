@@ -1,4 +1,13 @@
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -76,13 +85,16 @@ describe('privateDirectory', () => {
   });
 
   // Root owns nothing less than everything: there is no directory of another user to refuse.
-  it.skipIf(process.getuid?.() === 0)('refuses a directory of another user, and leaves its mode alone', () => {
-    const mode = modeOf('/usr');
+  it.skipIf(process.getuid?.() === 0)(
+    'refuses a directory of another user, and leaves its mode alone',
+    () => {
+      const mode = modeOf('/usr');
 
-    expect(() => privateDirectory('/usr')).toThrow(/belongs to another user/);
+      expect(() => privateDirectory('/usr')).toThrow(/belongs to another user/);
 
-    expect(modeOf('/usr')).toBe(mode);
-  });
+      expect(modeOf('/usr')).toBe(mode);
+    },
+  );
 });
 
 describe('realDirectory', () => {

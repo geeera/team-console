@@ -62,7 +62,9 @@ export function stackHome(stacksDir: string, root: string = dirname(stacksDir)):
 function directoriesBelow(root: string, dir: string): string[] {
   const below = relative(root, dir);
   if (below === '' || isAbsolute(below) || below.split(sep).includes('..')) {
-    throw new Error(`${dir} is not below ${root}: the stack cannot tell which directories on the way are its own.`);
+    throw new Error(
+      `${dir} is not below ${root}: the stack cannot tell which directories on the way are its own.`,
+    );
   }
   const directories: string[] = [];
   let path = root;

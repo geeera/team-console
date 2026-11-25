@@ -68,7 +68,12 @@ function groupFromProc(pgid: number): GroupMember[] {
  * a process of another group and for a zombie. A line that does not tell the group might be of any, this one too,
  * and one that tells this group but no start time is of it for sure: both are members that could not be read.
  */
-export function procMember(pid: number, pgid: number, stat: string, cmdline: () => string): GroupMember | null {
+export function procMember(
+  pid: number,
+  pgid: number,
+  stat: string,
+  cmdline: () => string,
+): GroupMember | null {
   const parsed = parseProcStat(stat);
   if (parsed === null) {
     return unreadableMember(pid);
