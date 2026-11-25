@@ -18,10 +18,14 @@ interface Step {
   readonly uses?: string;
   readonly env?: Readonly<Record<string, string>>;
   readonly with?: Readonly<Record<string, unknown>>;
+  readonly shell?: string;
+  readonly 'continue-on-error'?: unknown;
 }
 
 interface Job {
   readonly steps?: readonly Step[];
+  readonly defaults?: unknown;
+  readonly 'continue-on-error'?: unknown;
   readonly needs?: string | readonly string[];
   readonly if?: string;
   readonly strategy?: {
@@ -30,6 +34,7 @@ interface Job {
 }
 
 const ci = parse(readFileSync(join(workspaceRoot, '.github/workflows/ci.yml'), 'utf8')) as {
+  readonly defaults?: unknown;
   readonly jobs: Readonly<Record<string, Job>>;
 };
 /** A step's script without its comment lines, which may quote the commands this file forbids. */
@@ -111,10 +116,25 @@ const EMPTY_SHARD = /^if \[\[? -z "?\$\{?projects\}?"? \]\]?; then$/;
 const NOT_AFFECTED = /^if \[\[? "?\$\{?NX_MODE\}?"? != ["']?affected["']? \]\]?; then$/;
 /** `echo` of one double-quoted string that expands nothing but plain `${NAME}`: it can only print. */
 const MESSAGE = /^echo "(?:[^"`$\\]|\$\{[A-Za-z_]+\})*"$/;
-const SHARD_CALL = /^projects=\$\(node tools\/ci\/shard-projects\.mjs [^()`;&|]*\)$/;
-const RUNS_TESTS = /\bnx run-many\b.*-t test\b/;
-/** The test run on its own: no `||`, `&&`, `;`, `!`, pipe, redirect or substitution that could hide its status. */
-const PLAIN_TEST_RUN = /^npx nx run-many (?:[^;&|<>()`$\\!]|\$\{[A-Za-z_]+\})*$/;
+const AFFECTED = /^if \[\[? "?\$\{?NX_MODE\}?"? ==? ["']?affected["']? \]\]?; then$/;
+/**
+ * The arguments of a call: plain words and `${NAME}`. No redirect (`>/dev/null` empties what `$(…)` takes),
+ * substitution, operator or escape.
+ */
+const ARGUMENTS = '(?:[^()`;&|<>$\\\\]|\\$\\{[A-Za-z_]+\\})*';
+/** The shard taken from the listing and from nowhere else: the here-string is the one `<` of the line. */
+const SHARD_CALL = new RegExp(
+  `^projects=\\$\\(node tools/ci/shard-projects\\.mjs ${ARGUMENTS} <<<"\\$\\{listed\\}"\\)$`,
+);
+const LISTING = new RegExp(`^listed=\\$\\(npx nx show projects ${ARGUMENTS}\\)$`);
+const RUNS_TESTS = /\bnx run-many\b/;
+/**
+ * The test run, word for word in either order: on its own (no `||`, `&&`, `;`, `!`, pipe, redirect or
+ * substitution to hide its status), the `test` target and the shard's projects, and no other option —
+ * `--exclude=*`, `--help` or a second `--projects=` each end green without a test.
+ */
+const PLAIN_TEST_RUN =
+  /^npx nx run-many (?:-t test --projects="\$\{projects\}"|--projects="\$\{projects\}" -t test)$/;
 /** Any `set` that turns an option off (`set +e`, `set +o errexit`, `set -u +e`), read with the quotes removed. */
 const UNSETS_AN_OPTION = /\bset\b[^;&|]*\s\+[A-Za-z]/;
 /** A function or an alias: either can stand in for `npx`, `node` or `exit`. */
@@ -149,6 +169,8 @@ const SETS_A_DECISION = new RegExp(
  * and nowhere else does the script leave (`exit`, `exec`, `return`, `trap`) or set NX_MODE or `projects`.
  * #1013: the first command is `set -euo pipefail`, no later `set` turns an option off, and nothing is defined
  * that could stand in for a command — `set +e` before the tests and `true` after them ended green on red tests.
+ * Around those lines the script holds only what the rule can read: the two listings in an `if` on NX_MODE.
+ * Any other command (`PATH=…`, `hash -p`, `shopt`) is a problem, whatever it would do.
  * Anything it cannot read as this is a problem: the rule fails closed.
  */
 function emptyShardProblems(script: string): readonly string[] {
@@ -190,8 +212,16 @@ function emptyShardProblems(script: string): readonly string[] {
     }
   }
 
+  const known = [LISTING, AFFECTED, EMPTY_SHARD, NOT_AFFECTED, FAILING_EXIT, SHARD_CALL, PLAIN_TEST_RUN];
   lines.forEach((line, at) => {
     if (MESSAGE.test(line)) return;
+    const isKnown =
+      at === 0
+        ? line === 'set -euo pipefail'
+        : ['else', 'fi', 'exit 0'].includes(line) || known.some((shape) => shape.test(line));
+    if (!isKnown) {
+      problems.push(`a command the rule cannot read: ${line}`);
+    }
     const bare = line.replace(/["'\\]/g, '');
     if (LEAVES.test(bare) && at !== failAt && at !== skipAt) {
       problems.push(`the script may leave outside the empty-shard block: ${line}`);
@@ -213,7 +243,9 @@ function emptyShardProblems(script: string): readonly string[] {
     problems.push('the tests do not run once, at the top level after the empty-shard block');
   } else if (runAt !== lines.length - 1 || !PLAIN_TEST_RUN.test(lines[runAt] ?? '')) {
     // The status of the last command is the status of the step: nothing may follow or wrap the test run.
-    problems.push('the test run is not the last command of the script, on its own');
+    problems.push(
+      'the test run is not the last command of the script, on its own, with only its two options',
+    );
   }
   return problems;
 }
@@ -370,6 +402,26 @@ describe('ci.yml scope decisions', () => {
     expect(check[failAt + 1]).toBe('fi');
   });
 
+  // #1013: the shape of a script holds nothing when its step may fail without failing the job, or when
+  // another shell runs it (`bash {0}` has no `-e`; `sh` has no `pipefail`).
+  it('lets neither the test step nor the aggregator fail quietly or run in another shell', () => {
+    expect(ci.defaults).toBeUndefined();
+    for (const name of ['lint-test-build-scope', 'lint-test-build-shard', 'lint-test-build']) {
+      expect(ci.jobs[name], name).toBeDefined();
+      expect(ci.jobs[name]?.['continue-on-error'], name).toBeUndefined();
+      expect(ci.jobs[name]?.defaults, name).toBeUndefined();
+    }
+    const steps = [
+      ...stepsOf('lint-test-build-shard').filter((step) => step.name?.startsWith('Test (') === true),
+      ...stepsOf('lint-test-build'),
+    ];
+    expect(steps).toHaveLength(2);
+    for (const step of steps) {
+      expect(step['continue-on-error'], step.name).toBeUndefined();
+      expect(step.shell, step.name).toBeUndefined();
+    }
+  });
+
   // #992: a matrix that lists 1/3 and 2/3 and forgets 3/3 would be green with a third of the tests never run.
   it('lists every test shard of one split, 1/N to N/N, and one job for the other targets', () => {
     const include = ci.jobs['lint-test-build-shard']?.strategy?.matrix?.include ?? [];
@@ -393,9 +445,9 @@ describe('ci.yml scope decisions', () => {
     expect(testShard).not.toContain('${{');
     const lines = commandsOf(testShard);
     // #1013: held by what each command is given, in any order, not as whole lines. `x=$(…)` and nothing around
-    // it: no `if`, `||`, `&&`, pipe or second substitution.
+    // it: no `if`, `||`, `&&`, pipe, redirect or second substitution.
     const argumentsOf = (line: string, command: string): readonly string[] => {
-      const call = new RegExp(`^[a-z_]+=\\$\\(${command} ([^()\`;&|]*)\\)$`).exec(line)?.[1];
+      const call = new RegExp(`^[a-z_]+=\\$\\(${command} (${ARGUMENTS})\\)$`).exec(line)?.[1];
       expect(call, `a plain assignment from \`${command}\`: ${line}`).toBeDefined();
       return (call ?? '').split(/\s+/).filter((word) => word !== '');
     };
@@ -409,9 +461,7 @@ describe('ci.yml scope decisions', () => {
       ['--json', '--with-target', 'test'],
     ]);
     const firstListing = lines.findIndex((line) => line.startsWith('listed='));
-    expect(lines[firstListing - 1]).toMatch(
-      /^if \[\[? "?\$\{?NX_MODE\}?"? ==? ["']?affected["']? \]\]?; then$/,
-    );
+    expect(lines[firstListing - 1]).toMatch(AFFECTED);
     expect(lines[firstListing + 1]).toBe('else');
     expect(lines[firstListing + 2]).toMatch(/^listed=/);
     expect(lines[firstListing + 3]).toBe('fi');
@@ -419,19 +469,25 @@ describe('ci.yml scope decisions', () => {
     // (#999) is what lets the script tell a full run that lists nothing from an affected run with nothing to do.
     const shardCalls = lines.filter((line) => line.includes('shard-projects.mjs'));
     expect(shardCalls).toHaveLength(1);
-    const shard = argumentsOf(shardCalls[0] ?? '', 'node tools/ci/shard-projects.mjs').join(' ');
-    expect(shard).toMatch(/^"\$\{SHARD\}" /);
-    expect(shard).toMatch(/ <<<"\$\{listed\}"$/);
-    for (const option of [
-      '--scope "${NX_MODE}"',
+    // Its words exactly: the shard, the three options with their values in any order, and the listing as the
+    // one input. A redirect (`>/dev/null`) leaves `projects` empty, which an affected run takes for no work.
+    const shardCall = shardCalls[0] ?? '';
+    const fromListing = ' <<<"${listed}")';
+    expect(shardCall.endsWith(fromListing), shardCall).toBe(true);
+    const [shard, ...options] = argumentsOf(
+      `${shardCall.slice(0, -fromListing.length)})`,
+      'node tools/ci/shard-projects\\.mjs',
+    );
+    expect(shard).toBe('"${SHARD}"');
+    const pairs = options.flatMap((word, at) => (at % 2 === 0 ? [`${word} ${options[at + 1] ?? ''}`] : []));
+    expect([...pairs].sort()).toEqual([
       '--always workspace-checks',
+      '--scope "${NX_MODE}"',
       '--weights "${TEST_WEIGHTS}"',
-    ]) {
-      expect(` ${shard} `, option).toContain(` ${option} `);
-    }
-    expect(shard.split(' ').filter((word) => word.startsWith('--'))).toHaveLength(3);
-    // The shard's own list is what runs; that this is the last command, on its own, is the rule below.
-    expect(lines.at(-1)?.split(' ')).toContain('--projects="${projects}"');
+    ]);
+    // The shard's own list is what runs, with the `test` target and nothing else; that this is the last
+    // command is the rule below.
+    expect(lines.at(-1)).toMatch(PLAIN_TEST_RUN);
     expect(patternOf(selectProjects, 'root_config').test('tools/ci/shard-projects.mjs')).toBe(true);
   });
 
@@ -486,7 +542,10 @@ describe('ci.yml scope decisions', () => {
         'a notice between the block and the tests',
         () => reworded(TEST_RUN, 'echo "::notice title=Test shard ${SHARD}::${projects}"\n$&'),
       ],
-      ['more options on the test run', () => reworded(TEST_RUN, '$1 --parallel=2 --skip-nx-cache\n')],
+      [
+        'the two options of the test run in the other order',
+        () => reworded('-t test --projects="${projects}"', '--projects="${projects}" -t test'),
+      ],
     ])('accepts the sample step %s', (_, rewrite) => {
       expect(emptyShardProblems(rewrite())).toEqual([]);
     });
@@ -608,6 +667,38 @@ describe('ci.yml scope decisions', () => {
         () => reworded('projects=$(', 'function npx { true; }\nprojects=$('),
       ],
       ['npx is an alias', () => reworded('projects=$(', "alias npx='true'\nprojects=$(")],
+      // Rework of #1014 (SECURITY): each of these passed the rule above and failed the lines it replaced.
+      [
+        'the output of the shard call goes nowhere',
+        () => reworded(' <<<"${listed}")', ' >/dev/null <<<"${listed}")'),
+      ],
+      [
+        'the output of the shard call goes to a file',
+        () => reworded(' <<<"${listed}")', ' <<<"${listed}" >shard.txt)'),
+      ],
+      ['the shard call reads another input', () => reworded(' <<<"${listed}")', ' </dev/null)')],
+      ['the shard call reads another variable', () => reworded('<<<"${listed}"', '<<<"${SHARD}"')],
+      ['the shard call expands what the rule cannot read', () => reworded('"${SHARD}"', '"$SHARD"')],
+      ['the test run excludes every project', () => reworded(TEST_RUN, '$1 --exclude=*\n')],
+      ['the test run only prints its help', () => reworded(TEST_RUN, '$1 --help\n')],
+      ['the test run has another target', () => reworded('-t test ', '-t test-none ')],
+      ['the test run has a second target', () => reworded('-t test ', '-t test -t lint ')],
+      ['the test run names its projects twice', () => reworded(TEST_RUN, '$1 --projects=none\n')],
+      [
+        'the test run names other projects',
+        () => reworded('--projects="${projects}"', '--projects="${SHARD}"'),
+      ],
+      ['the test run names no project', () => reworded(' --projects="${projects}"', '')],
+      ['the test run has any other option', () => reworded(TEST_RUN, '$1 --parallel=2\n')],
+      [
+        'npx is a function on the line of another command',
+        () => reworded('projects=$(', 'true; npx() { true; }\nprojects=$('),
+      ],
+      ['npx is hashed to another program', () => reworded(TEST_RUN, 'hash -p /usr/bin/true npx\n$&')],
+      ['PATH is set before the tests', () => reworded(TEST_RUN, 'PATH="/tmp/bin:${PATH}"\n$&')],
+      ['errexit is turned off through shopt', () => reworded(TEST_RUN, 'shopt -u -o errexit\n$&')],
+      ['errexit is turned off in ANSI quotes', () => reworded(TEST_RUN, "set $'+e'\n$&")],
+      ['a command the rule does not know comes first', () => reworded('set -euo pipefail\n', 'true\n$&')],
     ])('rejects the sample step when %s', (_, rewrite) => {
       expect(emptyShardProblems(rewrite())).not.toEqual([]);
     });
