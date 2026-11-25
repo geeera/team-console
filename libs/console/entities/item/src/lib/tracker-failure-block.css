@@ -1,6 +1,7 @@
 /* #409: clay for a failure (#107's), ochre for "it changed". */
 :host {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   justify-items: start;
   gap: var(--space-1);
   padding: var(--space-4);

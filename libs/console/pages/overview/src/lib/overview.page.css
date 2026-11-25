@@ -10,6 +10,7 @@
 
 .overview__head {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
 }
 
@@ -42,6 +43,7 @@
 
 .overview__empty {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-1);
   padding: var(--space-4) var(--space-5);
   border: var(--border-w) dashed var(--border-strong);
