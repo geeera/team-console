@@ -777,7 +777,8 @@ GitHub, api inspector, fake GitHub inspector, fake push, fake push inspector at 
 also keeps its own state, logs and Playwright output (`tmp/console-e2e-<base>/`, `test-output-<base>`), so runs side by
 side in one checkout do not clear each other's. The stack's processes get an allowlisted environment
 (`stack/stack-env.ts`), never the host's, and a throwaway `HOME` (`tmp/console-e2e[-<base>]/home`, mode 0700, cleared at
-the start of each run, #997) instead of the developer's, so nothing they run reads or writes the real one. A server stops by itself when the worker that started it is gone
+the start of each run, #997) instead of the developer's, so nothing they run reads or writes the real one. A server
+stops by itself when the worker that started it is gone
 (`stack/orphan-watch.mts`), and the next start stops whatever a killed run still left on its ports
 (`stack/stale-servers.ts`). Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the

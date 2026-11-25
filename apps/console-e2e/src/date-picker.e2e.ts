@@ -1,4 +1,4 @@
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, TestInfo } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
@@ -30,17 +30,18 @@ async function milestoneWrites(
   ).milestoneWrites;
 }
 
-const isPhone = (): boolean => test.info().project.name !== 'desktop';
+const isPhone = (testInfo: TestInfo): boolean => testInfo.project.name !== 'desktop';
 const moveDialog = (page: Page) => page.getByRole('alertdialog');
 const dateField = (page: Page) => moveDialog(page).getByLabel(ru('commands.demo.field'));
 const calendarButton = (page: Page, day: string) =>
   moveDialog(page).getByRole('button', { name: ru('ui.datePicker.openWith', { date: shown(day) }) });
 /** The calendar: the popover, or the sheet named by the field on the phone. */
-const calendar = (page: Page) =>
-  isPhone()
+const calendar = (page: Page, testInfo: TestInfo) =>
+  isPhone(testInfo)
     ? page.getByRole('dialog', { name: ru('commands.demo.field') })
     : page.locator('tc-date-picker-panel[role="dialog"]');
-const day = (page: Page, value: string) => calendar(page).locator(`[data-day="${value}"]`);
+const day = (page: Page, testInfo: TestInfo, value: string) =>
+  calendar(page, testInfo).locator(`[data-day="${value}"]`);
 
 async function openMoveDemo(page: Page): Promise<void> {
   await page.goto('/p/team-console/questions');
@@ -63,8 +64,8 @@ async function settled(locator: Locator): Promise<void> {
 }
 
 /** Tap on the touch projects, click on the desktop. */
-async function press(locator: Locator): Promise<void> {
-  await (isPhone() ? locator.tap() : locator.click());
+async function press(locator: Locator, testInfo: TestInfo): Promise<void> {
+  await (isPhone(testInfo) ? locator.tap() : locator.click());
 }
 
 /** Sideways overflow anywhere on screen: the document, or an element past the right edge. */
@@ -122,38 +123,41 @@ test('«Перенести демо» has no native date input: a typed field an
   await expect(calendarButton(page, DUE)).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('pick a date in the calendar and move the demo', async ({ page, stack }) => {
+test('pick a date in the calendar and move the demo', async ({ page, stack }, testInfo) => {
   const before = (await milestoneWrites(stack)).length;
   await openMoveDemo(page);
-  await press(calendarButton(page, DUE));
-  await expect(calendar(page)).toBeVisible();
-  await settled(calendar(page));
+  await press(calendarButton(page, DUE), testInfo);
+  await expect(calendar(page, testInfo)).toBeVisible();
+  await settled(calendar(page, testInfo));
 
   // Opens on the demo's day; today is marked; the past cannot be picked.
-  await expect(day(page, DUE)).toHaveAttribute('aria-selected', 'true');
-  await expect(day(page, DUE)).toBeFocused();
+  await expect(day(page, testInfo, DUE)).toHaveAttribute('aria-selected', 'true');
+  await expect(day(page, testInfo, DUE)).toBeFocused();
   // #346: the current demo is circled and the freeze is hatched, both named for a screen reader.
-  await expect(day(page, DUE)).toHaveClass(/tc-date-panel__day--marked/);
-  await expect(day(page, DUE)).toHaveAttribute('aria-label', new RegExp(ru('commands.demo.markedDay')));
-  await expect(calendar(page).locator('.tc-date-panel__day--hatched').first()).toHaveAttribute(
+  await expect(day(page, testInfo, DUE)).toHaveClass(/tc-date-panel__day--marked/);
+  await expect(day(page, testInfo, DUE)).toHaveAttribute(
+    'aria-label',
+    new RegExp(ru('commands.demo.markedDay')),
+  );
+  await expect(calendar(page, testInfo).locator('.tc-date-panel__day--hatched').first()).toHaveAttribute(
     'aria-label',
     new RegExp(ru('commands.demo.frozenDay')),
   );
-  const yesterday = day(page, addDays(TODAY, -1));
+  const yesterday = day(page, testInfo, addDays(TODAY, -1));
   if ((await yesterday.count()) > 0) {
     await expect(yesterday).toHaveAttribute('aria-disabled', 'true');
   }
-  if ((await day(page, TODAY).count()) > 0) {
-    await expect(day(page, TODAY)).toHaveAttribute('aria-current', 'date');
+  if ((await day(page, testInfo, TODAY).count()) > 0) {
+    await expect(day(page, testInfo, TODAY)).toHaveAttribute('aria-current', 'date');
   }
-  if (isPhone()) {
+  if (isPhone(testInfo)) {
     // A sheet over the «Перенести демо» sheet, its actions in the footer with «Готово» first.
-    const foot = calendar(page).locator('.tc-sheet__foot button');
+    const foot = calendar(page, testInfo).locator('.tc-sheet__foot button');
     await expect(foot).toHaveText([ru('ui.datePicker.done'), ru('ui.datePicker.today')]);
     for (const target of [
-      day(page, DUE),
-      calendar(page).getByRole('button', { name: ru('ui.datePicker.next') }),
-      calendar(page).getByRole('button', { name: ru('ui.close') }),
+      day(page, testInfo, DUE),
+      calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.next') }),
+      calendar(page, testInfo).getByRole('button', { name: ru('ui.close') }),
       foot.first(),
       foot.last(),
     ]) {
@@ -166,7 +170,7 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
     // with a sixth calendar row the grid is taller than the room below, so the strategy's fallback position
     // flips it above the field instead — either way it must not overlap the field it belongs to.
     const field = await dateField(page).boundingBox();
-    const popover = await calendar(page).boundingBox();
+    const popover = await calendar(page, testInfo).boundingBox();
     const below = popover !== null && field !== null && popover.y >= field.y + field.height;
     const above = popover !== null && field !== null && popover.y + popover.height <= field.y;
     expect(below || above, 'the calendar popover must not overlap the date field').toBe(true);
@@ -177,20 +181,20 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
 
   // Pick: a day selects, «Готово» commits.
   const moved = addDays(DUE, 2);
-  if ((await day(page, moved).count()) === 0) {
-    await press(calendar(page).getByRole('button', { name: ru('ui.datePicker.next') }));
+  if ((await day(page, testInfo, moved).count()) === 0) {
+    await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.next') }), testInfo);
   }
-  await press(day(page, moved));
-  await expect(day(page, moved)).toHaveAttribute('aria-selected', 'true');
+  await press(day(page, testInfo, moved), testInfo);
+  await expect(day(page, testInfo, moved)).toHaveAttribute('aria-selected', 'true');
   await expect(dateField(page)).toHaveValue(shown(DUE));
-  await press(calendar(page).getByRole('button', { name: ru('ui.datePicker.done') }));
-  await expect(calendar(page)).toHaveCount(0);
+  await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.done') }), testInfo);
+  await expect(calendar(page, testInfo)).toHaveCount(0);
   await expect(dateField(page)).toHaveValue(shown(moved));
   await expect(calendarButton(page, moved)).toBeFocused();
 
   const ok = moveDialog(page).locator('.tc-confirm__ok');
   await expect(ok).not.toHaveText(ru('commands.demo.same'));
-  await press(ok);
+  await press(ok, testInfo);
   await expect(moveDialog(page)).toHaveCount(0);
   expect((await milestoneWrites(stack)).slice(before)).toEqual([
     expect.objectContaining({ method: 'PATCH', number: 2, body: `{"due_on":"${moved}T12:00:00Z"}` }),
@@ -200,7 +204,7 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }) =>
 test('keyboard only: open, move with the APG keys, Escape changes nothing, Enter commits, Enter sends', async ({
   page,
   stack,
-}) => {
+}, testInfo) => {
   const before = (await milestoneWrites(stack)).length;
   await openMoveDemo(page);
   // From the dialog's first focus (Cancel) to the calendar button by Tab alone.
@@ -215,47 +219,47 @@ test('keyboard only: open, move with the APG keys, Escape changes nothing, Enter
   await expect(button).toBeFocused();
 
   await page.keyboard.press('Enter');
-  await expect(calendar(page)).toBeVisible();
-  await expect(day(page, DUE)).toBeFocused();
+  await expect(calendar(page, testInfo)).toBeVisible();
+  await expect(day(page, testInfo, DUE)).toBeFocused();
   await expect(button).toHaveAttribute('aria-expanded', 'true');
 
   // ← → ↑ ↓, Home/End, PageDown/PageUp: focus moves, the selection stays.
   await page.keyboard.press('ArrowRight');
-  await expect(day(page, addDays(DUE, 1))).toBeFocused();
+  await expect(day(page, testInfo, addDays(DUE, 1))).toBeFocused();
   await page.keyboard.press('ArrowDown');
-  await expect(day(page, addDays(DUE, 8))).toBeFocused();
+  await expect(day(page, testInfo, addDays(DUE, 8))).toBeFocused();
   await page.keyboard.press('ArrowUp');
   await page.keyboard.press('ArrowLeft');
-  await expect(day(page, DUE)).toBeFocused();
+  await expect(day(page, testInfo, DUE)).toBeFocused();
   await page.keyboard.press('PageDown');
-  await expect(calendar(page).locator('[data-day][tabindex="0"]')).toHaveAttribute(
+  await expect(calendar(page, testInfo).locator('[data-day][tabindex="0"]')).toHaveAttribute(
     'data-day',
     /^\d{4}-\d{2}-\d{2}$/,
   );
   await page.keyboard.press('PageUp');
-  await expect(day(page, DUE)).toBeFocused();
+  await expect(day(page, testInfo, DUE)).toBeFocused();
   await page.keyboard.press('End');
-  await expect(calendar(page).locator('[data-day][tabindex="0"]')).toBeFocused();
+  await expect(calendar(page, testInfo).locator('[data-day][tabindex="0"]')).toBeFocused();
   await page.keyboard.press('Home');
-  await expect(calendar(page).locator('[data-day][tabindex="0"]')).toBeFocused();
+  await expect(calendar(page, testInfo).locator('[data-day][tabindex="0"]')).toBeFocused();
   await expectAccessible(page, 'The demo date calendar, keyboard focus in the grid');
 
   // Escape: the calendar closes, the value and the «Перенести демо» dialog stay, focus is back on the button.
   await page.keyboard.press('Escape');
-  await expect(calendar(page)).toHaveCount(0);
+  await expect(calendar(page, testInfo)).toHaveCount(0);
   await expect(moveDialog(page)).toBeVisible();
   await expect(dateField(page)).toHaveValue(shown(DUE));
   await expect(button).toBeFocused();
 
   // Enter on a day commits and closes.
   await page.keyboard.press('Enter');
-  await expect(day(page, DUE)).toBeFocused();
+  await expect(day(page, testInfo, DUE)).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
   const moved = addDays(DUE, 2);
-  await expect(day(page, moved)).toBeFocused();
+  await expect(day(page, testInfo, moved)).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(calendar(page)).toHaveCount(0);
+  await expect(calendar(page, testInfo)).toHaveCount(0);
   await expect(dateField(page)).toHaveValue(shown(moved));
   await expect(calendarButton(page, moved)).toBeFocused();
 

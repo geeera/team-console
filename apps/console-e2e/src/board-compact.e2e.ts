@@ -414,8 +414,10 @@ const MID_WIDTHS = [
 ] as const;
 
 for (const { name, viewport, pane } of MID_WIDTHS) {
-  test(`${name}: two columns, PRs on the first screen, no tile alone on its row`, async ({ page }) => {
-    test.skip(test.info().project.name !== 'desktop', 'a Mac-width layout');
+  test(`${name}: two columns, PRs on the first screen, no tile alone on its row`, async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'a Mac-width layout');
     await page.setViewportSize(viewport);
     await openBoard(page);
     if (pane) {

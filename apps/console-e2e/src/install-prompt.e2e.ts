@@ -25,7 +25,6 @@ test.beforeAll(async ({ stack }) => {
   await seed(stack, ['geeera/team-console']);
 });
 
-const isProject = (page: Page, name: string): boolean => test.info().project.name === name;
 const card = (page: Page): Locator => page.getByTestId('install-card');
 const heading = (page: Page): Locator => page.getByRole('heading', { level: 1, name: ru('needsYou.title') });
 const stored = (page: Page): Promise<unknown> =>
@@ -86,7 +85,7 @@ test.describe('Chromium: one tap to the native dialog', () => {
   test('the card on Needs you holds the push nudge, and Install opens the dialog to the success line', async ({
     page,
     request,
-  }) => {
+  }, testInfo) => {
     await offerNativeInstall(page, 'accepted');
     await page.goto('/needs-you');
     const name = await appName(page, request);
@@ -97,7 +96,7 @@ test.describe('Chromium: one tap to the native dialog', () => {
     expect(await card(page).evaluate((element) => getComputedStyle(element).position)).toBe('static');
     const install = card(page).getByTestId('install-card-install');
     await expect(install).toHaveAccessibleName(ru('install.card.installAria', { app: name }));
-    if (isProject(page, 'iphone')) {
+    if (testInfo.project.name === 'iphone') {
       await expectTapTargets([install, card(page).getByTestId('install-card-later'), card(page).getByTestId('install-card-never')]);
     }
     await expectAccessible(page, 'Needs you with the install card (Chromium)');
@@ -156,8 +155,8 @@ test.describe('Chromium: one tap to the native dialog', () => {
 test.describe('Chromium: a late install event', () => {
   test.use({ userAgent: MAC_CHROME });
 
-  test('is not inserted above the screen being read; it shows on the next screen opened', async ({ page }) => {
-    test.skip(!isProject(page, 'desktop'), 'the sidebar is the wide-screen way to the next screen');
+  test('is not inserted above the screen being read; it shows on the next screen opened', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'desktop', 'the sidebar is the wide-screen way to the next screen');
     await page.goto('/needs-you');
     await expect(page.locator('li[data-number]').first()).toBeVisible();
     await page.evaluate(() => {
@@ -186,8 +185,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
   test('How to install opens the three steps inside the card; Not now snoozes and focuses the heading', async ({
     page,
     request,
-  }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.goto('/needs-you');
     const name = await appName(page, request);
     await expect(card(page)).toBeVisible();
@@ -213,8 +212,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     await expect(page.getByRole('status').filter({ hasText: ru('install.toast') })).toBeVisible();
   });
 
-  test('a snooze holds across a reload and ends with the clock 15 days on', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('a snooze holds across a reload and ends with the clock 15 days on', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.goto('/needs-you');
     await card(page).getByTestId('install-card-later').click();
     await page.reload();
@@ -229,8 +228,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     await expect(card(page)).toBeVisible();
   });
 
-  test('Don’t show again holds for good', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('Don’t show again holds for good', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.goto('/needs-you');
     await card(page).getByTestId('install-card-never').click();
     await expect(heading(page)).toBeFocused();
@@ -245,8 +244,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     await expect(card(page)).toHaveCount(0);
   });
 
-  test('three ignored launches snooze it on the fourth, without a toast', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('three ignored launches snooze it on the fourth, without a toast', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     for (let launch = 1; launch <= 3; launch += 1) {
       if (launch === 1) {
         await page.goto('/needs-you');
@@ -264,8 +263,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     expect(await stored(page)).toMatchObject({ choice: 'snoozed', auto: true });
   });
 
-  test('with storage refusing writes nothing breaks and Not now holds until the reload', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('with storage refusing writes nothing breaks and Not now holds until the reload', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.addInitScript(() => {
       Storage.prototype.setItem = () => {
         throw new DOMException('quota', 'QuotaExceededError');
@@ -281,8 +280,8 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
 
   test('in a project space the card stays in the flow and every bottom tab stays clickable (#368)', async ({
     page,
-  }) => {
-    test.skip(!isProject(page, 'iphone'), 'the bottom tab bar is the phone layout');
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the bottom tab bar is the phone layout');
     for (const width of [375, 390]) {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/p/team-console/board');
@@ -309,16 +308,16 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     }
   });
 
-  test('under reduced motion the card appears without animation', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('under reduced motion the card appears without animation', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/needs-you');
     const duration = await card(page).evaluate((element) => parseFloat(getComputedStyle(element).animationDuration) * 1000);
     expect(duration).toBeLessThanOrEqual(1);
   });
 
-  test('the English card reads in English', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('the English card reads in English', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.addInitScript(() => localStorage.setItem('tc.lang.v1', 'en'));
     await page.goto('/needs-you');
     await expect(card(page)).toContainText(en('install.card.bodyIos'));
@@ -333,8 +332,8 @@ test.describe('the installed app', () => {
     });
   });
 
-  test('shows no card, and Settings › App says installed with no action', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Home Screen app');
+  test('shows no card, and Settings › App says installed with no action', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Home Screen app');
     await page.goto('/needs-you');
     await expect(page.locator('li[data-number]').first()).toBeVisible();
     await expect(card(page)).toHaveCount(0);
@@ -349,8 +348,8 @@ test.describe('the installed app', () => {
 });
 
 test.describe('Settings › App', () => {
-  test('sits between GitHub and Notifications; on iPhone Safari the steps live there only once', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('sits between GitHub and Notifications; on iPhone Safari the steps live there only once', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.goto('/settings');
     await expect(page.getByTestId('push-section')).toBeVisible();
     const titles = await page.locator('h2').allTextContents();
@@ -368,8 +367,8 @@ test.describe('Settings › App', () => {
     await expectAccessible(page, 'Settings › App, iPhone steps open');
   });
 
-  test('the push nudge’s How to turn on leads there with the steps open', async ({ page }) => {
-    test.skip(!isProject(page, 'iphone'), 'the iPhone Safari agent');
+  test('the push nudge’s How to turn on leads there with the steps open', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.addInitScript((key) => localStorage.setItem(key, JSON.stringify({ choice: 'never' })), KEY);
     await page.goto('/needs-you');
     await page.getByTestId('push-nudge-how').click();
