@@ -195,6 +195,7 @@ export async function blockingViolations(page: Page): Promise<BlockingViolation[
       throw new AggregateError(
         [error, restoreError],
         'the axe scan failed, and so did restoring the motion preference after it',
+        { cause: restoreError },
       );
     }
     throw error;
