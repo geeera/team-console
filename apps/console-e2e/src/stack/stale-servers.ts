@@ -36,7 +36,7 @@ export interface ServerRecord {
 export const SERVER_TOKEN_FLAG = '--stack-server=';
 
 const KILL_TIMEOUT_MS = 5_000;
-/** Where Miniflare puts the executable's arguments: `<path>/workerd serve --binary … --socket-addr=entry=<host>:<port> …`. */
+/** How Miniflare starts it: `<path>/workerd serve --binary … --socket-addr=entry=<host>:<port> …`. */
 const WORKERD_SERVE = '/workerd serve ';
 const STACK_HOST = '127.0.0.1';
 
