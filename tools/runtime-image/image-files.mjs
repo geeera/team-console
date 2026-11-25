@@ -38,7 +38,6 @@ export const OWNER = { uid: 1000, gid: 1000 };
  */
 export const RUNTIME_COPIES = [
   { stage: 'runtime-deps', path: '/app/package.json' },
-  { stage: 'runtime-deps', path: '/app/package-lock.json' },
   { stage: 'runtime-deps', path: '/app/node_modules' },
   { stage: 'build', path: '/app/dist/apps/console/browser' },
   { stage: 'build', path: '/app/dist/apps/api' },
