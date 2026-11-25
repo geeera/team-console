@@ -27,8 +27,9 @@ RUN npx nx run-many -t build
 # A bare `npm install wrangler` re-resolved the tree and dropped the root `overrides` (sharp, undici). Pruning the
 # `npm ci` tree keeps the exact lockfile versions, and the build fails unless the result is that tree (#819):
 # tools/runtime-image/check-runtime-tree.mjs compares the workspace lockfile, the pruned lockfile and node_modules
-# in both directions and refuses a comparison too small to be the wrangler tree; `npm ls --all` is npm's own verdict
-# on the same tree (it exits non-zero on a missing, invalid or extraneous package).
+# in both directions and refuses a comparison too small to be the wrangler tree. `npm ls --all` adds npm's verdict on
+# the dependency edges: it exits non-zero on a missing or invalid dependency, but 0 on an extraneous package, which
+# is why the script walks the disk itself.
 FROM deps AS runtime-deps
 COPY <<'EOF' /tmp/runtime-package.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
