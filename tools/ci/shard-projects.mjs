@@ -4,7 +4,7 @@
 // for `nx run-many --projects=…` (an empty line for a shard with nothing to run).
 //
 //   nx show projects --with-target test --json \
-//     | node tools/ci/shard-projects.mjs <index>/<total> [--scope affected|run-many] [--always a,b] [--weights a=14,b=5]
+//     | node tools/ci/shard-projects.mjs <index>/<total> --scope affected|run-many [--always a,b] [--weights a=14,b=5]
 //
 // Every job of the matrix runs this on the same list and gets its own slice of one split: each project lands in
 // exactly one shard, so no test is skipped and none runs twice. The split is by weight (how long a project's
@@ -13,8 +13,10 @@
 //
 // `--scope run-many` says the list is the whole workspace (#999). Such a run always has tests to run, so an empty
 // list on stdin, or a shard left with nothing, means the listing went wrong and is an error: the shard would
-// otherwise be green without running a test. An affected run (the default) may really have nothing to test — a
-// change no project owns — so there an empty shard stays an empty line and success.
+// otherwise be green without running a test. An affected run may really have nothing to test — a change no
+// project owns — so there an empty shard stays an empty line and success.
+// `--scope` is required (#1005): `affected` is the permissive answer, so a caller that drops the option must
+// fail, not quietly get the scope in which an empty shard is fine.
 //
 // Fails closed: a list that is not a JSON array of plain project names, or a malformed argument, exits non-zero
 // with nothing on stdout, so the caller's `$(…)` under `set -e` stops the job instead of running no tests.
@@ -56,8 +58,11 @@ function assertProjectName(name, where) {
   }
 }
 
-/** A `--scope` value: `affected`, or `run-many` for a run of every project. */
+/** A `--scope` value: `affected`, or `run-many` for a run of every project. No default: see the header. */
 export function parseScope(text) {
+  if (text === undefined) {
+    throw new InputError('--scope is missing; it is required, affected or run-many');
+  }
   if (!SCOPES.includes(text)) {
     throw new InputError('--scope is neither affected nor run-many');
   }
@@ -68,7 +73,8 @@ export function parseScope(text) {
  * The projects shard `index` of `total` runs. `listed` is what Nx listed, `always` what runs whatever was listed.
  * In a full run (`scope` is `run-many`) nothing listed, or nothing for this shard, throws: see the header.
  */
-export function selectShard({ listed, always = [], index, total, weights = new Map(), scope = 'affected' }) {
+export function selectShard({ listed, always = [], index, total, weights = new Map(), scope }) {
+  parseScope(scope);
   if (scope === FULL_RUN && listed.length === 0) {
     throw new InputError('a full run listed no project with a test target');
   }
@@ -141,12 +147,18 @@ export function splitIntoShards(projects, total, weights = new Map()) {
 
 function parseArguments(argv) {
   const [shard, ...options] = argv;
-  const parsed = { ...parseShard(shard), always: [], weights: new Map(), scope: 'affected' };
+  const parsed = { ...parseShard(shard), always: [], weights: new Map(), scope: undefined };
+  const seen = new Set();
   for (let at = 0; at < options.length; at += 2) {
     const value = options[at + 1];
     if (value === undefined) {
       throw new InputError('an option is missing its value');
     }
+    // The last one would win: `--scope run-many --scope affected` must not turn a full run permissive.
+    if (seen.has(options[at])) {
+      throw new InputError('an option is given twice');
+    }
+    seen.add(options[at]);
     if (options[at] === '--always') {
       parsed.always = parseNames(value);
     } else if (options[at] === '--weights') {
@@ -157,6 +169,7 @@ function parseArguments(argv) {
       throw new InputError('unknown option; only --scope, --always and --weights exist');
     }
   }
+  parseScope(parsed.scope);
   return parsed;
 }
 
@@ -169,7 +182,7 @@ function main(argv) {
     const reason = error instanceof InputError ? error.message : 'could not read the project list on stdin';
     process.stderr.write(
       `::error::shard-projects: ${reason}. See #992.\n` +
-        'usage: shard-projects.mjs <index>/<total> [--scope affected|run-many] [--always a,b] [--weights a=14,b=5] < projects.json\n',
+        'usage: shard-projects.mjs <index>/<total> --scope affected|run-many [--always a,b] [--weights a=14,b=5] < projects.json\n',
     );
     return 1;
   }

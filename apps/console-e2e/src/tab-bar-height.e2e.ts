@@ -10,8 +10,8 @@ import { seed } from './support/stack';
 
 const BOARD = '/p/team-console/board';
 
-test.beforeEach(async ({ stack }) => {
-  test.skip(test.info().project.name !== 'iphone', 'the bottom tab bar is the phone layout');
+test.beforeEach(async ({ stack }, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone', 'the bottom tab bar is the phone layout');
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
 });

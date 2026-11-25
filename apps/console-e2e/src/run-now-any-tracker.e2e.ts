@@ -233,8 +233,8 @@ test('D3: another owner’s subscription runner and the owner’s own one each g
 test('with much wider type the no-runner blocks wrap inside the runs column, beside the issues on a 1280 px screen', async ({
   page,
   stack,
-}) => {
-  test.skip(test.info().project.name !== 'desktop', 'the runs column sits beside the issues on a wide screen only');
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'the runs column sits beside the issues on a wide screen only');
   await seed(stack, ['geeera/team-console']);
   await page.setViewportSize({ width: 1280, height: 800 });
   const none = page.getByTestId('runs').getByTestId('jobs-none');

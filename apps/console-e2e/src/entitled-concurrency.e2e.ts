@@ -72,7 +72,7 @@ test('max_concurrency 0 starts no job, and Needs you says why until the operator
     await expect(page.getByRole('list', { name: ru('needsYou.attention.label') })).toContainText(name);
     await expect(page.getByTestId('empty')).toHaveCount(0);
     await expectAccessible(page, 'Needs you, no concurrency entitled');
-    await page.getByTestId('project-attention').screenshot({ path: test.info().outputPath('needs-you-concurrency.png') });
+    await page.getByTestId('project-attention').screenshot({ path: testInfo.outputPath('needs-you-concurrency.png') });
 
     await setOwnerAccount(testInfo.workerIndex, 'team', '{}');
     await page.reload();

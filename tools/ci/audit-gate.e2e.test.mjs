@@ -156,4 +156,6 @@ function runAuditGate({ allowlist, report, npmExitCode }) {
   assert.notStrictEqual(result.stdout + result.stderr, '', 'main() must actually run and produce output');
 }
 
-process.stdout.write('ok: audit-gate.mjs runs main() and reports correctly when spawned from a path with a space\n');
+process.stdout.write(
+  'ok: audit-gate.mjs runs main() and reports correctly when spawned from a path with a space\n',
+);
