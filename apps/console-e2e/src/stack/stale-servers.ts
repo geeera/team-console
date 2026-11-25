@@ -1,7 +1,9 @@
 import {
-  chmodSync,
+  closeSync,
+  constants,
   existsSync,
-  mkdirSync,
+  fchmodSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -9,6 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, join, sep } from 'node:path';
+import { privateDirectory } from './private-directory';
 import { groupOf, type GroupMember } from './process-group';
 import { signal } from './process-signal';
 import { WORKSPACE_ROOT } from './workspace';
@@ -46,7 +49,8 @@ import { WORKSPACE_ROOT } from './workspace';
  *   the stack's and killed. It would be holding the very port the stack is about to bind. The start time does not
  *   close this one: the recorded leader is gone, and a workerd it forked started at some later moment of its own.
  *
- * A record names a process to kill, so only its owner may read or write it: mode 0600 (#1006).
+ * A record names a process to kill, so only its owner may read or write it: mode 0600 (#1006), in a directory only
+ * its owner may list or change, mode 0700 (#1013).
  */
 export interface ServerRecord {
   /** The server's pid, which is also its process group. */
@@ -98,25 +102,38 @@ const RECORD_MODE = 0o600;
 
 /**
  * When the system started the leader of the group `pid`, for its record; `null` when it is not running (any more).
- * Read through `groupOf`, so the record and the later check take it from the same source.
+ * Read through `groupOf`, so the record and the later check take it from the same source. `null` as well for a
+ * leader the system's line could not be read for: there is no start time to record.
  */
 export function startedAtOf(pid: number, control: StaleServerControl = SYSTEM_CONTROL): string | null {
-  return control.groupOf(pid).find((member) => member.pid === pid)?.startedAt ?? null;
+  const leader = control.groupOf(pid).find((member) => member.pid === pid);
+  return leader === undefined || leader.unreadable === true ? null : leader.startedAt;
 }
 
 /**
  * Files `record` under `port`: the port is part of what identifies the server later (`isStackWorkerd`).
  *
- * Whatever is at the path goes first, and the record is then created anew (`wx`): a mode only applies to a file
+ * Whatever is at the path goes first, and the record is then created anew (`O_EXCL`): a mode only applies to a file
  * being created, so a record left open to others would stay open, and a link put there would be written through.
- * The `chmod` is for a umask that takes owner bits away; it cannot give others any.
+ * The `fchmod` is for a umask that takes owner bits away; it cannot give others any. It goes through the descriptor
+ * of the file just created (#1013): a `chmod` by path would follow a link swapped in after the create. One writer
+ * in the stack, so the write stays here; the directory rule has two and is shared (`privateDirectory`).
  */
 export function recordServer(dir: string, port: number, record: ServerRecord): void {
-  mkdirSync(dir, { recursive: true });
+  privateDirectory(dir);
   const path = recordPath(dir, port);
   rmSync(path, { force: true });
-  writeFileSync(path, JSON.stringify(record), { mode: RECORD_MODE, flag: 'wx' });
-  chmodSync(path, RECORD_MODE);
+  const descriptor = openSync(
+    path,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    RECORD_MODE,
+  );
+  try {
+    fchmodSync(descriptor, RECORD_MODE);
+    writeFileSync(descriptor, JSON.stringify(record));
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /** Drops the record of `port` if it is still `pid`'s: a later server on the same port keeps its own. */
@@ -223,6 +240,8 @@ export interface StackIdentity {
  * Whether `group` — the processes of the group `record.pid` now — is the server `record` was written for. A live
  * leader is, when it started at the recorded moment and its arguments after the executable are the server's own,
  * word for word and nothing more: a word that merely contains the token among other text is not one of them.
+ * A group with a member that could not be read (`GroupMember.unreadable`) is nobody's, leader or not (#1013): what
+ * is not known about it might be the very thing that tells it apart.
  */
 export function isRecorded(
   record: ServerRecord,
@@ -230,6 +249,9 @@ export function isRecorded(
   group: readonly GroupMember[],
   stack: StackIdentity,
 ): boolean {
+  if (group.some((member) => member.unreadable === true)) {
+    return false;
+  }
   const leader = group.find((member) => member.pid === record.pid);
   if (leader !== undefined) {
     const args = leader.argv.slice(1);

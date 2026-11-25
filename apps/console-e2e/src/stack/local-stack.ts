@@ -56,7 +56,10 @@ export const E2E_RUNNER_IMAGE_DIGEST = `sha256:${'e2e0'.repeat(16)}`;
  * run's throwaway home, and `own`. Every spawn of the suite goes through here; none passes `process.env` on.
  */
 export function stackEnv(own: Readonly<Record<string, string>>): Record<string, string> {
-  return stackChildEnv(process.env, stackHome(STACKS_DIR), { WRANGLER_SEND_METRICS: 'false', ...own });
+  return stackChildEnv(process.env, stackHome(STACKS_DIR, WORKSPACE_ROOT), {
+    WRANGLER_SEND_METRICS: 'false',
+    ...own,
+  });
 }
 
 /** Log lines of a server that stopped serving on its own: workerd died and Miniflare restarted it in place (#230). */

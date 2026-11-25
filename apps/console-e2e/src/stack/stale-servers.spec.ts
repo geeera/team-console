@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -305,6 +306,36 @@ describe('stopStaleServers', () => {
     expect(table.killed).toEqual([]);
   });
 
+  it('leaves a leaderless group alone when one member could not be read, whatever the others are', async () => {
+    const table = control({
+      4242: [
+        { pid: 4250, argv: workerd(8700), startedAt: LATER },
+        { pid: 4251, argv: [], startedAt: '', unreadable: true },
+      ],
+    });
+    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+
+    const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
+
+    expect(stopped).toEqual([]);
+    expect(table.killed).toEqual([]);
+  });
+
+  it('leaves the group of a matching leader alone when another member could not be read', async () => {
+    const table = control({
+      4242: [
+        { pid: 4242, argv: server('abc'), startedAt: STARTED },
+        { pid: 4250, argv: [], startedAt: '', unreadable: true },
+      ],
+    });
+    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+
+    const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
+
+    expect(stopped).toEqual([]);
+    expect(table.killed).toEqual([]);
+  });
+
   it('never takes a leader for a server when the expected arguments do not carry the token', async () => {
     const table = control({ 4242: [{ pid: 4242, argv: ['node', 'serve-worker.mts'], startedAt: STARTED }] });
     recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
@@ -424,6 +455,15 @@ describe('isRecorded', () => {
     ).toBe(false);
   });
 
+  it('refuses a group whose leader could not be read, also when the rest is the workerd of this stack', () => {
+    const unreadLeader = { pid: 4242, argv: [], startedAt: '', unreadable: true } as const;
+
+    expect(isRecorded(record, 8700, [unreadLeader], stack)).toBe(false);
+    expect(
+      isRecorded(record, 8700, [unreadLeader, { pid: 4250, argv: workerd(8700), startedAt: LATER }], stack),
+    ).toBe(false);
+  });
+
   it('leaves a server alone through ps when its script path has a space: the rule fails closed', () => {
     const spaced = ['--experimental-strip-types', '/my repo/serve-worker.mts', `${SERVER_TOKEN_FLAG}abc`];
     const argv = ['node', ...spaced];
@@ -463,6 +503,44 @@ describe('recordServer', () => {
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(record);
   });
 
+  it('makes the directory of the records for its owner only, and closes one that is already there', () => {
+    const made = join(dir, 'run/servers');
+    recordServer(made, 8700, record);
+    expect(modeOf(made)).toBe(0o700);
+
+    const open = join(dir, 'open');
+    mkdirSync(open);
+    // Past the umask, which would have closed part of it already.
+    chmodSync(open, 0o777);
+    recordServer(open, 8700, record);
+    expect(modeOf(open)).toBe(0o700);
+    expect(JSON.parse(readFileSync(join(open, '8700.json'), 'utf8'))).toEqual(record);
+  });
+
+  it('refuses a directory of records that is a link: nothing is written where it points, and its mode stays', () => {
+    const real = join(dir, 'the-real-servers');
+    mkdirSync(real);
+    chmodSync(real, 0o755);
+    symlinkSync(real, join(dir, 'servers'));
+
+    expect(() => recordServer(join(dir, 'servers'), 8700, record)).toThrow(/servers is a symbolic link/);
+
+    expect(readdirSync(real)).toEqual([]);
+    expect(modeOf(real)).toBe(0o755);
+  });
+
+  it('writes a record for its owner only under a umask that would take owner bits away', () => {
+    const before = process.umask(0o277);
+    try {
+      recordServer(dir, 8700, record);
+    } finally {
+      process.umask(before);
+    }
+
+    expect(modeOf(join(dir, '8700.json'))).toBe(0o600);
+    expect(JSON.parse(readFileSync(join(dir, '8700.json'), 'utf8'))).toEqual(record);
+  });
+
   it('does not write through a link left at the path of the record: the link goes, its target stays as it was', () => {
     const target = join(dir, 'elsewhere.txt');
     writeFileSync(target, 'not a record');
@@ -478,6 +556,12 @@ describe('recordServer', () => {
 });
 
 describe('startedAtOf', () => {
+  it('tells nothing for a leader that could not be read: there is no start time to record', () => {
+    const table = control({ 4242: [{ pid: 4242, argv: [], startedAt: '', unreadable: true }] });
+
+    expect(startedAtOf(4242, table)).toBeNull();
+  });
+
   it('tells when a live server started, the same at every reading, and nothing once it is gone', async () => {
     const pid = await startIdleServer(randomUUID());
 
