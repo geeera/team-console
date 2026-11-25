@@ -12,10 +12,12 @@ import {
 } from './animation-settle';
 
 // A real round caps at 3 s; small numbers keep the timed cases fast.
-const OPTIONS: SettleOptions = { quietFrames: 4, maxWaitMs: 300, slackMs: 20 };
+const OPTIONS: SettleOptions = { quietFrames: 4, maxWaitMs: 300, slackMs: 20, maxTotalMs: 400 };
 
 interface FakeAnimation extends SettleAnimation {
   playState: string;
+  /** What the animation's clock reads; a test moves it to play a slow or a frozen clock. */
+  localTime: number;
   finish(): void;
   cancel(): void;
 }
@@ -51,6 +53,7 @@ function fakeAnimation(
   const animation: FakeAnimation = {
     id: '',
     playState: init.playState ?? 'running',
+    localTime: init.localTime ?? 0,
     playbackRate: 1,
     finished,
     animationName: init.name ?? 'm-enter',
@@ -58,7 +61,7 @@ function fakeAnimation(
       getComputedTiming: () => ({
         iterations: init.iterations ?? 1,
         endTime: init.endTime ?? 240,
-        localTime: init.localTime ?? 0,
+        localTime: animation.localTime,
       }),
       target,
       pseudoElement: null,
@@ -178,6 +181,51 @@ describe('settleRound', () => {
       running: [{ name: 'tc-sheet-rise', target: 'div#sheet.tc-sheet.tc-sheet--open', remainingMs: 100 }],
       stuck: [{ name: 'tc-sheet-rise', target: 'div#sheet.tc-sheet.tc-sheet--open', remainingMs: 100 }],
     });
+  });
+
+  it('keeps waiting for an animation whose clock lags but still advances, then passes', async () => {
+    // Claims 100 ms left, a budget of 120 ms; the clock only creeps, so the first wait ends with it still moving.
+    const lagging = fakeAnimation({ name: 'tc-stamp-ink', endTime: 1000, localTime: 900 });
+    const creep = setInterval(() => {
+      lagging.localTime += 5;
+    }, 10);
+    setTimeout(() => lagging.finish(), 200);
+    const result = await settleRound(
+      OPTIONS,
+      env(() => (lagging.playState === 'running' ? [lagging] : [])),
+    );
+    clearInterval(creep);
+    expect(result.quiet).toBe(false);
+    expect(!result.quiet && result.stuck).toEqual([]);
+  });
+
+  it('fails an animation whose clock is frozen after its first wait, named', async () => {
+    const frozen = fakeAnimation({ name: 'tc-stamp-ink', endTime: 300, localTime: 240 });
+    const started = Date.now();
+    const result = await settleRound(
+      OPTIONS,
+      env(() => [frozen]),
+    );
+    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs);
+    expect(!result.quiet && result.stuck).toEqual([
+      { name: 'tc-stamp-ink', target: 'div', remainingMs: 60 },
+    ]);
+  });
+
+  it('gives up on a progressing animation once the total wait is spent', async () => {
+    // Always inching forward, never ending: bounded by maxTotalMs rather than waited for forever.
+    const crawling = fakeAnimation({ name: 'tc-stamp-ink', endTime: 10_000, localTime: 9_900 });
+    const creep = setInterval(() => {
+      crawling.localTime += 1;
+    }, 5);
+    const started = Date.now();
+    const result = await settleRound(
+      OPTIONS,
+      env(() => [crawling]),
+    );
+    clearInterval(creep);
+    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs + OPTIONS.maxWaitMs);
+    expect(!result.quiet && result.stuck).toHaveLength(1);
   });
 
   it('fails at once on an animation with more time left than the per-animation cap', async () => {

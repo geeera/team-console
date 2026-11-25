@@ -45,6 +45,12 @@ export interface SettleOptions {
   readonly maxWaitMs: number;
   /** Added to an animation's own remaining time, for a loaded machine's late frames. */
   readonly slackMs: number;
+  /**
+   * The longest one animation is waited for in all while it keeps progressing. A loaded machine's animation clock can
+   * lag wall time (WebKit on CI), so one wait of `remaining + slackMs` can end with it still moving; it is waited for
+   * again as long as its remaining time shrinks. One that does not move at all fails at the end of its first wait.
+   */
+  readonly maxTotalMs: number;
 }
 
 /** One animation as the failure message names it. */
@@ -132,18 +138,10 @@ export async function settleRound(
 
   const outcomes = await Promise.all(
     moving.map(async (animation) => {
-      const report = describe(animation);
-      if (report.remainingMs !== null && report.remainingMs > options.maxWaitMs) {
-        return { report, finished: false };
+      const first = describe(animation);
+      if (first.remainingMs !== null && first.remainingMs > options.maxWaitMs) {
+        return { report: first, finished: false };
       }
-      const budgetMs = Math.min(
-        options.maxWaitMs,
-        (report.remainingMs ?? options.maxWaitMs) + options.slackMs,
-      );
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timedOut = new Promise<false>((resolve) => {
-        timer = setTimeout(() => resolve(false), budgetMs);
-      });
       // A navigation or a next value cancels an animation mid-way (#946): `finished` rejects with AbortError, which
       // is the animation going away, i.e. settled. Anything else is a real error and fails the scan.
       const ended = animation.finished.then(
@@ -155,10 +153,33 @@ export async function settleRound(
           throw error;
         },
       );
-      try {
-        return { report, finished: await Promise.race([ended, timedOut]) };
-      } finally {
-        clearTimeout(timer);
+      const giveUpAt = Date.now() + options.maxTotalMs;
+      let report = first;
+      for (;;) {
+        const budgetMs = Math.min(
+          options.maxWaitMs,
+          (report.remainingMs ?? options.maxWaitMs) + options.slackMs,
+        );
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timedOut = new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), budgetMs);
+        });
+        let finished: boolean;
+        try {
+          finished = await Promise.race([ended, timedOut]);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (finished) {
+          return { report: first, finished: true };
+        }
+        const now = describe(animation);
+        const isProgressing =
+          report.remainingMs !== null && now.remainingMs !== null && now.remainingMs < report.remainingMs;
+        report = now;
+        if (!isProgressing || Date.now() >= giveUpAt) {
+          return { report, finished: false };
+        }
       }
     }),
   );
@@ -215,14 +236,19 @@ export interface SettleLimits {
 }
 
 /** One round can wait up to `maxWaitMs` per animation; the #506 motion tokens top out at 1.6 s (`--dur-pulse`). */
-export const SETTLE_OPTIONS: SettleOptions = { quietFrames: 4, maxWaitMs: 3000, slackMs: 250 };
+export const SETTLE_OPTIONS: SettleOptions = {
+  quietFrames: 4,
+  maxWaitMs: 3000,
+  slackMs: 250,
+  maxTotalMs: 8000,
+};
 /** Enough for a screen that chains a few enters (route, sheet, list rows) one after another. */
 export const SETTLE_MAX_ROUNDS = 20;
 /**
  * Under the 30 s test timeout (`playwright.config.ts`) with room for one more round and the waits before it
  * (`animationsSettled()`), so this module's named error is what the run shows, not a bare timeout.
  */
-export const SETTLE_TOTAL_MS = 20_000;
+export const SETTLE_TOTAL_MS = 16_000;
 
 /**
  * Runs `round` until the page is quiet. Throws a named error when an animation outlives its wait, or when the page
