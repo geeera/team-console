@@ -175,11 +175,21 @@ try {
   assertUsage('<head sha> is missing', 'no head', base);
   assertUsage('<pattern> is missing', 'no pattern', base, forged);
   assertUsage('<pattern> is empty', 'an empty pattern', base, forged, '');
-  assertUsage('1 unexpected extra argument(s) after <pattern>', 'an extra argument', base, forged, RUNNER, 'x');
+  assertUsage(
+    '1 unexpected extra argument(s) after <pattern>',
+    'an extra argument',
+    base,
+    forged,
+    RUNNER,
+    'x',
+  );
 
   const assertError = (reason, label, ...args) =>
     assert.strictEqual(
-      assertFails(1, label, ...args).stderr.split('\n').slice(-2).join('\n'),
+      assertFails(1, label, ...args)
+        .stderr.split('\n')
+        .slice(-2)
+        .join('\n'),
       `::error::changed-paths: ${reason}. See #973.\n`,
       label,
     );
@@ -213,7 +223,9 @@ try {
   // No `redaction` directory exists yet, so the name keeps its capitals on a case-insensitive volume too.
   write('libs/shared/Redaction/src/Upper.ts');
   const upperCase = commit('mixed-case twin of libs/shared/redaction');
-  assert.deepStrictEqual(listChangedPaths(plainText, upperCase, repo), ['libs/shared/Redaction/src/Upper.ts']);
+  assert.deepStrictEqual(listChangedPaths(plainText, upperCase, repo), [
+    'libs/shared/Redaction/src/Upper.ts',
+  ]);
   assertAnswer(plainText, upperCase, RUNNER, true, 'Redaction/ is redaction/ on a case-insensitive volume');
   write('tools/ci/changed-paths.mjs');
   const scopingScript = commit('the scoping script');
