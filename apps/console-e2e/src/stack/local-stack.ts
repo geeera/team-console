@@ -12,18 +12,19 @@ import {
   rmSync,
   statSync,
 } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { startCloseRelay, type CloseRelay } from './close-relay';
 import { signal } from './process-signal';
 import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
 import { forgetServer, recordServer, SERVER_TOKEN_FLAG, stopStaleServers } from './stale-servers';
-import { stackChildEnv } from './stack-env';
+import { stackChildEnv, stackHome } from './stack-env';
 import { streamSuffix, type StackPorts } from './stack-ports';
+import { WORKSPACE_ROOT } from './workspace';
 
 export { signal } from './process-signal';
 export { portsFor, type StackPorts } from './stack-ports';
+export { WORKSPACE_ROOT } from './workspace';
 
-export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
 /**
  * One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). A run with its
  * own `E2E_PORT_BASE` has its own directory (`tmp/console-e2e-<base>`), so runs side by side keep theirs.
@@ -32,7 +33,7 @@ export const STACKS_DIR = join(WORKSPACE_ROOT, `tmp/console-e2e${streamSuffix()}
 /** One record per running server, named by its port (`stale-servers.ts`). */
 export const SERVERS_DIR = join(STACKS_DIR, 'servers');
 
-const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
+export const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
 /** Each server of the stack is a Worker on Miniflare, not a `wrangler dev` (#957, `serve-worker.mts`). */
 const SERVE_WORKER = join(__dirname, 'serve-worker.mts');
 const API_CONFIG = 'apps/api/wrangler.jsonc';
@@ -50,6 +51,14 @@ const FAKE_CLIENT_SECRET = 'local-fake-secret';
 const MOCK_OWNER = { login: 'geeera', id: 100_001 } as const;
 /** The runner image digest the local stack names (#634 PR 7); the specs only read it back from the API's command. */
 export const E2E_RUNNER_IMAGE_DIGEST = `sha256:${'e2e0'.repeat(16)}`;
+
+/**
+ * The environment of a process this run starts — a server, or the wrangler CLI: the allowlist of `stack-env.ts`, the
+ * run's throwaway home, and `own`. Every spawn of the suite goes through here; none passes `process.env` on.
+ */
+export function stackEnv(own: Readonly<Record<string, string>>): Record<string, string> {
+  return stackChildEnv(process.env, stackHome(STACKS_DIR), { WRANGLER_SEND_METRICS: 'false', ...own });
+}
 
 /** Log lines of a server that stopped serving on its own: workerd died and Miniflare restarted it in place (#230). */
 const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly'] as const;
@@ -101,14 +110,15 @@ class StackProcess {
           cwd: WORKSPACE_ROOT,
           detached: true,
           stdio: ['ignore', log, log],
-          env: stackChildEnv(process.env, {
+          env: stackEnv({
             [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
-            WRANGLER_SEND_METRICS: 'false',
             // Plain logs, whatever colour setting the parent runs with.
             FORCE_COLOR: '0',
           }),
         },
       );
+      // No pid means the spawn itself failed: nothing runs, so there is nothing to record or to stop later. The
+      // failure is not lost — it arrives as the child's `error` event, and `waitForOk` reports it with the log.
       if (child.pid !== undefined) {
         recordServer(SERVERS_DIR, options.port, { pid: child.pid, token, label });
       }
@@ -230,7 +240,7 @@ function run(args: readonly string[], logPath: string): Promise<void> {
     const child = spawn(WRANGLER, args, {
       cwd: WORKSPACE_ROOT,
       stdio: ['ignore', log, log],
-      env: stackChildEnv(process.env, { WRANGLER_SEND_METRICS: 'false', NO_COLOR: '1' }),
+      env: stackEnv({ NO_COLOR: '1' }),
     });
     child.on('error', (error) => fail(error));
     child.on('exit', (code) => {
@@ -305,7 +315,9 @@ export class LocalStack {
       }
     }
     // A worker killed with SIGKILL stops nothing; its successor takes the same slot, so the same ports.
-    const stale = await stopStaleServers(SERVERS_DIR, [ports.api, ports.fake, ports.fakePush]);
+    const stale = await stopStaleServers(SERVERS_DIR, {
+      ports: [ports.api, ports.fake, ports.fakePush],
+    });
     if (stale.length > 0) {
       process.stderr.write(
         `${name}: stopped what an earlier worker left on its ports: ${stale.join(', ')}\n`,

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { onOrphaned } from './orphan-watch.mts';
+import { onOrphaned, stopWithin } from './orphan-watch.mts';
 
 describe('onOrphaned', () => {
   beforeEach(() => {
@@ -55,5 +55,40 @@ describe('onOrphaned', () => {
     vi.advanceTimersByTime(1_000);
 
     expect(stop).not.toHaveBeenCalled();
+  });
+});
+
+describe('stopWithin', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('answers stopped when the stop settles in time, and leaves no timer behind', async () => {
+    expect(await stopWithin(() => Promise.resolve(), 5_000)).toEqual({ kind: 'stopped' });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('answers the failure of a stop that rejects instead of throwing it', async () => {
+    const error = new Error('workerd refused');
+
+    expect(await stopWithin(() => Promise.reject(error), 5_000)).toEqual({ kind: 'failed', error });
+  });
+
+  it('answers timed-out at the deadline when the stop never settles', async () => {
+    const outcome = stopWithin(() => new Promise<void>(() => undefined), 5_000);
+    let settled = false;
+    void outcome.then(() => {
+      settled = true;
+    });
+
+    await vi.advanceTimersByTimeAsync(4_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(await outcome).toEqual({ kind: 'timed-out', afterMs: 5_000 });
   });
 });

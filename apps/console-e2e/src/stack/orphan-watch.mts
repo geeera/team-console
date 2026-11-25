@@ -21,3 +21,33 @@ export function onOrphaned(stop: () => void, options: OrphanWatchOptions = {}): 
   }, options.intervalMs ?? 1_000);
   return () => clearInterval(timer);
 }
+
+export type StopOutcome =
+  | { readonly kind: 'stopped' }
+  | { readonly kind: 'failed'; readonly error: unknown }
+  | { readonly kind: 'timed-out'; readonly afterMs: number };
+
+/**
+ * Runs `stop` and answers how it ended, at the latest after `deadlineMs` (#993). An orphaned server has nobody left
+ * to kill it, so a `dispose()` that never settles would keep it — and its port — for good. Never rejects: the caller
+ * exits whatever the outcome.
+ */
+export async function stopWithin(stop: () => Promise<unknown>, deadlineMs: number): Promise<StopOutcome> {
+  let timer: NodeJS.Timeout | undefined;
+  const deadline = new Promise<StopOutcome>((late) => {
+    timer = setTimeout(() => late({ kind: 'timed-out', afterMs: deadlineMs }), deadlineMs);
+  });
+  const stopping = (async (): Promise<StopOutcome> => {
+    try {
+      await stop();
+      return { kind: 'stopped' };
+    } catch (error: unknown) {
+      return { kind: 'failed', error };
+    }
+  })();
+  try {
+    return await Promise.race([stopping, deadline]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
