@@ -249,9 +249,9 @@ jobs:
             exit 1
           fi
 
-  # #570 (architect note on #468, decision 13): plant-then-verify on the runner's `container` backend against this
-  # machine's real Docker daemon — the runner image plus the fake CLI, two jobs through the real job loop, and a mount
-  # probe. Its own job, so the image build never pushes lint-test-build past its timeout.
+  # #570 (architect note on #468, decision 13): plant-then-verify on the runner's `container` backend against
+  # this machine's real Docker daemon — the runner image plus the fake CLI, two jobs through the real job loop,
+  # and a mount probe. Its own job, so the image build never pushes lint-test-build past its timeout.
   runner-container:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -335,61 +335,103 @@ jobs:
         with:
           persist-credentials: false
 
-      # Only for tools/runtime-image/image-files.mjs on the runner (Node builtins, no `npm ci`); the image
-      # brings its own Node.
+      # Only for tools/runtime-image/image-files.mjs and guard-output.mjs on the runner (Node builtins, no
+      # `npm ci`); the image brings its own Node.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .nvmrc
           package-manager-cache: false
 
+      # Every step below prints text this job did not write: the build's output, paths and `bin` values from
+      # the image, whatever the container answers and logs. All of it goes through
+      # tools/runtime-image/guard-output.mjs, which prints it between `::stop-commands::` markers (#1005,
+      # #1013), so a line of it shaped like a workflow command is log text and nothing else. The runner reads
+      # two shapes: `::name::` at the start of a line and the older `##[name]` anywhere in one, which a prefix
+      # such as BuildKit's `#12 0.3` does not defuse. This step holds the guard to the runner itself, with the
+      # one command whose effect a later step can read, `set-output` (deprecated, which is why the two probe
+      # lines are data in guard-probe.txt and not commands of this file). Printed bare, before and after, they
+      # must arrive, so the probe can fail (each costs a deprecation warning on the run); printed through the
+      # guard, in either of its modes, they must not.
+      - name: Probe the output guard with both forms of a workflow command
+        id: guard
+        run: |
+          set -euo pipefail
+          probe() {
+            sed "s/PROBE/$1/" tools/runtime-image/guard-probe.txt
+          }
+          probe control
+          probe guarded | node tools/runtime-image/guard-output.mjs
+          probe stream | node tools/runtime-image/guard-output.mjs --stream
+          probe after
+
+      - name: The guard held both forms, and commands work again after it
+        env:
+          CONTROL: ${{ steps.guard.outputs.control_colon }}/${{ steps.guard.outputs.control_bracket }}
+          AFTER: ${{ steps.guard.outputs.after_colon }}/${{ steps.guard.outputs.after_bracket }}
+          GUARDED: ${{ steps.guard.outputs.guarded_colon }}/${{ steps.guard.outputs.guarded_bracket }}
+          STREAM: ${{ steps.guard.outputs.stream_colon }}/${{ steps.guard.outputs.stream_bracket }}
+        run: |
+          set -euo pipefail
+          echo "bare: ${CONTROL} before, ${AFTER} after; guarded: ${GUARDED}; stream: ${STREAM}"
+          [ "${CONTROL} ${AFTER}" = "on/on on/on" ] \
+            || { echo "::error::a bare probe command did not arrive, so the probe proves nothing"; exit 1; }
+          [ "${GUARDED} ${STREAM}" = "/ /" ] \
+            || { echo "::error::a workflow command got through the output guard"; exit 1; }
+
       # The two `--target` builds add no work: they stop at stages the first build has just cached, and only
-      # give those stages a name to list files from.
+      # give those stages a name to list files from. `--stream`: the build is watched while it runs.
       - name: Build the image and the two stages it copies from
         run: |
           set -euo pipefail
-          docker build --tag "${IMAGE}" .
-          docker build --target runtime-deps --tag "${IMAGE}-runtime-deps" .
-          docker build --target build --tag "${IMAGE}-build" .
+          build() {
+            docker build --tag "${IMAGE}" .
+            docker build --target runtime-deps --tag "${IMAGE}-runtime-deps" .
+            docker build --target build --tag "${IMAGE}-build" .
+          }
+          build 2>&1 | node tools/runtime-image/guard-output.mjs --stream
 
       # Every path in the image must be the pinned base image's own or a copy the `runtime` stage makes from one
       # of those two stages — same type, mode, size, sha256 and link target, owned by `node` — and nothing may
       # be missing (tools/runtime-image/image-files.mjs; its table of copies is held to the Dockerfile by
       # image-files.spec.ts). So a change to what the image ships shows up here as a one-line change to that
       # table, and anything else that moved fails the job. The listings run without a network, as root (to read
-      # every file), with the script mounted read-only.
+      # every file), with the script mounted read-only. They go to files; what the step prints (the pull of the
+      # base image, the paths the check names) goes through the guard.
       - name: Hold the image to its file list
         run: |
           set -euo pipefail
-          base=$(node tools/runtime-image/image-files.mjs base-image Dockerfile)
-          lists="${RUNNER_TEMP}/image-files"
-          mkdir -p "${lists}"
-          list() {
-            docker run --rm --network none --user 0 --entrypoint node \
-              --volume "${PWD}/tools/runtime-image/image-files.mjs:/image-files.mjs:ro" \
-              "$2" /image-files.mjs list "$1" > "${lists}/$1.jsonl"
+          check() {
+            local base lists
+            base=$(node tools/runtime-image/image-files.mjs base-image Dockerfile)
+            lists="${RUNNER_TEMP}/image-files"
+            mkdir -p "${lists}"
+            list() {
+              docker run --rm --network none --user 0 --entrypoint node \
+                --volume "${PWD}/tools/runtime-image/image-files.mjs:/image-files.mjs:ro" \
+                "$2" /image-files.mjs list "$1" > "${lists}/$1.jsonl"
+            }
+            list base "${base}"
+            list runtime-deps "${IMAGE}-runtime-deps"
+            list build "${IMAGE}-build"
+            list runtime "${IMAGE}"
+            node tools/runtime-image/image-files.mjs check "${lists}"
           }
-          list base "${base}"
-          list runtime-deps "${IMAGE}-runtime-deps"
-          list build "${IMAGE}-build"
-          list runtime "${IMAGE}"
-          node tools/runtime-image/image-files.mjs check "${lists}"
+          check 2>&1 | node tools/runtime-image/guard-output.mjs
 
       # The container as `docker run` starts it: its CMD applies the migrations to a fresh local D1 and then
       # serves the Worker, so a healthz answer means both happened. The image's own HEALTHCHECK must agree, the
       # process must be `node`'s, and wrangler, asked again from inside, must find no migration left to apply.
-      # Whatever the container answers is printed by `show`, between `::stop-commands::` markers with a token made
-      # on the runner for that one print (#1005): a line of it shaped like a workflow command (`::error::`,
-      # `::add-mask::`) is then log text and nothing else. The `::error::` lines below carry constant text only.
-      - name: Start the container and wait for /api/v1/healthz
+      # Whatever the container answers, on stdout or stderr (#1013), is captured and printed by `show`: through
+      # the guard, with a token made on the runner for that one print after the text is known. The `::error::`
+      # lines below carry constant text only.
+      # Last, the container must end on `docker stop` (#1013): its PID 1 is wrangler's launcher, which has to
+      # pass SIGTERM on. Exit code 143 is that signal; 137 would be the SIGKILL Docker sends after the 20 s,
+      # and `timeout` bounds the stop itself.
+      - name: Start the container, wait for /api/v1/healthz and stop it
         run: |
           set -euo pipefail
           show() {
-            local token
-            token=$(openssl rand -hex 16)
-            echo "::stop-commands::${token}"
-            # Always ends its last line, so the closing marker starts a line of its own.
-            printf '%s\n' "$1"
-            echo "::${token}::"
+            printf '%s\n' "$1" | node tools/runtime-image/guard-output.mjs
           }
           docker run --detach --name "${CONTAINER}" --publish 127.0.0.1:8787:8787 "${IMAGE}"
           state=starting
@@ -410,24 +452,27 @@ jobs:
           health=$(jq --raw-output '.status' <<<"${body}")
           [ "${health}" = "ok" ] || { echo "::error::healthz did not answer status ok"; exit 1; }
           curl --fail --silent --show-error --max-time 10 --output /dev/null http://127.0.0.1:8787/
-          user=$(docker exec "${CONTAINER}" id -un)
+          user=$(docker exec "${CONTAINER}" id -un 2>&1)
           show "user: ${user}"
           [ "${user}" = "node" ] || { echo "::error::the container does not run as node"; exit 1; }
-          migrations=$(docker exec "${CONTAINER}" node_modules/.bin/wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev)
+          migrations=$(docker exec "${CONTAINER}" node_modules/.bin/wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev 2>&1)
           show "${migrations}"
           grep --quiet --fixed-strings 'No migrations to apply' <<<"${migrations}" \
             || { echo "::error::the running container still has migrations to apply"; exit 1; }
+          stopped=$(timeout 40 docker stop -t 20 "${CONTAINER}" 2>&1) \
+            || { show "${stopped}"; echo "::error::docker stop failed or did not return in 40 s"; exit 1; }
+          ended=$(docker inspect --format '{{.State.Status}}/{{.State.ExitCode}}/{{.State.OOMKilled}}' "${CONTAINER}")
+          show "stopped: ${ended}"
+          [ "${ended}" = "exited/143/false" ] \
+            || { echo "::error::the container did not end on SIGTERM (exited/143/false expected)"; exit 1; }
 
-      # The same guard as `show` above, around a stream: the log is the container's own text from its first line.
+      # The log is the container's own text from its first line. It is read to its end first, and the guard
+      # makes the token only then (#1013): no line of the log was written while the token existed.
       - name: Container log
         if: always()
         run: |
           set -euo pipefail
-          token=$(openssl rand -hex 16)
-          echo "::stop-commands::${token}"
-          docker logs "${CONTAINER}" 2>&1 || true
-          echo
-          echo "::${token}::"
+          { docker logs "${CONTAINER}" 2>&1 || true; } | node tools/runtime-image/guard-output.mjs
 
   # #947: GitHub's hosted macOS pools are capacity-constrained; a macOS job can sit queued for 20+ minutes and
   # then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after multiple

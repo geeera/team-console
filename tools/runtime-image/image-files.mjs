@@ -56,6 +56,15 @@ export const LOCKFILES = [
   '/app/node_modules/.package-lock.json',
 ];
 
+/**
+ * Whether the path is a lockfile by its file name, wherever it sits. The pattern is held to the name:
+ * unanchored, `lock` also matched `/app/dist/blocklist` (#1005).
+ * @param {string} path
+ */
+export function isLockfile(path) {
+  return /(^|\/)(package-lock|npm-shrinkwrap|\.package-lock)\.json$/.test(path);
+}
+
 /** Kernel and device trees: listed as a directory, never entered. */
 const NOT_ENTERED = new Set(['/proc', '/sys', '/dev']);
 /** Docker writes these per container; they are not the image's. */
@@ -178,6 +187,9 @@ export function expectedFiles(listings, copies = RUNTIME_COPIES) {
       problems.push(`${copy.path}: a copy outside ${APP}`);
       continue;
     }
+    // As a line of the table, by its name alone. Inside a copied directory only LOCKFILES are refused, since a
+    // package may ship a file of that name among its own.
+    if (isLockfile(copy.path)) problems.push(`${copy.path}: a lockfile in the table of copies`);
     const copied = listings[copy.stage].filter((entry) => isAtOrUnder(entry.path, copy.path));
     if (!copied.some((entry) => entry.path === copy.path)) {
       problems.push(`${copy.path}: not in the ${copy.stage} stage`);
