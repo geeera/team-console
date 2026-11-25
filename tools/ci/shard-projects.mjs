@@ -148,11 +148,17 @@ export function splitIntoShards(projects, total, weights = new Map()) {
 function parseArguments(argv) {
   const [shard, ...options] = argv;
   const parsed = { ...parseShard(shard), always: [], weights: new Map(), scope: undefined };
+  const seen = new Set();
   for (let at = 0; at < options.length; at += 2) {
     const value = options[at + 1];
     if (value === undefined) {
       throw new InputError('an option is missing its value');
     }
+    // The last one would win: `--scope run-many --scope affected` must not turn a full run permissive.
+    if (seen.has(options[at])) {
+      throw new InputError('an option is given twice');
+    }
+    seen.add(options[at]);
     if (options[at] === '--always') {
       parsed.always = parseNames(value);
     } else if (options[at] === '--weights') {

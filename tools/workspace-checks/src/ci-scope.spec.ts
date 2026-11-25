@@ -87,63 +87,112 @@ const commandsOf = (script: string): readonly string[] =>
       [],
     );
 
-/** Where the `if` that opens at `openAt` closes, or -1. */
-function closingFi(lines: readonly string[], openAt: number): number {
+const OPENS_BLOCK = /^(if|for|while|until|case|select)\b|[{(]$|^\(/;
+const CLOSES_BLOCK = /^(fi|done|esac)\b|^[})]/;
+const CLOSED_ON_ITS_LINE = /;\s*(fi|done|esac)$/;
+
+/** How many blocks each line is inside of; a line that opens or closes a block counts as outside it. */
+function depthsOf(lines: readonly string[]): readonly number[] {
   let depth = 0;
-  for (let at = openAt; at < lines.length; at += 1) {
-    const line = lines[at] ?? '';
-    if (/^if\b/.test(line)) depth += 1;
-    if (/^fi\b/.test(line)) depth -= 1;
-    if (depth === 0) return at;
-  }
-  return -1;
+  return lines.map((line) => {
+    if (CLOSES_BLOCK.test(line)) depth -= 1;
+    const own = depth;
+    if (OPENS_BLOCK.test(line) && !CLOSED_ON_ITS_LINE.test(line)) depth += 1;
+    return own;
+  });
 }
 
-const SUCCESS_EXIT = /\bexit 0\b/;
+/** Where the `if` that opens at `openAt` closes, or -1. */
+const closingFi = (lines: readonly string[], depths: readonly number[], openAt: number): number =>
+  lines.findIndex((line, at) => at > openAt && line === 'fi' && depths[at] === depths[openAt]);
+
 const FAILING_EXIT = /^exit [1-9][0-9]*$/;
 const EMPTY_SHARD = /^if \[\[? -z "?\$\{?projects\}?"? \]\]?; then$/;
-const BRANCH = /^(else|elif)\b/;
 const NOT_AFFECTED = /^if \[\[? "?\$\{?NX_MODE\}?"? != ["']?affected["']? \]\]?; then$/;
+/** `echo` of one double-quoted string that expands nothing but plain `${NAME}`: it can only print. */
+const MESSAGE = /^echo "(?:[^"`$\\]|\$\{[A-Za-z_]+\})*"$/;
+const SHARD_CALL = /^projects=\$\(node tools\/ci\/shard-projects\.mjs [^()`;&|]*\)$/;
+const RUNS_TESTS = /\bnx run-many\b.*-t test\b/;
+/** Anything that ends the script, or may: `exit` in every spelling, `exec`, `return`, a trap. */
+const LEAVES = /\b(exit|exec|return|trap)\b/;
+/** Anything that can give NX_MODE or `projects` another value, read with the quotes and backslashes removed. */
+const SETS_A_DECISION = new RegExp(
+  [
+    '(^|[\\s;&|({])(NX_MODE|projects)(\\[[^\\]]*\\])?\\+?=',
+    '\\$\\{(NX_MODE|projects):?=',
+    '\\b(read|unset|declare|typeset|local|export|readonly|mapfile|readarray|let|getopts|for|select|printf)\\b.*\\b(NX_MODE|projects)\\b',
+    '\\b(eval|source)\\b|^\\. ',
+  ].join('|'),
+);
 
 /**
  * What is wrong with how the "Test" step treats a shard that has no project (#999), as text; empty when the
- * step may end green without a test only in an affected run. The rule, whatever the lines look like (#1005):
- * the one `exit 0` of the script is inside `if [ -z "${projects}" ]`, and before it that block holds a closed
- * `if [ "${NX_MODE}" != "affected" ]` that exits non-zero on its top level; the tests run after the block.
+ * step may end green without a test only in an affected run. The rule, however the lines are laid out (#1005):
+ *
+ *   projects=$(node tools/ci/shard-projects.mjs …)      once, at the top level
+ *   if [ -z "${projects}" ]; then                       once, at the top level, after it
+ *     if [ "${NX_MODE}" != "affected" ]; then           the first command of the block
+ *       echo "…"                                        messages only
+ *       exit <non-zero>                                 the last command of the guard
+ *     fi
+ *     echo "…"                                          messages only
+ *     exit 0                                            the last command of the block
+ *   fi
+ *   … nx run-many -t test …                             at the top level, after the block
+ *
+ * and nowhere else does the script leave (`exit`, `exec`, `return`, `trap`) or set NX_MODE or `projects`.
+ * Anything it cannot read as this is a problem: the rule fails closed.
  */
 function emptyShardProblems(script: string): readonly string[] {
   const lines = commandsOf(script);
-  const emptyAt = lines.findIndex((line) => EMPTY_SHARD.test(line));
-  const emptyEnd = emptyAt === -1 ? -1 : closingFi(lines, emptyAt);
-  if (emptyEnd === -1) {
-    return ['no closed `if [ -z "${projects}" ]` block'];
+  const depths = depthsOf(lines);
+  const indexesOf = (pattern: RegExp): readonly number[] =>
+    lines.flatMap((line, at) => (pattern.test(line) ? [at] : []));
+  const onlyMessages = (from: number, to: number): boolean =>
+    lines.slice(from, to).every((line) => MESSAGE.test(line));
+
+  const calls = indexesOf(SHARD_CALL);
+  const blocks = indexesOf(EMPTY_SHARD);
+  const callAt = calls[0] ?? -1;
+  const emptyAt = blocks[0] ?? -1;
+  if (calls.length !== 1 || depths[callAt] !== 0) {
+    return ['`projects=$(node tools/ci/shard-projects.mjs …)` is not there once, at the top level'];
   }
+  const emptyEnd = emptyAt === -1 ? -1 : closingFi(lines, depths, emptyAt);
+  if (blocks.length !== 1 || depths[emptyAt] !== 0 || emptyAt < callAt || emptyEnd === -1) {
+    return ['`if [ -z "${projects}" ]` is not one closed block at the top level, after the shard is taken'];
+  }
+
   const problems: string[] = [];
-  const successes = lines.flatMap((line, at) => (SUCCESS_EXIT.test(line) ? [at] : []));
-  const skipAt = successes[0] ?? -1;
-  if (successes.length !== 1 || lines[skipAt] !== 'exit 0' || skipAt < emptyAt || skipAt > emptyEnd) {
-    problems.push('`exit 0` is not one plain line inside the empty-shard block');
-  }
-  // An `else` would put what follows it on the side of a shard that has projects.
-  if (lines.slice(emptyAt, emptyEnd).some((line) => BRANCH.test(line))) {
-    problems.push('the empty-shard block has an else branch');
-  }
-  const guardAt = lines.findIndex((line, at) => at > emptyAt && at < emptyEnd && NOT_AFFECTED.test(line));
-  const guardEnd = guardAt === -1 ? -1 : closingFi(lines, guardAt);
-  if (guardEnd === -1 || guardEnd > skipAt) {
-    problems.push('no closed full-run guard before the `exit 0`');
+  const guardAt = emptyAt + 1;
+  const guardEnd = NOT_AFFECTED.test(lines[guardAt] ?? '') ? closingFi(lines, depths, guardAt) : -1;
+  const failAt = guardEnd - 1;
+  const skipAt = emptyEnd - 1;
+  if (guardEnd === -1 || guardEnd > emptyEnd) {
+    problems.push('the full-run guard is not the first command of the empty-shard block');
   } else {
-    // Directly in the guard, not in a block of its own or behind `&&`: nothing in the way of the failure.
-    const body = lines.slice(guardAt + 1, guardEnd);
-    const nestedAt = body.findIndex((line) => /^(if|for|while|case|until)\b/.test(line));
-    const top = nestedAt === -1 ? body : body.slice(0, nestedAt);
-    if (!top.some((line) => FAILING_EXIT.test(line))) {
-      problems.push('the full-run guard does not exit non-zero');
+    if (!FAILING_EXIT.test(lines[failAt] ?? '') || !onlyMessages(guardAt + 1, failAt)) {
+      problems.push('the full-run guard is not messages and then `exit <non-zero>` as its last command');
+    }
+    if (lines[skipAt] !== 'exit 0' || !onlyMessages(guardEnd + 1, skipAt)) {
+      problems.push('after the guard the block is not messages and then `exit 0` as its last command');
     }
   }
-  const runAt = lines.findIndex((line) => /\bnx run-many\b.*-t test\b/.test(line));
-  if (runAt !== -1 && runAt < emptyEnd) {
-    problems.push('the tests run before the empty shard is handled');
+
+  lines.forEach((line, at) => {
+    if (MESSAGE.test(line)) return;
+    const bare = line.replace(/["'\\]/g, '');
+    if (LEAVES.test(bare) && at !== failAt && at !== skipAt) {
+      problems.push(`the script may leave outside the empty-shard block: ${line}`);
+    }
+    if (SETS_A_DECISION.test(bare) && at !== callAt) {
+      problems.push(`NX_MODE or \`projects\` may be set again: ${line}`);
+    }
+  });
+
+  const runs = indexesOf(RUNS_TESTS);
+  if (runs.length === 0 || runs.some((at) => at < emptyEnd || depths[at] !== 0)) {
+    problems.push('the tests do not run at the top level after the empty-shard block');
   }
   return problems;
 }
@@ -376,6 +425,49 @@ describe('ci.yml scope decisions', () => {
         () => reworded('if [ -z', 'npx nx run-many -t test --projects="${projects}"\nif [ -z'),
       ],
       ['the empty-shard block is never closed', () => reworded(/^fi\n/m, '')],
+      // Rework of #1007: each of these passed the first version of the rule and failed the lines it replaced.
+      [
+        'the guard is inside another condition',
+        () => reworded(GUARD, '  if [ "${SHARD}" = "1/2" ]; then\n$&  fi\n'),
+      ],
+      ['NX_MODE is set in the block before the guard', () => reworded(GUARD, '  NX_MODE=affected\n$&')],
+      ['a command comes before the guard', () => reworded(GUARD, '  true\n$&')],
+      ['the guard leaves through exec first', () => reworded('    exit 1', '    exec true\n    exit 1')],
+      ['the guard fails only in a subshell', () => reworded('    exit 1', '    ( exit 1 )')],
+      ['a command follows the failure in the guard', () => reworded('    exit 1', '    exit 1\n    true')],
+      [
+        'the guard does more than print before it fails',
+        () => reworded('    exit 1', '    true\n    exit 1'),
+      ],
+      ['the guard ends in a bare exit', () => reworded('    exit 1', '    exit')],
+      [
+        'there is a bare exit elsewhere',
+        () => reworded('projects=$(', '[ "${SHARD}" != "2/2" ] || exit\nprojects=$('),
+      ],
+      [
+        'there is a quoted exit 0 elsewhere',
+        () => reworded('projects=$(', '[ "${SHARD}" != "2/2" ] || exit "0"\nprojects=$('),
+      ],
+      ['the skip is a quoted exit 0 with a command after it', () => reworded('  exit 0\n', '  exit "0"\n')],
+      ['the script execs away', () => reworded('projects=$(', 'exec true\nprojects=$(')],
+      ['a trap ends the script in success', () => reworded('projects=$(', "trap 'exit 0' ERR\nprojects=$(")],
+      ['NX_MODE is set at the top', () => reworded('projects=$(', 'NX_MODE=affected\nprojects=$(')],
+      ['NX_MODE is set for one command', () => reworded('if [ -z', 'export NX_MODE="affected"\nif [ -z')],
+      ['projects is set again', () => reworded('if [ -z', 'projects=all\nif [ -z')],
+      ['projects is given a default', () => reworded('if [ -z', ': "${projects:=all}"\nif [ -z')],
+      ['projects is read from elsewhere', () => reworded('if [ -z', 'read -r projects <<<"all"\nif [ -z')],
+      ['the shard is taken twice', () => reworded(/^(projects=.*\n)/m, '$1$1')],
+      ['the shard is not taken by the script', () => reworded(/^projects=.*\n/m, 'projects=$(echo all)\n')],
+      [
+        'the block is inside a condition that never holds',
+        () => reworded(/^if \[ -z(?:.*\n)*?fi\n/m, 'if false; then\n$&fi\n'),
+      ],
+      [
+        'the block is inside a function nobody calls',
+        () => reworded(/^if \[ -z(?:.*\n)*?fi\n/m, 'check() {\n$&}\n'),
+      ],
+      ['the tests run inside a condition', () => reworded(/^npx nx run-many.*\n/m, 'if false; then\n$&fi\n')],
+      ['the tests do not run at all', () => reworded(/^npx nx run-many.*\n/m, '')],
       ['the empty-shard check is gone', () => reworded(/^if \[ -z(?:.*\n)*?fi\n/m, '')],
     ])('rejects the sample step when %s', (_, rewrite) => {
       expect(emptyShardProblems(rewrite())).not.toEqual([]);

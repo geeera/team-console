@@ -177,6 +177,26 @@ assert.strictEqual(empty.stdout, '\n');
 const nothingAffected = run(['2/2', ...affected, '--always', 'workspace-checks'], '[]');
 assert.strictEqual(nothingAffected.status, 0);
 assert.strictEqual(nothingAffected.stdout, '\n');
+// #1005: an option given twice is an error whatever the values, and `--scope` above all: the last one won, so
+// a second `--scope affected` made a full run permissive again.
+for (const args of [
+  ['2/2', '--scope', 'run-many', '--scope', 'affected'],
+  ['2/2', '--scope', 'affected', '--scope', 'run-many'],
+  ['1/2', '--scope', 'affected', '--scope', 'affected'],
+  ['1/2', ...affected, '--always', 'api', '--always', 'hooks'],
+  ['1/2', ...affected, ...weights, ...weights],
+  ['1/2', '--scope', 'run-many', ...weights, '--always', 'api', '--scope', 'affected'],
+]) {
+  for (const input of [list, '["api"]', '[]']) {
+    const twice = run(args, input);
+    assert.strictEqual(twice.status, 1, JSON.stringify(args));
+    assert.strictEqual(twice.stdout, '', JSON.stringify(args));
+    assert.ok(
+      twice.stderr.startsWith('::error::shard-projects: an option is given twice. See #992.\n'),
+      twice.stderr,
+    );
+  }
+}
 // The option's place among the others does not matter.
 assert.strictEqual(run(['1/2', ...weights, ...affected], list).stdout, 'runner\n');
 // A full run splits as any other when there is something in every shard.
