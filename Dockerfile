@@ -25,7 +25,11 @@ RUN npx nx run-many -t build
 
 # --- runtime-deps: the lockfile's own tree pruned to wrangler (#263) ---
 # A bare `npm install wrangler` re-resolved the tree and dropped the root `overrides` (sharp, undici). Pruning the
-# `npm ci` tree keeps the exact lockfile versions; the check fails the build if an installed version drifts from it.
+# `npm ci` tree keeps the exact lockfile versions, and the build fails unless the result is that tree (#819):
+# tools/runtime-image/check-runtime-tree.mjs compares the workspace lockfile, the pruned lockfile and node_modules
+# in both directions and refuses a comparison too small to be the wrangler tree. `npm ls --all` adds npm's verdict on
+# the dependency edges: it exits non-zero on a missing or invalid dependency, but 0 on an extraneous package, which
+# is why the script walks the disk itself.
 FROM deps AS runtime-deps
 COPY <<'EOF' /tmp/runtime-package.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -34,45 +38,28 @@ const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const runtime = { name: pkg.name, private: true, dependencies: { wrangler: pkg.devDependencies.wrangler }, overrides: pkg.overrides };
 writeFileSync('package.json', `${JSON.stringify(runtime, null, 2)}\n`);
 EOF
-COPY <<'EOF' /tmp/check-runtime-tree.mjs
-import { existsSync, readFileSync } from 'node:fs';
-const packagesOf = (path) => JSON.parse(readFileSync(path, 'utf8')).packages;
-const locked = packagesOf('/tmp/workspace-lock.json');
-const drift = [];
-for (const [path, entry] of Object.entries(packagesOf('package-lock.json'))) {
-  if (path === '') continue;
-  const manifest = `${path}/package.json`;
-  // Optional platform builds for other OSes/CPUs are in the lockfile but never on disk.
-  if (!existsSync(manifest)) {
-    if (!entry.optional) drift.push(`${path}: missing`);
-    continue;
-  }
-  const installed = JSON.parse(readFileSync(manifest, 'utf8')).version;
-  if (installed !== locked[path]?.version) drift.push(`${path}: ${installed} != ${locked[path]?.version}`);
-}
-if (drift.length > 0) {
-  console.error(`runtime tree drifts from package-lock.json:\n${drift.join('\n')}`);
-  process.exit(1);
-}
-EOF
+COPY tools/runtime-image/check-runtime-tree.mjs /tmp/check-runtime-tree.mjs
 RUN cp package-lock.json /tmp/workspace-lock.json \
   && node /tmp/runtime-package.mjs \
   && npm prune --no-audit --no-fund \
-  && node /tmp/check-runtime-tree.mjs \
+  && node /tmp/check-runtime-tree.mjs /tmp/workspace-lock.json /app \
+  && npm ls --all > /dev/null \
   && npm ls sharp undici \
   && rm /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs
 
 # --- runtime: wrangler only, the bundled Worker, the built assets, the config and the migrations ---
+# Everything under /app belongs to `node`. `COPY --chown` sets that as the files land; a `chown -R` afterwards
+# rewrote every file into a second layer and made the image a third larger (#818).
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production WRANGLER_SEND_METRICS=false CI=true
 WORKDIR /app
-COPY --from=runtime-deps /app/package.json /app/package-lock.json ./
-COPY --from=runtime-deps /app/node_modules ./node_modules
-COPY --from=build /app/dist/apps/console/browser ./dist/apps/console/browser
-COPY --from=build /app/dist/apps/api ./dist/apps/api
-COPY --from=build /app/apps/api/wrangler.jsonc ./apps/api/wrangler.jsonc
-COPY --from=build /app/apps/api/migrations ./apps/api/migrations
-RUN chown -R node:node /app
+RUN chown node:node /app
+COPY --chown=node:node --from=runtime-deps /app/package.json /app/package-lock.json ./
+COPY --chown=node:node --from=runtime-deps /app/node_modules ./node_modules
+COPY --chown=node:node --from=build /app/dist/apps/console/browser ./dist/apps/console/browser
+COPY --chown=node:node --from=build /app/dist/apps/api ./dist/apps/api
+COPY --chown=node:node --from=build /app/apps/api/wrangler.jsonc ./apps/api/wrangler.jsonc
+COPY --chown=node:node --from=build /app/apps/api/migrations ./apps/api/migrations
 USER node
 
 EXPOSE 8787

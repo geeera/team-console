@@ -9,6 +9,10 @@ coverage
 .wrangler
 **/.wrangler
 .claude
+# The build stage loads every project's config for the Nx graph, and libs/worker/db/vitest.config.mts reads these
+# two vendored plugin files (#818). They reach the build stage only; the runtime stage copies none of .claude.
+!.claude/product-team/.claude-plugin/plugin.json
+!.claude/product-team/scripts/ptlib/labels.py
 .github
 .product-team
 docs
