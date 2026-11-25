@@ -109,7 +109,10 @@ describe('reachableFrom', () => {
   });
 
   it('starts from a .mts entry and finds a .tsx file behind an import without an extension', () => {
-    write('apps/a/vite.config.mts', `import { View } from './src/view';\nimport './src/widgets';\nvoid View;`);
+    write(
+      'apps/a/vite.config.mts',
+      `import { View } from './src/view';\nimport './src/widgets';\nvoid View;`,
+    );
     write('apps/a/src/view.tsx', `import '@shared/contracts';\nexport const View = () => <p />;`);
     write('apps/a/src/widgets/index.tsx', 'export const Widget = () => <p />;');
     write('libs/shared/contracts/src/index.ts', 'export const c = 1;');
@@ -127,7 +130,9 @@ describe('reachableFrom', () => {
   it('reads an import of the emitted .js/.mjs name as the source file next to it', () => {
     write(
       'apps/a/src/main.mts',
-      [`import './worker.mjs';`, `import './util.js';`, `import './view.js';`, `import './real.mjs';`].join('\n'),
+      [`import './worker.mjs';`, `import './util.js';`, `import './view.js';`, `import './real.mjs';`].join(
+        '\n',
+      ),
     );
     write('apps/a/src/worker.mts', `import '@shared/contracts';`);
     write('apps/a/src/util.ts', 'export const util = 1;');

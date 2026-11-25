@@ -198,6 +198,11 @@ jobs:
       - name: Test the ci.yml changed-paths matcher (tools/ci/changed-paths.mjs)
         run: node tools/ci/changed-paths.test.mjs
 
+      # #992: ci.yml splits the `test` target over its test shards through this script. A project left out of
+      # every shard is a test that silently never runs, so the split is held to "each project exactly once".
+      - name: Test the ci.yml test-shard splitter (tools/ci/shard-projects.mjs)
+        run: node tools/ci/shard-projects.test.mjs
+
       # PR #54 QA round 3: OpenSSL's `-text` output made the VAPID private key come out 33 bytes about half
       # the time on macOS's LibreSSL. vapid-keygen.js replaced it with Node's built-in `crypto` (fixed-width
       # JWK export) specifically to fix that; this repeats the 50-run check that caught it, in CI, so a
