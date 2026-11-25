@@ -280,9 +280,10 @@ jobs:
   # broken `.dockerignore` or build context (#818.1) reached dev and was found by hand weeks later. Its build
   # context is the whole repository minus `.dockerignore`, and `nx run-many -t build` inside it loads every
   # project's config, so the job below runs for a change to any root file, `apps/`, `libs/`, the image's own
-  # tools, the Nx plugins the graph loads, the vendored plugin files `.dockerignore` re-includes, this workflow
-  # or the script that makes this decision; and on every release PR into stage/main. Docs, `.product-team/` and
-  # the other tools cannot reach the image and skip it. Decided as `runner-darwin-scope` decides, with the same
+  # tools, the Nx plugins the graph loads, the `project.json` of any tool (#1005: the graph loads those too, and
+  # a broken one stops the build inside the image), the vendored plugin files `.dockerignore` re-includes, this
+  # workflow or the script that makes this decision; and on every release PR into stage/main. Docs,
+  # `.product-team/` and the other tools' sources cannot reach the image and skip it. Decided as `runner-darwin-scope` decides, with the same
   # script and for the same reasons (two full shas, a plain assignment, the exact string `true`).
   # Neither job is one of dev's required status checks; a skipped build never blocks a merge.
   runtime-image-scope:
@@ -309,7 +310,7 @@ jobs:
           BEFORE: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          paths='^([^/]+$|apps/|libs/|tools/runtime-image/|tools/nx-plugins/|\.claude/product-team/|\.github/workflows/ci\.yml$|tools/ci/changed-paths\.mjs$)'
+          paths='^([^/]+$|apps/|libs/|tools/runtime-image/|tools/nx-plugins/|tools/[^/]+/project\.json$|\.claude/product-team/|\.github/workflows/ci\.yml$|tools/ci/changed-paths\.mjs$)'
           head=$(git rev-parse --verify 'HEAD^{commit}')
           if [ "${EVENT}" = "pull_request" ]; then
             if [ "${BASE_REF}" != "dev" ]; then
@@ -390,9 +391,20 @@ jobs:
       # The container as `docker run` starts it: its CMD applies the migrations to a fresh local D1 and then
       # serves the Worker, so a healthz answer means both happened. The image's own HEALTHCHECK must agree, the
       # process must be `node`'s, and wrangler, asked again from inside, must find no migration left to apply.
+      # Whatever the container answers is printed by `show`, between `::stop-commands::` markers with a token made
+      # on the runner for that one print (#1005): a line of it shaped like a workflow command (`::error::`,
+      # `::add-mask::`) is then log text and nothing else. The `::error::` lines below carry constant text only.
       - name: Start the container and wait for /api/v1/healthz
         run: |
           set -euo pipefail
+          show() {
+            local token
+            token=$(openssl rand -hex 16)
+            echo "::stop-commands::${token}"
+            # Always ends its last line, so the closing marker starts a line of its own.
+            printf '%s\n' "$1"
+            echo "::${token}::"
+          }
           docker run --detach --name "${CONTAINER}" --publish 127.0.0.1:8787:8787 "${IMAGE}"
           state=starting
           for _ in $(seq 1 90); do
@@ -408,20 +420,28 @@ jobs:
             exit 1
           fi
           body=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8787/api/v1/healthz)
-          echo "healthz: ${body}"
+          show "healthz: ${body}"
           health=$(jq --raw-output '.status' <<<"${body}")
           [ "${health}" = "ok" ] || { echo "::error::healthz did not answer status ok"; exit 1; }
           curl --fail --silent --show-error --max-time 10 --output /dev/null http://127.0.0.1:8787/
           user=$(docker exec "${CONTAINER}" id -un)
-          [ "${user}" = "node" ] || { echo "::error::the container runs as '${user}', expected node"; exit 1; }
+          show "user: ${user}"
+          [ "${user}" = "node" ] || { echo "::error::the container does not run as node"; exit 1; }
           migrations=$(docker exec "${CONTAINER}" npx wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev)
-          echo "${migrations}"
+          show "${migrations}"
           grep --quiet --fixed-strings 'No migrations to apply' <<<"${migrations}" \
             || { echo "::error::the running container still has migrations to apply"; exit 1; }
 
+      # The same guard as `show` above, around a stream: the log is the container's own text from its first line.
       - name: Container log
         if: always()
-        run: docker logs "${CONTAINER}" 2>&1 || true
+        run: |
+          set -euo pipefail
+          token=$(openssl rand -hex 16)
+          echo "::stop-commands::${token}"
+          docker logs "${CONTAINER}" 2>&1 || true
+          echo
+          echo "::${token}::"
 
   # #947: GitHub's hosted macOS pools are capacity-constrained; a macOS job can sit queued for 20+ minutes and
   # then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after multiple
