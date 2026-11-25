@@ -1,6 +1,6 @@
 import { workspaceRoot } from '@nx/devkit';
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, extname, join, relative } from 'node:path';
 import * as ts from 'typescript';
 
 /**
@@ -60,12 +60,33 @@ export function aliasTargets(aliases: Aliases, specifier: string): readonly stri
   return best.targets.map((target) => target.replace('*', () => matched));
 }
 
-/** The file `base` names as an import target (itself, `.ts` added, or its `index.ts`), if there is one. */
-function existingFile(base: string): string | undefined {
-  // A `.json` import is a leaf: it is data, it imports nothing.
-  return [`${base}.ts`, join(base, 'index.ts'), base].find(
-    (path) => existsSync(path) && statSync(path).isFile(),
+/**
+ * The extensions whose files are source, so the walk reads their imports too (#992: only `.ts` was read, so a
+ * `.tsx` or `.mts` file was listed and everything behind it left the walk unseen). Anything else is a leaf.
+ */
+const SOURCE_FILE = /\.[cm]?[jt]sx?$/;
+
+/** TypeScript's own rewrite: an import that names the emitted `.js` file means the source file next to it. */
+const SOURCE_OF_EMITTED: Readonly<Record<string, readonly string[]>> = {
+  '.js': ['.ts', '.tsx'],
+  '.jsx': ['.tsx'],
+  '.mjs': ['.mts'],
+  '.cjs': ['.cts'],
+};
+
+/** The paths `base` can name as an import target, in the order the compiler tries them. */
+function candidatesOf(base: string): readonly string[] {
+  const emitted = extname(base);
+  const sources = (SOURCE_OF_EMITTED[emitted] ?? []).map(
+    (source) => `${base.slice(0, -emitted.length)}${source}`,
   );
+  // `base` itself last: an import with its extension spelled out, or a `.json` file, which is data.
+  return [...sources, `${base}.ts`, `${base}.tsx`, join(base, 'index.ts'), join(base, 'index.tsx'), base];
+}
+
+/** The file `base` names as an import target, if there is one. */
+function existingFile(base: string): string | undefined {
+  return candidatesOf(base).find((path) => existsSync(path) && statSync(path).isFile());
 }
 
 /** The workspace file a specifier names, or `null` for a package outside the workspace. */
@@ -97,7 +118,7 @@ export function reachableFrom(entry: string, workspace: Workspace = WORKSPACE): 
   const reachedFrom = new Map<string, string>([[entry, entry]]);
   const queue = [entry];
   for (let file = queue.shift(); file !== undefined; file = queue.shift()) {
-    if (!file.endsWith('.ts')) {
+    if (!SOURCE_FILE.test(file)) {
       continue;
     }
     const source = readFileSync(join(workspace.root, file), 'utf8');
