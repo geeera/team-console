@@ -146,7 +146,11 @@ function reportWith(advisory) {
 
 // --- an allowlist entry must only match its own package, not a same-named advisory on another package ---
 {
-  const report = reportWith({ package: 'some-other-package', severity: 'high', ghsaId: 'GHSA-vfj7-8cjw-p6xm' });
+  const report = reportWith({
+    package: 'some-other-package',
+    severity: 'high',
+    ghsaId: 'GHSA-vfj7-8cjw-p6xm',
+  });
   const { failures, ignored } = evaluateAuditReport(report, ALLOWLIST, NOW);
   assert.strictEqual(failures.length, 1, 'the same GHSA id on a different package must not be masked');
   assert.deepStrictEqual(ignored, []);
@@ -176,7 +180,10 @@ function reportWith(advisory) {
     'a report with no vulnerabilities object must throw, not pass silently',
   );
   assert.throws(() => evaluateAuditReport(null, ALLOWLIST, NOW), /no "vulnerabilities" object/);
-  assert.throws(() => evaluateAuditReport({ vulnerabilities: 'nope' }, ALLOWLIST, NOW), /no "vulnerabilities" object/);
+  assert.throws(
+    () => evaluateAuditReport({ vulnerabilities: 'nope' }, ALLOWLIST, NOW),
+    /no "vulnerabilities" object/,
+  );
 }
 
 // --- malformed JSON from `npm audit --json` fails, it is never treated as "no vulnerabilities" ---
@@ -203,7 +210,11 @@ function reportWith(advisory) {
 
   const unknownSeverity = {
     vulnerabilities: {
-      braces: { name: 'braces', severity: 'apocalyptic', via: [{ source: 1, name: 'braces', severity: 'apocalyptic', url: 'x' }] },
+      braces: {
+        name: 'braces',
+        severity: 'apocalyptic',
+        via: [{ source: 1, name: 'braces', severity: 'apocalyptic', url: 'x' }],
+      },
     },
   };
   assert.throws(() => collectAdvisories(unknownSeverity), /unknown severity/);
@@ -247,7 +258,9 @@ function withTempFile(contents, fn) {
 }
 
 const validEntryJson = JSON.stringify({
-  entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'no fix yet', issue: 177, expires: EXPIRES }],
+  entries: [
+    { ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'no fix yet', issue: 177, expires: EXPIRES },
+  ],
 });
 
 withTempFile(null, (file) => {
@@ -259,15 +272,28 @@ withTempFile('{ not valid json', (file) => {
 });
 
 withTempFile('[]', (file) => {
-  assert.throws(() => loadAllowlist(file, NOW), /must have an "entries" array/, 'a non-object root must fail');
-});
-
-withTempFile(JSON.stringify({ entries: [{ package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }] }), (file) => {
-  assert.throws(() => loadAllowlist(file, NOW), /missing required field "ghsaId"/, 'a missing required field must fail');
+  assert.throws(
+    () => loadAllowlist(file, NOW),
+    /must have an "entries" array/,
+    'a non-object root must fail',
+  );
 });
 
 withTempFile(
-  JSON.stringify({ entries: [{ ghsaId: 'not-a-ghsa-id', package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }] }),
+  JSON.stringify({ entries: [{ package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }] }),
+  (file) => {
+    assert.throws(
+      () => loadAllowlist(file, NOW),
+      /missing required field "ghsaId"/,
+      'a missing required field must fail',
+    );
+  },
+);
+
+withTempFile(
+  JSON.stringify({
+    entries: [{ ghsaId: 'not-a-ghsa-id', package: 'braces', reason: 'x', issue: 177, expires: EXPIRES }],
+  }),
   (file) => {
     assert.throws(() => loadAllowlist(file, NOW), /is not a GHSA id/, 'a non-GHSA ghsaId must fail');
   },
@@ -275,7 +301,9 @@ withTempFile(
 
 withTempFile(
   JSON.stringify({
-    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026/11/03' }],
+    entries: [
+      { ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026/11/03' },
+    ],
   }),
   (file) => {
     assert.throws(() => loadAllowlist(file, NOW), /strict YYYY-MM-DD/, 'a non-strict date format must fail');
@@ -284,7 +312,9 @@ withTempFile(
 
 withTempFile(
   JSON.stringify({
-    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026-02-30' }],
+    entries: [
+      { ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2026-02-30' },
+    ],
   }),
   (file) => {
     assert.throws(
@@ -298,7 +328,9 @@ withTempFile(
 withTempFile(
   JSON.stringify({
     // NOW is 2026-10-04; 2027-06-01 is well past the 90-day horizon.
-    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-06-01' }],
+    entries: [
+      { ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-06-01' },
+    ],
   }),
   (file) => {
     assert.throws(
@@ -312,7 +344,9 @@ withTempFile(
 withTempFile(
   JSON.stringify({
     // exactly 90 days from NOW (2026-10-04 + 90 days) must still be accepted.
-    entries: [{ ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-01-02' }],
+    entries: [
+      { ghsaId: 'GHSA-vfj7-8cjw-p6xm', package: 'braces', reason: 'x', issue: 177, expires: '2027-01-02' },
+    ],
   }),
   (file) => {
     const loaded = loadAllowlist(file, NOW);
@@ -326,4 +360,6 @@ withTempFile(validEntryJson, (file) => {
   assert.strictEqual(loaded[0].package, 'braces');
 });
 
-process.stdout.write('ok: audit-gate ignores only matching, unexpired allowlist entries and fails closed otherwise\n');
+process.stdout.write(
+  'ok: audit-gate ignores only matching, unexpired allowlist entries and fails closed otherwise\n',
+);

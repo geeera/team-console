@@ -54,7 +54,9 @@ export function collectAdvisories(report) {
 
       const pkg = typeof entry.name === 'string' ? entry.name : pkgReport?.name;
       if (typeof pkg !== 'string') {
-        throw new Error('an advisory is missing a package name, and its package-level report has none either');
+        throw new Error(
+          'an advisory is missing a package name, and its package-level report has none either',
+        );
       }
 
       const severity = typeof entry.severity === 'string' ? entry.severity : pkgReport?.severity;
@@ -68,7 +70,13 @@ export function collectAdvisories(report) {
       const ghsaId = extractGhsaId(entry.url);
       const key = `${ghsaId ?? '(unidentified)'}|${pkg}|${entry.url ?? ''}`;
       if (!advisories.has(key)) {
-        advisories.set(key, { ghsaId, package: pkg, severity, url: entry.url ?? null, title: entry.title ?? null });
+        advisories.set(key, {
+          ghsaId,
+          package: pkg,
+          severity,
+          url: entry.url ?? null,
+          title: entry.title ?? null,
+        });
       }
     }
   }
@@ -95,7 +103,9 @@ export function assertReportIntegrity(report, npmAuditExitStatus, advisories) {
   const metaVulnerabilities = report?.metadata?.vulnerabilities;
   const metaHigh = typeof metaVulnerabilities?.high === 'number' ? metaVulnerabilities.high : 0;
   const metaCritical = typeof metaVulnerabilities?.critical === 'number' ? metaVulnerabilities.critical : 0;
-  const collectedHighCritical = advisories.filter((advisory) => SEVERITIES_THAT_FAIL.has(advisory.severity)).length;
+  const collectedHighCritical = advisories.filter((advisory) =>
+    SEVERITIES_THAT_FAIL.has(advisory.severity),
+  ).length;
 
   if (metaHigh + metaCritical > 0 && collectedHighCritical === 0) {
     throw new Error(
@@ -110,7 +120,8 @@ function parseStrictCalendarDate(dateString) {
   if (typeof dateString !== 'string' || !EXPIRES_RE.test(dateString)) return null;
   const [year, month, day] = dateString.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return null;
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day)
+    return null;
   return date;
 }
 
@@ -189,7 +200,9 @@ function isExpired(allowlistEntry, now) {
  * expired; everything else — no match, a package mismatch, or an expired match — is a `failure`.
  */
 export function evaluateAuditReport(report, allowlistEntries, now = new Date()) {
-  const advisories = collectAdvisories(report).filter((advisory) => SEVERITIES_THAT_FAIL.has(advisory.severity));
+  const advisories = collectAdvisories(report).filter((advisory) =>
+    SEVERITIES_THAT_FAIL.has(advisory.severity),
+  );
 
   const failures = [];
   const ignored = [];
@@ -197,7 +210,8 @@ export function evaluateAuditReport(report, allowlistEntries, now = new Date()) 
     const match =
       advisory.ghsaId &&
       allowlistEntries.find(
-        (entry) => entry.ghsaId.toLowerCase() === advisory.ghsaId.toLowerCase() && entry.package === advisory.package,
+        (entry) =>
+          entry.ghsaId.toLowerCase() === advisory.ghsaId.toLowerCase() && entry.package === advisory.package,
       );
 
     if (match && !isExpired(match, now)) {
