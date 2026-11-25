@@ -1,12 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { errors, type Page } from '@playwright/test';
-import {
-  type AnimationReport,
-  restartingAnimationsMessage,
-  type SettleOptions,
-  settleRound,
-  stuckAnimationsMessage,
-} from './animation-settle';
+import type { Page } from '@playwright/test';
+import { settled } from './motion';
 
 // WCAG 2.2 A/AA plus axe's best practices; only these impacts fail the run (#14).
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa', 'best-practice'];
@@ -55,65 +49,48 @@ async function domIdle(page: Page, quietMs: number, timeoutMs: number): Promise<
   );
 }
 
-/**
- * Resolves once every `.m-route` container (#506) has its routed page mounted beside its `<router-outlet>`. A lazy
- * route's chunk can still be downloading after the shell around it is up — badge-roll's first scan waited only for
- * the sidebar badge (#971) — and nothing mutates the DOM while it downloads, so `domIdle()`'s quiet window passes and
- * the page mounts, fading in, while axe measures it (contrast on `h1`, `.overview__count`, … reproduced by holding
- * the route's chunk back 300 ms); held back longer, axe passed a page that had not arrived at all.
- */
-async function routesMounted(page: Page, timeoutMs: number): Promise<void> {
-  try {
-    await page.waitForFunction(
-      () =>
-        Array.from(document.querySelectorAll('.m-route')).every((outlet) =>
-          Array.from(outlet.children).some((child) => child.tagName !== 'ROUTER-OUTLET'),
-        ),
-      undefined,
-      { timeout: timeoutMs },
-    );
-  } catch (error: unknown) {
-    if (error instanceof errors.TimeoutError) {
-      throw new Error(
-        `animationsSettled: a route outlet (.m-route) still had no page after ${String(timeoutMs)} ms, so there is ` +
-          'nothing settled to scan yet. Wait for the screen the test means first.',
-        { cause: error },
-      );
-    }
-    throw error;
-  }
+/** Resolves once `frames` animation frames in a row saw no finite animation running. */
+async function quietForFrames(page: Page, frames: number): Promise<boolean> {
+  return page.evaluate((frameCount) => {
+    const running = () =>
+      document
+        .getAnimations()
+        .some(
+          (animation) =>
+            animation.playState === 'running' && animation.effect?.getComputedTiming().iterations !== Infinity,
+        );
+    const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    return (async () => {
+      for (let i = 0; i < frameCount; i++) {
+        if (running()) {
+          return false;
+        }
+        await nextFrame();
+      }
+      return !running();
+    })();
+  }, frames);
 }
-
-/** One round can wait up to this long per animation; the #506 motion tokens top out at 1.6 s (`--dur-pulse`). */
-const SETTLE: SettleOptions = { quietFrames: 4, maxWaitMs: 3000, slackMs: 250 };
-const SETTLE_ROUNDS = 20;
 
 /**
  * Waits until every finite animation has finished: mid-way through a sheet's entrance, or the #506 route fade/rise,
  * its text is still partly transparent, and axe would measure contrast on a frame no one reads. Endless ones
- * (spinners, the live dot) and paused ones (a hovered Undo toast's hairline) are left alone.
+ * (spinners, the live dot) are left alone.
  *
  * A DOM swap's animation (a navigation, an `@if` block replaced) is not always constructed on the very first frame
- * read — more so under CPU load (#952) — so only `SETTLE.quietFrames` quiet frames in a row are trusted; anything
- * seen running is waited out and the quiet check runs again, in case another one started meanwhile. Each wait is
- * bounded (#971): an animation that outlives it, or a page that keeps starting new ones, fails the scan with the
- * animation and element named instead of hanging until the test timeout.
+ * read — more so under CPU load (#952, seen on CI and reproduced locally under load) — so a single `settled()`
+ * snapshot can race the animation's own start and return before it begins. Only four quiet frames in a row are
+ * trusted; anything seen running is waited out and the quiet check runs again, in case another one started meanwhile.
  */
 export async function animationsSettled(page: Page): Promise<void> {
-  await routesMounted(page, 10_000);
   await domIdle(page, 80, 2000);
-  let lastSeen: readonly AnimationReport[] = [];
-  for (let round = 0; round < SETTLE_ROUNDS; round++) {
-    const result = await page.evaluate(settleRound, SETTLE);
-    if (result.quiet) {
+  const attempts = 20;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    if (await quietForFrames(page, 4)) {
       return;
     }
-    if (result.stuck.length > 0) {
-      throw new Error(stuckAnimationsMessage(result.stuck, SETTLE.maxWaitMs));
-    }
-    lastSeen = result.running.length > 0 ? result.running : lastSeen;
+    await settled(page);
   }
-  throw new Error(restartingAnimationsMessage(lastSeen, SETTLE_ROUNDS));
 }
 
 /**
