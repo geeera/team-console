@@ -127,6 +127,61 @@ describe('reachableFrom', () => {
     ]);
   });
 
+  // #999: only index.ts / index.tsx were tried, so a directory whose index is .mts or .cts did not resolve.
+  it.each(['mts', 'cts'])('finds index.%s behind a directory import and reads its imports', (extension) => {
+    write('apps/a/src/main.ts', `import './widgets';\nimport '@shared/deep/x';`);
+    write(`apps/a/src/widgets/index.${extension}`, `import '@shared/contracts';`);
+    write(`libs/deep/x/index.${extension}`, `import './lib/deep';`);
+    write('libs/deep/x/lib/deep.ts', 'export const deep = 1;');
+    write('libs/shared/contracts/src/index.ts', 'export const c = 1;');
+
+    const reached = reachableFrom('apps/a/src/main.ts', { root, aliases: ALIASES });
+
+    expect([...reached.keys()].sort()).toEqual([
+      'apps/a/src/main.ts',
+      `apps/a/src/widgets/index.${extension}`,
+      `libs/deep/x/index.${extension}`,
+      'libs/deep/x/lib/deep.ts',
+      'libs/shared/contracts/src/index.ts',
+    ]);
+    expect(reached.get('libs/shared/contracts/src/index.ts')).toBe(`apps/a/src/widgets/index.${extension}`);
+  });
+
+  it('prefers index.ts, then index.tsx, to index.mts and index.cts in the same directory', () => {
+    write('apps/a/src/main.ts', `import './both';\nimport './modules';\nimport './views';`);
+    write('apps/a/src/both/index.ts', 'export const both = 1;');
+    write('apps/a/src/both/index.mts', 'export const both = 2;');
+    write('apps/a/src/views/index.tsx', 'export const View = () => <p />;');
+    write('apps/a/src/views/index.cts', 'export const view = 1;');
+    write('apps/a/src/modules/index.mts', 'export const m = 1;');
+    write('apps/a/src/modules/index.cts', 'export const m = 2;');
+
+    const reached = reachableFrom('apps/a/src/main.ts', { root, aliases: {} });
+
+    expect([...reached.keys()].sort()).toEqual([
+      'apps/a/src/both/index.ts',
+      'apps/a/src/main.ts',
+      'apps/a/src/modules/index.mts',
+      'apps/a/src/views/index.tsx',
+    ]);
+  });
+
+  it('prefers a file to a directory of the same name, and still throws for a directory without an index', () => {
+    write('apps/a/src/main.ts', `import './widgets';`);
+    write('apps/a/src/widgets.ts', 'export const w = 1;');
+    write('apps/a/src/widgets/index.mts', 'export const w = 2;');
+    expect([...reachableFrom('apps/a/src/main.ts', { root, aliases: {} }).keys()].sort()).toEqual([
+      'apps/a/src/main.ts',
+      'apps/a/src/widgets.ts',
+    ]);
+
+    write('apps/a/src/other.ts', `import './empty';`);
+    write('apps/a/src/empty/readme.md', '');
+    expect(() => reachableFrom('apps/a/src/other.ts', { root, aliases: {} })).toThrow(
+      'apps/a/src/other.ts: cannot resolve ./empty',
+    );
+  });
+
   it('reads an import of the emitted .js/.mjs name as the source file next to it', () => {
     write(
       'apps/a/src/main.mts',

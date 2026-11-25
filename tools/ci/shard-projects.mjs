@@ -4,12 +4,17 @@
 // for `nx run-many --projects=…` (an empty line for a shard with nothing to run).
 //
 //   nx show projects --with-target test --json \
-//     | node tools/ci/shard-projects.mjs <index>/<total> [--always a,b] [--weights a=14,b=5]
+//     | node tools/ci/shard-projects.mjs <index>/<total> [--scope affected|run-many] [--always a,b] [--weights a=14,b=5]
 //
 // Every job of the matrix runs this on the same list and gets its own slice of one split: each project lands in
 // exactly one shard, so no test is skipped and none runs twice. The split is by weight (how long a project's
 // tests take, in units of an ordinary project, which counts 1), heaviest first onto the lightest shard, so two
 // slow projects do not share a shard. A weight for a project that is not in the list is ignored: a stale weight must not break CI.
+//
+// `--scope run-many` says the list is the whole workspace (#999). Such a run always has tests to run, so an empty
+// list on stdin, or a shard left with nothing, means the listing went wrong and is an error: the shard would
+// otherwise be green without running a test. An affected run (the default) may really have nothing to test — a
+// change no project owns — so there an empty shard stays an empty line and success.
 //
 // Fails closed: a list that is not a JSON array of plain project names, or a malformed argument, exits non-zero
 // with nothing on stdout, so the caller's `$(…)` under `set -e` stops the job instead of running no tests.
@@ -23,6 +28,8 @@ import { pathToFileURL } from 'node:url';
 const PROJECT_NAME = /^[A-Za-z0-9@][A-Za-z0-9@._/-]*$/;
 const SHARD = /^([1-9][0-9]?)\/([1-9][0-9]?)$/;
 const DEFAULT_WEIGHT = 1;
+const SCOPES = ['affected', 'run-many'];
+const FULL_RUN = 'run-many';
 
 /** An argument or an input this script cannot use; `message` is constant text, safe in a workflow command. */
 export class InputError extends Error {
@@ -47,6 +54,29 @@ function assertProjectName(name, where) {
   if (typeof name !== 'string' || !PROJECT_NAME.test(name)) {
     throw new InputError(`${where} holds something that is not a plain project name`);
   }
+}
+
+/** A `--scope` value: `affected`, or `run-many` for a run of every project. */
+export function parseScope(text) {
+  if (!SCOPES.includes(text)) {
+    throw new InputError('--scope is neither affected nor run-many');
+  }
+  return text;
+}
+
+/**
+ * The projects shard `index` of `total` runs. `listed` is what Nx listed, `always` what runs whatever was listed.
+ * In a full run (`scope` is `run-many`) nothing listed, or nothing for this shard, throws: see the header.
+ */
+export function selectShard({ listed, always = [], index, total, weights = new Map(), scope = 'affected' }) {
+  if (scope === FULL_RUN && listed.length === 0) {
+    throw new InputError('a full run listed no project with a test target');
+  }
+  const selected = splitIntoShards([...listed, ...always], total, weights)[index - 1] ?? [];
+  if (scope === FULL_RUN && selected.length === 0) {
+    throw new InputError('a full run left this shard no project to test');
+  }
+  return selected;
 }
 
 /** The project names of a comma-separated `--always` value. */
@@ -111,7 +141,7 @@ export function splitIntoShards(projects, total, weights = new Map()) {
 
 function parseArguments(argv) {
   const [shard, ...options] = argv;
-  const parsed = { ...parseShard(shard), always: [], weights: new Map() };
+  const parsed = { ...parseShard(shard), always: [], weights: new Map(), scope: 'affected' };
   for (let at = 0; at < options.length; at += 2) {
     const value = options[at + 1];
     if (value === undefined) {
@@ -121,8 +151,10 @@ function parseArguments(argv) {
       parsed.always = parseNames(value);
     } else if (options[at] === '--weights') {
       parsed.weights = parseWeights(value);
+    } else if (options[at] === '--scope') {
+      parsed.scope = parseScope(value);
     } else {
-      throw new InputError('unknown option; only --always and --weights exist');
+      throw new InputError('unknown option; only --scope, --always and --weights exist');
     }
   }
   return parsed;
@@ -131,14 +163,13 @@ function parseArguments(argv) {
 function main(argv) {
   let line;
   try {
-    const { index, total, always, weights } = parseArguments(argv);
-    const projects = [...parseProjects(readFileSync(0, 'utf8')), ...always];
-    line = (splitIntoShards(projects, total, weights)[index - 1] ?? []).join(',');
+    const options = parseArguments(argv);
+    line = selectShard({ ...options, listed: parseProjects(readFileSync(0, 'utf8')) }).join(',');
   } catch (error) {
     const reason = error instanceof InputError ? error.message : 'could not read the project list on stdin';
     process.stderr.write(
       `::error::shard-projects: ${reason}. See #992.\n` +
-        'usage: shard-projects.mjs <index>/<total> [--always a,b] [--weights a=14,b=5] < projects.json\n',
+        'usage: shard-projects.mjs <index>/<total> [--scope affected|run-many] [--always a,b] [--weights a=14,b=5] < projects.json\n',
     );
     return 1;
   }

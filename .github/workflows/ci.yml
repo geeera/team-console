@@ -174,7 +174,12 @@ jobs:
       # but a file no project owns affects nothing, so `--always` puts it in the list whatever the scope.
       # The weights level the two shards. The unit is one ordinary project (~7 s of the step in run
       # 45598018931, where runner took ~100 s, api ~90 s, workspace-checks ~35 s, console ~30 s, hooks ~25 s);
-      # every project without a weight counts 1. A stale or missing weight changes the balance, never the cover.
+      # every project without a weight counts 1. A stale or missing weight changes the balance, never the cover;
+      # ci-scope.spec.ts fails on a weight whose project is gone or has no `test` target (#999).
+      # #999, when a shard may be empty: only in an affected run, where a change can leave a shard (or, without
+      # `--always`, the whole run) nothing to test. A full run always has tests, so there an empty list from
+      # `nx show projects` or an empty shard means the listing went wrong: `--scope run-many` makes
+      # shard-projects.mjs fail on both, and the check below repeats it rather than skip with a notice.
       - name: Test (${{ matrix.name }})
         if: matrix.kind == 'test'
         env:
@@ -187,8 +192,12 @@ jobs:
           else
             listed=$(npx nx show projects --with-target test --json)
           fi
-          projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")
+          projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --scope "${NX_MODE}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")
           if [ -z "${projects}" ]; then
+            if [ "${NX_MODE}" != "affected" ]; then
+              echo "::error title=Test shard ${SHARD}::a full run gave this shard no project to test"
+              exit 1
+            fi
             echo "::notice title=Test shard ${SHARD}::no project with a test target in this shard"
             exit 0
           fi
