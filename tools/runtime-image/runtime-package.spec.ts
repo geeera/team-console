@@ -129,6 +129,18 @@ describe('runtime manifest', () => {
       expect(readFileSync(manifest(), 'utf8')).toBe(RUNTIME_JSON);
     });
 
+    it('fails and leaves the file as it was when the script is piped to node instead of named', () => {
+      writeFileSync(manifest(), JSON.stringify(workspace));
+      const result = spawnSync(process.execPath, ['--input-type=module'], {
+        cwd: directory,
+        input: readFileSync(SCRIPT, 'utf8'),
+        encoding: 'utf8',
+      });
+      expect(result.status).not.toBe(0);
+      expect(result.stderr).toContain('runtime-package.mjs must be started as a file');
+      expect(readFileSync(manifest(), 'utf8')).toBe(JSON.stringify(workspace));
+    });
+
     it('exits 2 and leaves no manifest when there is no package.json', () => {
       const result = run();
       expect(result.status).toBe(2);
