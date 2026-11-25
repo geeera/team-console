@@ -1,16 +1,15 @@
 import { spawn } from 'node:child_process';
 import { join } from 'node:path';
 import type { APIRequestContext } from '@playwright/test';
-import { STACKS_DIR, WORKSPACE_ROOT } from '../stack/local-stack';
+import { stackEnv, STACKS_DIR, WORKSPACE_ROOT, WRANGLER } from '../stack/local-stack';
 
 /**
  * Console-tracker seeding for the #435 specs. Nothing in the API switches a project to the console tracker yet (the
  * cutover is #437) and asks are job writes (Phase 2), so those two rows go straight into the worker's own local D1 —
  * the same database `LocalStack` migrated under `tmp/console-e2e/worker-<index>/api-state`. Never a remote D1: the
- * command is always `--local` with that `--persist-to`. Everything else goes through the owner's API like the app.
+ * command is always `--local` with that `--persist-to`, and wrangler runs with the stack's own environment (#993):
+ * no token of the host and no home with a login in it. Everything else goes through the owner's API like the app.
  */
-
-const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
 
 /** Runs SQL on the local D1 of the Playwright worker `workerIndex`. The SQL is the spec's own constant text. */
 export async function localD1(workerIndex: number, sql: string): Promise<void> {
@@ -32,7 +31,7 @@ export async function localD1(workerIndex: number, sql: string): Promise<void> {
         '--command',
         sql,
       ],
-      { cwd: WORKSPACE_ROOT, stdio: ['ignore', 'ignore', 'pipe'], env: { ...process.env, NO_COLOR: '1' } },
+      { cwd: WORKSPACE_ROOT, stdio: ['ignore', 'ignore', 'pipe'], env: stackEnv({ NO_COLOR: '1' }) },
     );
     let errors = '';
     child.stderr.on('data', (chunk: Buffer) => {
