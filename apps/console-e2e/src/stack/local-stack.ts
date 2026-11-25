@@ -17,7 +17,7 @@ import { startCloseRelay, type CloseRelay } from './close-relay';
 import { STACK_PARENT_PID } from './orphan-watch.mts';
 import { signal } from './process-signal';
 import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
-import { forgetServer, recordServer, SERVER_TOKEN_FLAG, stopStaleServers } from './stale-servers';
+import { forgetServer, recordServer, serverArgs, stopStaleServers } from './stale-servers';
 import { stackChildEnv, stackHome } from './stack-env';
 import { streamSuffix, type StackPorts } from './stack-ports';
 import { WORKSPACE_ROOT } from './workspace';
@@ -35,8 +35,6 @@ export const STACKS_DIR = join(WORKSPACE_ROOT, `tmp/console-e2e${streamSuffix()}
 export const SERVERS_DIR = join(STACKS_DIR, 'servers');
 
 export const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
-/** Each server of the stack is a Worker on Miniflare, not a `wrangler dev` (#957, `serve-worker.mts`). */
-const SERVE_WORKER = join(__dirname, 'serve-worker.mts');
 const API_CONFIG = 'apps/api/wrangler.jsonc';
 const FAKE_CONFIG = 'apps/api/fake-github/wrangler.jsonc';
 const FAKE_PUSH_CONFIG = 'apps/api/fake-push/wrangler.jsonc';
@@ -104,21 +102,17 @@ class StackProcess {
     try {
       const token = randomUUID();
       // Own process group: Miniflare forks workerd, and stopping the group takes both down.
-      const child = spawn(
-        process.execPath,
-        ['--experimental-strip-types', SERVE_WORKER, `${SERVER_TOKEN_FLAG}${token}`],
-        {
-          cwd: WORKSPACE_ROOT,
-          detached: true,
-          stdio: ['ignore', log, log],
-          env: stackEnv({
-            [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
-            [STACK_PARENT_PID]: String(process.pid),
-            // Plain logs, whatever colour setting the parent runs with.
-            FORCE_COLOR: '0',
-          }),
-        },
-      );
+      const child = spawn(process.execPath, serverArgs(token), {
+        cwd: WORKSPACE_ROOT,
+        detached: true,
+        stdio: ['ignore', log, log],
+        env: stackEnv({
+          [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
+          [STACK_PARENT_PID]: String(process.pid),
+          // Plain logs, whatever colour setting the parent runs with.
+          FORCE_COLOR: '0',
+        }),
+      });
       // No pid means the spawn itself failed: nothing runs, so there is nothing to record or to stop later. The
       // failure is not lost — it arrives as the child's `error` event, and `waitForOk` reports it with the log.
       if (child.pid !== undefined) {

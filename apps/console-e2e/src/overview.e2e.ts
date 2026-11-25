@@ -85,8 +85,10 @@ test.describe('with two active projects', () => {
     });
   }
 
-  test('#359: the card counts the days to the demo and its meter fills from empty', async ({ page }) => {
-    await moveDemo(page, contextDay(test.info(), 3));
+  test('#359: the card counts the days to the demo and its meter fills from empty', async ({
+    page,
+  }, testInfo) => {
+    await moveDemo(page, contextDay(testInfo, 3));
     await openOverview(page);
 
     const countdown = tileOf(page, 'team-console').getByTestId('countdown');
@@ -99,8 +101,8 @@ test.describe('with two active projects', () => {
     await expectAccessible(page, 'All projects with the demo countdown');
   });
 
-  test('#359: on the demo day the card says so in the accent', async ({ page }) => {
-    await moveDemo(page, contextDay(test.info(), 0));
+  test('#359: on the demo day the card says so in the accent', async ({ page }, testInfo) => {
+    await moveDemo(page, contextDay(testInfo, 0));
     await openOverview(page);
 
     const countdown = tileOf(page, 'team-console').getByTestId('countdown');
@@ -111,9 +113,9 @@ test.describe('with two active projects', () => {
 
   test('#359: under reduced motion the meters are filled at once, the text is unchanged', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await moveDemo(page, contextDay(test.info(), 3));
+    await moveDemo(page, contextDay(testInfo, 3));
     await openOverview(page);
 
     await expect(tileOf(page, 'team-console').getByTestId('countdown')).toHaveText(

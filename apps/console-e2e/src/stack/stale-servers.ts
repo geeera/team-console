@@ -18,12 +18,27 @@ import { WORKSPACE_ROOT } from './workspace';
  * port, and the next start stops whatever a record still points at before it needs that port.
  *
  * A pid alone is not proof — the system reuses pids — so each server is started with a random token on its command
- * line, and its group is killed only while the process with the recorded pid still carries that token. One more case:
- * the server itself was killed and the workerd it forked lives on, holding the port. That group has no leader to
- * carry a token, and "all workerd" alone would also fit the leftover of some other Miniflare whose leader took the
- * recorded pid after ours was gone (#993). So every member has to be this stack's own workerd: the binary of this
- * checkout, serving on the very port the record is filed under (`isStackWorkerd`). Nothing but a server of this
- * stack on that port matches, and that is what the port has to be freed of.
+ * line, and its group is killed only while the process with the recorded pid is still that server: every argument
+ * after the executable is the one the stack started it with, the token last (`serverArgs`). One more case: the
+ * server itself was killed and the workerd it forked lives on, holding the port. That group has no leader to carry a
+ * token, and "all workerd" alone would also fit the leftover of some other Miniflare whose leader took the recorded
+ * pid after ours was gone (#993). So every member has to look like this stack's own workerd: started by the path
+ * of the one in this checkout, serving on the very port the record is filed under (`isStackWorkerd`).
+ *
+ * What the rule reads is the argument words of a process (`process-group.ts`), and it compares whole words (#999):
+ * - It trusts their text. `argv[0]` is what the starter wrote there, not the file that runs: nothing here checks the
+ *   executable itself.
+ * - A word that only holds the token or the socket address among other text is not that word. Linux hands out the
+ *   real words, so there this is exact. On macOS they come from `ps`, joined and split at spaces again, so a word
+ *   with spaces arrives in pieces: for a live leader the pieces then have to be the server's arguments, all of them
+ *   and in order, to match — text that spells out the whole command line cannot be told from it — and for a workerd
+ *   one piece has to be the socket address.
+ * - For the same reason a checkout whose path has a space never matches on macOS — neither the server's script nor
+ *   the workerd path arrives as one word — and its leftovers are left alone: the rule fails closed, and the start
+ *   reports the port still taken.
+ * - Left open (pid reuse, #993): a Miniflare started from this same checkout by something other than the suite, on
+ *   a port inside the suite's own range, whose leader took the recorded pid and then died. Its workerd is taken for
+ *   the stack's and killed. It would be holding the very port the stack is about to bind.
  */
 export interface ServerRecord {
   /** The server's pid, which is also its process group. */
@@ -35,15 +50,27 @@ export interface ServerRecord {
 /** The argument that carries a server's token; `serve-worker.mts` ignores it. */
 export const SERVER_TOKEN_FLAG = '--stack-server=';
 
+/** Each server of the stack is a Worker on Miniflare, not a `wrangler dev` (#957, `serve-worker.mts`). */
+export const SERVE_WORKER = join(__dirname, 'serve-worker.mts');
+
+/**
+ * What a server is started with after the node executable. `local-stack.ts` starts it with exactly these and
+ * `isRecorded` expects exactly these back, so the two cannot drift apart.
+ */
+export function serverArgs(token: string): string[] {
+  return ['--experimental-strip-types', SERVE_WORKER, `${SERVER_TOKEN_FLAG}${token}`];
+}
+
 const KILL_TIMEOUT_MS = 5_000;
 /** How Miniflare starts it: `<path>/workerd serve --binary … --socket-addr=entry=<host>:<port> …`. */
-const WORKERD_SERVE = '/workerd serve ';
+const WORKERD_FILE = 'workerd';
+const WORKERD_VERB = 'serve';
 const STACK_HOST = '127.0.0.1';
 
 export type { GroupMember } from './process-group';
 
 export interface StaleServerControl {
-  /** Every running process of the group `pgid` with its command line; none when the group is gone. */
+  /** Every running process of the group `pgid` with its argument words; none when the group is gone. */
   groupOf(pgid: number): GroupMember[];
   killGroup(pgid: number): void;
 }
@@ -105,6 +132,8 @@ export interface StopStaleOptions {
   readonly control?: StaleServerControl;
   /** The directory this stack's workerd runs from; this checkout's `node_modules` when left out. */
   readonly workerdRoot?: string;
+  /** The arguments a server with this token was started with; `serverArgs` when left out. */
+  readonly serverArgs?: (token: string) => readonly string[];
 }
 
 /**
@@ -129,7 +158,10 @@ export async function stopStaleServers(dir: string, options: StopStaleOptions = 
     if (
       record !== null &&
       group.length > 0 &&
-      isRecorded(record, portOf(path), group, options.workerdRoot ?? installedModulesRoot())
+      isRecorded(record, portOf(path), group, {
+        workerdRoot: options.workerdRoot ?? installedModulesRoot(),
+        serverArgs: (options.serverArgs ?? serverArgs)(record.token),
+      })
     ) {
       control.killGroup(record.pid);
       await gone(record, control);
@@ -145,35 +177,52 @@ function portOf(path: string): number {
   return Number(basename(path, '.json'));
 }
 
-/** Whether `group` — the processes of the group `record.pid` now — is the server `record` was written for. */
+export interface StackIdentity {
+  /** The directory this stack's workerd runs from. */
+  readonly workerdRoot: string;
+  /** Every argument the recorded server was started with, after the executable. */
+  readonly serverArgs: readonly string[];
+}
+
+/**
+ * Whether `group` — the processes of the group `record.pid` now — is the server `record` was written for. A live
+ * leader is, when its arguments after the executable are the server's own, word for word and nothing more: a word
+ * that merely contains the token among other text is not one of them.
+ */
 export function isRecorded(
   record: ServerRecord,
   port: number,
   group: readonly GroupMember[],
-  workerdRoot: string,
+  stack: StackIdentity,
 ): boolean {
   const leader = group.find((member) => member.pid === record.pid);
   if (leader !== undefined) {
-    return leader.command.split(' ').includes(`${SERVER_TOKEN_FLAG}${record.token}`);
+    const args = leader.argv.slice(1);
+    return (
+      stack.serverArgs.includes(`${SERVER_TOKEN_FLAG}${record.token}`) &&
+      args.length === stack.serverArgs.length &&
+      args.every((word, at) => word === stack.serverArgs[at])
+    );
   }
-  return group.length > 0 && group.every((member) => isStackWorkerd(member.command, port, workerdRoot));
+  return group.length > 0 && group.every((member) => isStackWorkerd(member.argv, port, stack.workerdRoot));
 }
 
 /**
- * Whether `command` is the workerd of a server of this stack on `port`: the executable is a file named `workerd`
- * under `workerdRoot` (this checkout's `node_modules`, where Miniflare takes it from), and it serves the stack's
- * address with exactly that port. A workerd of another checkout or tool, or of this one on another port, is not.
+ * Whether `argv` is the workerd of a server of this stack on `port`: `argv[0]` names a file `workerd` under
+ * `workerdRoot` (this checkout's `node_modules`, where Miniflare takes it from), run as `workerd serve`, and one
+ * whole word is the stack's address with exactly that port. A workerd of another checkout or tool, or of this one on
+ * another port, is not. `argv[0]` is text the starter chose — see the limits in the note at the top.
  */
-export function isStackWorkerd(command: string, port: number, workerdRoot: string): boolean {
-  const end = command.indexOf(WORKERD_SERVE);
-  if (!Number.isInteger(port) || end === -1) {
+export function isStackWorkerd(argv: readonly string[], port: number, workerdRoot: string): boolean {
+  const [executable, verb, ...args] = argv;
+  if (!Number.isInteger(port) || executable === undefined || verb !== WORKERD_VERB) {
     return false;
   }
-  const executable = command.slice(0, end + '/workerd'.length);
-  const args = command.slice(end + WORKERD_SERVE.length).split(' ');
+  const segments = executable.split(sep);
   return (
     executable.startsWith(workerdRoot.endsWith(sep) ? workerdRoot : `${workerdRoot}${sep}`) &&
-    !executable.split(sep).includes('..') &&
+    segments.at(-1) === WORKERD_FILE &&
+    !segments.includes('..') &&
     args.includes(`--socket-addr=entry=${STACK_HOST}:${port}`)
   );
 }

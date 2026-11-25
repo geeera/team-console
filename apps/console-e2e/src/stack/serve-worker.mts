@@ -16,7 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { unstable_getMiniflareWorkerOptions, unstable_readConfig } from 'wrangler';
 // Types only, from the hoisted copy; the value below is the Miniflare wrangler itself depends on.
 import type * as MiniflareModule from 'miniflare';
-import { onOrphaned, parentPidFrom, STACK_PARENT_PID, stopWithin } from './orphan-watch.mts';
+import { describeError, onOrphaned, parentPidFrom, STACK_PARENT_PID, stopOrphaned } from './orphan-watch.mts';
 import {
   parseServeWorkerOptions,
   SERVE_WORKER_OPTIONS,
@@ -62,37 +62,11 @@ async function serve(options: ServeWorkerOptions): Promise<void> {
       logRequests: true,
     }),
   );
-  onOrphaned(() => void stopOrphaned(miniflare), { parentPid: parentPidFrom(process.env[STACK_PARENT_PID]) });
+  onOrphaned(() => void stopOrphaned(() => miniflare.dispose()), {
+    parentPid: parentPidFrom(process.env[STACK_PARENT_PID]),
+  });
   const url = await miniflare.ready;
   process.stdout.write(`serve-worker: ${options.config} ready on ${url.href}\n`);
-}
-
-/** Miniflare's dispose asks workerd to exit and waits for it; a stuck workerd must not keep the orphan alive. */
-const ORPHAN_STOP_TIMEOUT_MS = 5_000;
-
-async function stopOrphaned(miniflare: MiniflareModule.Miniflare): Promise<never> {
-  process.stderr.write('serve-worker: the process that started this server is gone; stopping\n');
-  const outcome = await stopWithin(() => miniflare.dispose(), ORPHAN_STOP_TIMEOUT_MS);
-  if (outcome.kind === 'failed') {
-    process.stderr.write(`serve-worker: ${describe(outcome.error)}\n`);
-  }
-  if (outcome.kind === 'timed-out') {
-    process.stderr.write(
-      `serve-worker: Miniflare did not stop within ${outcome.afterMs} ms; killing this server's process group\n`,
-    );
-    // A plain exit would leave workerd to Miniflare's exit hook: the very code that has just failed to stop it.
-    // `local-stack.ts` starts this process detached, so it leads its own group, which holds only it and its workerd.
-    try {
-      process.kill(-process.pid, 'SIGKILL');
-    } catch (error: unknown) {
-      process.stderr.write(`serve-worker: ${describe(error)}\n`);
-    }
-  }
-  process.exit(1);
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? (error.stack ?? error.message) : String(error);
 }
 
 async function main(): Promise<void> {
@@ -100,6 +74,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  process.stderr.write(`serve-worker: ${describe(error)}\n`);
+  process.stderr.write(`serve-worker: ${describeError(error)}\n`);
   process.exit(1);
 });

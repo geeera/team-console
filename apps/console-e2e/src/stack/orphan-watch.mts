@@ -34,6 +34,41 @@ export function parentPidFrom(raw: string | undefined): number | undefined {
   return raw !== undefined && /^[1-9]\d*$/.test(raw) ? Number(raw) : undefined;
 }
 
+/** Miniflare's dispose asks workerd to exit and waits for it; a stuck workerd must not keep the orphan alive. */
+export const ORPHAN_STOP_TIMEOUT_MS = 5_000;
+
+/**
+ * The end of a server whose starter is gone: `dispose` within the deadline, then exit 1 whatever came of it. When
+ * `dispose` does not settle in time, a plain exit would leave workerd to Miniflare's exit hook — the very code that
+ * has just failed to stop it — so the server kills its own process group first. `local-stack.ts` starts it detached:
+ * it leads that group, which holds only it and its workerd.
+ */
+export async function stopOrphaned(
+  dispose: () => Promise<unknown>,
+  deadlineMs: number = ORPHAN_STOP_TIMEOUT_MS,
+): Promise<never> {
+  process.stderr.write('serve-worker: the process that started this server is gone; stopping\n');
+  const outcome = await stopWithin(dispose, deadlineMs);
+  if (outcome.kind === 'failed') {
+    process.stderr.write(`serve-worker: ${describeError(outcome.error)}\n`);
+  }
+  if (outcome.kind === 'timed-out') {
+    process.stderr.write(
+      `serve-worker: Miniflare did not stop within ${outcome.afterMs} ms; killing this server's process group\n`,
+    );
+    try {
+      process.kill(-process.pid, 'SIGKILL');
+    } catch (error: unknown) {
+      process.stderr.write(`serve-worker: ${describeError(error)}\n`);
+    }
+  }
+  process.exit(1);
+}
+
+export function describeError(error: unknown): string {
+  return error instanceof Error ? (error.stack ?? error.message) : String(error);
+}
+
 export type StopOutcome =
   | { readonly kind: 'stopped' }
   | { readonly kind: 'failed'; readonly error: unknown }
