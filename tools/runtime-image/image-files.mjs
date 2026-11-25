@@ -46,6 +46,16 @@ export const RUNTIME_COPIES = [
   { stage: 'build', path: '/app/apps/api/migrations' },
 ];
 
+/**
+ * The lockfiles npm writes for the runtime tree. They are the `runtime-deps` stage's working files (#998, #1005):
+ * the image starts wrangler without npm, so neither may reach it, not even inside a copied directory.
+ */
+export const LOCKFILES = [
+  '/app/package-lock.json',
+  '/app/npm-shrinkwrap.json',
+  '/app/node_modules/.package-lock.json',
+];
+
 /** Kernel and device trees: listed as a directory, never entered. */
 const NOT_ENTERED = new Set(['/proc', '/sys', '/dev']);
 /** Docker writes these per container; they are not the image's. */
@@ -223,6 +233,9 @@ export function checkImageFiles(listings, copies = RUNTIME_COPIES) {
   }
   for (const path of actual.keys()) {
     if (!expected.has(path)) problems.push(`${path}: in the image, but neither the base image's nor copied`);
+  }
+  for (const path of LOCKFILES) {
+    if (actual.has(path)) problems.push(`${path}: a lockfile of the runtime-deps stage, not of the image`);
   }
   // A comparison of nothing with nothing must not pass.
   if (listings.base.length === 0) problems.push('the base image listing is empty');

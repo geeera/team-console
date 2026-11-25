@@ -32,6 +32,8 @@ RUN npx nx run-many -t build
 # in both directions and refuses a comparison too small to be the wrangler tree. `npm ls --all` adds npm's verdict on
 # the dependency edges: it exits non-zero on a missing or invalid dependency, but 0 on an extraneous package, which
 # is why the script walks the disk itself.
+# Last, npm's hidden lockfile goes (#1005): node_modules/.package-lock.json is npm's cache of the tree it has just
+# been checked against, and nothing in the image runs npm.
 FROM deps AS runtime-deps
 COPY tools/runtime-image/runtime-package.mjs tools/runtime-image/check-runtime-tree.mjs /tmp/
 RUN cp package-lock.json /tmp/workspace-lock.json \
@@ -40,14 +42,14 @@ RUN cp package-lock.json /tmp/workspace-lock.json \
   && node /tmp/check-runtime-tree.mjs /tmp/workspace-lock.json /app \
   && npm ls --all > /dev/null \
   && npm ls sharp undici \
-  && rm /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs
+  && rm /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs node_modules/.package-lock.json
 
 # --- runtime: wrangler only, the bundled Worker, the built assets, the config and the migrations ---
 # Everything under /app belongs to `node`. `COPY --chown` sets that as the files land; a `chown -R` afterwards
 # rewrote every file into a second layer and made the image a third larger (#818).
 # The pruned package-lock.json stays in `runtime-deps` (#819, #998): it is that stage's proof of the tree, and
-# nothing here reads it — `npx wrangler` resolves node_modules/.bin, and `npm ls` reads the tree on disk. CI's
-# `runtime-image` job fails on any file in the image that this stage does not copy.
+# nothing here reads it or npm's hidden copy of it — wrangler is started from node_modules/.bin, without npm. CI's
+# `runtime-image` job fails on any file in the image that this stage does not copy, and on either lockfile.
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production WRANGLER_SEND_METRICS=false CI=true
 WORKDIR /app
@@ -70,4 +72,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
 # `--var ENVIRONMENT:local` is the only place the local auth bypass is switched on (#8); `--ip 0.0.0.0` is for
 # the container network and never for a deploy. In mock mode the registry treats the mock GitHub's fixture owner as
 # the connected account (#15, #59); `OWNER_GITHUB_LOGIN:geeera` is that owner, the login a connect would accept.
-CMD ["sh", "-c", "npx wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec npx wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
+# wrangler is called by its path, never through `npx` (#1005): npx offers to fetch from the registry whatever it
+# does not find in node_modules/.bin, and here a missing wrangler must be a container that does not start.
+CMD ["sh", "-c", "node_modules/.bin/wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec node_modules/.bin/wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
