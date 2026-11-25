@@ -70,14 +70,19 @@ test.describe('with two active projects', () => {
     await expect(page.getByTestId('stats').or(page.getByTestId('no-sprint'))).toBeVisible();
   });
 
-  /** The browser's own calendar day, `days` from today, as the board's `dueOn`. */
-  const dayFromToday = (days: number): string => {
-    const date = new Date();
-    date.setDate(date.getDate() + days);
-    return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
-      .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0'))
-      .join('-');
-  };
+  /**
+   * The browser's own calendar day, `days` from today, as the board's `dueOn`. Computed in the page: the spec runs in
+   * the runner's time zone (UTC on CI) while the browser context runs in Europe/Kyiv, so the two disagree on the day
+   * for two hours every evening.
+   */
+  const dayFromToday = (page: Page, days: number): Promise<string> =>
+    page.evaluate((offset) => {
+      const date = new Date();
+      date.setDate(date.getDate() + offset);
+      return [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+        .map((part, index) => String(part).padStart(index === 0 ? 4 : 2, '0'))
+        .join('-');
+    }, days);
 
   /** The stack's own overview, with the first project's sprint moved to the day asked for. */
   async function moveDemo(page: Page, dueOn: string): Promise<void> {
@@ -94,7 +99,7 @@ test.describe('with two active projects', () => {
   }
 
   test('#359: the card counts the days to the demo and its meter fills from empty', async ({ page }) => {
-    await moveDemo(page, dayFromToday(3));
+    await moveDemo(page, await dayFromToday(page, 3));
     await openOverview(page);
 
     const countdown = tileOf(page, 'team-console').getByTestId('countdown');
@@ -108,7 +113,7 @@ test.describe('with two active projects', () => {
   });
 
   test('#359: on the demo day the card says so in the accent', async ({ page }) => {
-    await moveDemo(page, dayFromToday(0));
+    await moveDemo(page, await dayFromToday(page, 0));
     await openOverview(page);
 
     const countdown = tileOf(page, 'team-console').getByTestId('countdown');
@@ -121,7 +126,7 @@ test.describe('with two active projects', () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await moveDemo(page, dayFromToday(3));
+    await moveDemo(page, await dayFromToday(page, 3));
     await openOverview(page);
 
     await expect(tileOf(page, 'team-console').getByTestId('countdown')).toHaveText(
