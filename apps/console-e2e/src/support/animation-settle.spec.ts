@@ -199,6 +199,27 @@ describe('settleRound', () => {
     expect(!result.quiet && result.stuck).toEqual([]);
   });
 
+  it('waits again for an animation at 0 ms left whose finished promise is still unresolved', async () => {
+    const atEnd = fakeAnimation({ name: 'tc-sheet-rise', endTime: 300, localTime: 300 });
+    setTimeout(() => atEnd.finish(), 120);
+    const result = await settleRound(
+      OPTIONS,
+      env(() => (atEnd.playState === 'running' ? [atEnd] : [])),
+    );
+    expect(!result.quiet && result.stuck).toEqual([]);
+  });
+
+  it('gives up on an animation stuck at 0 ms left once the total wait is spent', async () => {
+    const atEnd = fakeAnimation({ name: 'tc-sheet-rise', endTime: 300, localTime: 300 });
+    const started = Date.now();
+    const result = await settleRound(
+      OPTIONS,
+      env(() => [atEnd]),
+    );
+    expect(Date.now() - started).toBeLessThan(OPTIONS.maxTotalMs + OPTIONS.maxWaitMs);
+    expect(!result.quiet && result.stuck).toEqual([{ name: 'tc-sheet-rise', target: 'div', remainingMs: 0 }]);
+  });
+
   it('fails an animation whose clock is frozen after its first wait, named', async () => {
     const frozen = fakeAnimation({ name: 'tc-stamp-ink', endTime: 300, localTime: 240 });
     const started = Date.now();

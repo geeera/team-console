@@ -48,7 +48,8 @@ export interface SettleOptions {
   /**
    * The longest one animation is waited for in all while it keeps progressing. A loaded machine's animation clock can
    * lag wall time (WebKit on CI), so one wait of `remaining + slackMs` can end with it still moving; it is waited for
-   * again as long as its remaining time shrinks. One that does not move at all fails at the end of its first wait.
+   * again as long as its remaining time shrinks, or is zero or unreadable while it has not finished. One that does not move
+   * at all fails at the end of its first wait.
    */
   readonly maxTotalMs: number;
 }
@@ -174,8 +175,11 @@ export async function settleRound(
           return { report: first, finished: true };
         }
         const now = describe(animation);
+        // Nothing left (or unreadable) while `finished` is still unresolved means the animation's end has not been
+        // processed yet, which a lagging clock does too: pending, so wait again. Otherwise it must have moved.
+        const isPending = now.remainingMs === null || now.remainingMs === 0;
         const isProgressing =
-          report.remainingMs !== null && now.remainingMs !== null && now.remainingMs < report.remainingMs;
+          isPending || (report.remainingMs !== null && now.remainingMs < report.remainingMs);
         report = now;
         if (!isProgressing || Date.now() >= giveUpAt) {
           return { report, finished: false };
