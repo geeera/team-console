@@ -8,14 +8,14 @@ import { mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { anyPathMatches, listChangedPaths, splitPaths } from './changed-paths.mjs';
+import { ArgumentError, anyPathMatches, listChangedPaths, splitPaths } from './changed-paths.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./changed-paths.mjs', import.meta.url));
 // The two patterns ci.yml passes, so a pattern JS reads differently from the old `grep -E` would show here.
 const RUNNER =
   '^(apps/runner/|libs/shared/contracts/|libs/shared/plain-text/|libs/shared/redaction/|\\.github/workflows/ci\\.yml$|\\.github/actions/|tools/ci/changed-paths\\.mjs$|package\\.json$|package-lock\\.json$|\\.nvmrc$|nx\\.json$|tsconfig\\.base\\.json$|vitest\\.config\\.mts$)';
 const ROOT_CONFIG =
-  '^(\\.github/workflows/|package\\.json$|package-lock\\.json$|\\.nvmrc$|nx\\.json$|tsconfig\\.base\\.json$|eslint\\.config\\.mjs$|vitest\\.config\\.mts$)';
+  '^(\\.github/workflows/|\\.github/actions/|tools/ci/|package\\.json$|package-lock\\.json$|\\.nvmrc$|nx\\.json$|tsconfig\\.base\\.json$|eslint\\.config\\.mjs$|vitest\\.config\\.mts$)';
 
 // --- splitPaths / anyPathMatches: NUL-separated, whole-path matching. ---
 assert.deepStrictEqual(splitPaths(Buffer.from('a/b.ts\0c d.ts\0')), ['a/b.ts', 'c d.ts']);
@@ -29,12 +29,40 @@ assert.strictEqual(anyPathMatches([], RUNNER), false);
 assert.strictEqual(anyPathMatches(['docs/x\napps/runner/a.ts'], RUNNER), false);
 assert.strictEqual(anyPathMatches(['package.json\n.md'], ROOT_CONFIG), false);
 assert.strictEqual(anyPathMatches(['apps/runner/x\ny.ts'], RUNNER), true);
-assert.throws(() => anyPathMatches(['a'], '('), SyntaxError);
+// #983: the match ignores case — `Apps/Runner/x.ts` is `apps/runner/x.ts` on the macOS runner's volume.
+assert.strictEqual(anyPathMatches(['Apps/Runner/x.ts'], RUNNER), true);
+assert.strictEqual(anyPathMatches(['LIBS/shared/Contracts/src/index.ts'], RUNNER), true);
+assert.strictEqual(anyPathMatches(['Package.JSON'], ROOT_CONFIG), true);
+assert.strictEqual(anyPathMatches(['.GitHub/Workflows/ci.yml'], ROOT_CONFIG), true);
+assert.strictEqual(anyPathMatches(['Docs/Apps/Runner/x.ts'], RUNNER), false);
+// #983: a change to the scoping script, its test or the composite action runs every project.
+assert.strictEqual(anyPathMatches(['tools/ci/changed-paths.mjs'], ROOT_CONFIG), true);
+assert.strictEqual(anyPathMatches(['tools/ci/changed-paths.test.mjs'], ROOT_CONFIG), true);
+assert.strictEqual(anyPathMatches(['.github/actions/setup-node-npm/action.yml'], ROOT_CONFIG), true);
+assert.strictEqual(anyPathMatches(['docs/tools/ci/changed-paths.mjs'], ROOT_CONFIG), false);
 
-assert.throws(() => listChangedPaths('HEAD^1', 'HEAD'), /full 40-character commit shas/);
-assert.throws(() => listChangedPaths('--output=/tmp/x', 'a'.repeat(40)), /full 40-character/);
-assert.throws(() => listChangedPaths('a'.repeat(40), `${'a'.repeat(40)}\n`), /full 40-character/);
-assert.throws(() => listChangedPaths('A'.repeat(40), 'a'.repeat(40)), /full 40-character/);
+// #983: each failure names the argument at fault by its role, and nothing of its value.
+const SHA = 'a'.repeat(40);
+const assertArgumentError = (call, argument, message) =>
+  assert.throws(call, (error) => {
+    assert.ok(error instanceof ArgumentError, `${message}: an ArgumentError`);
+    assert.strictEqual(error.argument, argument, message);
+    assert.strictEqual(error.message, message);
+    return true;
+  });
+const NOT_A_SHA = '<base sha> is not a full 40-character commit sha';
+assertArgumentError(() => anyPathMatches(['a'], '('), 'pattern', '<pattern> is not a regular expression');
+assertArgumentError(() => listChangedPaths('HEAD^1', 'HEAD'), 'base sha', NOT_A_SHA);
+assertArgumentError(() => listChangedPaths('--output=/tmp/x', SHA), 'base sha', NOT_A_SHA);
+assertArgumentError(() => listChangedPaths('A'.repeat(40), SHA), 'base sha', NOT_A_SHA);
+assertArgumentError(() => listChangedPaths(undefined, SHA), 'base sha', NOT_A_SHA);
+for (const head of [`${SHA}\n`, 'HEAD', '', undefined]) {
+  assertArgumentError(
+    () => listChangedPaths(SHA, head),
+    'head sha',
+    '<head sha> is not a full 40-character commit sha',
+  );
+}
 
 // --- Against real git, in a scratch repository isolated from the machine's git config. ---
 const tmp = mkdtempSync(path.join(tmpdir(), 'changed-paths-'));
@@ -139,24 +167,74 @@ try {
     assert.strictEqual(result.stdout, '', label);
     return result;
   };
-  assertFails(2, 'no arguments');
-  assertFails(2, 'no pattern', base, forged);
-  assertFails(2, 'an empty pattern', base, forged, '');
-  assertFails(2, 'an extra argument', base, forged, RUNNER, 'extra');
-  assertFails(1, 'a ref name instead of a sha', 'HEAD~1', 'HEAD', RUNNER);
-  assertFails(1, 'an option instead of a sha', '--no-index', forged, RUNNER);
-  assertFails(1, 'a commit that does not exist', 'f'.repeat(40), forged, RUNNER);
-  assertFails(1, 'a pattern that is not a regular expression', base, forged, '(');
-  // The failure line is constant: it never echoes an argument into a workflow command.
-  const hostile = assertFails(1, 'a hostile argument', '\n::warning::injected', forged, '(\n::add-mask::x');
-  assert.strictEqual(
-    hostile.stderr,
-    '::error::changed-paths could not list or match the changed paths. See #973.\n',
+  // #983: the whole of stderr is checked, so the argument is named and nothing else is said.
+  const USAGE = 'usage: changed-paths.mjs <base sha> <head sha> <pattern>\n';
+  const assertUsage = (problem, label, ...args) =>
+    assert.strictEqual(assertFails(2, label, ...args).stderr, `changed-paths: ${problem}\n${USAGE}`, label);
+  assertUsage('<base sha> is missing', 'no arguments');
+  assertUsage('<head sha> is missing', 'no head', base);
+  assertUsage('<pattern> is missing', 'no pattern', base, forged);
+  assertUsage('<pattern> is empty', 'an empty pattern', base, forged, '');
+  assertUsage(
+    '1 unexpected extra argument(s) after <pattern>',
+    'an extra argument',
+    base,
+    forged,
+    RUNNER,
+    'x',
   );
+
+  const assertError = (reason, label, ...args) =>
+    assert.strictEqual(
+      assertFails(1, label, ...args)
+        .stderr.split('\n')
+        .slice(-2)
+        .join('\n'),
+      `::error::changed-paths: ${reason}. See #973.\n`,
+      label,
+    );
+  const BAD_BASE = '<base sha> is not a full 40-character commit sha';
+  const BAD_HEAD = '<head sha> is not a full 40-character commit sha';
+  assertError(BAD_BASE, 'a ref name instead of the base sha', 'HEAD~1', forged, RUNNER);
+  assertError(BAD_BASE, 'an option instead of the base sha', '--no-index', forged, RUNNER);
+  assertError(BAD_HEAD, 'a ref name instead of the head sha', base, 'HEAD', RUNNER);
+  // What "Select projects" passes when nx-set-shas exported no NX_HEAD.
+  assertError(BAD_HEAD, 'an empty head sha', base, '', RUNNER);
+  assertError('<pattern> is not a regular expression', 'a broken pattern', base, forged, '(');
+  // git's own complaint is above the annotation; the annotation itself stays constant.
+  assertError(
+    'git could not list the paths changed between <base sha> and <head sha>',
+    'a commit that does not exist',
+    'f'.repeat(40),
+    forged,
+    RUNNER,
+  );
+  // The failure line never echoes an argument into a workflow command: with nothing from git above it, the
+  // annotation is all of stderr.
+  const hostile = assertFails(1, 'a hostile argument', '\n::warning::injected', forged, '(\n::add-mask::x');
+  assert.strictEqual(hostile.stderr, `::error::changed-paths: ${BAD_BASE}. See #973.\n`);
+  const hostilePattern = assertFails(1, 'a hostile pattern', base, forged, '(\n::add-mask::x%0A::error::y');
+  assert.strictEqual(
+    hostilePattern.stderr,
+    '::error::changed-paths: <pattern> is not a regular expression. See #973.\n',
+  );
+
+  // #983: a path that differs from the pattern only in case is in scope, through real git too.
+  // No `redaction` directory exists yet, so the name keeps its capitals on a case-insensitive volume too.
+  write('libs/shared/Redaction/src/Upper.ts');
+  const upperCase = commit('mixed-case twin of libs/shared/redaction');
+  assert.deepStrictEqual(listChangedPaths(plainText, upperCase, repo), [
+    'libs/shared/Redaction/src/Upper.ts',
+  ]);
+  assertAnswer(plainText, upperCase, RUNNER, true, 'Redaction/ is redaction/ on a case-insensitive volume');
+  write('tools/ci/changed-paths.mjs');
+  const scopingScript = commit('the scoping script');
+  assertAnswer(upperCase, scopingScript, ROOT_CONFIG, true, 'the scoping script is root config');
+  assertAnswer(upperCase, scopingScript, RUNNER, true, 'the scoping script is in the sweep scope');
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }
 
 process.stdout.write(
-  'ok: changed-paths matches quoted, renamed and multi-line paths whole and fails closed\n',
+  'ok: changed-paths matches quoted, renamed, multi-line and mixed-case paths whole and fails closed\n',
 );

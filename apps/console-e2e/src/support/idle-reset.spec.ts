@@ -1,6 +1,6 @@
-import type { APIRequestContext, APIResponse } from '@playwright/test';
+import { request as playwrightRequest, type APIRequestContext, type APIResponse } from '@playwright/test';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchResendingIdleResets, isIdleReset, resendingIdleResets } from './idle-reset';
+import { fetchResendingIdleResets, isIdleReset, resendingIdleResets, SENDING_METHODS } from './idle-reset';
 
 // Node fetch wraps the reset as the cause of «fetch failed».
 function fetchReset(): TypeError {
@@ -201,5 +201,21 @@ describe('resendingIdleResets', () => {
     await wrapped.dispose();
     expect(calls).toEqual({ post: 1, delete: 1, fetch: 1 });
     expect(api.dispose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('SENDING_METHODS', () => {
+  it('names every public method of the client Playwright ships except the two that send nothing', async () => {
+    const api = await playwrightRequest.newContext();
+    try {
+      const prototype: object = Object.getPrototypeOf(api) as object;
+      const methods = Object.getOwnPropertyNames(prototype).filter(
+        (name) => name !== 'constructor' && !name.startsWith('_'),
+      );
+
+      expect(methods.sort()).toEqual([...SENDING_METHODS, 'dispose', 'storageState'].sort());
+    } finally {
+      await api.dispose();
+    }
   });
 });

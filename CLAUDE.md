@@ -765,7 +765,20 @@ it — and specs call `stack.reset()` / `seed()` for a fresh database. One delib
 Miniflare, its bindings, D1, assets and vars read from the wrangler config by `unstable_getMiniflareWorkerOptions`; the
 fakes bundled by `wrangler deploy --dry-run`), not through `wrangler dev`, whose ProxyWorker answered a non-GET request
 on a keep-alive connection closed at 5 s idle with a 500 «Error: Network connection lost.» the Worker never saw — browser
-requests included (#947). Logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process, cleared once per run; each server lifetime is appended between `===` marker lines, and a test fails with the reason when a stack server crashed or exited while it ran, #230). workerd itself still closes an idle keep-alive connection at 5 s, and Node's clients (not browsers) do not resend a request written to such a socket (`socket hang up`/`ECONNRESET`), so `apiClient`, the `request` fixture and the fake GitHub's `/_fake/*` helpers (`fetchResendingIdleResets`) resend it once after 250 ms (`support/idle-reset.ts`): the Worker never read it. `E2E_PORT_BASE=<port>` packs each worker into three ports from there (api, fake GitHub, fake push; inspectors on system-picked ports) for runs beside other local stacks. Specs live in `src/*.e2e.ts`, find
+requests included (#947). Logs in `tmp/console-e2e/worker-<workerIndex>/` (one directory per Playwright worker process,
+cleared once per run; each server lifetime is appended between `===` marker lines, and a test fails with the reason when
+a stack server crashed or exited while it ran, #230). workerd itself still closes an idle keep-alive connection at 5 s,
+and Node's clients (not browsers) do not resend a request written to such a socket (`socket hang up`/`ECONNRESET`), so
+`apiClient`, the `request` fixture and the fake GitHub's `/_fake/*` helpers (`fetchResendingIdleResets`) resend it once
+after 250 ms (`support/idle-reset.ts`): the Worker never read it. Ports (#982, `stack/stack-ports.ts`): a run owns the
+100 ports from its base, 18700 unless `E2E_PORT_BASE=<base>` names another (a multiple of 100 from 1100 to 65400,
+anything else throws), so runs with different bases never share a port; inside it each worker slot owns ten (api, fake
+GitHub, api inspector, fake GitHub inspector, fake push, fake push inspector at offsets 0–5, four spare). Such a run
+also keeps its own state, logs and Playwright output (`tmp/console-e2e-<base>/`, `test-output-<base>`), so runs side by
+side in one checkout do not clear each other's. The stack's processes get an allowlisted environment
+(`stack/stack-env.ts`), never the host's. A server stops by itself when the worker that started it is gone
+(`stack/orphan-watch.mts`), and the next start stops whatever a killed run still left on its ports
+(`stack/stale-servers.ts`). Specs live in `src/*.e2e.ts`, find
 controls through `ru()` (the ru.json copy) and `data-testid`, wait on conditions only, and fail on any request off the
 app origin, any uncaught page error and any serious/critical axe violation (`expectAccessible`). `BASE_URL` (+
 `CF_ACCESS_CLIENT_ID/SECRET` for stage) runs the suite against a running target; specs that reset data or need the

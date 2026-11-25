@@ -50,7 +50,14 @@ async function resendingOnIdleReset<T>(send: () => Promise<T>, delayMs: number):
   return send();
 }
 
-const SENDING_METHODS: ReadonlySet<string | symbol> = new Set([
+/**
+ * Every method of Playwright's `APIRequestContext` that sends a request; they share one signature and one failure, so
+ * each is resent the same way whatever its HTTP method (`fetch` takes the method as an option, and the request itself
+ * is not there to read before Playwright builds it). Named one by one rather than «every function»: `dispose` and
+ * `storageState` send nothing, and running `dispose` twice would hide a real error behind «already disposed». The
+ * spec compares this list with the client Playwright ships, so an upgrade that adds a method fails there (#982).
+ */
+export const SENDING_METHODS: ReadonlySet<string | symbol> = new Set([
   'delete',
   'fetch',
   'get',

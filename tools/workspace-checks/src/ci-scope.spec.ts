@@ -15,6 +15,8 @@ interface Step {
   readonly name?: string;
   readonly id?: string;
   readonly run?: string;
+  readonly uses?: string;
+  readonly with?: Readonly<Record<string, unknown>>;
 }
 
 const ci = parse(readFileSync(join(workspaceRoot, '.github/workflows/ci.yml'), 'utf8')) as {
@@ -29,21 +31,29 @@ const withoutComments = (script: string): string =>
 const allRuns = Object.values(ci.jobs).flatMap((job) =>
   (job.steps ?? []).map((step) => withoutComments(step.run ?? '')),
 );
+const stepsOf = (job: string): readonly Step[] => ci.jobs[job]?.steps ?? [];
 const runOf = (job: string, predicate: (step: Step) => boolean): string =>
-  ci.jobs[job]?.steps?.find(predicate)?.run ?? '';
+  stepsOf(job).find(predicate)?.run ?? '';
 
 const selectProjects = runOf('lint-test-build', (step) => step.name === 'Select projects');
 const darwinScope = runOf('runner-darwin-scope', (step) => step.id === 'scope');
 const sweep = runOf('runner-darwin-sweep', (step) => step.run?.includes('vitest run') === true);
 
-/** The single-quoted pattern a script assigns to `name`, as the regular expression changed-paths.mjs builds. */
+/**
+ * The single-quoted pattern a script assigns to `name`, as the regular expression changed-paths.mjs builds:
+ * no `m` flag, and case ignored (#983; tools/ci/changed-paths.test.mjs holds the script itself to that).
+ */
 function patternOf(script: string, name: string): RegExp {
   const source = new RegExp(`^\\s*${name}='([^']+)'$`, 'm').exec(script)?.[1];
   if (source === undefined) {
     throw new Error(`no ${name}='…' assignment in the step`);
   }
-  return new RegExp(source);
+  return new RegExp(source, 'i');
 }
+
+/** The repository scripts a step runs with `node`. */
+const nodeScripts = (script: string): readonly string[] =>
+  [...withoutComments(script).matchAll(/\bnode (tools\/[\w./-]+)/g)].flatMap((match) => match[1] ?? []);
 
 /** The lines of a script that call the matcher. */
 const matcherCalls = (script: string): readonly string[] =>
@@ -87,6 +97,55 @@ describe('ci.yml scope decisions', () => {
     for (const path of ['apps/api/package.json', 'docs/nx.json.md', 'x\npackage.json', '"package.json"']) {
       expect(rootConfig.test(path), JSON.stringify(path)).toBe(false);
     }
+  });
+
+  // #983: no Nx project owns tools/ci/ or .github/actions/, so "affected" saw a change to the script that picks
+  // the scope as a change to nothing and ran next to nothing on it.
+  it('runs every project when a script that decides a scope, or the composite action, changes', () => {
+    const rootConfig = patternOf(selectProjects, 'root_config');
+    const paths = patternOf(darwinScope, 'paths');
+    const deciders = [...new Set([...nodeScripts(selectProjects), ...nodeScripts(darwinScope)])];
+    expect(deciders).toEqual(['tools/ci/changed-paths.mjs']);
+    for (const script of deciders) {
+      expect(rootConfig.test(script), script).toBe(true);
+      expect(paths.test(script), script).toBe(true);
+    }
+    for (const path of ['tools/ci/changed-paths.test.mjs', '.github/actions/setup-node-npm/action.yml']) {
+      expect(rootConfig.test(path), path).toBe(true);
+    }
+    expect(rootConfig.test('docs/tools/ci/changed-paths.mjs')).toBe(false);
+  });
+
+  // #983: the macOS runner's volume ignores case, so `Apps/Runner/x.ts` is a file of apps/runner there.
+  it('matches a path that differs from the pattern only in case', () => {
+    const rootConfig = patternOf(selectProjects, 'root_config');
+    const paths = patternOf(darwinScope, 'paths');
+    for (const path of [
+      'Apps/Runner/x.ts',
+      'libs/Shared/Contracts/src/index.ts',
+      '.GITHUB/workflows/CI.yml',
+    ]) {
+      expect(paths.test(path), path).toBe(true);
+    }
+    for (const path of ['Package.json', '.github/Workflows/deploy.yml', 'Tools/CI/changed-paths.mjs']) {
+      expect(rootConfig.test(path), path).toBe(true);
+    }
+    expect(paths.test('Docs/Apps/Runner/x.ts')).toBe(false);
+  });
+
+  // #983: the scope job ran the script on whatever Node the runner image shipped.
+  it('pins Node from .nvmrc, by a full commit sha, before the Darwin scope decision', () => {
+    const steps = stepsOf('runner-darwin-scope');
+    const setupNode = steps.findIndex((step) => step.uses?.startsWith('actions/setup-node@') === true);
+    expect(setupNode).toBeGreaterThan(-1);
+    expect(steps[setupNode]?.uses).toMatch(/^actions\/setup-node@[0-9a-f]{40}$/);
+    expect(steps[setupNode]?.with).toEqual({ 'node-version-file': '.nvmrc', 'package-manager-cache': false });
+    expect(setupNode).toBeLessThan(steps.findIndex((step) => step.id === 'scope'));
+    // The other job that runs the script gets Node from the composite action, which reads .nvmrc too.
+    const lintSteps = stepsOf('lint-test-build');
+    const composite = lintSteps.findIndex((step) => step.uses === './.github/actions/setup-node-npm');
+    expect(composite).toBeGreaterThan(-1);
+    expect(composite).toBeLessThan(lintSteps.findIndex((step) => step.name === 'Select projects'));
   });
 
   it('runs the sweep for the script that makes the decision and for awkward names under apps/runner', () => {

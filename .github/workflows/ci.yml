@@ -61,7 +61,10 @@ jobs:
           set -euo pipefail
           # An empty NX_BASE would silently fall back to nx.json's defaultBase.
           [[ "${NX_BASE:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no base sha"; exit 1; }
-          root_config='^(\.github/workflows/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|eslint\.config\.mjs$|vitest\.config\.mts$)'
+          # #983: also the composite action and tools/ci/ — the script below makes this very decision, and no Nx
+          # project owns either, so a change to them alone used to select "affected" and run next to nothing.
+          # The match ignores case (changed-paths.mjs).
+          root_config='^(\.github/workflows/|\.github/actions/|tools/ci/|package\.json$|package-lock\.json$|\.nvmrc$|nx\.json$|tsconfig\.base\.json$|eslint\.config\.mjs$|vitest\.config\.mts$)'
           # #973: the paths are listed NUL-separated with renames split (tools/ci/changed-paths.mjs); a plain
           # `git diff --name-only | grep` misses a renamed-away root file and any path git has to quote.
           # A plain assignment on its own line, never inside the `if`: a failing script must stop the step
@@ -149,7 +152,10 @@ jobs:
   # walks the sweep spec's imports and fails when one lands outside this list),
   # this workflow, its composite action and the script that makes this decision, or the toolchain pins the
   # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there.
-  # The script runs on the image's own Node (no setup-node, no `npm ci`): it uses Node builtins and git only.
+  # The script runs on the Node .nvmrc pins (#983: the image's own Node moves with the runner image, and a
+  # scope decision must not depend on it), without `npm ci`: it uses Node builtins and git only. The pattern
+  # is matched ignoring case (#983): the macOS job checks out onto a case-insensitive volume, where a path
+  # that differs only in case from one below is the same file.
   # `runner-darwin-sweep` is not itself one of dev's required status checks (branch ruleset 24176349 requires
   # `lint-test-build`, `secret-scan`, `sast`, `dependency-audit`, `e2e`, `runner-container`, `workflow-lint`), so
   # a skipped sweep never blocks a merge either way — scoping only saves minutes and avoids the queue below.
@@ -165,6 +171,12 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+
+      # Same pinned action and inputs as security.yml's script-test jobs: Node only, no npm cache to restore.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
 
       - name: Does this change reach the Darwin sweep?
         id: scope
