@@ -45,11 +45,14 @@ RUN cp package-lock.json /tmp/workspace-lock.json \
 # --- runtime: wrangler only, the bundled Worker, the built assets, the config and the migrations ---
 # Everything under /app belongs to `node`. `COPY --chown` sets that as the files land; a `chown -R` afterwards
 # rewrote every file into a second layer and made the image a third larger (#818).
+# The pruned package-lock.json stays in `runtime-deps` (#819, #998): it is that stage's proof of the tree, and
+# nothing here reads it — `npx wrangler` resolves node_modules/.bin, and `npm ls` reads the tree on disk. CI's
+# `runtime-image` job fails on any file in the image that this stage does not copy.
 FROM ${NODE_IMAGE} AS runtime
 ENV NODE_ENV=production WRANGLER_SEND_METRICS=false CI=true
 WORKDIR /app
 RUN chown node:node /app
-COPY --chown=node:node --from=runtime-deps /app/package.json /app/package-lock.json ./
+COPY --chown=node:node --from=runtime-deps /app/package.json ./
 COPY --chown=node:node --from=runtime-deps /app/node_modules ./node_modules
 COPY --chown=node:node --from=build /app/dist/apps/console/browser ./dist/apps/console/browser
 COPY --chown=node:node --from=build /app/dist/apps/api ./dist/apps/api

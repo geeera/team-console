@@ -103,14 +103,15 @@ describe('runtime image file list', () => {
       expect(instructions).not.toContain('ADD');
     });
 
+    // #819.4: the pruned lockfile is the runtime-deps stage's working file, not something the image runs on.
+    it('copies no lockfile into the image', () => {
+      expect(RUNTIME_COPIES.filter((copy) => /lock|shrinkwrap/.test(copy.path))).toEqual([]);
+    });
+
     it('lists the whole base and final image, and only the copied paths of the stages between', () => {
       expect(rootsOf('base')).toEqual(['/']);
       expect(rootsOf('runtime')).toEqual(['/']);
-      expect(rootsOf('runtime-deps')).toEqual([
-        '/app/package.json',
-        '/app/package-lock.json',
-        '/app/node_modules',
-      ]);
+      expect(rootsOf('runtime-deps')).toEqual(['/app/package.json', '/app/node_modules']);
       expect(rootsOf('build')).toEqual([
         '/app/dist/apps/console/browser',
         '/app/dist/apps/api',
@@ -356,7 +357,7 @@ describe('runtime image file list', () => {
       expect(result.stdout).toContain('under /app, outside node_modules and dist:\n');
       expect(result.stdout).toContain('/app/package.json\n');
       expect(result.stdout).toContain(
-        "the runtime image is the expected file list: 14 paths, 1 of them the base image's",
+        "the runtime image is the expected file list: 13 paths, 1 of them the base image's",
       );
       expect(result.status).toBe(0);
     });
