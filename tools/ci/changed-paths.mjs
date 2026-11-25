@@ -9,6 +9,8 @@
 // two steps repeated it in bash): it works out what to compare from the event, read from EVENT, BASE_REF and
 // BEFORE in the environment and from the checked-out HEAD, and answers `true` without comparing on a release PR
 // or when a push has no usable base. One line on stderr says which case it was, in constant words.
+// It knows two events, `pull_request` and `push`, and refuses any other by name (#1013): a new trigger in
+// ci.yml has to be given its own case here, not be read as a push.
 //
 // It replaces `git diff --name-only | grep -E` (#973, SECURITY note on PR #963). That listing is line-based and
 // git C-quotes a path holding a quote, a backslash or a control character (`"apps/runner/a\"b.ts"`), so such a
@@ -95,6 +97,21 @@ function commitOf(revision, cwd) {
   return sha;
 }
 
+/** The parents of the checked-out commit, as full shas. A shallow clone's boundary commit shows none. */
+function parentsOfHead(cwd) {
+  const [, ...parents] = execFileSync('git', ['rev-list', '--parents', '--max-count=1', 'HEAD', '--'], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  })
+    .trim()
+    .split(' ');
+  if (parents.some((parent) => !FULL_SHA.test(parent))) {
+    throw new Error('git rev-list did not print commit shas');
+  }
+  return parents;
+}
+
 /** Whether the repository has that commit. Only ever asked about a full sha. */
 function hasCommit(sha, cwd) {
   return spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd, stdio: 'ignore' }).status === 0;
@@ -104,9 +121,12 @@ function hasCommit(sha, cwd) {
  * Whether the event at hand can have changed a path matching `pattern`, and which case decided it:
  *  - a pull request into anything but `dev` is a release PR: always in scope;
  *  - a pull request into `dev` compares the merge commit GitHub checked out with its first parent, the base
- *    branch's tip;
- *  - any other event (a push) compares `before` with HEAD when `before` is a commit this clone has;
- *  - otherwise (a first push, a forced one, a shallow clone) there is no base to compare with: in scope.
+ *    branch's tip. HEAD must be that merge, a commit with exactly two parents (#1013): the first parent of
+ *    anything else (the PR's own head, checked out by a `ref:`) is not the base, and the diff would be one
+ *    commit of the PR instead of all of it;
+ *  - a push compares `before` with HEAD when `before` is a commit this clone has;
+ *  - a push without one (a first push, a forced one, a shallow clone) has no base to compare with: in scope;
+ *  - any other event is refused (#1013): it used to be read as a push.
  * Every failure throws, a pattern that is not a regular expression included, whichever case applies: the
  * caller must stop rather than fall back to "nothing changed".
  * @param {{ event: string | undefined, baseRef: string | undefined, before: string | undefined,
@@ -116,11 +136,16 @@ function hasCommit(sha, cwd) {
 export function scopeOfEvent({ event, baseRef, before, pattern, cwd = process.cwd() }) {
   if (typeof event !== 'string' || event === '') throw new ArgumentError('EVENT', 'is not set');
   if (typeof baseRef !== 'string' || baseRef === '') throw new ArgumentError('BASE_REF', 'is not set');
+  if (event !== 'pull_request' && event !== 'push') {
+    throw new ArgumentError('EVENT', 'is neither pull_request nor push');
+  }
   anyPathMatches([], pattern);
   const head = commitOf('HEAD', cwd);
   if (event === 'pull_request') {
     if (baseRef !== 'dev') return { run: true, why: 'a release PR, into a branch other than dev' };
-    const base = commitOf('HEAD^1', cwd);
+    const parents = parentsOfHead(cwd);
+    if (parents.length !== 2) throw new ArgumentError('HEAD', 'is not a merge commit with two parents');
+    const [base] = parents;
     return {
       run: anyPathMatches(listChangedPaths(base, head, cwd), pattern),
       why: 'compared the pull request merge commit with its first parent',

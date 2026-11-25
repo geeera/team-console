@@ -8,7 +8,13 @@ import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ArgumentError, anyPathMatches, listChangedPaths, splitPaths } from './changed-paths.mjs';
+import {
+  ArgumentError,
+  anyPathMatches,
+  listChangedPaths,
+  scopeOfEvent,
+  splitPaths,
+} from './changed-paths.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./changed-paths.mjs', import.meta.url));
 // The two patterns ci.yml passes, so a pattern JS reads differently from the old `grep -E` would show here.
@@ -233,27 +239,10 @@ try {
   assertAnswer(upperCase, scopingScript, RUNNER, true, 'the scoping script is in the sweep scope');
 
   // --- #1005: `--event-scope`, the decision `runner-darwin-scope` and `runtime-image-scope` share. ---
-  // Held to two things: the answer each event must get, and the bash both steps ran before the extraction,
-  // kept here word for word as the reference (only `node tools/ci/changed-paths.mjs` became "${NODE}"
-  // "${MATCHER}"). Both must agree for every probe, with the two patterns ci.yml really passes.
-  const LEGACY_STEP = `
-set -euo pipefail
-head=$(git rev-parse --verify 'HEAD^{commit}')
-if [ "\${EVENT}" = "pull_request" ]; then
-  if [ "\${BASE_REF}" != "dev" ]; then
-    run=true
-  else
-    base=$(git rev-parse --verify 'HEAD^1^{commit}')
-    run=$("\${NODE}" "\${MATCHER}" "\${base}" "\${head}" "\${paths}")
-  fi
-elif [[ "\${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "\${BEFORE}^{commit}" 2>/dev/null; then
-  run=$("\${NODE}" "\${MATCHER}" "\${BEFORE}" "\${head}" "\${paths}")
-else
-  run=true
-fi
-[[ "\${run}" =~ ^(true|false)$ ]] || exit 1
-echo "\${run}"
-`;
+  // Held to the answer each event must get, with the two patterns ci.yml really passes. Until #1013 the bash
+  // both steps ran before the extraction was kept here and run next to every probe; the answers it gave are
+  // the `expected` values below, and the script no longer agrees with it on purpose (an event that is neither
+  // `pull_request` nor `push`, a pull request HEAD that is not a merge).
   const workflowText = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   const scopePatterns = [...workflowText.matchAll(/^ +paths='([^']+)'$/gm)].map((match) => match[1]);
   assert.strictEqual(scopePatterns.length, 2, 'ci.yml has the two scope patterns');
@@ -292,21 +281,26 @@ echo "\${run}"
       env: eventEnv(event),
       encoding: 'utf8',
     });
-  const runLegacy = (event, pattern) =>
-    spawnSync('bash', ['-c', LEGACY_STEP], {
-      cwd: scopeRepo,
-      env: { ...eventEnv(event), NODE: process.execPath, MATCHER: SCRIPT, paths: pattern },
-      encoding: 'utf8',
-    });
-  /** The new call and the old step both answer `expected`, and the new one says why in constant words. */
-  const assertScope = (event, pattern, expected, why, label) => {
+  /** The decision for that event, asked in this process: the probes are many and differ only in the paths. */
+  const assertScope = (event, pattern, expected, why, label) =>
+    assert.deepStrictEqual(
+      scopeOfEvent({
+        event: event.EVENT,
+        baseRef: event.BASE_REF,
+        before: event.BEFORE,
+        pattern,
+        cwd: scopeRepo,
+      }),
+      { run: expected, why },
+      label,
+    );
+  /** The same through the command line, as ci.yml asks: the answer alone on stdout, the reason on stderr. */
+  const assertScopeAnswer = (event, pattern, expected, why, label) => {
+    assertScope(event, pattern, expected, why, label);
     const result = runScope(event, pattern);
     assert.strictEqual(result.status, 0, `${label}: ${result.stderr}`);
     assert.strictEqual(result.stdout, `${expected}\n`, label);
     assert.strictEqual(result.stderr, `changed-paths: ${expected} (${why})\n`, label);
-    const legacy = runLegacy(event, pattern);
-    assert.strictEqual(legacy.status, 0, `${label}, the old step: ${legacy.stderr}`);
-    assert.strictEqual(legacy.stdout, result.stdout, `${label}: the same answer as the old step`);
   };
 
   sgit('init', '--quiet', '--initial-branch', 'dev');
@@ -336,40 +330,51 @@ echo "\${run}"
     [['.github/actions/setup-node-npm/action.yml'], true, false],
     [['docs/a.md', 'docs/x\nDockerfile', 'docs/y\napps/runner/z.ts'], false, false],
   ];
-  for (const [files, inSweep, inImage] of probes) {
+  for (const [at, [files, inSweep, inImage]] of probes.entries()) {
     const label = JSON.stringify(files);
+    // Every case goes through the command line once, for the first probe that gets each answer.
+    const firstWith = (column) => probes.findIndex((probe) => probe[column] === probes[at][column]) === at;
+    const asserted = (column) => (firstWith(column) ? assertScopeAnswer : assertScope);
     sgit('checkout', '--quiet', '--detach', devTip);
     for (const file of files) swrite(file, `${label}\n`);
     const change = scommit(`change ${label}`);
     // A push of that commit onto dev.
-    for (const [pattern, expected] of [
-      [RUNNER, inSweep],
-      [IMAGE, inImage],
+    for (const [pattern, expected, column] of [
+      [RUNNER, inSweep, 1],
+      [IMAGE, inImage, 2],
     ]) {
-      assertScope({ EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip }, pattern, expected, PUSH_WHY, label);
+      const push = { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip };
+      asserted(column)(push, pattern, expected, PUSH_WHY, label);
     }
     // The pull request: GitHub checks out a merge of the head into the base, the base tip its first parent.
     sgit('checkout', '--quiet', '--detach', devTip);
     sgit('merge', '--quiet', '--no-ff', '--no-edit', change);
     assert.strictEqual(sgit('rev-parse', 'HEAD^1'), devTip);
-    for (const [pattern, expected] of [
-      [RUNNER, inSweep],
-      [IMAGE, inImage],
+    for (const [pattern, expected, column] of [
+      [RUNNER, inSweep, 1],
+      [IMAGE, inImage, 2],
     ]) {
-      assertScope(PR_INTO_DEV, pattern, expected, PR_WHY, `PR ${label}`);
+      asserted(column)(PR_INTO_DEV, pattern, expected, PR_WHY, `PR ${label}`);
       // A release PR is in scope whatever it touches, and so is a push with nothing to compare with.
-      assertScope({ EVENT: 'pull_request', BASE_REF: 'stage' }, pattern, true, RELEASE, `release ${label}`);
+      const release = { EVENT: 'pull_request', BASE_REF: 'stage' };
+      asserted(column)(release, pattern, true, RELEASE, `release ${label}`);
     }
   }
   // HEAD is the docs-only-like last probe's merge; a rename out of apps/runner counts by its old path.
   sgit('checkout', '--quiet', '--detach', devTip);
   renameSync(path.join(scopeRepo, 'apps/runner/src/moved.ts'), path.join(scopeRepo, 'docs/moved.ts'));
   scommit('rename out of apps/runner');
-  assertScope({ EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip }, RUNNER, true, PUSH_WHY, 'a rename out');
+  assertScopeAnswer(
+    { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip },
+    RUNNER,
+    true,
+    PUSH_WHY,
+    'a rename out',
+  );
   // A push with no usable base: a new branch (zeros), a commit this clone lacks, nothing, or not a sha.
   sgit('checkout', '--quiet', '--detach', devTip);
   for (const before of ['0'.repeat(40), 'f'.repeat(40), '', 'dev', `${devTip}\n`, devTip.toUpperCase()]) {
-    assertScope(
+    assertScopeAnswer(
       { EVENT: 'push', BASE_REF: 'dev', BEFORE: before },
       RUNNER,
       true,
@@ -377,9 +382,13 @@ echo "\${run}"
       `before ${before}`,
     );
   }
-  assertScope({ EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip }, IMAGE, false, PUSH_WHY, 'nothing pushed');
-  // Any event that is not a pull request is treated as a push, as the old step did.
-  assertScope({ EVENT: 'workflow_dispatch', BASE_REF: 'dev' }, IMAGE, true, NO_BASE, 'another event');
+  assertScopeAnswer(
+    { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip },
+    IMAGE,
+    false,
+    PUSH_WHY,
+    'nothing pushed',
+  );
 
   // Fails closed: non-zero and nothing on stdout, with one constant annotation.
   const assertScopeFails = (status, stderr, label, event, ...args) => {
@@ -399,12 +408,64 @@ echo "\${run}"
   const BROKEN = scopeError('<pattern> is not a regular expression');
   assertScopeFails(1, BROKEN, 'a broken pattern', { EVENT: 'pull_request', BASE_REF: 'main' }, '(');
   assertScopeFails(1, BROKEN, 'a hostile pattern', PR_INTO_DEV, '(\n::add-mask::x%0A::error::y');
-  // A pull request whose HEAD has no parent is not a merge commit: stop, do not guess.
-  sgit('checkout', '--quiet', '--orphan', 'rootless');
-  scommit('a root commit');
-  const GIT_FAILED = scopeError('git could not tell what this event changed');
-  assertScopeFails(1, GIT_FAILED, 'a PR head without a parent', PR_INTO_DEV, RUNNER);
-  assert.notStrictEqual(runLegacy(PR_INTO_DEV, RUNNER).status, 0, 'the old step stopped there too');
+
+  // #1013: an event is a push only by name. Anything else was read as one and answered from BEFORE, or `true`.
+  const NOT_AN_EVENT = scopeError('<EVENT> is neither pull_request nor push');
+  for (const event of [
+    'workflow_dispatch',
+    'merge_group',
+    'pull_request_target',
+    'Push',
+    'push\n',
+    ' push',
+  ]) {
+    for (const before of ['', devTip]) {
+      const label = `event ${JSON.stringify(event)}, before ${JSON.stringify(before)}`;
+      assertScopeFails(1, NOT_AN_EVENT, label, { EVENT: event, BASE_REF: 'dev', BEFORE: before }, IMAGE);
+    }
+  }
+  // The refusal names the variable, never its value: with nothing from git above it, it is all of stderr.
+  const hostileEvent = runScope({ EVENT: 'push\n::add-mask::x%0A::error::y', BASE_REF: 'dev' }, IMAGE);
+  assert.strictEqual(hostileEvent.stderr, NOT_AN_EVENT, 'a hostile event');
+  assert.strictEqual(hostileEvent.stdout, '', 'a hostile event');
+
+  // #1013: a pull request into dev is compared only when HEAD is the merge GitHub made, two parents exactly.
+  // The first parent of anything else is not the base tip, so the comparison would be of the wrong commits.
+  const NOT_A_MERGE = scopeError('<HEAD> is not a merge commit with two parents');
+  assertArgumentError(
+    () =>
+      scopeOfEvent({ event: 'pull_request', baseRef: 'dev', before: '', pattern: RUNNER, cwd: scopeRepo }),
+    'HEAD',
+    '<HEAD> is not a merge commit with two parents',
+  );
+  // HEAD is the dev tip, which has no parent at all.
+  assertScopeFails(1, NOT_A_MERGE, 'a PR head without a parent', PR_INTO_DEV, RUNNER);
+  // One parent: the PR's own head, as a checkout with `ref:` would leave it. Its first parent is the commit
+  // before it, so only docs/late.md would be compared and the runner change under it missed: `false`.
+  swrite('apps/runner/src/early.ts');
+  scommit('the first commit of a PR, in the sweep scope');
+  swrite('docs/late.md');
+  const prHead = scommit('the second commit of a PR, out of scope');
+  assertScopeFails(1, NOT_A_MERGE, 'a PR head with one parent', PR_INTO_DEV, RUNNER);
+  // Three parents: an octopus merge is not the merge of one head into one base.
+  sgit('checkout', '--quiet', '--detach', devTip);
+  swrite('docs/second.md');
+  const second = scommit('a second branch');
+  sgit('checkout', '--quiet', '--detach', devTip);
+  swrite('docs/third.md');
+  scommit('a third branch');
+  sgit('merge', '--quiet', '--no-ff', '--no-edit', prHead, second);
+  assert.strictEqual(sgit('rev-list', '--parents', '--max-count=1', 'HEAD').split(' ').length, 4);
+  assertScopeFails(1, NOT_A_MERGE, 'a PR head with three parents', PR_INTO_DEV, RUNNER);
+  // The real merge of that PR head is compared whole: the early runner change counts.
+  sgit('checkout', '--quiet', '--detach', devTip);
+  sgit('merge', '--quiet', '--no-ff', '--no-edit', prHead);
+  assertScopeAnswer(PR_INTO_DEV, RUNNER, true, PR_WHY, 'the merge of a two-commit PR');
+  // A release PR and a push never read a parent, so neither asks for a merge.
+  sgit('checkout', '--quiet', '--detach', prHead);
+  assertScopeAnswer({ EVENT: 'pull_request', BASE_REF: 'main' }, RUNNER, true, RELEASE, 'a release PR head');
+  const pushOfHead = { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip };
+  assertScopeAnswer(pushOfHead, RUNNER, true, PUSH_WHY, 'a push of two commits');
   // Outside a repository there is no HEAD at all.
   const outside = spawnSync(process.execPath, [SCRIPT, '--event-scope', RUNNER], {
     cwd: tmp,
@@ -418,5 +479,5 @@ echo "\${run}"
 }
 
 process.stdout.write(
-  'ok: changed-paths matches quoted, renamed, multi-line and mixed-case paths whole, decides the event scope as the old steps did, and fails closed\n',
+  'ok: changed-paths matches quoted, renamed, multi-line and mixed-case paths whole, decides the event scope of a push and of a pull request merge, and fails closed\n',
 );
