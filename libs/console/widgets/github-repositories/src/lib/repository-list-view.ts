@@ -21,7 +21,7 @@ import {
 } from '@console/entities/installation-repository';
 import { projectSetupRouteOf } from '@console/entities/project';
 import { LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
-import { Button, Callout, Icon, List, ListRow, Seal, StateBlock } from '@console/shared/ui';
+import { Button, Callout, Icon, List, ListRow, Seal, staggerIndex, StateBlock } from '@console/shared/ui';
 import type { InstallationRepositoryDto } from '@shared/contracts';
 
 /** What a repository row shows while or after an add from this screen (in memory only). */
@@ -35,8 +35,6 @@ type RefreshControl = 'repos-refresh' | 'repos-missing-refresh';
 // A long list folds after ten addable rows when more than twelve would show (the #194 design).
 const FOLD_AT = 10;
 const FOLD_OVER = 12;
-// Rows that arrive after «Обновить» lay out one after another (#348); past this many the rest come with the last.
-const MAX_STAGGERED_ROWS = 8;
 
 /**
  * "Available on GitHub" (#194) as a pure view: every state of the list through kit primitives, from inputs only.
@@ -224,7 +222,7 @@ export class RepositoryListView {
     const arrived = keys.filter((key) => !known.has(key));
     arrived.forEach((key) => known.add(key));
     this.freshRows.set(
-      new Map(arrived.map((key, index): [string, number] => [key, Math.min(index, MAX_STAGGERED_ROWS)])),
+      new Map(arrived.map((key, index): [string, number] => [key, staggerIndex(index)])),
     );
   }
 

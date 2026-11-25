@@ -188,8 +188,9 @@
   --dur-pulse: 1600ms;
   --lift: -2px; /* a card raised on hover (#766); none under reduced motion */
   --seal-recoil: 0.99; /* the card's give under the release seal (#361); 1 (still) under reduced motion */
-  /* #506 motion language: one step for a staggered list (max 8 rows), one offset for every enter, one press give */
+  /* #506 motion language: one step for a staggered list (max 8 rows, `--stagger-max`), one offset for every enter, one press give */
   --stagger: 30ms; /* 0 under reduced motion */
+  --stagger-max: 7; /* the last staggered place (0-based), so 8 rows; `STAGGER_MAX_INDEX` in TS */
   --motion-shift: 8px; /* = --space-2; 0 under reduced motion, the single switch that removes movement */
   --press-scale: 0.98; /* 1 under reduced motion */
   --fan-tilt: 2deg; /* the previews on a question card lie in a small fan (#350); 0 under reduced motion */

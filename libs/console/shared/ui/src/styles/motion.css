@@ -52,10 +52,10 @@
   pointer-events: none;
 }
 
-/* Row of a list on first load or reload: set `--i` (0-based) on the first 8 rows only. */
+/* Row of a list on first load or reload: set `--i` (0-based); places past `--stagger-max` share the last delay. */
 .m-stagger {
   animation: m-enter var(--dur-base) var(--ease-enter) backwards;
-  animation-delay: calc(min(var(--i, 0), 7) * var(--stagger));
+  animation-delay: calc(min(var(--i, 0), var(--stagger-max)) * var(--stagger));
 }
 
 /*
@@ -74,11 +74,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion='full']) :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
+  :root:not([data-motion='full']) :is(.m-enter, .m-push, .m-fade, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
     animation-duration: var(--dur-fade);
   }
 }
 
-:root[data-motion='reduce'] :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
+:root[data-motion='reduce'] :is(.m-enter, .m-push, .m-fade, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
   animation-duration: var(--dur-fade);
 }
