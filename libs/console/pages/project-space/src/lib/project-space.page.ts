@@ -139,15 +139,6 @@ export class ProjectSpacePage {
       const slug = this.slug();
       untracked(() => void this.teamStatus.load(slug));
     });
-    // The heading is keyed on the slug (#506), so a switch replaces the node; a focused heading would drop focus to
-    // <body>. Read before the template refreshes, refocus the new node after it renders.
-    effect(() => {
-      this.slug();
-      const title = untracked(() => this.query('.space__title'));
-      if (title !== null && title === document.activeElement) {
-        untracked(() => afterNextRender(() => this.query('.space__title')?.focus(), { injector: this.injector }));
-      }
-    });
     effect(() => {
       if (this.isPhone()) {
         untracked(() => this.isPaneOpen.set(false));

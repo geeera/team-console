@@ -72,33 +72,6 @@ describe('ProjectSpacePage', () => {
     expect(root.querySelector('nav.tc-tab-bar--bottom')).toBeNull();
   });
 
-  it('keeps focus on the heading when a project switch re-creates it (#964)', async () => {
-    const { harness } = await setup();
-    await harness.navigateByUrl('/p/tc/questions');
-    const root = harness.routeNativeElement as HTMLElement;
-    const before = root.querySelector('h1') as HTMLElement;
-    before.focus();
-    expect(document.activeElement).toBe(before);
-
-    await harness.navigateByUrl('/p/other/questions');
-    await TestBed.inject(ApplicationRef).whenStable();
-    const after = root.querySelector('h1') as HTMLElement;
-    expect(after).not.toBe(before);
-    expect(document.activeElement).toBe(after);
-  });
-
-  it('does not take focus on a project switch when the heading was not focused (#964)', async () => {
-    const { harness } = await setup();
-    await harness.navigateByUrl('/p/tc/questions');
-    const root = harness.routeNativeElement as HTMLElement;
-    const tab = root.querySelector('nav a') as HTMLElement;
-    tab.focus();
-
-    await harness.navigateByUrl('/p/other/questions');
-    await TestBed.inject(ApplicationRef).whenStable();
-    expect(document.activeElement).not.toBe(root.querySelector('h1'));
-  });
-
   it('a `/chat` deep link redirects to Questions instead of showing the placeholder (#203)', async () => {
     const { harness, router } = await setup();
     await harness.navigateByUrl('/p/tc/chat');

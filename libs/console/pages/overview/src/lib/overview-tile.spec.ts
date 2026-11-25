@@ -3,7 +3,6 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { OverviewProject } from '@console/entities/project';
 import { provideConsoleI18n, TranslocoService } from '@console/shared/i18n';
-import { STAGGER_MAX_INDEX } from '@console/shared/ui';
 import { firstValueFrom } from 'rxjs';
 import { OverviewTile } from './overview-tile';
 
@@ -76,7 +75,7 @@ describe('OverviewTile demo countdown (#359)', () => {
     expect(countdown()).toBeNull();
   });
 
-  it('fills the meter from empty on first show, one more `--stagger` step for each next card, held at the shared cap', async () => {
+  it('fills the meter from empty on first show, one more `--stagger` step for each next card, at most 8 steps', async () => {
     await render(project('2026-10-16'), 2);
     const meter = (fixture.nativeElement as HTMLElement).querySelector('tc-meter') as HTMLElement;
     expect(meter.querySelector('.tc-meter__fill--appear')).not.toBeNull();
@@ -85,6 +84,6 @@ describe('OverviewTile demo countdown (#359)', () => {
 
     ref.setInput('index', 30);
     await fixture.whenStable();
-    expect(meter.style.getPropertyValue('--i')).toBe(String(STAGGER_MAX_INDEX));
+    expect(meter.style.getPropertyValue('--i')).toBe('8');
   });
 });

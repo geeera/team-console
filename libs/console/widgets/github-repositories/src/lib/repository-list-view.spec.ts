@@ -3,7 +3,6 @@ import { TestBed, type ComponentFixture } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import type { RepositoriesProblem, RepositoriesStatus } from '@console/entities/installation-repository';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { STAGGER_MAX_INDEX } from '@console/shared/ui';
 import type { InstallationRepositoryDto } from '@shared/contracts';
 import { RepositoryListView, type RepositoryRowState } from './repository-list-view';
 
@@ -212,7 +211,7 @@ describe('RepositoryListView', () => {
       ref.setInput('repositories', [...LIST, ...many]);
       await fixture.whenStable();
 
-      expect(row('geeera/new-11').style.getPropertyValue('--i')).toBe(String(STAGGER_MAX_INDEX));
+      expect(row('geeera/new-11').style.getPropertyValue('--i')).toBe('8');
     });
   });
 
