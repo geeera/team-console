@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { generateKeyPairSync, randomBytes } from 'node:crypto';
+import { generateKeyPairSync, randomBytes, randomUUID } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
@@ -14,11 +14,23 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { startCloseRelay, type CloseRelay } from './close-relay';
+import { signal } from './process-signal';
 import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
+import { forgetServer, recordServer, SERVER_TOKEN_FLAG, stopStaleServers } from './stale-servers';
+import { stackChildEnv } from './stack-env';
+import { streamSuffix, type StackPorts } from './stack-ports';
+
+export { signal } from './process-signal';
+export { portsFor, type StackPorts } from './stack-ports';
 
 export const WORKSPACE_ROOT = resolve(__dirname, '../../../..');
-/** One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). */
-export const STACKS_DIR = join(WORKSPACE_ROOT, 'tmp/console-e2e');
+/**
+ * One directory per Playwright worker: its servers' state and logs (the CI artifact keeps the logs). A run with its
+ * own `E2E_PORT_BASE` has its own directory (`tmp/console-e2e-<base>`), so runs side by side keep theirs.
+ */
+export const STACKS_DIR = join(WORKSPACE_ROOT, `tmp/console-e2e${streamSuffix()}`);
+/** One record per running server, named by its port (`stale-servers.ts`). */
+export const SERVERS_DIR = join(STACKS_DIR, 'servers');
 
 const WRANGLER = join(WORKSPACE_ROOT, 'node_modules/.bin/wrangler');
 /** Each server of the stack is a Worker on Miniflare, not a `wrangler dev` (#957, `serve-worker.mts`). */
@@ -39,44 +51,6 @@ const MOCK_OWNER = { login: 'geeera', id: 100_001 } as const;
 /** The runner image digest the local stack names (#634 PR 7); the specs only read it back from the API's command. */
 export const E2E_RUNNER_IMAGE_DIGEST = `sha256:${'e2e0'.repeat(16)}`;
 
-export interface StackPorts {
-  readonly api: number;
-  readonly fake: number;
-  readonly apiInspector: number;
-  readonly fakeInspector: number;
-  readonly fakePush: number;
-  readonly fakePushInspector: number;
-}
-
-/**
- * Ten ports per Playwright worker, so parallel workers never share a server or a database. `E2E_PORT_BASE` (local
- * runs beside other stacks on one machine) packs a worker into three ports from that base — api, fake GitHub, fake
- * push — with the devtools inspectors on ports the system picks (inspector port 0).
- */
-export function portsFor(parallelIndex: number): StackPorts {
-  const packed = Number(process.env['E2E_PORT_BASE'] ?? '');
-  if (Number.isInteger(packed) && packed > 1024) {
-    const first = packed + parallelIndex * 3;
-    return {
-      api: first,
-      fake: first + 1,
-      apiInspector: 0,
-      fakeInspector: 0,
-      fakePush: first + 2,
-      fakePushInspector: 0,
-    };
-  }
-  const base = 18_700 + parallelIndex * 10;
-  return {
-    api: base,
-    fake: base + 1,
-    apiInspector: base + 2,
-    fakeInspector: base + 3,
-    fakePush: base + 4,
-    fakePushInspector: base + 5,
-  };
-}
-
 /** Log lines of a server that stopped serving on its own: workerd died and Miniflare restarted it in place (#230). */
 const INCIDENT_MARKERS = ['The Workers runtime crashed unexpectedly'] as const;
 
@@ -96,6 +70,7 @@ class StackProcess {
     private readonly logPath: string,
     /** Byte offset in the log where this lifetime's output starts. */
     private readonly logStart: number,
+    private readonly port: number,
   ) {
     child.on('error', (error) => {
       this.spawnError = error;
@@ -117,20 +92,27 @@ class StackProcess {
     const logStart = statSync(logPath).size;
     const log = openSync(logPath, 'a');
     try {
+      const token = randomUUID();
       // Own process group: Miniflare forks workerd, and stopping the group takes both down.
-      const child = spawn(process.execPath, ['--experimental-strip-types', SERVE_WORKER], {
-        cwd: WORKSPACE_ROOT,
-        detached: true,
-        stdio: ['ignore', log, log],
-        env: {
-          ...process.env,
-          [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
-          WRANGLER_SEND_METRICS: 'false',
-          // Plain logs: Playwright sets FORCE_COLOR for its workers, and it would override NO_COLOR.
-          FORCE_COLOR: '0',
+      const child = spawn(
+        process.execPath,
+        ['--experimental-strip-types', SERVE_WORKER, `${SERVER_TOKEN_FLAG}${token}`],
+        {
+          cwd: WORKSPACE_ROOT,
+          detached: true,
+          stdio: ['ignore', log, log],
+          env: stackChildEnv(process.env, {
+            [SERVE_WORKER_OPTIONS]: JSON.stringify(options),
+            WRANGLER_SEND_METRICS: 'false',
+            // Plain logs, whatever colour setting the parent runs with.
+            FORCE_COLOR: '0',
+          }),
         },
-      });
-      return new StackProcess(child, label, logPath, logStart);
+      );
+      if (child.pid !== undefined) {
+        recordServer(SERVERS_DIR, options.port, { pid: child.pid, token, label });
+      }
+      return new StackProcess(child, label, logPath, logStart, options.port);
     } finally {
       closeSync(log);
     }
@@ -190,40 +172,7 @@ class StackProcess {
       clearTimeout(timer);
     }
     signal(-pid, 'SIGKILL', pid);
-  }
-}
-
-/**
- * `target` is a pid, or a process group as `-pgid`; `pid` (always positive) is the child whose liveness decides a
- * `EPERM`. ESRCH (already gone) is what stopping wants. macOS can answer EPERM instead of ESRCH for a process group
- * whose leader already exited (#846): the race between `stop()`'s own exit check and the signal landing. `pid` is
- * re-probed with signal 0 at the moment of the error, so only an EPERM for a process still alive is surfaced —
- * never swallowed silently.
- */
-export function signal(target: number, name: NodeJS.Signals, pid: number): void {
-  try {
-    process.kill(target, name);
-  } catch (error: unknown) {
-    if (!(error instanceof Error && 'code' in error)) {
-      throw error;
-    }
-    if (error.code === 'ESRCH') {
-      return;
-    }
-    if (error.code === 'EPERM' && !isAlive(pid)) {
-      return;
-    }
-    throw error;
-  }
-}
-
-/** Whether `pid` still exists, probed with signal 0 (sends nothing). */
-function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error: unknown) {
-    return !(error instanceof Error && 'code' in error && error.code === 'ESRCH');
+    forgetServer(SERVERS_DIR, this.port, pid);
   }
 }
 
@@ -281,7 +230,7 @@ function run(args: readonly string[], logPath: string): Promise<void> {
     const child = spawn(WRANGLER, args, {
       cwd: WORKSPACE_ROOT,
       stdio: ['ignore', log, log],
-      env: { ...process.env, WRANGLER_SEND_METRICS: 'false', NO_COLOR: '1' },
+      env: stackChildEnv(process.env, { WRANGLER_SEND_METRICS: 'false', NO_COLOR: '1' }),
     });
     child.on('error', (error) => fail(error));
     child.on('exit', (code) => {
@@ -354,6 +303,13 @@ export class LocalStack {
           `${built} is missing: build first (npx nx build api), or run through npx nx e2e console-e2e`,
         );
       }
+    }
+    // A worker killed with SIGKILL stops nothing; its successor takes the same slot, so the same ports.
+    const stale = await stopStaleServers(SERVERS_DIR, [ports.api, ports.fake, ports.fakePush]);
+    if (stale.length > 0) {
+      process.stderr.write(
+        `${name}: stopped what an earlier worker left on its ports: ${stale.join(', ')}\n`,
+      );
     }
     const dir = join(STACKS_DIR, name);
     rmSync(dir, { recursive: true, force: true });

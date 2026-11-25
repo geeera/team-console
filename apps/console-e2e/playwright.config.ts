@@ -1,4 +1,5 @@
 import { defineConfig, devices, type ReporterDescription } from '@playwright/test';
+import { streamSuffix } from './src/stack/stack-ports';
 import { accessHeadersFromEnv, accessRunOptions } from './src/support/access-headers';
 
 /**
@@ -22,7 +23,8 @@ const iphoneViewport = { width: 390, height: 844 };
 export default defineConfig({
   testDir: './src',
   testMatch: '**/*.e2e.ts',
-  outputDir: '../../dist/.playwright/apps/console-e2e/test-output',
+  // A run with its own E2E_PORT_BASE keeps its own output, so runs side by side do not clear each other's (#982).
+  outputDir: `../../dist/.playwright/apps/console-e2e/test-output${streamSuffix()}`,
   globalSetup: './src/stack/global-setup.ts',
   fullyParallel: false,
   forbidOnly: isCI,
