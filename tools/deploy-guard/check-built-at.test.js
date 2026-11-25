@@ -76,6 +76,11 @@ assert.throws(() => assertFreshStamp(STAMP, STAMP_MS + 60 * MINUTE_MS + 1), /is 
 assert.throws(() => assertFreshStamp(STAMP, STAMP_MS + 400 * 24 * 60 * MINUTE_MS), /minutes old/);
 assert.throws(() => assertFreshStamp(STAMP, STAMP_MS - 5 * MINUTE_MS - 1), /is in the future/);
 assert.throws(() => assertFreshStamp('local', STAMP_MS), /"local" default/);
+// #983: without a usable clock the age is NaN, which is neither too old nor in the future — it must not pass.
+for (const noClock of [NaN, undefined, Infinity, -Infinity, 'now', {}]) {
+  assert.throws(() => assertFreshStamp(STAMP, noClock), /current time is not a finite number/);
+}
+assert.throws(() => assertFreshStamp('garbage', NaN), /not a UTC timestamp/);
 
 // --- toAnnotationText (#973): nothing in a failure reason can end the annotation or start a command. ---
 assert.strictEqual(toAnnotationText('plain reason'), 'plain reason');
