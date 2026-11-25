@@ -134,7 +134,10 @@ assertInputError(
 );
 // An affected run may have nothing to do.
 assert.deepStrictEqual(shardOf({ listed: [], scope: 'affected' }), []);
-assert.deepStrictEqual(shardOf({ listed: [], always: ['workspace-checks'], index: 2, scope: 'affected' }), []);
+assert.deepStrictEqual(
+  shardOf({ listed: [], always: ['workspace-checks'], index: 2, scope: 'affected' }),
+  [],
+);
 assert.deepStrictEqual(shardOf({ listed: [], always: ['workspace-checks'], scope: 'affected' }), [
   'workspace-checks',
 ]);
