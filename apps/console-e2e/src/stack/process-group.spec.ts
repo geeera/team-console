@@ -53,6 +53,7 @@ describe('parseProcCmdline', () => {
 
 describe('groupOf', () => {
   it('finds a live process group leader with its command line, and nothing once it is gone', async () => {
+    // No word with a space: those come back whole only where the words are real (`GroupMember`).
     const child = spawn(process.execPath, ['-e', 'setInterval(()=>{},1000)', '--', 'group-of-spec'], {
       detached: true,
       stdio: 'ignore',

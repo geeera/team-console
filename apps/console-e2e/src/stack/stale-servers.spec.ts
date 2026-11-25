@@ -44,7 +44,10 @@ function throughPs(argv: readonly string[]): readonly string[] {
   return parsePsListing(` 4250  4242 S    ${argv.join(' ')}\n`, 4242)[0]?.argv ?? [];
 }
 
-/** The stand-in's arguments: what the real-process tests tell `stopStaleServers` a server was started with. */
+/**
+ * The stand-in's arguments: what the real-process tests tell `stopStaleServers` a server was started with. No word
+ * has a space, so they read the same from `/proc` and through `ps`.
+ */
 function idleServerArgs(token: string): string[] {
   return ['-e', 'setInterval(()=>{},1000)', '--', `${SERVER_TOKEN_FLAG}${token}`];
 }
