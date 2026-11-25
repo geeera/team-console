@@ -3,6 +3,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
+  LOCKFILES,
   OWNER,
   RUNTIME_COPIES,
   baseImageOf,
@@ -116,6 +117,36 @@ describe('runtime image file list', () => {
       }
     });
 
+    // #1005: the hidden lockfile sits inside the copied node_modules, so the table cannot keep it out.
+    it('has the runtime-deps stage delete the hidden lockfile after the checks that read it', () => {
+      const stage = DOCKERFILE.slice(
+        DOCKERFILE.indexOf('FROM deps AS runtime-deps\n'),
+        DOCKERFILE.indexOf('FROM ${NODE_IMAGE} AS runtime\n'),
+      );
+      const commands = stage
+        .slice(stage.indexOf('\nRUN '))
+        .split('&&')
+        .map((command) => command.replace(/\\\n/g, ' ').replace(/\s+/g, ' ').trim());
+      const last = commands.at(-1) ?? '';
+      expect(last.startsWith('rm '), last).toBe(true);
+      expect(last.split(' ')).toContain('node_modules/.package-lock.json');
+      expect(commands.filter((command) => command.includes('.package-lock.json'))).toHaveLength(1);
+      expect(LOCKFILES).toContain('/app/node_modules/.package-lock.json');
+    });
+
+    // #1005: `npx wrangler` asks the registry for a wrangler it does not find locally.
+    it('starts wrangler by its path in node_modules/.bin, never through npx or npm', () => {
+      const runtimeStage = DOCKERFILE.slice(DOCKERFILE.indexOf('FROM ${NODE_IMAGE} AS runtime\n'));
+      const instructions = runtimeStage
+        .split('\n')
+        .filter((line) => /^(CMD|ENTRYPOINT|HEALTHCHECK| {2}CMD) /.test(line));
+      const cmd = instructions.find((line) => line.startsWith('CMD ')) ?? '';
+      expect(instructions.join('\n')).not.toMatch(/\b(npx|npm|yarn|pnpm)\b/);
+      expect(cmd.match(/\bwrangler (?=d1|dev)/g)).toHaveLength(2);
+      expect(cmd.match(/(?<![\w./-])node_modules\/\.bin\/wrangler (?=d1|dev)/g)).toHaveLength(2);
+      expect(RUNTIME_COPIES).toContainEqual({ stage: 'runtime-deps', path: '/app/node_modules' });
+    });
+
     it('lists the whole base and final image, and only the copied paths of the stages between', () => {
       expect(rootsOf('base')).toEqual(['/']);
       expect(rootsOf('runtime')).toEqual(['/']);
@@ -182,9 +213,30 @@ describe('runtime image file list', () => {
       const changed = listings();
       changed.runtime.push(file('/app/package-lock.json', 'lock', OWNER), file('/usr/bin/extra', 'x'));
       expect(check(changed).problems).toEqual([
+        '/app/package-lock.json: a lockfile of the runtime-deps stage, not of the image',
         "/app/package-lock.json: in the image, but neither the base image's nor copied",
         "/usr/bin/extra: in the image, but neither the base image's nor copied",
       ]);
+    });
+
+    // #1005: inside a copied directory a lockfile is "a copy", so the table alone lets it through.
+    it.each(LOCKFILES)('fails on %s in the image, copied or not', (path) => {
+      const changed = listings();
+      const lock = file(path, 'lock');
+      changed['runtime-deps'].push(lock);
+      changed.runtime.push({ ...lock, ...OWNER });
+      const copies = [...COPIES, { stage: 'runtime-deps', path } as const];
+      expect(checkImageFiles(changed, copies).problems).toEqual([
+        `${path}: a lockfile of the runtime-deps stage, not of the image`,
+      ]);
+    });
+
+    it('leaves a lockfile a package ships among its own files alone', () => {
+      const changed = listings();
+      const shipped = file('/app/node_modules/wrangler/npm-shrinkwrap.json', 'shipped');
+      changed['runtime-deps'].push(shipped);
+      changed.runtime.push({ ...shipped, ...OWNER });
+      expect(check(changed).problems).toEqual([]);
     });
 
     it('fails when a copied or a base file is missing from the image', () => {
