@@ -139,22 +139,19 @@ let nextCommandId = 0;
   `,
   styleUrl: './add-runner-step.css',
   styles: `
+    /* min-width: 0 keeps a long command scrolling inside its own region instead of widening the sheet. */
     .command__steps {
       display: grid;
+      min-width: 0;
       grid-template-columns: minmax(0, 1fr);
       gap: var(--space-3);
       margin: 0;
       padding-inline-start: var(--space-5);
     }
 
-    /* min-width: 0 keeps a long command scrolling inside its own region instead of widening the sheet. */
-    .command__steps,
-    .command__steps li {
-      min-width: 0;
-    }
-
     .command__steps li {
       display: grid;
+      min-width: 0;
       grid-template-columns: minmax(0, 1fr);
       gap: var(--space-2);
     }

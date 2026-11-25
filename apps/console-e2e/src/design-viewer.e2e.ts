@@ -212,10 +212,12 @@ test('#349: a page turn slides the next screen in from its side; reduced motion 
   await page.getByTestId('viewer-next').click();
   const turned = page.getByTestId('viewer-page');
   await expect(turned).toHaveAttribute('data-move', 'next');
-  await expect(turned).toHaveCSS('animation-name', /viewer-turn-next$/);
+  await expect(turned).toHaveCSS('animation-name', /viewer-turn$/);
+  await expect(turned).toHaveCSS('--turn-dir', /^\s*1$/);
   await animationsSettled(page);
   await page.getByTestId('viewer-prev').click();
-  await expect(page.getByTestId('viewer-page')).toHaveCSS('animation-name', /viewer-turn-prev$/);
+  await expect(page.getByTestId('viewer-page')).toHaveCSS('animation-name', /viewer-turn$/);
+  await expect(page.getByTestId('viewer-page')).toHaveCSS('--turn-dir', /^\s*-1$/);
   await animationsSettled(page);
   await expectAccessible(page, 'Design viewer, after a page turn');
 
