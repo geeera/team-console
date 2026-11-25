@@ -49,6 +49,7 @@ const selectProjects = runOf('lint-test-build-scope', (step) => step.name === 'S
 const testShard = runOf('lint-test-build-shard', (step) => step.name?.startsWith('Test (') === true);
 const darwinScope = runOf('runner-darwin-scope', (step) => step.id === 'scope');
 const sweep = runOf('runner-darwin-sweep', (step) => step.run?.includes('vitest run') === true);
+const imageScope = runOf('runtime-image-scope', (step) => step.id === 'scope');
 
 /**
  * The single-quoted pattern a script assigns to `name`, as the regular expression changed-paths.mjs builds:
@@ -84,6 +85,7 @@ describe('ci.yml scope decisions', () => {
   it.each([
     ['Select projects', selectProjects, 1],
     ['the Darwin sweep scope', darwinScope, 2],
+    ['the root image scope', imageScope, 2],
   ])(
     'asks the matcher in %s as a plain assignment, so a failing script stops the step',
     (_, script, calls) => {
@@ -148,6 +150,7 @@ describe('ci.yml scope decisions', () => {
   it.each([
     ['lint-test-build-scope', (step: Step) => step.name === 'Select projects'],
     ['runner-darwin-scope', (step: Step) => step.id === 'scope'],
+    ['runtime-image-scope', (step: Step) => step.id === 'scope'],
   ])('pins Node from .nvmrc, by a full commit sha, before the decision in %s', (job, isDecision) => {
     const steps = stepsOf(job);
     const setupNode = steps.findIndex((step) => step.uses?.startsWith('actions/setup-node@') === true);
@@ -325,5 +328,106 @@ describe('ci.yml scope decisions', () => {
     // The walk does leave apps/runner, so an empty result above is not an empty walk.
     expect(reached.has('libs/shared/contracts/src/index.ts')).toBe(true);
     expect([...reached.keys()].some((file) => file.startsWith('libs/shared/plain-text/'))).toBe(true);
+  });
+
+  // #998 (#818.3): the root Dockerfile is built in CI when the change can reach its build context.
+  describe('the root image job', () => {
+    const paths = patternOf(imageScope, 'paths');
+    const imageRuns = stepsOf('runtime-image').map((step) => withoutComments(step.run ?? ''));
+    const dockerfile = readFileSync(join(workspaceRoot, 'Dockerfile'), 'utf8');
+    const dockerignore = readFileSync(join(workspaceRoot, '.dockerignore'), 'utf8');
+
+    it('runs for the Dockerfile, its ignore file, every file either names and the scripts the job runs', () => {
+      const named = [
+        // `COPY a b dest` without `--from`: files taken from the build context by name.
+        ...[...dockerfile.matchAll(/^COPY (?!--)(.+)$/gm)].flatMap((match) =>
+          (match[1] ?? '').split(/\s+/).slice(0, -1),
+        ),
+        ...[...dockerignore.matchAll(/^!(\S+)$/gm)].flatMap((match) => match[1] ?? []),
+        ...imageRuns.flatMap((run) => nodeScripts(run)),
+        ...nodeScripts(imageScope),
+      ].filter((path) => path !== '.');
+      expect(named).toContain('package-lock.json');
+      expect(named).toContain('tools/runtime-image/check-runtime-tree.mjs');
+      expect(named).toContain('tools/runtime-image/image-files.mjs');
+      expect(named).toContain('tools/ci/changed-paths.mjs');
+      expect(named.some((path) => path.startsWith('.claude/product-team/'))).toBe(true);
+      for (const path of [...named, 'Dockerfile', '.dockerignore', '.github/workflows/ci.yml']) {
+        expect(paths.test(path), path).toBe(true);
+      }
+    });
+
+    it('runs for anything the build inside the image compiles or loads, and not for what cannot reach it', () => {
+      for (const path of [
+        'apps/api/migrations/0001_init.sql',
+        'apps/api/wrangler.jsonc',
+        'apps/console/src/main.ts',
+        'libs/worker/db/vitest.config.mts',
+        'tools/nx-plugins/typecheck-spec.plugin.ts',
+        'nx.json',
+        'tsconfig.base.json',
+        '.nvmrc',
+        'DOCKERFILE',
+        'Apps/api/src/main.ts',
+      ]) {
+        expect(paths.test(path), path).toBe(true);
+      }
+      for (const path of [
+        'docs/adr/0001.md',
+        'docs/Dockerfile',
+        'docs/x\nDockerfile',
+        '.product-team/project.yml',
+        '.github/workflows/deploy.yml',
+        'tools/workspace-checks/src/ci-scope.spec.ts',
+        'tools/ci/shard-projects.mjs',
+      ]) {
+        expect(paths.test(path), JSON.stringify(path)).toBe(false);
+      }
+    });
+
+    it('builds only when the scope job said exactly true', () => {
+      expect(ci.jobs['runtime-image']?.needs).toBe('runtime-image-scope');
+      expect(ci.jobs['runtime-image']?.if).toBe("needs.runtime-image-scope.outputs.run == 'true'");
+      expect(imageScope).toContain('[[ "${run}" =~ ^(true|false)$ ]]');
+    });
+
+    it('builds the Dockerfile as its header says, and the two stages the file list is compared with', () => {
+      const builds = imageRuns
+        .flatMap((run) => run.split('\n'))
+        .map((line) => line.trim())
+        .filter((line) => line.startsWith('docker build'));
+      expect(builds).toEqual([
+        'docker build --tag "${IMAGE}" .',
+        'docker build --target runtime-deps --tag "${IMAGE}-runtime-deps" .',
+        'docker build --target build --tag "${IMAGE}-build" .',
+      ]);
+      expect(dockerfile).toMatch(/^FROM deps AS runtime-deps$/m);
+      expect(dockerfile).toMatch(/^FROM deps AS build$/m);
+    });
+
+    it('checks the file list and waits for healthz, every script stopping on its first failure', () => {
+      const scripts = imageRuns.filter((run) => run.trim().includes('\n'));
+      expect(scripts.length).toBeGreaterThan(2);
+      for (const script of scripts) expect(script).toMatch(/^set -euo pipefail$/m);
+      const all = imageRuns.join('\n');
+      expect(all).toContain('node tools/runtime-image/image-files.mjs check "${lists}"');
+      expect(all).toContain('http://127.0.0.1:8787/api/v1/healthz');
+      expect(all).toContain("grep --quiet --fixed-strings 'No migrations to apply'");
+      // The listings only read: no network, and the script mounted read-only.
+      expect(all).toContain('docker run --rm --network none --user 0 --entrypoint node');
+      expect(all).toContain('/image-files.mjs:ro"');
+    });
+
+    it('pushes nothing, logs in to nothing, reads no secret and uses only actions pinned by a commit sha', () => {
+      const job = JSON.stringify(ci.jobs['runtime-image']) + JSON.stringify(ci.jobs['runtime-image-scope']);
+      for (const forbidden of ['docker push', 'docker login', '--push', 'docker tag', 'secrets.', 'buildx']) {
+        expect(job, forbidden).not.toContain(forbidden);
+      }
+      const uses = [...stepsOf('runtime-image'), ...stepsOf('runtime-image-scope')].flatMap(
+        (step) => step.uses ?? [],
+      );
+      expect(uses.length).toBeGreaterThan(0);
+      for (const action of uses) expect(action).toMatch(/^[\w-]+\/[\w-]+@[0-9a-f]{40}$/);
+    });
   });
 });

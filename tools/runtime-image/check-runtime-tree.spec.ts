@@ -1,5 +1,13 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { MIN_COMPARED, checkRuntimeTree, installedPackages, isAtLeast } from './check-runtime-tree.mjs';
@@ -579,6 +587,38 @@ describe('runtime tree check', () => {
         const result = run({}, {}, { script: linked(), nodeArgs: ['--preserve-symlinks-main'] });
         expect(result.status).toBe(1);
         expect(result.stderr).toContain(`only 0 packages compared, expected at least ${MIN_COMPARED}`);
+      });
+    });
+
+    // #998 SECURITY follow-up: without a script path the guard read "imported" and the process ended 0, unchecked.
+    describe('without a script path', () => {
+      it.each([
+        ['with no arguments', ['--input-type=module']],
+        ['as `-` with the arguments after it', ['--input-type=module', '-', '/absent.json', '/absent']],
+      ])('fails when the script is piped to node instead of named, %s', (_case, nodeArgs) => {
+        const result = spawnSync(process.execPath, nodeArgs, {
+          input: readFileSync(SCRIPT, 'utf8'),
+          encoding: 'utf8',
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.status).not.toBeNull();
+        expect(result.stdout).toBe('');
+      });
+
+      it('says how to start it when there is no script path at all', () => {
+        const result = spawnSync(process.execPath, ['--input-type=module'], {
+          input: readFileSync(SCRIPT, 'utf8'),
+          encoding: 'utf8',
+        });
+        expect(result.stderr).toContain('check-runtime-tree.mjs must be started as a file');
+      });
+
+      it('fails when it is loaded from node -e', () => {
+        const result = spawnSync(process.execPath, ['-e', `import(${JSON.stringify(SCRIPT)})`], {
+          encoding: 'utf8',
+        });
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('check-runtime-tree.mjs must be started as a file');
       });
     });
 
