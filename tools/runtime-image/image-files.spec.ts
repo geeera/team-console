@@ -151,7 +151,8 @@ describe('runtime image file list', () => {
     });
 
     // #1005: `npx wrangler` asks the registry for a wrangler it does not find locally.
-    it('starts wrangler by its path in node_modules/.bin, never through npx or npm', () => {
+    // #1013: by the absolute path, so the wrangler that runs is the copied one whatever the working directory.
+    it('starts wrangler by its absolute path in /app/node_modules/.bin, never through npx or npm', () => {
       const runtimeStage = DOCKERFILE.slice(DOCKERFILE.indexOf('FROM ${NODE_IMAGE} AS runtime\n'));
       const instructions = runtimeStage
         .split('\n')
@@ -159,7 +160,8 @@ describe('runtime image file list', () => {
       const cmd = instructions.find((line) => line.startsWith('CMD ')) ?? '';
       expect(instructions.join('\n')).not.toMatch(/\b(npx|npm|yarn|pnpm)\b/);
       expect(cmd.match(/\bwrangler (?=d1|dev)/g)).toHaveLength(2);
-      expect(cmd.match(/(?<![\w./-])node_modules\/\.bin\/wrangler (?=d1|dev)/g)).toHaveLength(2);
+      expect(cmd.match(/(?<![\w./-])\/app\/node_modules\/\.bin\/wrangler (?=d1|dev)/g)).toHaveLength(2);
+      expect(cmd).toContain('&& exec /app/node_modules/.bin/wrangler dev ');
       expect(RUNTIME_COPIES).toContainEqual({ stage: 'runtime-deps', path: '/app/node_modules' });
     });
 

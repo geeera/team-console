@@ -455,7 +455,7 @@ jobs:
           user=$(docker exec "${CONTAINER}" id -un 2>&1)
           show "user: ${user}"
           [ "${user}" = "node" ] || { echo "::error::the container does not run as node"; exit 1; }
-          migrations=$(docker exec "${CONTAINER}" node_modules/.bin/wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev 2>&1)
+          migrations=$(docker exec "${CONTAINER}" /app/node_modules/.bin/wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev 2>&1)
           show "${migrations}"
           grep --quiet --fixed-strings 'No migrations to apply' <<<"${migrations}" \
             || { echo "::error::the running container still has migrations to apply"; exit 1; }
