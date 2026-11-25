@@ -276,6 +276,153 @@ jobs:
           TC_RUNNER_TEST_IMAGE: tc-runner:ci-fake
         run: npx vitest run --config apps/runner/vitest.config.mts src/integration/container.integration.spec.ts
 
+  # #998 (#818.3): the root Dockerfile — the local/e2e image, never deployed — was built by nobody in CI, so a
+  # broken `.dockerignore` or build context (#818.1) reached dev and was found by hand weeks later. Its build
+  # context is the whole repository minus `.dockerignore`, and `nx run-many -t build` inside it loads every
+  # project's config, so the job below runs for a change to any root file, `apps/`, `libs/`, the image's own
+  # tools, the Nx plugins the graph loads, the vendored plugin files `.dockerignore` re-includes, this workflow
+  # or the script that makes this decision; and on every release PR into stage/main. Docs, `.product-team/` and
+  # the other tools cannot reach the image and skip it. Decided as `runner-darwin-scope` decides, with the same
+  # script and for the same reasons (two full shas, a plain assignment, the exact string `true`).
+  # Neither job is one of dev's required status checks; a skipped build never blocks a merge.
+  runtime-image-scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Does this change reach the root image?
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          paths='^([^/]+$|apps/|libs/|tools/runtime-image/|tools/nx-plugins/|\.claude/product-team/|\.github/workflows/ci\.yml$|tools/ci/changed-paths\.mjs$)'
+          head=$(git rev-parse --verify 'HEAD^{commit}')
+          if [ "${EVENT}" = "pull_request" ]; then
+            if [ "${BASE_REF}" != "dev" ]; then
+              run=true; why="release PR into ${BASE_REF}"
+            else
+              # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
+              base=$(git rev-parse --verify 'HEAD^1^{commit}')
+              run=$(node tools/ci/changed-paths.mjs "${base}" "${head}" "${paths}")
+              why="files of the build context changed: ${run}"
+            fi
+          elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            run=$(node tools/ci/changed-paths.mjs "${BEFORE}" "${head}" "${paths}")
+            why="files of the build context changed since ${BEFORE}: ${run}"
+          else
+            run=true; why="no base to compare with"
+          fi
+          # The job output gates the build on the exact string 'true'; anything else must not reach it.
+          [[ "${run}" =~ ^(true|false)$ ]] || { echo "::error::changed-paths gave no answer"; exit 1; }
+          echo "run=${run}" >> "$GITHUB_OUTPUT"
+          echo "::notice title=Root image scope::${run} (${why})"
+
+  # Builds the image exactly as the Dockerfile's header says (`docker build .`), holds it to its file list and
+  # starts it. Nothing is pushed and no registry is logged in to: the image and its two stages stay in this
+  # runner's Docker daemon and go away with it. The build itself runs tools/runtime-image/check-runtime-tree.mjs
+  # (the pruned tree against the lockfile); what is added here is what the build cannot see of itself.
+  runtime-image:
+    needs: runtime-image-scope
+    if: needs.runtime-image-scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      IMAGE: tc-console:ci
+      CONTAINER: tc-console-smoke
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Only for tools/runtime-image/image-files.mjs on the runner (Node builtins, no `npm ci`); the image
+      # brings its own Node.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      # The two `--target` builds add no work: they stop at stages the first build has just cached, and only
+      # give those stages a name to list files from.
+      - name: Build the image and the two stages it copies from
+        run: |
+          set -euo pipefail
+          docker build --tag "${IMAGE}" .
+          docker build --target runtime-deps --tag "${IMAGE}-runtime-deps" .
+          docker build --target build --tag "${IMAGE}-build" .
+
+      # Every path in the image must be the pinned base image's own or a copy the `runtime` stage makes from one
+      # of those two stages — same type, mode, size, sha256 and link target, owned by `node` — and nothing may
+      # be missing (tools/runtime-image/image-files.mjs; its table of copies is held to the Dockerfile by
+      # image-files.spec.ts). So a change to what the image ships shows up here as a one-line change to that
+      # table, and anything else that moved fails the job. The listings run without a network, as root (to read
+      # every file), with the script mounted read-only.
+      - name: Hold the image to its file list
+        run: |
+          set -euo pipefail
+          base=$(node tools/runtime-image/image-files.mjs base-image Dockerfile)
+          lists="${RUNNER_TEMP}/image-files"
+          mkdir -p "${lists}"
+          list() {
+            docker run --rm --network none --user 0 --entrypoint node \
+              --volume "${PWD}/tools/runtime-image/image-files.mjs:/image-files.mjs:ro" \
+              "$2" /image-files.mjs list "$1" > "${lists}/$1.jsonl"
+          }
+          list base "${base}"
+          list runtime-deps "${IMAGE}-runtime-deps"
+          list build "${IMAGE}-build"
+          list runtime "${IMAGE}"
+          node tools/runtime-image/image-files.mjs check "${lists}"
+
+      # The container as `docker run` starts it: its CMD applies the migrations to a fresh local D1 and then
+      # serves the Worker, so a healthz answer means both happened. The image's own HEALTHCHECK must agree, the
+      # process must be `node`'s, and wrangler, asked again from inside, must find no migration left to apply.
+      - name: Start the container and wait for /api/v1/healthz
+        run: |
+          set -euo pipefail
+          docker run --detach --name "${CONTAINER}" --publish 127.0.0.1:8787:8787 "${IMAGE}"
+          state=starting
+          for _ in $(seq 1 90); do
+            state=$(docker inspect --format '{{.State.Status}}/{{.State.Health.Status}}' "${CONTAINER}")
+            case "${state}" in
+              running/healthy) break ;;
+              running/starting) sleep 2 ;;
+              *) break ;;
+            esac
+          done
+          if [ "${state}" != "running/healthy" ]; then
+            echo "::error::the container is '${state}', expected running/healthy"
+            exit 1
+          fi
+          body=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8787/api/v1/healthz)
+          echo "healthz: ${body}"
+          health=$(jq --raw-output '.status' <<<"${body}")
+          [ "${health}" = "ok" ] || { echo "::error::healthz did not answer status ok"; exit 1; }
+          curl --fail --silent --show-error --max-time 10 --output /dev/null http://127.0.0.1:8787/
+          user=$(docker exec "${CONTAINER}" id -un)
+          [ "${user}" = "node" ] || { echo "::error::the container runs as '${user}', expected node"; exit 1; }
+          migrations=$(docker exec "${CONTAINER}" npx wrangler d1 migrations list team-console-dev --local --config apps/api/wrangler.jsonc --env dev)
+          echo "${migrations}"
+          grep --quiet --fixed-strings 'No migrations to apply' <<<"${migrations}" \
+            || { echo "::error::the running container still has migrations to apply"; exit 1; }
+
+      - name: Container log
+        if: always()
+        run: docker logs "${CONTAINER}" 2>&1 || true
+
   # #947: GitHub's hosted macOS pools are capacity-constrained; a macOS job can sit queued for 20+ minutes and
   # then be cancelled by GitHub itself ("The job was not acquired by Runner of type hosted even after multiple
   # attempts") — `timeout-minutes` never starts, and the run goes red for a change that could not have touched

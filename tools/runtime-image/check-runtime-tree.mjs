@@ -311,7 +311,11 @@ function main(argv) {
  */
 function isEntryPoint() {
   const entry = process.argv[1];
-  return entry !== undefined && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  // No script path (`node -e`, a script piped to stdin): nothing says this file was meant to run, and guessing
+  // "imported" would end 0 without doing the work.
+  if (entry === undefined)
+    throw new Error(`check-runtime-tree.mjs must be started as a file: node check-runtime-tree.mjs …`);
+  return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
 
 if (isEntryPoint()) process.exitCode = main(process.argv.slice(2));
