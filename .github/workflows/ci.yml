@@ -1,5 +1,6 @@
 # Contract CI (plugin reference/stack-contract.md, ADR 0001 decision 18): install, lint, test, build on every PR.
-# The job name `lint-test-build` is stable: `scripts/pr gate` and QA read the check runs by name.
+# The job name `lint-test-build` is stable: `scripts/pr gate` and QA read the check runs by name. Since #992 it
+# is a thin aggregator over `lint-test-build-scope` and the `lint-test-build-shard` matrix, as `e2e` is.
 # Job `e2e` runs apps/console-e2e (#14), sharded one Playwright project per job (#404: the single job was
 # landing at 16-20 min against a 20 min timeout and several PR runs were cancelled at the limit); the `e2e`
 # job itself is a thin aggregator over the `e2e-shard` matrix so the check name CI consumers look for
@@ -30,9 +31,21 @@ env:
   NX_TUI: 'false'
 
 jobs:
-  lint-test-build:
+  # #992: `lint-test-build` was one job running lint, test, typecheck-spec and build one after another. With every
+  # project selected ("run-many") it took 13-19.5 min against its 20 min timeout (run 45598018931 on PR #988:
+  # 19m24s — test 722 s, typecheck-spec 208 s, lint 101 s, setup + npm ci ~120 s, build 28 s, migrations 18 s),
+  # and #983 made run-many more frequent. It is three parallel jobs now (`lint-test-build-shard` below) behind
+  # one decision made here, once: the scope (every project or the affected ones) and the base/head shas all
+  # three use. Decided once and handed on, never per shard: on a push `nx-set-shas` asks the API for the last
+  # successful run, so two shards asking separately could get two bases, split two different project lists and
+  # leave a project in neither. No `npm ci` here: the action and the script need Node and git only.
+  lint-test-build-scope:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 3
+    outputs:
+      mode: ${{ steps.select.outputs.mode }}
+      base: ${{ steps.select.outputs.base }}
+      head: ${{ steps.select.outputs.head }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -40,9 +53,11 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-node-npm
-
-      - run: npm ci
+      # Same pinned action and inputs as `runner-darwin-scope`: the Node .nvmrc pins, no npm cache to restore.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
 
       # ADR 0001 decision 18: NX_BASE / NX_HEAD come from nx-set-shas. On pull_request it takes the merge-base
       # of origin/<base branch> and HEAD, locally, without API calls.
@@ -55,12 +70,14 @@ jobs:
       # (CI, toolchain, root config) and on release PRs into stage/main. A push to dev is treated the same
       # as a PR into dev (BASE_REF=dev): dev never takes the expensive "release PR" path.
       - name: Select projects
+        id: select
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}
         run: |
           set -euo pipefail
           # An empty NX_BASE would silently fall back to nx.json's defaultBase.
           [[ "${NX_BASE:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no base sha"; exit 1; }
+          [[ "${NX_HEAD:-}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::nx-set-shas gave no head sha"; exit 1; }
           # #983: also the composite action and tools/ci/ — the script below makes this very decision, and no Nx
           # project owns either, so a change to them alone used to select "affected" and run next to nothing.
           # The match ignores case (changed-paths.mjs).
@@ -69,7 +86,7 @@ jobs:
           # `git diff --name-only | grep` misses a renamed-away root file and any path git has to quote.
           # A plain assignment on its own line, never inside the `if`: a failing script must stop the step
           # (set -e), not read as "no match" and silently pick "affected".
-          root_changed=$(node tools/ci/changed-paths.mjs "${NX_BASE}" "${NX_HEAD:-}" "${root_config}")
+          root_changed=$(node tools/ci/changed-paths.mjs "${NX_BASE}" "${NX_HEAD}" "${root_config}")
           if [ "${BASE_REF}" != "dev" ]; then
             mode="run-many"; why="release PR into ${BASE_REF}"
           elif [ "${root_changed}" = "true" ]; then
@@ -79,34 +96,120 @@ jobs:
           else
             echo "::error::changed-paths gave no answer"; exit 1
           fi
-          echo "NX_MODE=${mode}" >> "$GITHUB_ENV"
+          {
+            echo "mode=${mode}"
+            echo "base=${NX_BASE}"
+            echo "head=${NX_HEAD}"
+          } >> "$GITHUB_OUTPUT"
           echo "::notice title=Nx scope::nx ${mode} (${why}; base ${NX_BASE}, head ${NX_HEAD})"
 
+  # #992: the work of `lint-test-build`, as three jobs side by side. `static` runs lint, typecheck-spec, build
+  # and the migrations (~6 min of the 19m24s run above); `test-1` and `test-2` each run half of the `test`
+  # target (~6 min each), split by tools/ci/shard-projects.mjs. Each job pays its own checkout + `npm ci`
+  # (~1-2 min), so the slowest run-many now lands around 8 min, and the timeout comes DOWN from 20 to 15: a hung
+  # job is cut sooner, and 15 still leaves the worst case measured so far roughly half unused.
+  # Sharded, not cached (owner direction on #992 was "shard or cache"): an Nx cache restored from dev would
+  # answer exactly the runs this was slow for with cache hits. Run-many exists for changes Nx cannot see in a
+  # project's inputs (this workflow, the composite action, tools/ci/, #983) — to Nx nothing changed, so every
+  # task would be replayed from the cache and never executed, and the run would prove nothing. A cache also
+  # brings a poisoning surface (a PR-written entry replayed on dev) that sharding does not have at all.
+  lint-test-build-shard:
+    name: lint-test-build-shard (${{ matrix.name }})
+    needs: lint-test-build-scope
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: static
+            kind: static
+          - name: test-1
+            kind: test
+            shard: '1/2'
+          - name: test-2
+            kind: test
+            shard: '2/2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # From `lint-test-build-scope`, checked again below before anything reads them.
+      NX_MODE: ${{ needs.lint-test-build-scope.outputs.mode }}
+      NX_BASE: ${{ needs.lint-test-build-scope.outputs.base }}
+      NX_HEAD: ${{ needs.lint-test-build-scope.outputs.head }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nx affected needs the PR base commit in local history.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: ./.github/actions/setup-node-npm
+
+      - run: npm ci
+
+      # An empty NX_BASE would silently fall back to nx.json's defaultBase, and an unknown mode would be passed
+      # to `nx` as a command. The head must be the commit checked out here: the scope job decided for that
+      # commit, and a shard on another one would split a different project list.
+      - name: Check the scope this shard was handed
+        run: |
+          set -euo pipefail
+          [[ "${NX_MODE}" =~ ^(affected|run-many)$ ]] || { echo "::error::the scope job gave no mode"; exit 1; }
+          [[ "${NX_BASE}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the scope job gave no base sha"; exit 1; }
+          [[ "${NX_HEAD}" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::the scope job gave no head sha"; exit 1; }
+          git cat-file -e "${NX_BASE}^{commit}" || { echo "::error::the base sha is not in this checkout"; exit 1; }
+          checked_out=$(git rev-parse --verify 'HEAD^{commit}')
+          [ "${checked_out}" = "${NX_HEAD}" ] || { echo "::error::the scope job decided for another commit"; exit 1; }
+
       - name: Lint
+        if: matrix.kind == 'static'
         run: npx nx "${NX_MODE}" -t lint
 
-      - name: Test
-        run: npx nx "${NX_MODE}" -t test
-
+      # The shard's slice of the projects that have a `test` target: every one of them in run-many, the affected
+      # ones otherwise — `nx show projects` lists what `nx run-many`/`nx affected -t test` would run, and
+      # tools/ci/shard-projects.mjs gives each shard its part of one split, so each project runs in exactly
+      # one shard (tools/ci/shard-projects.test.mjs; tools/workspace-checks/src/ci-scope.spec.ts holds this
+      # matrix to a complete 1/N..N/N set). Both answers are plain assignments on their own lines: a failing
+      # `nx` or script stops the step (set -e) instead of reading as "nothing to test".
       # #71: workspace-checks specs read other projects' files (wrangler.jsonc, env.ts, worker-db) and root files
       # (Dockerfile, .product-team/) at runtime. Its implicitDependencies ["*"] make any project change affect it,
-      # but a file no project owns affects nothing, so the affected path always runs it too.
-      - name: Workspace checks (always)
-        if: env.NX_MODE == 'affected'
-        run: npx nx run workspace-checks:test
+      # but a file no project owns affects nothing, so `--always` puts it in the list whatever the scope.
+      # The weights level the two shards. The unit is one ordinary project (~7 s of the step in run
+      # 45598018931, where runner took ~100 s, api ~90 s, workspace-checks ~35 s, console ~30 s, hooks ~25 s);
+      # every project without a weight counts 1. A stale or missing weight changes the balance, never the cover.
+      - name: Test (${{ matrix.name }})
+        if: matrix.kind == 'test'
+        env:
+          SHARD: ${{ matrix.shard }}
+          TEST_WEIGHTS: runner=14,api=13,workspace-checks=5,console=4,hooks=4
+        run: |
+          set -euo pipefail
+          if [ "${NX_MODE}" = "affected" ]; then
+            listed=$(npx nx show projects --affected --base="${NX_BASE}" --head="${NX_HEAD}" --with-target test --json)
+          else
+            listed=$(npx nx show projects --with-target test --json)
+          fi
+          projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")
+          if [ -z "${projects}" ]; then
+            echo "::notice title=Test shard ${SHARD}::no project with a test target in this shard"
+            exit 0
+          fi
+          echo "::notice title=Test shard ${SHARD}::${projects}"
+          npx nx run-many -t test --projects="${projects}"
 
       # #491: every project with a tsconfig.spec.json gets this target from tools/nx-plugins/typecheck-spec.plugin.ts,
       # so a new project is covered without touching this workflow. `test` (vitest, esbuild-transformed) never
       # typechecks spec files on its own — this is the only thing that does.
       - name: Typecheck specs
+        if: matrix.kind == 'static'
         run: npx nx "${NX_MODE}" -t typecheck-spec
 
       - name: Build
+        if: matrix.kind == 'static'
         run: npx nx "${NX_MODE}" -t build
 
       # ADR 0001 decision 5 / #6: the schema must apply to a fresh database with wrangler's own migrator (the
       # local backend is the same SQLite D1 runs on). Runs twice: the second pass must find nothing to apply.
       - name: D1 migrations on a fresh local database
+        if: matrix.kind == 'static'
         env:
           WRANGLER_SEND_METRICS: 'false'
         run: |
@@ -114,6 +217,28 @@ jobs:
           rm -rf apps/api/.wrangler
           npx nx run api:migrate
           npx nx run api:migrate
+
+  # Thin aggregator, as `e2e` below: `scripts/pr gate`, QA and dev's branch ruleset read the check named
+  # `lint-test-build`, so that name stays on one job and stands for the scope job and every shard. `always()`
+  # so a failed, cancelled or skipped shard turns this check red instead of leaving it skipped (a skipped
+  # required check counts as passed).
+  lint-test-build:
+    name: lint-test-build
+    needs: [lint-test-build-scope, lint-test-build-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Require the scope job and every shard to pass
+        env:
+          SCOPE_RESULT: ${{ needs.lint-test-build-scope.result }}
+          SHARD_RESULT: ${{ needs.lint-test-build-shard.result }}
+        run: |
+          set -euo pipefail
+          if [ "${SCOPE_RESULT}" != "success" ] || [ "${SHARD_RESULT}" != "success" ]; then
+            echo "::error::lint-test-build-scope was '${SCOPE_RESULT}', lint-test-build-shard was '${SHARD_RESULT}' — see those jobs"
+            exit 1
+          fi
 
   # #570 (architect note on #468, decision 13): plant-then-verify on the runner's `container` backend against this
   # machine's real Docker daemon — the runner image plus the fake CLI, two jobs through the real job loop, and a mount
@@ -151,7 +276,7 @@ jobs:
   # `libs/shared/redaction/`, which the runner's config imports (#973; tools/workspace-checks/src/ci-scope.spec.ts
   # walks the sweep spec's imports and fails when one lands outside this list),
   # this workflow, its composite action and the script that makes this decision, or the toolchain pins the
-  # root-config rule of `lint-test-build` names; and on every release PR into stage/main, as there.
+  # root-config rule of `lint-test-build-scope` names; and on every release PR into stage/main, as there.
   # The script runs on the Node .nvmrc pins (#983: the image's own Node moves with the runner image, and a
   # scope decision must not depend on it), without `npm ci`: it uses Node builtins and git only. The pattern
   # is matched ignoring case (#983): the macOS job checks out onto a case-insensitive volume, where a path
@@ -159,7 +284,7 @@ jobs:
   # `runner-darwin-sweep` is not itself one of dev's required status checks (branch ruleset 24176349 requires
   # `lint-test-build`, `secret-scan`, `sast`, `dependency-audit`, `e2e`, `runner-container`, `workflow-lint`), so
   # a skipped sweep never blocks a merge either way — scoping only saves minutes and avoids the queue below.
-  # Decided here on Linux (git only, no API call, as `lint-test-build`'s "Select projects" does), not on the
+  # Decided here on Linux (git only, no API call, as `lint-test-build-scope`'s "Select projects" does), not on the
   # macOS runner the decision is meant to spare.
   runner-darwin-scope:
     runs-on: ubuntu-latest

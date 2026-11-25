@@ -97,6 +97,87 @@ describe('reachableFrom', () => {
     );
   });
 
+  // #992: a `.tsx` or `.mts` file was listed and never read, so whatever it imported left the walk unseen.
+  it.each(['tsx', 'mts', 'cts', 'mjs'])('reads the imports of a .%s file it reaches', (extension) => {
+    write('apps/a/src/main.ts', `import './view.${extension}';`);
+    write(`apps/a/src/view.${extension}`, `import { plain } from '@shared/plain-text';\nvoid plain;`);
+    write('libs/shared/plain-text/src/index.ts', 'export const plain = 1;');
+
+    const reached = reachableFrom('apps/a/src/main.ts', { root, aliases: ALIASES });
+
+    expect(reached.get('libs/shared/plain-text/src/index.ts')).toBe(`apps/a/src/view.${extension}`);
+  });
+
+  it('starts from a .mts entry and finds a .tsx file behind an import without an extension', () => {
+    write(
+      'apps/a/vite.config.mts',
+      `import { View } from './src/view';\nimport './src/widgets';\nvoid View;`,
+    );
+    write('apps/a/src/view.tsx', `import '@shared/contracts';\nexport const View = () => <p />;`);
+    write('apps/a/src/widgets/index.tsx', 'export const Widget = () => <p />;');
+    write('libs/shared/contracts/src/index.ts', 'export const c = 1;');
+
+    const reached = reachableFrom('apps/a/vite.config.mts', { root, aliases: ALIASES });
+
+    expect([...reached.keys()].sort()).toEqual([
+      'apps/a/src/view.tsx',
+      'apps/a/src/widgets/index.tsx',
+      'apps/a/vite.config.mts',
+      'libs/shared/contracts/src/index.ts',
+    ]);
+  });
+
+  it('reads an import of the emitted .js/.mjs name as the source file next to it', () => {
+    write(
+      'apps/a/src/main.mts',
+      [`import './worker.mjs';`, `import './util.js';`, `import './view.js';`, `import './real.mjs';`].join(
+        '\n',
+      ),
+    );
+    write('apps/a/src/worker.mts', `import '@shared/contracts';`);
+    write('apps/a/src/util.ts', 'export const util = 1;');
+    write('apps/a/src/view.tsx', 'export const View = () => <p />;');
+    write('apps/a/src/real.mjs', `import '@shared/plain-text';`);
+    write('libs/shared/contracts/src/index.ts', 'export const c = 1;');
+    write('libs/shared/plain-text/src/index.ts', 'export const plain = 1;');
+
+    const reached = reachableFrom('apps/a/src/main.mts', { root, aliases: ALIASES });
+
+    expect([...reached.keys()].sort()).toEqual([
+      'apps/a/src/main.mts',
+      'apps/a/src/real.mjs',
+      'apps/a/src/util.ts',
+      'apps/a/src/view.tsx',
+      'apps/a/src/worker.mts',
+      'libs/shared/contracts/src/index.ts',
+      'libs/shared/plain-text/src/index.ts',
+    ]);
+  });
+
+  it('prefers the source file to an emitted file of the same name', () => {
+    write('apps/a/src/main.ts', `import './util.js';`);
+    write('apps/a/src/util.ts', 'export const util = 1;');
+    write('apps/a/src/util.js', 'exports.util = 1;');
+
+    const reached = reachableFrom('apps/a/src/main.ts', { root, aliases: {} });
+
+    expect([...reached.keys()].sort()).toEqual(['apps/a/src/main.ts', 'apps/a/src/util.ts']);
+  });
+
+  it('leaves a file that is not source unread', () => {
+    write('apps/a/src/main.ts', `import './data.json';\nimport './style.css';`);
+    write('apps/a/src/data.json', `{ "import": "./missing" }`);
+    write('apps/a/src/style.css', `@import './missing.css';`);
+
+    const reached = reachableFrom('apps/a/src/main.ts', { root, aliases: {} });
+
+    expect([...reached.keys()].sort()).toEqual([
+      'apps/a/src/data.json',
+      'apps/a/src/main.ts',
+      'apps/a/src/style.css',
+    ]);
+  });
+
   it('throws when an alias matches and none of its targets exists', () => {
     write('apps/a/src/main.ts', `import '@gone/lib';`);
     expect(() => reachableFrom('apps/a/src/main.ts', { root, aliases: ALIASES })).toThrow(

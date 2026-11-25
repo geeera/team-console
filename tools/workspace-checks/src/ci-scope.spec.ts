@@ -19,8 +19,17 @@ interface Step {
   readonly with?: Readonly<Record<string, unknown>>;
 }
 
+interface Job {
+  readonly steps?: readonly Step[];
+  readonly needs?: string | readonly string[];
+  readonly if?: string;
+  readonly strategy?: {
+    readonly matrix?: { readonly include?: readonly Readonly<Record<string, string>>[] };
+  };
+}
+
 const ci = parse(readFileSync(join(workspaceRoot, '.github/workflows/ci.yml'), 'utf8')) as {
-  readonly jobs: Readonly<Record<string, { readonly steps?: readonly Step[] }>>;
+  readonly jobs: Readonly<Record<string, Job>>;
 };
 /** A step's script without its comment lines, which may quote the commands this file forbids. */
 const withoutComments = (script: string): string =>
@@ -35,7 +44,8 @@ const stepsOf = (job: string): readonly Step[] => ci.jobs[job]?.steps ?? [];
 const runOf = (job: string, predicate: (step: Step) => boolean): string =>
   stepsOf(job).find(predicate)?.run ?? '';
 
-const selectProjects = runOf('lint-test-build', (step) => step.name === 'Select projects');
+const selectProjects = runOf('lint-test-build-scope', (step) => step.name === 'Select projects');
+const testShard = runOf('lint-test-build-shard', (step) => step.name?.startsWith('Test (') === true);
 const darwinScope = runOf('runner-darwin-scope', (step) => step.id === 'scope');
 const sweep = runOf('runner-darwin-sweep', (step) => step.run?.includes('vitest run') === true);
 
@@ -134,18 +144,87 @@ describe('ci.yml scope decisions', () => {
   });
 
   // #983: the scope job ran the script on whatever Node the runner image shipped.
-  it('pins Node from .nvmrc, by a full commit sha, before the Darwin scope decision', () => {
-    const steps = stepsOf('runner-darwin-scope');
+  it.each([
+    ['lint-test-build-scope', (step: Step) => step.name === 'Select projects'],
+    ['runner-darwin-scope', (step: Step) => step.id === 'scope'],
+  ])('pins Node from .nvmrc, by a full commit sha, before the decision in %s', (job, isDecision) => {
+    const steps = stepsOf(job);
     const setupNode = steps.findIndex((step) => step.uses?.startsWith('actions/setup-node@') === true);
     expect(setupNode).toBeGreaterThan(-1);
     expect(steps[setupNode]?.uses).toMatch(/^actions\/setup-node@[0-9a-f]{40}$/);
     expect(steps[setupNode]?.with).toEqual({ 'node-version-file': '.nvmrc', 'package-manager-cache': false });
-    expect(setupNode).toBeLessThan(steps.findIndex((step) => step.id === 'scope'));
-    // The other job that runs the script gets Node from the composite action, which reads .nvmrc too.
-    const lintSteps = stepsOf('lint-test-build');
-    const composite = lintSteps.findIndex((step) => step.uses === './.github/actions/setup-node-npm');
-    expect(composite).toBeGreaterThan(-1);
-    expect(composite).toBeLessThan(lintSteps.findIndex((step) => step.name === 'Select projects'));
+    expect(setupNode).toBeLessThan(steps.findIndex(isDecision));
+  });
+
+  // #992: `lint-test-build` is the check dev's ruleset and `scripts/pr gate` read. It is an aggregator now, so
+  // it must run whatever happened to the jobs behind it: a skipped required check counts as passed.
+  it('keeps lint-test-build as one check that fails unless the scope job and every shard passed', () => {
+    const aggregator = ci.jobs['lint-test-build'];
+    expect(aggregator?.needs).toEqual(['lint-test-build-scope', 'lint-test-build-shard']);
+    expect(aggregator?.if).toBe('always()');
+    const check = withoutComments(aggregator?.steps?.[0]?.run ?? '');
+    expect(aggregator?.steps).toHaveLength(1);
+    expect(check).toMatch(/^set -euo pipefail$/m);
+    expect(check).toContain(
+      'if [ "${SCOPE_RESULT}" != "success" ] || [ "${SHARD_RESULT}" != "success" ]; then',
+    );
+    expect(check).toMatch(/^\s*exit 1$/m);
+  });
+
+  // #992: a matrix that lists 1/3 and 2/3 and forgets 3/3 would be green with a third of the tests never run.
+  it('lists every test shard of one split, 1/N to N/N, and one job for the other targets', () => {
+    const include = ci.jobs['lint-test-build-shard']?.strategy?.matrix?.include ?? [];
+    expect(include.filter((entry) => entry['kind'] === 'static')).toHaveLength(1);
+    expect(include.filter((entry) => entry['kind'] !== 'static' && entry['kind'] !== 'test')).toEqual([]);
+    const shards = include.filter((entry) => entry['kind'] === 'test').map((entry) => entry['shard']);
+    expect(shards.length).toBeGreaterThan(0);
+    expect([...shards].sort()).toEqual(shards.map((_, at) => `${at + 1}/${shards.length}`));
+    expect(new Set(include.map((entry) => entry['name'])).size).toBe(include.length);
+    // Each target still has a step, and only the job of its kind runs it.
+    const steps = stepsOf('lint-test-build-shard') as readonly (Step & { readonly if?: string })[];
+    for (const target of ['lint', 'typecheck-spec', 'build']) {
+      const step = steps.find((candidate) => candidate.run === `npx nx "\${NX_MODE}" -t ${target}`);
+      expect(step?.if, target).toBe("matrix.kind == 'static'");
+    }
+    expect(steps.find((step) => step.name?.startsWith('Test (') === true)?.if).toBe("matrix.kind == 'test'");
+  });
+
+  it('takes the project list and the shard as plain assignments, so a failing nx or script stops the step', () => {
+    expect(testShard).toMatch(/^set -euo pipefail$/m);
+    expect(testShard).not.toContain('${{');
+    const lines = withoutComments(testShard)
+      .split('\n')
+      .map((line) => line.trim());
+    expect(lines.filter((line) => line.includes('nx show projects'))).toEqual([
+      'listed=$(npx nx show projects --affected --base="${NX_BASE}" --head="${NX_HEAD}" --with-target test --json)',
+      'listed=$(npx nx show projects --with-target test --json)',
+    ]);
+    // workspace-checks whatever the scope (#71), and the same `--always`/`--weights` in every shard.
+    expect(lines.filter((line) => line.includes('shard-projects.mjs'))).toEqual([
+      'projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --always workspace-checks --weights "${TEST_WEIGHTS}" <<<"${listed}")',
+    ]);
+    expect(lines).toContain('npx nx run-many -t test --projects="${projects}"');
+    expect(patternOf(selectProjects, 'root_config').test('tools/ci/shard-projects.mjs')).toBe(true);
+  });
+
+  // #992: the shards must split the list the scope job decided on, for the commit it decided on.
+  it('hands every shard the one scope decision and checks it before use', () => {
+    expect(ci.jobs['lint-test-build-shard']?.needs).toBe('lint-test-build-scope');
+    const check = runOf('lint-test-build-shard', (step) => step.name?.startsWith('Check the scope') === true);
+    expect(check).toMatch(/^set -euo pipefail$/m);
+    expect(check).toContain('[[ "${NX_MODE}" =~ ^(affected|run-many)$ ]]');
+    expect(check).toContain('[[ "${NX_BASE}" =~ ^[0-9a-f]{40}$ ]]');
+    expect(check).toContain('[ "${checked_out}" = "${NX_HEAD}" ]');
+    const steps = stepsOf('lint-test-build-shard');
+    const checkAt = steps.findIndex((step) => step.name?.startsWith('Check the scope') === true);
+    const firstNx = steps.findIndex((step) => step.run?.includes('npx nx') === true);
+    expect(checkAt).toBeGreaterThan(-1);
+    expect(checkAt).toBeLessThan(firstNx);
+    // Nothing but the scope job asks nx-set-shas: two askers could get two bases on a push.
+    const askers = Object.entries(ci.jobs)
+      .filter(([, job]) => (job.steps ?? []).some((step) => step.uses?.startsWith('nrwl/nx-set-shas@')))
+      .map(([name]) => name);
+    expect(askers).toEqual(['lint-test-build-scope']);
   });
 
   it('runs the sweep for the script that makes the decision and for awkward names under apps/runner', () => {
