@@ -843,7 +843,7 @@ describe('runtime tree check', () => {
 
       it('exits 1 when the runtime manifest lost its overrides', () => {
         const packages = tree();
-        const { overrides: _overrides, ...bare } = MANIFEST;
+        const bare = { ...MANIFEST, overrides: undefined };
         const result = run(packages, packages, {
           tamper: () => writeFileSync(join(app(), 'package.json'), JSON.stringify(bare)),
         });

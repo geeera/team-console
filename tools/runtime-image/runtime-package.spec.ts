@@ -161,12 +161,12 @@ describe('runtime manifest', () => {
     });
 
     it('exits 2 and leaves the file as it was when the workspace has no overrides', () => {
-      const { overrides: _overrides, ...bare } = workspace;
-      writeFileSync(manifest(), JSON.stringify(bare));
+      const bare = JSON.stringify({ ...workspace, overrides: undefined });
+      writeFileSync(manifest(), bare);
       const result = run();
       expect(result.status).toBe(2);
       expect(result.stderr).toContain('package.json has no overrides');
-      expect(readFileSync(manifest(), 'utf8')).toBe(JSON.stringify(bare));
+      expect(readFileSync(manifest(), 'utf8')).toBe(bare);
     });
   });
 });
