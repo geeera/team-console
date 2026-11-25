@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -36,6 +36,9 @@ export interface StackHome {
 /**
  * The throwaway home under `stacksDir`, created on first use and readable by the owner only. `global-setup.ts`
  * clears `stacksDir` when a run starts, so nothing a run wrote there reaches the next one.
+ *
+ * `mkdir` applies its mode only to a directory it creates, so one that is already there — made by hand, or by an
+ * older checkout — is tightened as well (#999).
  */
 export function stackHome(stacksDir: string): StackHome {
   const home = join(stacksDir, 'home');
@@ -43,6 +46,7 @@ export function stackHome(stacksDir: string): StackHome {
   const cache = join(home, '.cache');
   for (const dir of [home, config, cache]) {
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+    chmodSync(dir, 0o700);
   }
   return { HOME: home, XDG_CONFIG_HOME: config, XDG_CACHE_HOME: cache };
 }
