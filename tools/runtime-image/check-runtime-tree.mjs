@@ -5,8 +5,10 @@
 // The runtime image must hold exactly the packages the workspace lockfile pins for wrangler. Three things are
 // compared — the workspace lockfile, the pruned lockfile, and node_modules on disk — in both directions, and the
 // comparison has to cover a known minimum, so that reading the wrong directory cannot pass as "no drift".
+// Besides the packages: `.bin` holds only the executables its packages declare, nothing in node_modules is
+// setuid, setgid or a special file, and the manifest the tree was pruned under still carries the overrides.
 import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -14,8 +16,8 @@ import { fileURLToPath } from 'node:url';
  *   os?: string[], cpu?: string[], devDependencies?: Record<string, string> }} LockEntry
  * @typedef {{ packages?: Record<string, LockEntry> }} Lockfile
  * @typedef {{ os: string, cpu: string }} Platform
- * @typedef {{ root: string, workspaceLock: Lockfile, runtimeLock: Lockfile, platform: Platform,
- *   minCompared?: number, sharpFloor?: string }} CheckInput
+ * @typedef {{ root: string, workspaceLock: Lockfile, runtimeLock: Lockfile, runtimeManifest: unknown,
+ *   platform: Platform, minCompared?: number, sharpFloor?: string }} CheckInput
  * @typedef {{ compared: number, problems: string[] }} CheckResult
  */
 
@@ -76,7 +78,7 @@ export function isAtLeast(version, floor) {
  * `package.json` a package ships among its own files is not taken for an installed package. A symlink is
  * reported and never followed, a `node_modules` directory included. Whatever else sits where npm puts packages
  * is reported as `unexpected`: a plain file, and any dot entry but the two npm writes itself — `.bin`, which
- * may hold only links into its own `node_modules`, and the hidden lockfile at the top.
+ * may hold only the links its own packages declare in their `bin` map, and the hidden lockfile at the top.
  * @param {string} root
  * @returns {{ packages: string[], links: string[], unexpected: string[] }}
  */
@@ -109,8 +111,10 @@ export function installedPackages(root) {
   };
 
   /**
-   * npm links a package's executables as `.bin/<name> -> ../<package>/<file>`; the package itself is then held
-   * to the lockfile by the walk. Anything else in `.bin` would be code on PATH that no lockfile entry covers.
+   * npm links a package's executables as `.bin/<name> -> ../<package>/<file>`, from the package's `bin` map; the
+   * package itself is then held to the lockfile by the walk. Anything else in `.bin` would be code on PATH that
+   * no lockfile entry covers, and a link the package does not declare would put another of its files there
+   * under a name of the writer's choosing (#1005).
    * @param {string} bin a `…/node_modules/.bin` entry, relative to root
    */
   const visitBin = (bin) => {
@@ -126,7 +130,10 @@ export function installedPackages(root) {
       const target = relative(modules, resolve(dirname(path), readlinkSync(path)));
       if (target === '' || target.startsWith('.') || isAbsolute(target)) {
         unexpected.push(`${key}: links outside the packages of its node_modules`);
+        continue;
       }
+      const problem = undeclaredExecutable(modules, name, target.split(sep).join('/'));
+      if (problem) unexpected.push(`${key}: ${problem}`);
     }
   };
 
@@ -165,6 +172,81 @@ export function installedPackages(root) {
 }
 
 /**
+ * What is wrong with `.bin/<name> -> <target>`, or undefined when the package the target sits in declares
+ * exactly that file under that name. The comparison is of paths as written; nothing behind the link is read
+ * but the package's own package.json.
+ * @param {string} modules the absolute `node_modules` directory the `.bin` is in
+ * @param {string} name the link's name
+ * @param {string} target the link's target relative to `modules`, with `/` separators
+ * @returns {string | undefined}
+ */
+function undeclaredExecutable(modules, name, target) {
+  const segments = target.split('/');
+  const packageName = segments.slice(0, target.startsWith('@') ? 2 : 1).join('/');
+  const manifestPath = join(modules, packageName, 'package.json');
+  // A symlinked package directory is reported by the walk; its manifest is not read through the link.
+  const isReadable =
+    lstatSync(join(modules, packageName), { throwIfNoEntry: false })?.isDirectory() === true &&
+    lstatSync(manifestPath, { throwIfNoEntry: false })?.isFile() === true;
+  if (!isReadable) return `links into ${packageName}, which has no package.json`;
+  const { bin } = /** @type {{ bin?: unknown }} */ (JSON.parse(readFileSync(manifestPath, 'utf8')));
+  /** @type {unknown} */
+  let declared;
+  // npm's two forms: one file under the package's own (unscoped) name, or a map of names to files.
+  if (typeof bin === 'string') declared = name === packageName.split('/').at(-1) ? bin : undefined;
+  else if (typeof bin === 'object' && bin !== null && Object.hasOwn(bin, name)) {
+    declared = /** @type {Record<string, unknown>} */ (bin)[name];
+  }
+  if (typeof declared !== 'string' || declared === '') {
+    return `${packageName} declares no "${name}" executable`;
+  }
+  const wanted = posix.join(packageName, declared);
+  return wanted === target ? undefined : `links to ${target}, but ${packageName} declares ${wanted}`;
+}
+
+/**
+ * Every path under `<root>/node_modules` that no npm package installs and a container must not get by copy
+ * (#1005): a setuid or setgid bit, on a file or a directory, and anything that is not a file, a directory or a
+ * symlink (a device, a fifo, a socket). Symlinks are not followed; the walk above reports them.
+ * @param {string} root
+ * @returns {string[]} one problem per path, the path relative to root
+ */
+export function specialFiles(root) {
+  /** @type {string[]} */
+  const problems = [];
+  /** @param {string} key */
+  const visit = (key) => {
+    const stat = lstatSync(join(root, key), { throwIfNoEntry: false });
+    if (!stat || stat.isSymbolicLink()) return;
+    if (!stat.isFile() && !stat.isDirectory()) {
+      problems.push(`${key}: a device, fifo or socket, not a file`);
+      return;
+    }
+    if ((stat.mode & 0o6000) !== 0) {
+      problems.push(`${key}: setuid or setgid (mode ${(stat.mode & 0o7777).toString(8)})`);
+    }
+    if (stat.isDirectory()) for (const name of readdirSync(join(root, key)).sort()) visit(`${key}/${name}`);
+  };
+  visit('node_modules');
+  return problems;
+}
+
+/**
+ * @param {unknown} manifest the parsed runtime package.json
+ * @returns {boolean} whether it carries at least one override
+ */
+function hasOverrides(manifest) {
+  if (typeof manifest !== 'object' || manifest === null) return false;
+  const { overrides } = /** @type {{ overrides?: unknown }} */ (manifest);
+  return (
+    typeof overrides === 'object' &&
+    overrides !== null &&
+    !Array.isArray(overrides) &&
+    Object.keys(overrides).length > 0
+  );
+}
+
+/**
  * @param {string} root
  * @param {string} key
  * @returns {string | undefined}
@@ -183,6 +265,7 @@ export function checkRuntimeTree({
   root,
   workspaceLock,
   runtimeLock,
+  runtimeManifest,
   platform,
   minCompared = MIN_COMPARED,
   sharpFloor = SHARP_FLOOR,
@@ -237,6 +320,11 @@ export function checkRuntimeTree({
     else if (installedVersion(root, key) === undefined)
       problems.push(`${key}: on disk without a package.json`);
   }
+  problems.push(...specialFiles(root));
+
+  // The tree was pruned under this manifest. Without the workspace's `overrides` npm is free to re-resolve the
+  // packages they pin (sharp, undici) the next time it touches the tree (#263, #1005).
+  if (!hasOverrides(runtimeManifest)) problems.push('package.json: the runtime manifest has no overrides');
 
   // Not vacuous: the comparison covered the tree this image is built for.
   if (compared < minCompared) {
@@ -287,6 +375,7 @@ function main(argv) {
       root,
       workspaceLock: readLock(workspaceLockPath),
       runtimeLock: readLock(join(root, 'package-lock.json')),
+      runtimeManifest: JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')),
       platform: { os: process.platform, cpu: process.arch },
     });
   } catch (error) {

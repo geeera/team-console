@@ -7,7 +7,8 @@ import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
- * @typedef {{ name: string, private: true, dependencies: { wrangler: string }, overrides?: unknown }} RuntimeManifest
+ * @typedef {{ name: string, private: true, dependencies: { wrangler: string },
+ *   overrides: Record<string, unknown> }} RuntimeManifest
  */
 
 /**
@@ -32,13 +33,18 @@ export function runtimeManifest(workspace) {
   if (typeof wrangler !== 'string' || wrangler === '') {
     throw new Error('package.json has no devDependencies.wrangler');
   }
+  // The overrides are why this tree is pruned and not re-installed (#263): a manifest without them would let npm
+  // re-resolve sharp and undici, so their absence is an error here, not an empty field (#1005).
+  if (!isRecord(overrides) || Object.keys(overrides).length === 0) {
+    throw new Error('package.json has no overrides');
+  }
   // A production dependency, so `npm ls` under the image's NODE_ENV=production still lists the tree.
   return { name, private: true, dependencies: { wrangler }, overrides };
 }
 
 /**
  * @param {string[]} argv `[package.json]`, the file rewritten in place
- * @returns {0 | 2} 2 when the manifest cannot be read, parsed, used or written
+ * @returns {0 | 2} 2 when the manifest cannot be read, parsed, used (no name, wrangler or overrides) or written
  */
 function main(argv) {
   const path = argv[0] ?? 'package.json';

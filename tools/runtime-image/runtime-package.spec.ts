@@ -59,15 +59,6 @@ describe('runtime manifest', () => {
     });
   });
 
-  it('leaves overrides out when the workspace has none', () => {
-    const { overrides: _overrides, ...withoutOverrides } = workspace;
-    expect(JSON.parse(JSON.stringify(runtimeManifest(withoutOverrides)))).toEqual({
-      name: '@team-console/source',
-      private: true,
-      dependencies: { wrangler: '4.130.0' },
-    });
-  });
-
   it.each([
     ['a manifest that is not an object', [], 'package.json is not an object'],
     ['null', null, 'package.json is not an object'],
@@ -84,6 +75,11 @@ describe('runtime manifest', () => {
       { ...workspace, devDependencies: {}, dependencies: { wrangler: '4.130.0' } },
       'no devDependencies.wrangler',
     ],
+    // #1005: a manifest without the overrides was written all the same, and the prune ran under it.
+    ['no overrides', { ...workspace, overrides: undefined }, 'package.json has no overrides'],
+    ['empty overrides', { ...workspace, overrides: {} }, 'package.json has no overrides'],
+    ['overrides that are a list', { ...workspace, overrides: ['sharp'] }, 'package.json has no overrides'],
+    ['overrides that are a string', { ...workspace, overrides: 'sharp' }, 'package.json has no overrides'],
   ])('throws on %s', (_case, manifest, message) => {
     expect(() => runtimeManifest(manifest)).toThrow(message);
   });
@@ -162,6 +158,15 @@ describe('runtime manifest', () => {
       expect(result.status).toBe(2);
       expect(result.stderr).toContain('package.json has no devDependencies.wrangler');
       expect(readFileSync(manifest(), 'utf8')).toBe(withoutWrangler);
+    });
+
+    it('exits 2 and leaves the file as it was when the workspace has no overrides', () => {
+      const bare = JSON.stringify({ ...workspace, overrides: undefined });
+      writeFileSync(manifest(), bare);
+      const result = run();
+      expect(result.status).toBe(2);
+      expect(result.stderr).toContain('package.json has no overrides');
+      expect(readFileSync(manifest(), 'utf8')).toBe(bare);
     });
   });
 });

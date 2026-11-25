@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,7 +11,13 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { MIN_COMPARED, checkRuntimeTree, installedPackages, isAtLeast } from './check-runtime-tree.mjs';
+import {
+  MIN_COMPARED,
+  checkRuntimeTree,
+  installedPackages,
+  isAtLeast,
+  specialFiles,
+} from './check-runtime-tree.mjs';
 
 type Entry = {
   version: string;
@@ -34,6 +41,13 @@ type RunOptions = {
 const SCRIPT = join(import.meta.dirname, 'check-runtime-tree.mjs');
 const LINUX_X64 = { os: 'linux', cpu: 'x64' };
 const WRANGLER = '4.130.0';
+/** The runtime manifest as runtime-package.mjs writes it. */
+const MANIFEST = {
+  name: '@team-console/source',
+  private: true,
+  dependencies: { wrangler: WRANGLER },
+  overrides: { miniflare: { sharp: '0.35.5' } },
+};
 
 function entry(key: string, version: string, extra: Partial<Entry> = {}): Entry {
   const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
@@ -76,22 +90,34 @@ describe('runtime tree check', () => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  function install(key: string, version: string): void {
+  function install(key: string, version: string, manifest: Record<string, unknown> = {}): void {
     mkdirSync(join(root, key), { recursive: true });
-    writeFileSync(join(root, key, 'package.json'), JSON.stringify({ version }));
+    writeFileSync(join(root, key, 'package.json'), JSON.stringify({ version, ...manifest }));
   }
 
   function installAll(packages: Packages): void {
     for (const [key, value] of Object.entries(packages)) install(key, value.version);
   }
 
-  function check(workspace: Packages, runtime: Packages = workspace, platform = LINUX_X64) {
+  function check(
+    workspace: Packages,
+    runtime: Packages = workspace,
+    platform = LINUX_X64,
+    runtimeManifest: unknown = MANIFEST,
+  ) {
     return checkRuntimeTree({
       root,
       workspaceLock: workspaceLockOf(workspace),
       runtimeLock: lockOf(runtime),
+      runtimeManifest,
       platform,
     });
+  }
+
+  /** `.bin/<name> -> <target>` in the top node_modules. */
+  function linkBin(name: string, target: string): void {
+    mkdirSync(join(root, 'node_modules/.bin'), { recursive: true });
+    symlinkSync(target, join(root, 'node_modules/.bin', name));
   }
 
   it('passes when the lockfiles and the disk agree, and reports how many packages it compared', () => {
@@ -276,12 +302,109 @@ describe('runtime tree check', () => {
     it('accepts the dot entries npm writes: the hidden lockfile and .bin links into its own packages', () => {
       const packages = tree();
       installAll(packages);
+      install('node_modules/wrangler', WRANGLER, {
+        bin: { wrangler: './bin/wrangler.js', wrangler2: 'bin/wrangler.js' },
+      });
+      install('node_modules/wrangler/node_modules/undici', '7.30.1', { name: 'undici', bin: 'cli.js' });
+      install('node_modules/@img/colour', '1.0.0', { name: '@img/colour', bin: './colour.js' });
       writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
-      mkdirSync(join(root, 'node_modules/.bin'));
-      symlinkSync('../wrangler/bin/wrangler.js', join(root, 'node_modules/.bin/wrangler'));
+      linkBin('wrangler', '../wrangler/bin/wrangler.js');
+      linkBin('wrangler2', '../wrangler/bin/wrangler.js');
+      // A string `bin` is linked under the package's name without its scope.
+      linkBin('colour', '../@img/colour/colour.js');
       mkdirSync(join(root, 'node_modules/wrangler/node_modules/.bin'));
       symlinkSync('../undici/cli.js', join(root, 'node_modules/wrangler/node_modules/.bin/undici'));
       expect(check(packages).problems).toEqual([]);
+    });
+
+    // #1005: a link into a real package passed whatever file it named and whatever it was called.
+    it('fails on a .bin link its package does not declare in its bin map, by name or by file', () => {
+      const packages = tree();
+      installAll(packages);
+      install('node_modules/wrangler', WRANGLER, { bin: { wrangler: './bin/wrangler.js' } });
+      install('node_modules/sharp', '0.35.5', { bin: 'cli.js' });
+      install('node_modules/@img/colour', '1.0.0', { bin: { colour: 7 } });
+      linkBin('wrangler', '../wrangler/bin/wrangler.js');
+      linkBin('node', '../wrangler/bin/wrangler.js');
+      linkBin('wrangler2', '../wrangler/templates/payload.js');
+      linkBin('sharp', '../sharp/install/build.js');
+      linkBin('sh', '../sharp/cli.js');
+      linkBin('colour', '../@img/colour/colour.js');
+      linkBin('filler', '../filler-0/cli.js');
+      linkBin('toString', '../wrangler/bin/wrangler.js');
+      linkBin('ghost', '../ghost/cli.js');
+      linkBin('scope', '../@img');
+      expect(check(packages).problems).toEqual([
+        'node_modules/.bin/colour: @img/colour declares no "colour" executable',
+        'node_modules/.bin/filler: filler-0 declares no "filler" executable',
+        'node_modules/.bin/ghost: links into ghost, which has no package.json',
+        'node_modules/.bin/node: wrangler declares no "node" executable',
+        'node_modules/.bin/scope: links into @img, which has no package.json',
+        'node_modules/.bin/sh: sharp declares no "sh" executable',
+        'node_modules/.bin/sharp: links to sharp/install/build.js, but sharp declares sharp/cli.js',
+        'node_modules/.bin/toString: wrangler declares no "toString" executable',
+        'node_modules/.bin/wrangler2: wrangler declares no "wrangler2" executable',
+      ]);
+    });
+
+    it('fails on a declared name that points at another file of the package', () => {
+      const packages = tree();
+      installAll(packages);
+      install('node_modules/wrangler', WRANGLER, { bin: { wrangler: './bin/wrangler.js' } });
+      linkBin('wrangler', '../wrangler/templates/payload.js');
+      expect(check(packages).problems).toEqual([
+        'node_modules/.bin/wrangler: links to wrangler/templates/payload.js, but wrangler declares wrangler/bin/wrangler.js',
+      ]);
+    });
+
+    it('does not read the bin map of a symlinked package', () => {
+      const packages = tree();
+      installAll(packages);
+      const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+      try {
+        writeFileSync(join(outside, 'package.json'), JSON.stringify({ bin: { evil: 'cli.js' } }));
+        symlinkSync(outside, join(root, 'node_modules/evil'));
+        linkBin('evil', '../evil/cli.js');
+        expect(check(packages).problems).toEqual([
+          'node_modules/evil: a symlink in node_modules',
+          'node_modules/.bin/evil: links into evil, which has no package.json',
+        ]);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    // #1005: equal in the lockfile and on disk says nothing about a mode bit or a device node.
+    it('fails on a setuid or setgid bit and on a fifo anywhere in node_modules', () => {
+      const packages = tree();
+      installAll(packages);
+      mkdirSync(join(root, 'node_modules/wrangler/bin'));
+      writeFileSync(join(root, 'node_modules/wrangler/bin/wrangler.js'), '');
+      chmodSync(join(root, 'node_modules/wrangler/bin/wrangler.js'), 0o4755);
+      chmodSync(join(root, 'node_modules/sharp/package.json'), 0o2644);
+      chmodSync(join(root, 'node_modules/filler-0'), 0o2755);
+      expect(spawnSync('mkfifo', [join(root, 'node_modules/wrangler/bin/pipe')]).status).toBe(0);
+      expect(check(packages).problems).toEqual([
+        'node_modules/filler-0: setuid or setgid (mode 2755)',
+        'node_modules/sharp/package.json: setuid or setgid (mode 2644)',
+        'node_modules/wrangler/bin/pipe: a device, fifo or socket, not a file',
+        'node_modules/wrangler/bin/wrangler.js: setuid or setgid (mode 4755)',
+      ]);
+    });
+
+    // #1005: the overrides are the reason the tree is pruned rather than installed afresh (#263).
+    it.each([
+      ['no overrides', { ...MANIFEST, overrides: undefined }],
+      ['empty overrides', { ...MANIFEST, overrides: {} }],
+      ['overrides that are not a map', { ...MANIFEST, overrides: ['sharp'] }],
+      ['overrides that are a string', { ...MANIFEST, overrides: 'sharp' }],
+      ['no manifest object', null],
+    ])('fails on a runtime manifest with %s', (_case, manifest) => {
+      const packages = tree();
+      installAll(packages);
+      expect(check(packages, packages, LINUX_X64, manifest).problems).toEqual([
+        'package.json: the runtime manifest has no overrides',
+      ]);
     });
 
     it('fails on anything in .bin but a link into a package of the same node_modules', () => {
@@ -375,6 +498,7 @@ describe('runtime tree check', () => {
         root,
         workspaceLock: { packages: {} },
         runtimeLock: { packages: {} },
+        runtimeManifest: MANIFEST,
         platform: LINUX_X64,
       });
       expect(result).toEqual({
@@ -388,7 +512,13 @@ describe('runtime tree check', () => {
     });
 
     it('fails when the lockfiles have no packages at all', () => {
-      const result = checkRuntimeTree({ root, workspaceLock: {}, runtimeLock: {}, platform: LINUX_X64 });
+      const result = checkRuntimeTree({
+        root,
+        workspaceLock: {},
+        runtimeLock: {},
+        runtimeManifest: MANIFEST,
+        platform: LINUX_X64,
+      });
       expect(result.compared).toBe(0);
       expect(result.problems).toContain(`only 0 packages compared, expected at least ${MIN_COMPARED}`);
     });
@@ -454,8 +584,8 @@ describe('runtime tree check', () => {
       install('node_modules/a/node_modules/@s/b', '1.0.0');
       install('node_modules/a/fixtures/node_modules-like/c', '1.0.0');
       install('node_modules/a/.hidden', '1.0.0');
-      mkdirSync(join(root, 'node_modules/.bin'));
-      symlinkSync('../a/cli.js', join(root, 'node_modules/.bin/a'));
+      install('node_modules/a', '1.0.0', { bin: 'cli.js' });
+      linkBin('a', '../a/cli.js');
       writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
       expect(installedPackages(root)).toEqual({
         packages: ['node_modules/a', 'node_modules/a/node_modules/@s/b'],
@@ -483,6 +613,31 @@ describe('runtime tree check', () => {
 
     it('is empty without a node_modules directory', () => {
       expect(installedPackages(root)).toEqual({ packages: [], links: [], unexpected: [] });
+    });
+  });
+
+  describe('specialFiles', () => {
+    it('finds nothing in a tree of plain files, directories and links, and does not follow a link', () => {
+      install('node_modules/a', '1.0.0');
+      const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+      try {
+        writeFileSync(join(outside, 'tool'), '');
+        chmodSync(join(outside, 'tool'), 0o4755);
+        symlinkSync(outside, join(root, 'node_modules/a/linked'));
+        expect(specialFiles(root)).toEqual([]);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('keeps the sticky bit and the plain permission bits out of it', () => {
+      install('node_modules/a', '1.0.0');
+      chmodSync(join(root, 'node_modules/a'), 0o1777);
+      expect(specialFiles(root)).toEqual([]);
+    });
+
+    it('is empty without a node_modules directory', () => {
+      expect(specialFiles(root)).toEqual([]);
     });
   });
 
@@ -516,6 +671,7 @@ describe('runtime tree check', () => {
       mkdirSync(app());
       writeFileSync(workspaceLock(), JSON.stringify(workspaceLockOf(workspace)));
       writeFileSync(join(app(), 'package-lock.json'), JSON.stringify(lockOf(runtime)));
+      writeFileSync(join(app(), 'package.json'), JSON.stringify(MANIFEST));
       for (const [key, value] of Object.entries(runtime)) {
         mkdirSync(join(app(), key), { recursive: true });
         writeFileSync(join(app(), key, 'package.json'), JSON.stringify({ version: value.version }));
@@ -670,6 +826,38 @@ describe('runtime tree check', () => {
         expect(result.status).toBe(2);
         expect(result.stdout).toBe('');
         expect(result.stderr).toContain(cannotCheck);
+      });
+
+      it('exits 2 when the root has no runtime manifest, or one that is not JSON', () => {
+        const packages = tree();
+        const absent = run(packages, packages, { tamper: () => rmSync(join(app(), 'package.json')) });
+        expect(absent.status).toBe(2);
+        expect(absent.stderr).toContain(cannotCheck);
+        rmSync(app(), { recursive: true });
+        const broken = run(packages, packages, {
+          tamper: () => writeFileSync(join(app(), 'package.json'), '{'),
+        });
+        expect(broken.status).toBe(2);
+        expect(broken.stderr).toContain(cannotCheck);
+      });
+
+      it('exits 1 when the runtime manifest lost its overrides', () => {
+        const packages = tree();
+        const bare = { ...MANIFEST, overrides: undefined };
+        const result = run(packages, packages, {
+          tamper: () => writeFileSync(join(app(), 'package.json'), JSON.stringify(bare)),
+        });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('package.json: the runtime manifest has no overrides');
+      });
+
+      it('exits 1 on a setuid file in a package', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => chmodSync(join(app(), 'node_modules/sharp/package.json'), 0o4644),
+        });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('node_modules/sharp/package.json: setuid or setgid (mode 4644)');
       });
 
       it('exits 2 when the root does not exist', () => {

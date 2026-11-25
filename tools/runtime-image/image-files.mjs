@@ -2,7 +2,8 @@
 // CI's `runtime-image` job (#998, #818.3) holds the built root image to its file list: every path in the
 // final image is either the pinned Node base image's own, or something the Dockerfile's `runtime` stage copies
 // from the `runtime-deps` or `build` stage — same type, mode, size, content and link target, owned by `node`.
-// Nothing else may be there, and nothing may be missing.
+// Nothing else may be there, and nothing may be missing. What is copied may be a file, a directory or a symlink
+// only, with no setuid or setgid bit, in the stage it comes from as much as in the image.
 //
 //   node image-files.mjs base-image <Dockerfile>   the pinned base image, for `docker pull`
 //   node image-files.mjs list <stage>              one JSON line per path; runs inside a container of that stage
@@ -177,7 +178,15 @@ export function expectedFiles(listings, copies = RUNTIME_COPIES) {
       if (!expected.has(parent))
         expected.set(parent, { path: parent, type: 'directory', mode: '755', ...OWNER });
     }
-    for (const entry of copied) expected.set(entry.path, { ...entry, ...OWNER });
+    for (const entry of copied) {
+      // Equal in the stage and in the image is not enough for these: the copy itself is the problem (#1005).
+      if (entry.type === 'other') {
+        problems.push(`${entry.path}: a device, fifo or socket in the ${copy.stage} stage`);
+      } else if ((Number.parseInt(entry.mode, 8) & 0o6000) !== 0) {
+        problems.push(`${entry.path}: setuid or setgid (mode ${entry.mode}) in the ${copy.stage} stage`);
+      }
+      expected.set(entry.path, { ...entry, ...OWNER });
+    }
   }
   return { expected, problems };
 }
