@@ -74,4 +74,5 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
 # the connected account (#15, #59); `OWNER_GITHUB_LOGIN:geeera` is that owner, the login a connect would accept.
 # wrangler is called by its path, never through `npx` (#1005): npx offers to fetch from the registry whatever it
 # does not find in node_modules/.bin, and here a missing wrangler must be a container that does not start.
-CMD ["sh", "-c", "node_modules/.bin/wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec node_modules/.bin/wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
+# The path is absolute (#1013), so which wrangler runs does not depend on the directory the container starts in.
+CMD ["sh", "-c", "/app/node_modules/.bin/wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec /app/node_modules/.bin/wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
