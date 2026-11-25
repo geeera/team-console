@@ -212,5 +212,5 @@ test('the dispatch switch fits the phone', async ({ page, stack }, testInfo) => 
   const box = await editor.getByTestId('project-dispatch-save').boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
   await expectAccessible(page, 'Settings › Runners on the phone, dispatch on GitHub Actions');
-  await editor.screenshot({ path: test.info().outputPath('dispatch-phone.png') });
+  await editor.screenshot({ path: testInfo.outputPath('dispatch-phone.png') });
 });

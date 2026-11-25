@@ -1,5 +1,15 @@
 import { randomBytes } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -121,6 +131,56 @@ describe('stackHome', () => {
       stackHome(stacksDir);
 
       expect(open.map((dir) => statSync(dir).mode & 0o777)).toEqual([0o700, 0o700, 0o700]);
+    } finally {
+      rmSync(stacksDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a home that is a link, and leaves what the link names as it was', () => {
+    const stacksDir = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      const real = join(stacksDir, 'the-real-home');
+      mkdirSync(real);
+      chmodSync(real, 0o755);
+      symlinkSync(real, join(stacksDir, 'home'));
+
+      expect(() => stackHome(stacksDir)).toThrow(/home is a symbolic link/);
+
+      expect(statSync(real).mode & 0o777).toBe(0o755);
+      expect(readdirSync(real)).toEqual([]);
+    } finally {
+      rmSync(stacksDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a config directory that is a link inside a home of its own', () => {
+    const stacksDir = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      const real = join(stacksDir, 'the-real-config');
+      mkdirSync(real);
+      chmodSync(real, 0o755);
+      mkdirSync(join(stacksDir, 'home'));
+      symlinkSync(real, join(stacksDir, 'home/.config'));
+
+      expect(() => stackHome(stacksDir)).toThrow(/\.config is a symbolic link/);
+
+      expect(statSync(real).mode & 0o777).toBe(0o755);
+      expect(existsSync(join(stacksDir, 'home/.cache'))).toBe(false);
+    } finally {
+      rmSync(stacksDir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a link that names nothing, and a file where the home should be', () => {
+    const stacksDir = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      symlinkSync(join(stacksDir, 'nowhere'), join(stacksDir, 'home'));
+      expect(() => stackHome(stacksDir)).toThrow();
+      expect(existsSync(join(stacksDir, 'nowhere'))).toBe(false);
+
+      rmSync(join(stacksDir, 'home'));
+      writeFileSync(join(stacksDir, 'home'), '');
+      expect(() => stackHome(stacksDir)).toThrow();
     } finally {
       rmSync(stacksDir, { recursive: true, force: true });
     }

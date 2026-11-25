@@ -1,4 +1,4 @@
-import { chmodSync, mkdirSync } from 'node:fs';
+import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
@@ -38,17 +38,41 @@ export interface StackHome {
  * clears `stacksDir` when a run starts, so nothing a run wrote there reaches the next one.
  *
  * `mkdir` applies its mode only to a directory it creates, so one that is already there — made by hand, or by an
- * older checkout — is tightened as well (#999).
+ * older checkout — is tightened as well (#999). A symbolic link in its place is refused, not followed (#1006):
+ * `chmod` would change whatever the link names, and the children would write there.
  */
 export function stackHome(stacksDir: string): StackHome {
   const home = join(stacksDir, 'home');
   const config = join(home, '.config');
   const cache = join(home, '.cache');
   for (const dir of [home, config, cache]) {
-    mkdirSync(dir, { recursive: true, mode: 0o700 });
-    chmodSync(dir, 0o700);
+    mkdirSync(dir, { recursive: true, mode: HOME_MODE });
+    closeToOthers(dir);
   }
   return { HOME: home, XDG_CONFIG_HOME: config, XDG_CACHE_HOME: cache };
+}
+
+const HOME_MODE = 0o700;
+
+/**
+ * Sets `dir` to the owner only, and throws when it is not a real directory. `lstat` gives the clear error; the mode
+ * is then set through a descriptor opened without following links, so a link swapped in after the check is refused
+ * by the system as well instead of being followed.
+ */
+function closeToOthers(dir: string): void {
+  const entry = lstatSync(dir);
+  if (entry.isSymbolicLink()) {
+    throw new Error(`${dir} is a symbolic link: the stack does not use a home it did not make. Remove it.`);
+  }
+  if (!entry.isDirectory()) {
+    throw new Error(`${dir} is not a directory: the stack cannot make its home there. Remove it.`);
+  }
+  const descriptor = openSync(dir, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
+  try {
+    fchmodSync(descriptor, HOME_MODE);
+  } finally {
+    closeSync(descriptor);
+  }
 }
 
 /**

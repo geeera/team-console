@@ -168,9 +168,9 @@ test.beforeAll(async ({ stack }) => {
   await seed(stack, [REPO]);
 });
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
   await page.setViewportSize(
-    test.info().project.name === 'desktop' ? AUDIT_VIEWPORTS.desktop : AUDIT_VIEWPORTS.iphone,
+    testInfo.project.name === 'desktop' ? AUDIT_VIEWPORTS.desktop : AUDIT_VIEWPORTS.iphone,
   );
 });
 
@@ -215,8 +215,10 @@ for (const { path, isTall, waitFor } of SCREENS) {
   });
 }
 
-test('the Commands pane beside a page is a pinned column, not a scroll inside the page', async ({ page }) => {
-  test.skip(test.info().project.name !== 'desktop', 'the pane sits beside the page on a wide screen only');
+test('the Commands pane beside a page is a pinned column, not a scroll inside the page', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'the pane sits beside the page on a wide screen only');
   await page.goto('/p/team-console/questions');
   await page.getByTestId('commands-open').click();
   await expect(page.getByTestId('issues-group')).toBeVisible();
@@ -232,8 +234,10 @@ test('the Commands pane beside a page is a pinned column, not a scroll inside th
   expect(await strayScrollsOf(page)).toEqual([]);
 });
 
-test('the Commands sheet on the phone: only its body scrolls, nothing cut off', async ({ page }) => {
-  test.skip(test.info().project.name !== 'iphone', 'the phone opens Commands as a sheet');
+test('the Commands sheet on the phone: only its body scrolls, nothing cut off', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone', 'the phone opens Commands as a sheet');
   await page.goto('/p/team-console/questions');
   await page.getByTestId('commands-open').click();
   await expect(page.getByTestId('issues-group')).toBeVisible();
@@ -312,9 +316,9 @@ test('«Попросить PM» fits the screen: title and actions in view, only
 
 test("the phone's Projects sheet with a long list: Add project and Settings stay in view, only its body scrolls", async ({
   page,
-}) => {
+}, testInfo) => {
   test.skip(
-    test.info().project.name !== 'iphone',
+    testInfo.project.name !== 'iphone',
     "the Projects sheet is the phone's; wide screens have the sidebar",
   );
   // Thirty projects: the registry answer is stretched in the browser, the seeded project is the template.
@@ -364,9 +368,9 @@ test("the phone's Projects sheet with a long list: Add project and Settings stay
 
 test('a page that grows behind an open sheet stays still: the lock does not depend on the height at open', async ({
   page,
-}) => {
+}, testInfo) => {
   test.skip(
-    test.info().project.name !== 'iphone',
+    testInfo.project.name !== 'iphone',
     "the Projects sheet is the phone's; the lock itself is shared by every sheet",
   );
   // Needs you is short until its data arrives; hold the data back until the sheet is open (#281 QA).

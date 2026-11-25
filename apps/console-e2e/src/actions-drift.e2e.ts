@@ -50,7 +50,7 @@ test('a drifted workflow is one row on Needs you, with when it was checked, to t
   await expect(row.getByTestId('actions-drift-checked')).toHaveText(/^Проверено 20 ноября в \d{2}:\d{2}$/);
   await expect(page.getByTestId('empty')).toHaveCount(0);
   await expectAccessible(page, 'Needs you, Actions workflow drift');
-  await page.getByTestId('project-attention').screenshot({ path: test.info().outputPath('needs-you-actions-drift.png') });
+  await page.getByTestId('project-attention').screenshot({ path: testInfo.outputPath('needs-you-actions-drift.png') });
 
   await row.click();
   await expect(page).toHaveURL(new RegExp(`/settings/projects/${SLUG}/actions$`));

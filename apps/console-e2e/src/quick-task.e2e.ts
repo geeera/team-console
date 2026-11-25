@@ -1,4 +1,4 @@
-import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import type { APIRequestContext, Locator, Page, TestInfo } from '@playwright/test';
 import { contextDay } from './support/dates';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
@@ -12,7 +12,6 @@ import { createSprint, switchToConsoleTracker } from './support/tracker-seed';
  */
 
 const SLUG = 'team-console';
-const isPhone = (): boolean => test.info().project.name !== 'desktop';
 
 interface ItemRow {
   readonly number: number;
@@ -49,9 +48,9 @@ function entry(page: Page): Locator {
   return page.getByTestId('new-task-open');
 }
 
-async function openNewTask(page: Page): Promise<Locator> {
+async function openNewTask(page: Page, testInfo: TestInfo): Promise<Locator> {
   await expect(entry(page)).toBeVisible();
-  if (isPhone()) {
+  if (testInfo.project.name !== 'desktop') {
     await entry(page).click();
   } else {
     // T opens it from anywhere but a text field.
@@ -63,9 +62,9 @@ async function openNewTask(page: Page): Promise<Locator> {
   return sheet;
 }
 
-test('creates a task in the next sprint as plain text and links to it', async ({ page }) => {
+test('creates a task in the next sprint as plain text and links to it', async ({ page }, testInfo) => {
   await page.goto(`/p/${SLUG}/board`);
-  const sheet = await openNewTask(page);
+  const sheet = await openNewTask(page, testInfo);
   await expect(sheet.getByTestId('quick-task-title')).toBeFocused();
   await expect(sheet).toContainText(ru('quickTask.into', { name: 'team-console' }));
   // The frozen current sprint is off with its reason; Next is the default.
@@ -99,16 +98,16 @@ test('creates a task in the next sprint as plain text and links to it', async ({
 
 test('keeps the draft through a close and a reload, then a retry after a drop creates one task', async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto(`/p/${SLUG}/questions`);
-  let sheet = await openNewTask(page);
+  let sheet = await openNewTask(page, testInfo);
   await sheet.getByTestId('quick-task-title').fill('Survives an eviction');
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
   await expect(page.getByRole('status').filter({ hasText: ru('quickTask.draft.kept') })).toBeVisible();
 
   await page.reload();
-  sheet = await openNewTask(page);
+  sheet = await openNewTask(page, testInfo);
   await expect(sheet.getByTestId('quick-task-title')).toHaveValue('Survives an eviction');
   await expect(sheet.getByTestId('quick-task-draft')).toBeVisible();
 
@@ -137,7 +136,7 @@ test('keeps the draft through a close and a reload, then a retry after a drop cr
 
 test('an edit after a timed-out send says the first one may have landed, and «Send as new» files the new text', async ({
   page,
-}) => {
+}, testInfo) => {
   // The first send reaches the server but never answers the client; the edited retry reuses the key.
   let isFirst = true;
   await page.route(`**/api/v1/projects/${SLUG}/items`, async (route) => {
@@ -150,7 +149,7 @@ test('an edit after a timed-out send says the first one may have landed, and «S
     await route.abort('timedout');
   });
   await page.goto(`/p/${SLUG}/board`);
-  const sheet = await openNewTask(page);
+  const sheet = await openNewTask(page, testInfo);
   await sheet.getByTestId('quick-task-title').fill('Timed out wording');
   await sheet.getByTestId('quick-task-create').click();
   await expect(sheet.getByTestId('quick-task-failure')).toBeVisible();
@@ -171,7 +170,7 @@ test('an edit after a timed-out send says the first one may have landed, and «S
   await sheet.getByTestId('quick-task-close').click();
 });
 
-test('a sprint the server refuses as frozen offers the backlog in one tap', async ({ page }) => {
+test('a sprint the server refuses as frozen offers the backlog in one tap', async ({ page }, testInfo) => {
   await page.route(`**/api/v1/projects/${SLUG}/items`, async (route) => {
     const body = route.request().postDataJSON() as { sprint: number | null } | null;
     if (route.request().method() === 'POST' && body?.sprint === 2) {
@@ -189,7 +188,7 @@ test('a sprint the server refuses as frozen offers the backlog in one tap', asyn
     await route.continue();
   });
   await page.goto(`/p/${SLUG}/artifacts`);
-  const sheet = await openNewTask(page);
+  const sheet = await openNewTask(page, testInfo);
   await sheet.getByTestId('quick-task-title').fill('Too late for Sprint 02');
   await sheet.getByTestId('quick-task-create').click();
   const failure = sheet.getByTestId('quick-task-failure');
@@ -225,9 +224,9 @@ test('an identity the tracker refuses never sees New task', async ({ page }) => 
   await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
-test('Needs you offers New task, and the dot shows while a draft waits', async ({ page }) => {
+test('Needs you offers New task, and the dot shows while a draft waits', async ({ page }, testInfo) => {
   await page.goto('/needs-you');
-  let sheet = await openNewTask(page);
+  let sheet = await openNewTask(page, testInfo);
   await expect(sheet.getByTestId('quick-task-project')).toHaveValue(SLUG);
   await sheet.getByTestId('quick-task-title').fill('Thought on the way');
   await page.keyboard.press('Escape');
@@ -240,7 +239,7 @@ test('Needs you offers New task, and the dot shows while a draft waits', async (
   await page.goto(`/p/${SLUG}/board`);
   await expect(entry(page)).toHaveAccessibleName(ru('quickTask.newDraft'));
 
-  sheet = await openNewTask(page);
+  sheet = await openNewTask(page, testInfo);
   await expect(sheet.getByTestId('quick-task-title')).toHaveValue('Thought on the way');
   await sheet
     .getByTestId('quick-task-draft')

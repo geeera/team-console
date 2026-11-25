@@ -24,10 +24,10 @@ interface Outcome {
 }
 
 test.describe('the local stack across the 5 s keep-alive edge', () => {
-  test.beforeEach(({ stack }) => {
+  test.beforeEach(({ stack }, testInfo) => {
     requireLocalStack(stack);
     // Timing, not layout: one project is enough, and the race does not care about the viewport.
-    test.skip(test.info().project.name !== 'desktop', 'the race is the same on every project');
+    test.skip(testInfo.project.name !== 'desktop', 'the race is the same on every project');
     test.setTimeout(60_000);
   });
 

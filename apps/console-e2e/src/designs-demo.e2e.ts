@@ -274,8 +274,8 @@ test('go asks for confirmation first, then writes exactly one /go', async ({
 test("focusing the release card's override button scrolls it clear of the sticky bottom tab bar", async ({
   page,
   outsideRequests,
-}) => {
-  test.skip(test.info().project.name !== 'iphone', 'the sticky bottom tab bar is the phone layout (#192)');
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'iphone', 'the sticky bottom tab bar is the phone layout (#192)');
   await servePreviews(page, (origin) => outsideRequests.allow(origin));
   await openSection(page);
 

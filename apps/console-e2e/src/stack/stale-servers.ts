@@ -1,4 +1,5 @@
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readdirSync,
@@ -36,15 +37,24 @@ import { WORKSPACE_ROOT } from './workspace';
  * - For the same reason a checkout whose path has a space never matches on macOS — neither the server's script nor
  *   the workerd path arrives as one word — and its leftovers are left alone: the rule fails closed, and the start
  *   reports the port still taken.
+ * - The text is not all a live leader is known by (#1006): the record also holds when the system started the
+ *   server (`GroupMember.startedAt`), which no process writes for itself, and the leader has to have started at that
+ *   very moment. So a process that took the recorded pid later is left alone even when its command line spells the
+ *   server's out, token and all — on macOS, where the words are only text, as on Linux.
  * - Left open (pid reuse, #993): a Miniflare started from this same checkout by something other than the suite, on
  *   a port inside the suite's own range, whose leader took the recorded pid and then died. Its workerd is taken for
- *   the stack's and killed. It would be holding the very port the stack is about to bind.
+ *   the stack's and killed. It would be holding the very port the stack is about to bind. The start time does not
+ *   close this one: the recorded leader is gone, and a workerd it forked started at some later moment of its own.
+ *
+ * A record names a process to kill, so only its owner may read or write it: mode 0600 (#1006).
  */
 export interface ServerRecord {
   /** The server's pid, which is also its process group. */
   readonly pid: number;
   readonly token: string;
   readonly label: string;
+  /** When the system started the server (`GroupMember.startedAt`), read right after the spawn (`startedAtOf`). */
+  readonly startedAt: string;
 }
 
 /** The argument that carries a server's token; `serve-worker.mts` ignores it. */
@@ -84,10 +94,29 @@ function recordPath(dir: string, port: number): string {
   return join(dir, `${port}.json`);
 }
 
-/** Files `record` under `port`: the port is part of what identifies the server later (`isStackWorkerd`). */
+const RECORD_MODE = 0o600;
+
+/**
+ * When the system started the leader of the group `pid`, for its record; `null` when it is not running (any more).
+ * Read through `groupOf`, so the record and the later check take it from the same source.
+ */
+export function startedAtOf(pid: number, control: StaleServerControl = SYSTEM_CONTROL): string | null {
+  return control.groupOf(pid).find((member) => member.pid === pid)?.startedAt ?? null;
+}
+
+/**
+ * Files `record` under `port`: the port is part of what identifies the server later (`isStackWorkerd`).
+ *
+ * Whatever is at the path goes first, and the record is then created anew (`wx`): a mode only applies to a file
+ * being created, so a record left open to others would stay open, and a link put there would be written through.
+ * The `chmod` is for a umask that takes owner bits away; it cannot give others any.
+ */
 export function recordServer(dir: string, port: number, record: ServerRecord): void {
   mkdirSync(dir, { recursive: true });
-  writeFileSync(recordPath(dir, port), JSON.stringify(record));
+  const path = recordPath(dir, port);
+  rmSync(path, { force: true });
+  writeFileSync(path, JSON.stringify(record), { mode: RECORD_MODE, flag: 'wx' });
+  chmodSync(path, RECORD_MODE);
 }
 
 /** Drops the record of `port` if it is still `pid`'s: a later server on the same port keeps its own. */
@@ -98,7 +127,11 @@ export function forgetServer(dir: string, port: number, pid: number): void {
   }
 }
 
-/** `null` for a missing or unreadable record: a run killed mid-write leaves one, and it names nothing to stop. */
+/**
+ * `null` for a missing or unreadable record: a run killed mid-write leaves one, and it names nothing to stop. So
+ * does a record from before the start time was kept (#1006): without one the server cannot be told from a process
+ * that took its pid, and it is left alone.
+ */
 function readRecord(path: string): ServerRecord | null {
   if (!existsSync(path)) {
     return null;
@@ -115,14 +148,16 @@ function readRecord(path: string): ServerRecord | null {
   if (typeof parsed !== 'object' || parsed === null) {
     return null;
   }
-  const { pid, token, label } = parsed as Record<string, unknown>;
+  const { pid, token, label, startedAt } = parsed as Record<string, unknown>;
   return typeof pid === 'number' &&
     Number.isInteger(pid) &&
     pid > 1 &&
     typeof token === 'string' &&
     token !== '' &&
-    typeof label === 'string'
-    ? { pid, token, label }
+    typeof label === 'string' &&
+    typeof startedAt === 'string' &&
+    startedAt !== ''
+    ? { pid, token, label, startedAt }
     : null;
 }
 
@@ -186,8 +221,8 @@ export interface StackIdentity {
 
 /**
  * Whether `group` — the processes of the group `record.pid` now — is the server `record` was written for. A live
- * leader is, when its arguments after the executable are the server's own, word for word and nothing more: a word
- * that merely contains the token among other text is not one of them.
+ * leader is, when it started at the recorded moment and its arguments after the executable are the server's own,
+ * word for word and nothing more: a word that merely contains the token among other text is not one of them.
  */
 export function isRecorded(
   record: ServerRecord,
@@ -199,6 +234,7 @@ export function isRecorded(
   if (leader !== undefined) {
     const args = leader.argv.slice(1);
     return (
+      leader.startedAt === record.startedAt &&
       stack.serverArgs.includes(`${SERVER_TOKEN_FLAG}${record.token}`) &&
       args.length === stack.serverArgs.length &&
       args.every((word, at) => word === stack.serverArgs[at])
