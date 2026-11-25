@@ -3,6 +3,12 @@
 // changed between two commits match a pattern? Prints exactly `true` or `false`.
 //
 //   node tools/ci/changed-paths.mjs <base sha> <head sha> <pattern>
+//   node tools/ci/changed-paths.mjs --event-scope <pattern>
+//
+// The second form is the whole decision of the `runner-darwin-scope` and `runtime-image-scope` jobs (#1005: the
+// two steps repeated it in bash): it works out what to compare from the event, read from EVENT, BASE_REF and
+// BEFORE in the environment and from the checked-out HEAD, and answers `true` without comparing on a release PR
+// or when a push has no usable base. One line on stderr says which case it was, in constant words.
 //
 // It replaces `git diff --name-only | grep -E` (#973, SECURITY note on PR #963). That listing is line-based and
 // git C-quotes a path holding a quote, a backslash or a control character (`"apps/runner/a\"b.ts"`), so such a
@@ -17,7 +23,7 @@
 // The failure line names the argument at fault by its role (`<base sha>`), never by its value (#983).
 // No npm dependency: the scope job runs it straight after checkout, without `npm ci`.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
@@ -78,6 +84,57 @@ export function listChangedPaths(base, head, cwd = process.cwd()) {
   return splitPaths(listing);
 }
 
+/** The full sha of a commit named by a revision this script wrote itself (never by an argument). */
+function commitOf(revision, cwd) {
+  const sha = execFileSync('git', ['rev-parse', '--verify', `${revision}^{commit}`], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  }).trim();
+  if (!FULL_SHA.test(sha)) throw new Error('git rev-parse did not print a commit sha');
+  return sha;
+}
+
+/** Whether the repository has that commit. Only ever asked about a full sha. */
+function hasCommit(sha, cwd) {
+  return spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd, stdio: 'ignore' }).status === 0;
+}
+
+/**
+ * Whether the event at hand can have changed a path matching `pattern`, and which case decided it:
+ *  - a pull request into anything but `dev` is a release PR: always in scope;
+ *  - a pull request into `dev` compares the merge commit GitHub checked out with its first parent, the base
+ *    branch's tip;
+ *  - any other event (a push) compares `before` with HEAD when `before` is a commit this clone has;
+ *  - otherwise (a first push, a forced one, a shallow clone) there is no base to compare with: in scope.
+ * Every failure throws, a pattern that is not a regular expression included, whichever case applies: the
+ * caller must stop rather than fall back to "nothing changed".
+ * @param {{ event: string | undefined, baseRef: string | undefined, before: string | undefined,
+ *   pattern: string, cwd?: string }} input
+ * @returns {{ run: boolean, why: string }} `why` is constant text, safe to print
+ */
+export function scopeOfEvent({ event, baseRef, before, pattern, cwd = process.cwd() }) {
+  if (typeof event !== 'string' || event === '') throw new ArgumentError('EVENT', 'is not set');
+  if (typeof baseRef !== 'string' || baseRef === '') throw new ArgumentError('BASE_REF', 'is not set');
+  anyPathMatches([], pattern);
+  const head = commitOf('HEAD', cwd);
+  if (event === 'pull_request') {
+    if (baseRef !== 'dev') return { run: true, why: 'a release PR, into a branch other than dev' };
+    const base = commitOf('HEAD^1', cwd);
+    return {
+      run: anyPathMatches(listChangedPaths(base, head, cwd), pattern),
+      why: 'compared the pull request merge commit with its first parent',
+    };
+  }
+  if (typeof before === 'string' && FULL_SHA.test(before) && hasCommit(before, cwd)) {
+    return {
+      run: anyPathMatches(listChangedPaths(before, head, cwd), pattern),
+      why: 'compared HEAD with the commit before the push',
+    };
+  }
+  return { run: true, why: 'no base to compare with' };
+}
+
 /** What is wrong with the argument list, naming the argument, or `null` when all three are there. */
 function usageProblemOf(base, head, pattern, rest) {
   if (base === undefined) return '<base sha> is missing';
@@ -88,7 +145,46 @@ function usageProblemOf(base, head, pattern, rest) {
   return null;
 }
 
+/** Turns a failure into the one constant annotation line; see `main`. */
+function reportFailure(error, otherwise) {
+  // Only constant text: an ArgumentError names the argument by its role, and any other reason can quote a
+  // sha, a pattern or git's output, none of which belongs in a workflow command. git's own stderr is
+  // already in the log above this line.
+  const reason = error instanceof ArgumentError ? error.message : otherwise;
+  process.stderr.write(`::error::changed-paths: ${reason}. See #973.\n`);
+}
+
+function mainEventScope(argv) {
+  const [pattern, ...rest] = argv;
+  const usageProblem =
+    pattern === undefined
+      ? '<pattern> is missing'
+      : pattern === ''
+        ? '<pattern> is empty'
+        : rest.length > 0
+          ? `${rest.length} unexpected extra argument(s) after <pattern>`
+          : null;
+  if (usageProblem !== null) {
+    process.stderr.write(
+      `changed-paths: ${usageProblem}\nusage: changed-paths.mjs --event-scope <pattern>\n`,
+    );
+    return 2;
+  }
+  let scope;
+  try {
+    const { EVENT: event, BASE_REF: baseRef, BEFORE: before } = process.env;
+    scope = scopeOfEvent({ event, baseRef, before, pattern });
+  } catch (error) {
+    reportFailure(error, 'git could not tell what this event changed');
+    return 1;
+  }
+  process.stderr.write(`changed-paths: ${scope.run} (${scope.why})\n`);
+  process.stdout.write(`${scope.run}\n`);
+  return 0;
+}
+
 function main(argv) {
+  if (argv[0] === '--event-scope') return mainEventScope(argv.slice(1));
   const [base, head, pattern, ...rest] = argv;
   const usageProblem = usageProblemOf(base, head, pattern, rest);
   if (usageProblem !== null) {
@@ -101,14 +197,7 @@ function main(argv) {
   try {
     isMatch = anyPathMatches(listChangedPaths(base, head), pattern);
   } catch (error) {
-    // Only constant text: an ArgumentError names the argument by its role, and any other reason can quote a
-    // sha, a pattern or git's output, none of which belongs in a workflow command. git's own stderr is
-    // already in the log above this line.
-    const reason =
-      error instanceof ArgumentError
-        ? error.message
-        : 'git could not list the paths changed between <base sha> and <head sha>';
-    process.stderr.write(`::error::changed-paths: ${reason}. See #973.\n`);
+    reportFailure(error, 'git could not list the paths changed between <base sha> and <head sha>');
     return 1;
   }
   process.stdout.write(`${isMatch}\n`);
