@@ -1,3 +1,5 @@
+import type { Page } from '@playwright/test';
+
 /**
  * The in-page half of `animationsSettled()` (`support/axe.ts`): one round of "is anything still moving, and if so,
  * wait for it — but never for long". `settleRound` is passed to `page.evaluate`, which sends its source to the
@@ -43,6 +45,13 @@ export interface SettleOptions {
   readonly maxWaitMs: number;
   /** Added to an animation's own remaining time, for a loaded machine's late frames. */
   readonly slackMs: number;
+  /**
+   * The longest one animation is waited for in all while it keeps progressing. A loaded machine's animation clock can
+   * lag wall time (WebKit on CI), so one wait of `remaining + slackMs` can end with it still moving; it is waited for
+   * again as long as its remaining time shrinks, or is zero or unreadable while it has not finished. One that does not move
+   * at all fails at the end of its first wait.
+   */
+  readonly maxTotalMs: number;
 }
 
 /** One animation as the failure message names it. */
@@ -130,18 +139,10 @@ export async function settleRound(
 
   const outcomes = await Promise.all(
     moving.map(async (animation) => {
-      const report = describe(animation);
-      if (report.remainingMs !== null && report.remainingMs > options.maxWaitMs) {
-        return { report, finished: false };
+      const first = describe(animation);
+      if (first.remainingMs !== null && first.remainingMs > options.maxWaitMs) {
+        return { report: first, finished: false };
       }
-      const budgetMs = Math.min(
-        options.maxWaitMs,
-        (report.remainingMs ?? options.maxWaitMs) + options.slackMs,
-      );
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const timedOut = new Promise<false>((resolve) => {
-        timer = setTimeout(() => resolve(false), budgetMs);
-      });
       // A navigation or a next value cancels an animation mid-way (#946): `finished` rejects with AbortError, which
       // is the animation going away, i.e. settled. Anything else is a real error and fails the scan.
       const ended = animation.finished.then(
@@ -153,10 +154,36 @@ export async function settleRound(
           throw error;
         },
       );
-      try {
-        return { report, finished: await Promise.race([ended, timedOut]) };
-      } finally {
-        clearTimeout(timer);
+      const giveUpAt = Date.now() + options.maxTotalMs;
+      let report = first;
+      for (;;) {
+        const budgetMs = Math.min(
+          options.maxWaitMs,
+          (report.remainingMs ?? options.maxWaitMs) + options.slackMs,
+        );
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timedOut = new Promise<false>((resolve) => {
+          timer = setTimeout(() => resolve(false), budgetMs);
+        });
+        let finished: boolean;
+        try {
+          finished = await Promise.race([ended, timedOut]);
+        } finally {
+          clearTimeout(timer);
+        }
+        if (finished) {
+          return { report: first, finished: true };
+        }
+        const now = describe(animation);
+        // Nothing left (or unreadable) while `finished` is still unresolved means the animation's end has not been
+        // processed yet, which a lagging clock does too: pending, so wait again. Otherwise it must have moved.
+        const isPending = now.remainingMs === null || now.remainingMs === 0;
+        const isProgressing =
+          isPending || (report.remainingMs !== null && now.remainingMs < report.remainingMs);
+        report = now;
+        if (!isProgressing || Date.now() >= giveUpAt) {
+          return { report, finished: false };
+        }
       }
     }),
   );
@@ -190,7 +217,76 @@ export function stuckAnimationsMessage(stuck: readonly AnimationReport[], maxWai
 }
 
 /** The error for a page that kept starting new animations round after round. */
-export function restartingAnimationsMessage(lastSeen: readonly AnimationReport[], rounds: number): string {
+export function restartingAnimationsMessage(
+  lastSeen: readonly AnimationReport[],
+  rounds: number,
+  elapsedMs: number,
+): string {
   const seen = lastSeen.length > 0 ? describeReports(lastSeen) : 'none named (they ended between two reads)';
-  return `animationsSettled: animations kept starting for ${String(rounds)} rounds; last seen: ${seen}.`;
+  return (
+    `animationsSettled: animations kept starting for ${String(rounds)} rounds over ${String(Math.round(elapsedMs))} ms; ` +
+    `last seen: ${seen}.`
+  );
+}
+
+/** What the wait may spend. */
+export interface SettleLimits {
+  /** Rounds that may each find something new running before the page counts as restarting forever. */
+  readonly maxRounds: number;
+  /** The whole wait; checked between rounds, so it can overrun by one round (`maxWaitMs + slackMs` at most). */
+  readonly totalMs: number;
+  /** Named in the stuck-animation error. */
+  readonly maxWaitMs: number;
+}
+
+/** One round can wait up to `maxWaitMs` per animation; the #506 motion tokens top out at 1.6 s (`--dur-pulse`). */
+export const SETTLE_OPTIONS: SettleOptions = {
+  quietFrames: 4,
+  maxWaitMs: 3000,
+  slackMs: 250,
+  maxTotalMs: 8000,
+};
+/** Enough for a screen that chains a few enters (route, sheet, list rows) one after another. */
+export const SETTLE_MAX_ROUNDS = 20;
+/**
+ * Under the 30 s test timeout (`playwright.config.ts`) with room for one more round and the waits before it
+ * (`animationsSettled()`), so this module's named error is what the run shows, not a bare timeout.
+ */
+export const SETTLE_TOTAL_MS = 16_000;
+
+/**
+ * Runs `round` until the page is quiet. Throws a named error when an animation outlives its wait, or when the page
+ * keeps starting new ones until `maxRounds` or `totalMs` runs out. Paused and endless animations never count, so
+ * this cannot hang on them (#971).
+ */
+export async function settleUntilQuiet(
+  round: () => Promise<SettleRound>,
+  budget: SettleLimits,
+  now: () => number = Date.now,
+): Promise<void> {
+  const startedAt = now();
+  let lastSeen: readonly AnimationReport[] = [];
+  let rounds = 0;
+  // At least one round runs even when earlier waits spent the whole budget: a quiet page must pass.
+  do {
+    rounds++;
+    const result = await round();
+    if (result.quiet) {
+      return;
+    }
+    if (result.stuck.length > 0) {
+      throw new Error(stuckAnimationsMessage(result.stuck, budget.maxWaitMs));
+    }
+    lastSeen = result.running.length > 0 ? result.running : lastSeen;
+  } while (rounds < budget.maxRounds && now() - startedAt < budget.totalMs);
+  throw new Error(restartingAnimationsMessage(lastSeen, rounds, now() - startedAt));
+}
+
+/** Waits until nothing finite is running on the page, within the shared budget. */
+export async function settlePage(page: Page, totalMs: number = SETTLE_TOTAL_MS): Promise<void> {
+  await settleUntilQuiet(() => page.evaluate(settleRound, SETTLE_OPTIONS), {
+    maxRounds: SETTLE_MAX_ROUNDS,
+    totalMs,
+    maxWaitMs: SETTLE_OPTIONS.maxWaitMs,
+  });
 }

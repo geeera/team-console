@@ -3,6 +3,7 @@
 // bundle would carry every primitive a lazy page uses. A file with parts that must stay inside the kit gets a
 // `*.public.ts` sibling naming the public ones. `tools/workspace-checks` keeps this file that way.
 export * from './tokens/breakpoints';
+export * from './tokens/motion';
 
 export * from './lib/app-tile/app-tile';
 export * from './lib/arrival/arrival';
