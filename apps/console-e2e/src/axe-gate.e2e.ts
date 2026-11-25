@@ -83,10 +83,68 @@ test.describe('question card', () => {
       // axe's selector for the node it flagged is the card title itself.
       const flagged = await Promise.all(
         (contrast[0]?.targets ?? []).map((target) =>
-          page.locator(target).evaluate((node) => node.matches('li[data-number="72"] tc-card [tc-card-title]')),
+          page
+            .locator(target)
+            .evaluate((node) => node.matches('li[data-number="72"] tc-card [tc-card-title]')),
         ),
       );
       expect(flagged).toContain(true);
     });
   }
+});
+
+/**
+ * The wait before the scan (#971): a paused animation is a still frame and must not hold it (a hovered Undo toast's
+ * hairline used to, for the whole test timeout), and one that will not end soon fails the scan at once, named.
+ */
+test.describe('waiting for animations', () => {
+  const content = `<!doctype html>
+    <html lang="ru">
+      <head><title>axe gate</title></head>
+      <body><main><h1>Проверка</h1><p id="slow" class="bar">Полоса</p></main></body>
+    </html>`;
+
+  test('a paused animation does not hold the scan', async ({ page }) => {
+    await page.setContent(content);
+    // Like the Undo hairline it shrinks, not fades: a frame frozen at partial opacity would rightly fail contrast.
+    await page.locator('#slow').evaluate((bar) => {
+      bar.animate({ transform: ['scaleX(1)', 'scaleX(0)'] }, { duration: 10_000 }).pause();
+    });
+    const started = Date.now();
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+
+  test('a long running animation fails the scan at once, naming it and its element', async ({ page }) => {
+    await page.setContent(content);
+    await page.locator('#slow').evaluate((bar) => {
+      bar.animate({ opacity: [0.2, 1] }, { duration: 10_000, id: 'slow-fade' });
+    });
+    const started = Date.now();
+    await expect(blockingViolations(page)).rejects.toThrow(/slow-fade on p#slow\.bar \(\d+ ms left\)/);
+    expect(Date.now() - started).toBeLessThan(5_000);
+  });
+});
+
+/**
+ * A lazy route's chunk can arrive after the shell is up (#971): the scan must wait for the routed page, neither
+ * measuring it mid-fade nor passing before it exists. Held back 300 ms, this failed `color-contrast` on `h1`,
+ * `.overview__count`, … before the wait.
+ */
+test.describe('a route still loading', () => {
+  test.beforeAll(async ({ stack }) => {
+    requireLocalStack(stack);
+    await seed(stack, ['geeera/team-console']);
+  });
+
+  test('the scan waits for the routed page to mount and settle', async ({ page }) => {
+    await page.route('**/chunk-*.js', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await route.fallback();
+    });
+    await page.goto('/overview');
+    await expect(page.locator('#tc-main')).toBeAttached();
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await page.locator('#tc-main tc-overview-page h1').isVisible()).toBe(true);
+  });
 });
