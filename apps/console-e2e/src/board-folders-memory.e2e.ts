@@ -1,3 +1,4 @@
+import { contextDay } from './support/dates';
 import { expect, requireLocalStack, test } from './support/fixtures';
 import { apiClient, seed } from './support/stack';
 import { createItem, createSprint, switchToConsoleTracker } from './support/tracker-seed';
@@ -11,11 +12,6 @@ const SLUG = 'team-console';
 
 test.describe.configure({ mode: 'serial' });
 
-/** A day `days` from today in Kyiv, where the plugin counts sprint days. */
-function inDays(days: number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date(Date.now() + days * 86_400_000));
-}
-
 test.beforeAll(async ({ stack }, testInfo) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
@@ -23,7 +19,7 @@ test.beforeAll(async ({ stack }, testInfo) => {
   const api = await apiClient(stack);
   try {
     for (const days of [10, 24, 38]) {
-      await createSprint(api, SLUG, inDays(days));
+      await createSprint(api, SLUG, contextDay(testInfo, days));
     }
     await createItem(api, SLUG, { title: 'Current work', status: 'in-progress', sprint: 1 });
     await createItem(api, SLUG, { title: 'Idea one', status: 'proposed', sprint: null });

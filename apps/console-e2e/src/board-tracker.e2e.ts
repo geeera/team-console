@@ -1,3 +1,4 @@
+import { contextDay } from './support/dates';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { apiClient, seed } from './support/stack';
 import { createItem, createSprint, localD1, switchToConsoleTracker } from './support/tracker-seed';
@@ -13,18 +14,13 @@ let inBacklog = 0;
 
 test.describe.configure({ mode: 'serial' });
 
-/** Tomorrow in Kyiv, where the plugin counts sprint days. */
-function tomorrow(): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date(Date.now() + 86_400_000));
-}
-
 test.beforeAll(async ({ stack }, testInfo) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
   const api = await apiClient(stack);
   try {
-    const sprint = await createSprint(api, SLUG, tomorrow());
+    const sprint = await createSprint(api, SLUG, contextDay(testInfo, 1));
     // Sprint 1 is already frozen (its demo is tomorrow), so #560 refuses a creation straight into it; plant the
     // item in the backlog first, as if it had been planned before the freeze started, then move it by SQL.
     inSprint = await createItem(api, SLUG, { title: 'Board reads the tracker', status: 'in-progress', sprint: null });
