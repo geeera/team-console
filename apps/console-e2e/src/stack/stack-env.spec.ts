@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -103,6 +103,24 @@ describe('stackHome', () => {
       expect(readdirSync(home.XDG_CONFIG_HOME)).toEqual([]);
       expect(statSync(home.HOME).mode & 0o777).toBe(0o700);
       expect(stackHome(stacksDir)).toEqual(home);
+    } finally {
+      rmSync(stacksDir, { recursive: true, force: true });
+    }
+  });
+
+  it('closes a home that is already there and open to others, its config and cache too', () => {
+    const stacksDir = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      const open = [join(stacksDir, 'home'), join(stacksDir, 'home/.config'), join(stacksDir, 'home/.cache')];
+      for (const dir of open) {
+        mkdirSync(dir);
+        // Past the umask, which would have closed part of it already.
+        chmodSync(dir, 0o777);
+      }
+
+      stackHome(stacksDir);
+
+      expect(open.map((dir) => statSync(dir).mode & 0o777)).toEqual([0o700, 0o700, 0o700]);
     } finally {
       rmSync(stacksDir, { recursive: true, force: true });
     }
