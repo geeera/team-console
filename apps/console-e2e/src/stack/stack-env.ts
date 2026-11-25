@@ -1,5 +1,6 @@
-import { closeSync, constants, fchmodSync, lstatSync, mkdirSync, openSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, sep } from 'node:path';
+import { privateDirectory, realDirectory } from './private-directory';
 
 /**
  * The environment of every process the local stack starts (#982): the Workers on Miniflare (`serve-worker.mts`) and
@@ -37,42 +38,39 @@ export interface StackHome {
  * The throwaway home under `stacksDir`, created on first use and readable by the owner only. `global-setup.ts`
  * clears `stacksDir` when a run starts, so nothing a run wrote there reaches the next one.
  *
- * `mkdir` applies its mode only to a directory it creates, so one that is already there — made by hand, or by an
- * older checkout — is tightened as well (#999). A symbolic link in its place is refused, not followed (#1006):
- * `chmod` would change whatever the link names, and the children would write there.
+ * A home that is already there — made by hand, or by an older checkout — is tightened as well (#999), and a symbolic
+ * link in its place is refused, not followed (#1006): `chmod` would change whatever the link names, and the children
+ * would write there (`privateDirectory`). The same holds for a link anywhere on the way down (#1013): every
+ * directory below `root` — the checkout for the suite, the parent of `stacksDir` when left out — down to `stacksDir`
+ * has to be a directory itself, or the home made in it is somewhere else. Those keep their mode: logs live there too.
  */
-export function stackHome(stacksDir: string): StackHome {
+export function stackHome(stacksDir: string, root: string = dirname(stacksDir)): StackHome {
+  for (const dir of directoriesBelow(root, stacksDir)) {
+    mkdirSync(dir, { recursive: true });
+    realDirectory(dir);
+  }
   const home = join(stacksDir, 'home');
   const config = join(home, '.config');
   const cache = join(home, '.cache');
   for (const dir of [home, config, cache]) {
-    mkdirSync(dir, { recursive: true, mode: HOME_MODE });
-    closeToOthers(dir);
+    privateDirectory(dir);
   }
   return { HOME: home, XDG_CONFIG_HOME: config, XDG_CACHE_HOME: cache };
 }
 
-const HOME_MODE = 0o700;
-
-/**
- * Sets `dir` to the owner only, and throws when it is not a real directory. `lstat` gives the clear error; the mode
- * is then set through a descriptor opened without following links, so a link swapped in after the check is refused
- * by the system as well instead of being followed.
- */
-function closeToOthers(dir: string): void {
-  const entry = lstatSync(dir);
-  if (entry.isSymbolicLink()) {
-    throw new Error(`${dir} is a symbolic link: the stack does not use a home it did not make. Remove it.`);
+/** Every directory on the way from `root` down to `dir`, `root` left out and `dir` last. */
+function directoriesBelow(root: string, dir: string): string[] {
+  const below = relative(root, dir);
+  if (below === '' || isAbsolute(below) || below.split(sep).includes('..')) {
+    throw new Error(`${dir} is not below ${root}: the stack cannot tell which directories on the way are its own.`);
   }
-  if (!entry.isDirectory()) {
-    throw new Error(`${dir} is not a directory: the stack cannot make its home there. Remove it.`);
+  const directories: string[] = [];
+  let path = root;
+  for (const name of below.split(sep)) {
+    path = join(path, name);
+    directories.push(path);
   }
-  const descriptor = openSync(dir, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW);
-  try {
-    fchmodSync(descriptor, HOME_MODE);
-  } finally {
-    closeSync(descriptor);
-  }
+  return directories;
 }
 
 /**

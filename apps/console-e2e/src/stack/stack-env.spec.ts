@@ -171,6 +171,52 @@ describe('stackHome', () => {
     }
   });
 
+  it('refuses a stacks directory that is a link, and makes no home where the link points', () => {
+    const parent = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      const real = join(parent, 'the-real-stacks');
+      mkdirSync(real);
+      chmodSync(real, 0o755);
+      symlinkSync(real, join(parent, 'stacks'));
+
+      expect(() => stackHome(join(parent, 'stacks'))).toThrow(/stacks is a symbolic link/);
+
+      expect(readdirSync(real)).toEqual([]);
+      expect(statSync(real).mode & 0o777).toBe(0o755);
+    } finally {
+      rmSync(parent, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a link anywhere between the root and the stacks directory, and makes what is missing on the way', () => {
+    const root = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      const made = stackHome(join(root, 'tmp/run'), root);
+      expect(made.HOME).toBe(join(root, 'tmp/run/home'));
+      expect(statSync(made.HOME).mode & 0o777).toBe(0o700);
+
+      const real = join(root, 'elsewhere');
+      mkdirSync(real);
+      symlinkSync(real, join(root, 'linked'));
+
+      expect(() => stackHome(join(root, 'linked/run'), root)).toThrow(/linked is a symbolic link/);
+      expect(readdirSync(real)).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses a stacks directory that is not below the root it is checked from', () => {
+    const root = mkdtempSync(join(tmpdir(), 'stack-home-'));
+    try {
+      expect(() => stackHome(root, root)).toThrow(/is not below/);
+      expect(() => stackHome(join(root, '../outside'), root)).toThrow(/is not below/);
+      expect(readdirSync(root)).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it('refuses a link that names nothing, and a file where the home should be', () => {
     const stacksDir = mkdtempSync(join(tmpdir(), 'stack-home-'));
     try {
