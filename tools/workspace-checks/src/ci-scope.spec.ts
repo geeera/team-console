@@ -206,25 +206,59 @@ describe('ci.yml scope decisions', () => {
     expect(allRuns.filter((run) => /grep[^\n]*<<<\s*"\$\{changed\}"/.test(run))).toEqual([]);
   });
 
-  it.each([
-    ['Select projects', selectProjects, 1],
-    ['the Darwin sweep scope', darwinScope, 2],
-    ['the root image scope', imageScope, 2],
-  ])(
-    'asks the matcher in %s as a plain assignment, so a failing script stops the step',
-    (_, script, calls) => {
-      expect(script).toMatch(/^set -euo pipefail$/m);
-      const lines = matcherCalls(script);
-      expect(lines).toHaveLength(calls);
-      for (const line of lines) {
-        // `x=$(node … "${a}" "${b}" "${pattern}")` and nothing else: no `if`, `[`, `||`, `&&` or pipe around it.
-        expect(line.trim()).toMatch(
-          /^[a-z_]+=\$\(node tools\/ci\/changed-paths\.mjs "\$\{[A-Za-z_:-]+\}" "\$\{[A-Za-z_:-]+\}" "\$\{[a-z_]+\}"\)$/,
-        );
-      }
+  it('asks the matcher in Select projects as a plain assignment, so a failing script stops the step', () => {
+    expect(selectProjects).toMatch(/^set -euo pipefail$/m);
+    const lines = matcherCalls(selectProjects);
+    expect(lines).toHaveLength(1);
+    // `x=$(node … "${a}" "${b}" "${pattern}")` and nothing else: no `if`, `[`, `||`, `&&` or pipe around it.
+    expect(lines[0]?.trim()).toMatch(
+      /^[a-z_]+=\$\(node tools\/ci\/changed-paths\.mjs "\$\{[A-Za-z_:-]+\}" "\$\{[A-Za-z_:-]+\}" "\$\{[a-z_]+\}"\)$/,
+    );
+    expect(selectProjects).not.toContain('${{');
+  });
+
+  // #1005: the two scope jobs repeated one bash decision. It is `changed-paths.mjs --event-scope` now (held to
+  // the old steps' answers by tools/ci/changed-paths.test.mjs), and each step is the same six commands around
+  // its own pattern: anything else in a step would be a second decision next to the shared one.
+  describe.each([
+    ['runner-darwin-scope', darwinScope, 'Darwin sweep scope'],
+    ['runtime-image-scope', imageScope, 'Root image scope'],
+  ])('the scope step of %s', (job, script, title) => {
+    it('is the shared decision as one plain assignment, checked before it becomes the job output', () => {
+      const commands = commandsOf(script);
+      expect(commands).toHaveLength(6);
+      expect(commands[0]).toBe('set -euo pipefail');
+      expect(commands[1]).toMatch(/^paths='[^']+'$/);
+      expect(commands.slice(2)).toEqual([
+        // No `if`, `[`, `||`, `&&` or pipe around it: a failing script stops the step.
+        'run=$(node tools/ci/changed-paths.mjs --event-scope "${paths}")',
+        '[[ "${run}" =~ ^(true|false)$ ]] || { echo "::error::changed-paths gave no answer"; exit 1; }',
+        'echo "run=${run}" >> "$GITHUB_OUTPUT"',
+        `echo "::notice title=${title}::\${run}"`,
+      ]);
+      expect(matcherCalls(script)).toHaveLength(1);
       expect(script).not.toContain('${{');
-    },
-  );
+    });
+
+    it('hands the script the event through the three variables it reads, and nothing else', () => {
+      const step = stepsOf(job).find((candidate) => candidate.id === 'scope');
+      expect(step?.env).toEqual({
+        EVENT: '${{ github.event_name }}',
+        BASE_REF: "${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }}",
+        BEFORE: '${{ github.event.before }}',
+      });
+      expect(step?.with).toBeUndefined();
+      expect(step?.uses).toBeUndefined();
+    });
+
+    it('is the job output the next job is gated on, with the history the comparison needs', () => {
+      const definition = ci.jobs[job] as Job & { readonly outputs?: Readonly<Record<string, string>> };
+      expect(definition.outputs).toEqual({ run: '${{ steps.scope.outputs.run }}' });
+      const checkout = stepsOf(job).find((step) => step.uses?.startsWith('actions/checkout@') === true);
+      // The merge commit's first parent, or the commit before a push, must be in the clone.
+      expect(checkout?.with).toEqual({ 'fetch-depth': 0, 'persist-credentials': false });
+    });
+  });
 
   it('runs every project when a root file or a workflow changes, renamed away or not', () => {
     const rootConfig = patternOf(selectProjects, 'root_config');

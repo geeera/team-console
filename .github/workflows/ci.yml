@@ -283,8 +283,8 @@ jobs:
   # tools, the Nx plugins the graph loads, the `project.json` of any tool (#1005: the graph loads those too, and
   # a broken one stops the build inside the image), the vendored plugin files `.dockerignore` re-includes, this
   # workflow or the script that makes this decision; and on every release PR into stage/main. Docs,
-  # `.product-team/` and the other tools' sources cannot reach the image and skip it. Decided as `runner-darwin-scope` decides, with the same
-  # script and for the same reasons (two full shas, a plain assignment, the exact string `true`).
+  # `.product-team/` and the other tools' sources cannot reach the image and skip it. Decided by the same call
+  # as `runner-darwin-scope` (`changed-paths.mjs --event-scope`, #1005), with this job's own pattern.
   # Neither job is one of dev's required status checks; a skipped build never blocks a merge.
   runtime-image-scope:
     runs-on: ubuntu-latest
@@ -311,26 +311,12 @@ jobs:
         run: |
           set -euo pipefail
           paths='^([^/]+$|apps/|libs/|tools/runtime-image/|tools/nx-plugins/|tools/[^/]+/project\.json$|\.claude/product-team/|\.github/workflows/ci\.yml$|tools/ci/changed-paths\.mjs$)'
-          head=$(git rev-parse --verify 'HEAD^{commit}')
-          if [ "${EVENT}" = "pull_request" ]; then
-            if [ "${BASE_REF}" != "dev" ]; then
-              run=true; why="release PR into ${BASE_REF}"
-            else
-              # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
-              base=$(git rev-parse --verify 'HEAD^1^{commit}')
-              run=$(node tools/ci/changed-paths.mjs "${base}" "${head}" "${paths}")
-              why="files of the build context changed: ${run}"
-            fi
-          elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            run=$(node tools/ci/changed-paths.mjs "${BEFORE}" "${head}" "${paths}")
-            why="files of the build context changed since ${BEFORE}: ${run}"
-          else
-            run=true; why="no base to compare with"
-          fi
+          # One plain assignment: a failing script stops the step (set -e) instead of reading as "no change".
+          run=$(node tools/ci/changed-paths.mjs --event-scope "${paths}")
           # The job output gates the build on the exact string 'true'; anything else must not reach it.
           [[ "${run}" =~ ^(true|false)$ ]] || { echo "::error::changed-paths gave no answer"; exit 1; }
           echo "run=${run}" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Root image scope::${run} (${why})"
+          echo "::notice title=Root image scope::${run}"
 
   # Builds the image exactly as the Dockerfile's header says (`docker build .`), holds it to its file list and
   # starts it. Nothing is pushed and no registry is logged in to: the image and its two stages stay in this
@@ -492,28 +478,15 @@ jobs:
           # `git diff --name-only` prints only a renamed file's new path (missing the old one a
           # rename-out-of-scope touched) and quotes any path holding a non-ASCII byte, a quote, a backslash or
           # a control character, so either would let a change slip past the regex (#955 and #963 reviews, #973).
-          # It needs two full shas, and its answer is a plain assignment on its own line so that a failing
-          # script stops the step (set -e) instead of reading as "nothing changed".
-          head=$(git rev-parse --verify 'HEAD^{commit}')
-          if [ "${EVENT}" = "pull_request" ]; then
-            if [ "${BASE_REF}" != "dev" ]; then
-              run=true; why="release PR into ${BASE_REF}"
-            else
-              # On pull_request HEAD is the merge commit; its first parent is the base branch's tip.
-              base=$(git rev-parse --verify 'HEAD^1^{commit}')
-              run=$(node tools/ci/changed-paths.mjs "${base}" "${head}" "${paths}")
-              why="runner, CI or toolchain files changed: ${run}"
-            fi
-          elif [[ "${BEFORE}" =~ ^[0-9a-f]{40}$ ]] && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
-            run=$(node tools/ci/changed-paths.mjs "${BEFORE}" "${head}" "${paths}")
-            why="runner, CI or toolchain files changed since ${BEFORE}: ${run}"
-          else
-            run=true; why="no base to compare with"
-          fi
+          # `--event-scope` (#1005) is the decision this step and `runtime-image-scope` share: a release PR is
+          # always in scope, a PR into dev compares the merge commit with its first parent, a push compares
+          # with the commit before it, and a push without one is in scope. Its answer is a plain assignment on
+          # its own line so that a failing script stops the step (set -e) instead of reading as "nothing changed".
+          run=$(node tools/ci/changed-paths.mjs --event-scope "${paths}")
           # The job output gates the macOS job on the exact string 'true'; anything else must not reach it.
           [[ "${run}" =~ ^(true|false)$ ]] || { echo "::error::changed-paths gave no answer"; exit 1; }
           echo "run=${run}" >> "$GITHUB_OUTPUT"
-          echo "::notice title=Darwin sweep scope::${run} (${why})"
+          echo "::notice title=Darwin sweep scope::${run}"
 
   # #651: the Darwin branch of the job-exec sweep spec (`it.runIf(process.platform === 'darwin')` in
   # apps/runner/src/install/templates.spec.ts) only ever ran on the Linux runners above, so it never actually
