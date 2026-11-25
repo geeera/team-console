@@ -73,6 +73,81 @@ const matcherCalls = (script: string): readonly string[] =>
     .split('\n')
     .filter((line) => line.includes('changed-paths.mjs'));
 
+/** The commands of a script: no comment or blank lines, no indentation, `then` on the line of its `if`. */
+const commandsOf = (script: string): readonly string[] =>
+  withoutComments(script)
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .reduce<string[]>(
+      (lines, line) =>
+        line === 'then' && lines.length > 0
+          ? [...lines.slice(0, -1), `${lines.at(-1) ?? ''}; then`]
+          : [...lines, line],
+      [],
+    );
+
+/** Where the `if` that opens at `openAt` closes, or -1. */
+function closingFi(lines: readonly string[], openAt: number): number {
+  let depth = 0;
+  for (let at = openAt; at < lines.length; at += 1) {
+    const line = lines[at] ?? '';
+    if (/^if\b/.test(line)) depth += 1;
+    if (/^fi\b/.test(line)) depth -= 1;
+    if (depth === 0) return at;
+  }
+  return -1;
+}
+
+const SUCCESS_EXIT = /\bexit 0\b/;
+const FAILING_EXIT = /^exit [1-9][0-9]*$/;
+const EMPTY_SHARD = /^if \[\[? -z "?\$\{?projects\}?"? \]\]?; then$/;
+const BRANCH = /^(else|elif)\b/;
+const NOT_AFFECTED = /^if \[\[? "?\$\{?NX_MODE\}?"? != ["']?affected["']? \]\]?; then$/;
+
+/**
+ * What is wrong with how the "Test" step treats a shard that has no project (#999), as text; empty when the
+ * step may end green without a test only in an affected run. The rule, whatever the lines look like (#1005):
+ * the one `exit 0` of the script is inside `if [ -z "${projects}" ]`, and before it that block holds a closed
+ * `if [ "${NX_MODE}" != "affected" ]` that exits non-zero on its top level; the tests run after the block.
+ */
+function emptyShardProblems(script: string): readonly string[] {
+  const lines = commandsOf(script);
+  const emptyAt = lines.findIndex((line) => EMPTY_SHARD.test(line));
+  const emptyEnd = emptyAt === -1 ? -1 : closingFi(lines, emptyAt);
+  if (emptyEnd === -1) {
+    return ['no closed `if [ -z "${projects}" ]` block'];
+  }
+  const problems: string[] = [];
+  const successes = lines.flatMap((line, at) => (SUCCESS_EXIT.test(line) ? [at] : []));
+  const skipAt = successes[0] ?? -1;
+  if (successes.length !== 1 || lines[skipAt] !== 'exit 0' || skipAt < emptyAt || skipAt > emptyEnd) {
+    problems.push('`exit 0` is not one plain line inside the empty-shard block');
+  }
+  // An `else` would put what follows it on the side of a shard that has projects.
+  if (lines.slice(emptyAt, emptyEnd).some((line) => BRANCH.test(line))) {
+    problems.push('the empty-shard block has an else branch');
+  }
+  const guardAt = lines.findIndex((line, at) => at > emptyAt && at < emptyEnd && NOT_AFFECTED.test(line));
+  const guardEnd = guardAt === -1 ? -1 : closingFi(lines, guardAt);
+  if (guardEnd === -1 || guardEnd > skipAt) {
+    problems.push('no closed full-run guard before the `exit 0`');
+  } else {
+    // Directly in the guard, not in a block of its own or behind `&&`: nothing in the way of the failure.
+    const body = lines.slice(guardAt + 1, guardEnd);
+    const nestedAt = body.findIndex((line) => /^(if|for|while|case|until)\b/.test(line));
+    const top = nestedAt === -1 ? body : body.slice(0, nestedAt);
+    if (!top.some((line) => FAILING_EXIT.test(line))) {
+      problems.push('the full-run guard does not exit non-zero');
+    }
+  }
+  const runAt = lines.findIndex((line) => /\bnx run-many\b.*-t test\b/.test(line));
+  if (runAt !== -1 && runAt < emptyEnd) {
+    problems.push('the tests run before the empty shard is handled');
+  }
+  return problems;
+}
+
 describe('ci.yml scope decisions', () => {
   it('never lists changed paths with a line-based git command', () => {
     const lineBased = allRuns.filter((run) =>
@@ -213,21 +288,98 @@ describe('ci.yml scope decisions', () => {
   });
 
   // #999: with nothing to run a shard used to end green on a notice, in a full run too.
-  it('lets a test shard end without running a test only in an affected run', () => {
-    const lines = withoutComments(testShard)
-      .split('\n')
-      .map((line) => line.trim());
-    const emptyAt = lines.indexOf('if [ -z "${projects}" ]; then');
-    const skipAt = lines.indexOf('exit 0');
-    expect(emptyAt).toBeGreaterThan(-1);
-    expect(lines.filter((line) => line === 'exit 0')).toHaveLength(1);
-    // The full-run failure sits between "the shard is empty" and the only `exit 0`.
-    expect(lines.slice(emptyAt + 1, skipAt).slice(0, 4)).toEqual([
-      'if [ "${NX_MODE}" != "affected" ]; then',
-      'echo "::error title=Test shard ${SHARD}::a full run gave this shard no project to test"',
-      'exit 1',
+  // #1005: held as the shape of the script, not as its exact lines. The cases run on a sample, so they keep
+  // showing what the rule lets through and what it does not however ci.yml is worded.
+  describe('a test shard with nothing to run', () => {
+    const SAMPLE = [
+      'set -euo pipefail',
+      'projects=$(node tools/ci/shard-projects.mjs "${SHARD}" --scope "${NX_MODE}" <<<"${listed}")',
+      'if [ -z "${projects}" ]; then',
+      '  if [ "${NX_MODE}" != "affected" ]; then',
+      '    echo "::error::a full run gave this shard no project to test"',
+      '    exit 1',
+      '  fi',
+      '  echo "::notice::no project with a test target in this shard"',
+      '  exit 0',
       'fi',
-    ]);
+      'npx nx run-many -t test --projects="${projects}"',
+      '',
+    ].join('\n');
+    const reworded = (from: string | RegExp, to: string): string => {
+      const changed = SAMPLE.replace(from, to);
+      expect(changed, 'the rewording must change the sample').not.toBe(SAMPLE);
+      return changed;
+    };
+    const GUARD = /^ {2}if \[ "\$\{NX_MODE\}" != "affected" \]; then\n(?:.*\n)*? {2}fi\n/m;
+
+    it('ends without running a test only in an affected run', () => {
+      expect(testShard).not.toBe('');
+      expect(emptyShardProblems(testShard)).toEqual([]);
+    });
+
+    it.each([
+      ['as it is', () => SAMPLE],
+      ['another indentation', () => reworded(/^ +/gm, '\t\t')],
+      [
+        'another message, and a comment and a blank line in the guard',
+        () => reworded(/^ +echo "::error::[^\n]*\n/m, '    # why\n\n    echo "::error title=x::nothing"\n'),
+      ],
+      [
+        'a [[ ]] test',
+        () => reworded('if [ "${NX_MODE}" != "affected" ]; then', 'if [[ ${NX_MODE} != affected ]]; then'),
+      ],
+      ['another failing status', () => reworded('exit 1', 'exit 2')],
+      [
+        '`then` on its own line',
+        () => reworded('if [ -z "${projects}" ]; then', 'if [ -z "${projects}" ]\nthen'),
+      ],
+    ])('accepts the sample step %s', (_, rewrite) => {
+      expect(emptyShardProblems(rewrite())).toEqual([]);
+    });
+
+    it.each([
+      ['the full-run guard is gone', () => reworded(GUARD, '')],
+      [
+        'the guard is for the affected run instead',
+        () => reworded('"${NX_MODE}" != "affected"', '"${NX_MODE}" = "affected"'),
+      ],
+      [
+        'the guard names another variable',
+        () => reworded('"${NX_MODE}" != "affected"', '"${SHARD}" != "affected"'),
+      ],
+      ['the guard only warns', () => reworded('    exit 1\n', '')],
+      ['the guard ends in success', () => reworded('exit 1', 'exit 0')],
+      ['the failure can be skipped', () => reworded('    exit 1', '    exit 1 || true')],
+      [
+        'the failure is in the other branch of the guard',
+        () => reworded('    exit 1', '    true\n  else\n    exit 1'),
+      ],
+      [
+        'the failure is behind a second condition',
+        () => reworded('    exit 1\n', '    if [ "${SHARD}" = "1/2" ]; then\n      exit 1\n    fi\n'),
+      ],
+      [
+        'the skip comes before the guard',
+        () =>
+          reworded(new RegExp(`(${GUARD.source})( {2}echo "::notice[^\\n]*\\n {2}exit 0\\n)`, 'm'), '$2$1'),
+      ],
+      [
+        'the skip is in an else, for a shard that has projects',
+        () => reworded('  exit 0\nfi', '  exit 3\nelse\n  exit 0\nfi'),
+      ],
+      [
+        'there is a second way out in success',
+        () => reworded('projects=$(', '[ "${SHARD}" = "2/2" ] && exit 0\nprojects=$('),
+      ],
+      [
+        'the tests run before the empty shard is looked at',
+        () => reworded('if [ -z', 'npx nx run-many -t test --projects="${projects}"\nif [ -z'),
+      ],
+      ['the empty-shard block is never closed', () => reworded(/^fi\n/m, '')],
+      ['the empty-shard check is gone', () => reworded(/^if \[ -z(?:.*\n)*?fi\n/m, '')],
+    ])('rejects the sample step when %s', (_, rewrite) => {
+      expect(emptyShardProblems(rewrite())).not.toEqual([]);
+    });
   });
 
   describe('the projects the test shards name', () => {
@@ -240,6 +392,9 @@ describe('ci.yml scope decisions', () => {
         (match[1] ?? '').split(','),
       );
 
+    // The graph, not a glob of config files: `test` comes from the @nx/vitest plugin, and only Nx knows what it
+    // infers. Measured for #1005 without the daemon, five runs each: ~1.4 s on an empty Nx cache (2.9 s the
+    // first time), ~0.4 s after any `nx` command — which is every CI run — and the same 88 projects each time.
     beforeAll(async () => {
       const graph = await createProjectGraphAsync({ exitOnError: false, resetDaemonClient: true });
       testProjects = new Set(
