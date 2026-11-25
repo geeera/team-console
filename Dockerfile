@@ -25,20 +25,15 @@ RUN npx nx run-many -t build
 
 # --- runtime-deps: the lockfile's own tree pruned to wrangler (#263) ---
 # A bare `npm install wrangler` re-resolved the tree and dropped the root `overrides` (sharp, undici). Pruning the
-# `npm ci` tree keeps the exact lockfile versions, and the build fails unless the result is that tree (#819):
+# `npm ci` tree keeps the exact lockfile versions: tools/runtime-image/runtime-package.mjs rewrites package.json to
+# the runtime manifest (wrangler and the overrides), `npm prune` drops the rest, and the build fails unless the
+# result is that tree (#819):
 # tools/runtime-image/check-runtime-tree.mjs compares the workspace lockfile, the pruned lockfile and node_modules
 # in both directions and refuses a comparison too small to be the wrangler tree. `npm ls --all` adds npm's verdict on
 # the dependency edges: it exits non-zero on a missing or invalid dependency, but 0 on an extraneous package, which
 # is why the script walks the disk itself.
 FROM deps AS runtime-deps
-COPY <<'EOF' /tmp/runtime-package.mjs
-import { readFileSync, writeFileSync } from 'node:fs';
-const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
-// A production dependency, so `npm ls` under the image's NODE_ENV=production still lists the tree.
-const runtime = { name: pkg.name, private: true, dependencies: { wrangler: pkg.devDependencies.wrangler }, overrides: pkg.overrides };
-writeFileSync('package.json', `${JSON.stringify(runtime, null, 2)}\n`);
-EOF
-COPY tools/runtime-image/check-runtime-tree.mjs /tmp/check-runtime-tree.mjs
+COPY tools/runtime-image/runtime-package.mjs tools/runtime-image/check-runtime-tree.mjs /tmp/
 RUN cp package-lock.json /tmp/workspace-lock.json \
   && node /tmp/runtime-package.mjs \
   && npm prune --no-audit --no-fund \

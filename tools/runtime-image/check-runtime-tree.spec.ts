@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { MIN_COMPARED, checkRuntimeTree, installedPackages, isAtLeast } from './check-runtime-tree.mjs';
@@ -14,6 +14,14 @@ type Entry = {
   cpu?: string[];
 };
 type Packages = Record<string, Entry>;
+type RunOptions = {
+  args?: string[];
+  /** The path Node is started with; a symlink to the script in the entry-guard tests. */
+  script?: string;
+  nodeArgs?: string[];
+  /** Runs after the fixture is written and before the script starts. */
+  tamper?: () => void;
+};
 
 const SCRIPT = join(import.meta.dirname, 'check-runtime-tree.mjs');
 const LINUX_X64 = { os: 'linux', cpu: 'x64' };
@@ -174,6 +182,135 @@ describe('runtime tree check', () => {
       }
     });
 
+    it('fails on a symlinked node_modules and does not look behind it', () => {
+      const packages = tree();
+      installAll(packages);
+      const nested = 'node_modules/wrangler/node_modules';
+      const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+      try {
+        // The locked package is reachable through the link, so only the walk can tell.
+        renameSync(join(root, nested, 'undici'), join(outside, 'undici'));
+        mkdirSync(join(outside, 'stranger'));
+        writeFileSync(join(outside, 'stranger/package.json'), JSON.stringify({ version: '1.0.0' }));
+        rmSync(join(root, nested), { recursive: true });
+        symlinkSync(outside, join(root, nested));
+        expect(check(packages).problems).toEqual([`${nested}: a symlink in node_modules`]);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('fails when the top node_modules itself is a symlink', () => {
+      const packages = tree();
+      installAll(packages);
+      const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+      try {
+        renameSync(join(root, 'node_modules'), join(outside, 'node_modules'));
+        symlinkSync(join(outside, 'node_modules'), join(root, 'node_modules'));
+        const result = check(packages);
+        expect(result.compared).toBe(Object.keys(packages).length);
+        expect(result.problems).toEqual([
+          'node_modules: a symlink in node_modules',
+          'sharp: not installed, expected >= 0.35.5',
+        ]);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
+    it('fails on a plain file where npm puts packages', () => {
+      const packages = tree();
+      installAll(packages);
+      writeFileSync(join(root, 'node_modules/payload.js'), '');
+      writeFileSync(join(root, 'node_modules/@img/payload.js'), '');
+      writeFileSync(join(root, 'node_modules/@payload'), '');
+      mkdirSync(join(root, 'node_modules/sharp/node_modules'));
+      writeFileSync(join(root, 'node_modules/sharp/node_modules/payload.js'), '');
+      writeFileSync(join(root, 'node_modules/@img/colour/node_modules'), '');
+      expect(check(packages).problems).toEqual([
+        'node_modules/@img/colour/node_modules: a file, not a directory',
+        'node_modules/@img/payload.js: a file where a package directory belongs',
+        'node_modules/@payload: a file where a scope directory belongs',
+        'node_modules/payload.js: a file where a package directory belongs',
+        'node_modules/sharp/node_modules/payload.js: a file where a package directory belongs',
+      ]);
+    });
+
+    it('fails on a dot entry npm does not create, directory or file, at any depth', () => {
+      const packages = tree();
+      installAll(packages);
+      install('node_modules/.hidden', '1.0.0');
+      install('node_modules/@img/.hidden', '1.0.0');
+      install('node_modules/wrangler/node_modules/.hidden', '1.0.0');
+      writeFileSync(join(root, 'node_modules/.payload.js'), '');
+      // The hidden lockfile is npm's at the top only, and only as a file.
+      writeFileSync(join(root, 'node_modules/wrangler/node_modules/.package-lock.json'), '{}');
+      expect(check(packages).problems).toEqual([
+        'node_modules/.hidden: a dot entry npm does not create',
+        'node_modules/.payload.js: a dot entry npm does not create',
+        'node_modules/@img/.hidden: a dot entry npm does not create',
+        'node_modules/wrangler/node_modules/.hidden: a dot entry npm does not create',
+        'node_modules/wrangler/node_modules/.package-lock.json: a dot entry npm does not create',
+      ]);
+    });
+
+    it('fails when the hidden lockfile or .bin is not what npm writes', () => {
+      const packages = tree();
+      installAll(packages);
+      mkdirSync(join(root, 'node_modules/.package-lock.json'));
+      writeFileSync(join(root, 'node_modules/.bin'), '');
+      expect(check(packages).problems).toEqual([
+        'node_modules/.bin: a file, not the directory npm links executables in',
+        'node_modules/.package-lock.json: a dot entry npm does not create',
+      ]);
+    });
+
+    it('accepts the dot entries npm writes: the hidden lockfile and .bin links into its own packages', () => {
+      const packages = tree();
+      installAll(packages);
+      writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
+      mkdirSync(join(root, 'node_modules/.bin'));
+      symlinkSync('../wrangler/bin/wrangler.js', join(root, 'node_modules/.bin/wrangler'));
+      mkdirSync(join(root, 'node_modules/wrangler/node_modules/.bin'));
+      symlinkSync('../undici/cli.js', join(root, 'node_modules/wrangler/node_modules/.bin/undici'));
+      expect(check(packages).problems).toEqual([]);
+    });
+
+    it('fails on anything in .bin but a link into a package of the same node_modules', () => {
+      const packages = tree();
+      installAll(packages);
+      const bin = join(root, 'node_modules/.bin');
+      mkdirSync(join(bin, 'directory'), { recursive: true });
+      writeFileSync(join(bin, 'script'), '#!/bin/sh\n');
+      symlinkSync('/bin/sh', join(bin, 'absolute'));
+      symlinkSync('../../outside.js', join(bin, 'escapes'));
+      symlinkSync('script', join(bin, 'sibling'));
+      symlinkSync('..', join(bin, 'modules'));
+      symlinkSync('../.payload.js', join(bin, 'hidden'));
+      expect(check(packages).problems).toEqual([
+        'node_modules/.bin/absolute: links outside the packages of its node_modules',
+        'node_modules/.bin/directory: not a link to a package executable',
+        'node_modules/.bin/escapes: links outside the packages of its node_modules',
+        'node_modules/.bin/hidden: links outside the packages of its node_modules',
+        'node_modules/.bin/modules: links outside the packages of its node_modules',
+        'node_modules/.bin/script: not a link to a package executable',
+        'node_modules/.bin/sibling: links outside the packages of its node_modules',
+      ]);
+    });
+
+    it('fails on a symlinked .bin and does not read it', () => {
+      const packages = tree();
+      installAll(packages);
+      const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+      try {
+        writeFileSync(join(outside, 'script'), '');
+        symlinkSync(outside, join(root, 'node_modules/.bin'));
+        expect(check(packages).problems).toEqual(['node_modules/.bin: a symlink in node_modules']);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+
     it('fails on a link entry in the pruned lockfile', () => {
       const workspace = {
         ...tree(),
@@ -304,22 +441,40 @@ describe('runtime tree check', () => {
   });
 
   describe('installedPackages', () => {
-    it('lists packages by npm layout only, skipping dot entries and package.json files inside a package', () => {
+    it('lists packages by npm layout only, not package.json files inside a package or npm dot entries', () => {
       install('node_modules/a', '1.0.0');
       install('node_modules/a/node_modules/@s/b', '1.0.0');
       install('node_modules/a/fixtures/node_modules-like/c', '1.0.0');
-      install('node_modules/.bin/d', '1.0.0');
-      install('node_modules/@s/.hidden', '1.0.0');
+      install('node_modules/a/.hidden', '1.0.0');
+      mkdirSync(join(root, 'node_modules/.bin'));
+      symlinkSync('../a/cli.js', join(root, 'node_modules/.bin/a'));
       writeFileSync(join(root, 'node_modules/.package-lock.json'), '{}');
-      writeFileSync(join(root, 'node_modules/file'), '');
       expect(installedPackages(root)).toEqual({
         packages: ['node_modules/a', 'node_modules/a/node_modules/@s/b'],
         links: [],
+        unexpected: [],
+      });
+    });
+
+    it('reports what is neither a package nor an npm dot entry, apart from the packages', () => {
+      install('node_modules/a', '1.0.0');
+      install('node_modules/.bin/d', '1.0.0');
+      install('node_modules/@s/.hidden', '1.0.0');
+      writeFileSync(join(root, 'node_modules/file'), '');
+      symlinkSync('a', join(root, 'node_modules/.linked'));
+      expect(installedPackages(root)).toEqual({
+        packages: ['node_modules/a'],
+        links: ['node_modules/.linked'],
+        unexpected: [
+          'node_modules/.bin/d: not a link to a package executable',
+          'node_modules/@s/.hidden: a dot entry npm does not create',
+          'node_modules/file: a file where a package directory belongs',
+        ],
       });
     });
 
     it('is empty without a node_modules directory', () => {
-      expect(installedPackages(root)).toEqual({ packages: [], links: [] });
+      expect(installedPackages(root)).toEqual({ packages: [], links: [], unexpected: [] });
     });
   });
 
@@ -342,18 +497,24 @@ describe('runtime tree check', () => {
   });
 
   describe('as the Dockerfile runs it', () => {
-    function run(workspace: Packages, runtime: Packages, args?: string[]) {
-      const workspaceLock = join(root, 'workspace-lock.json');
-      const app = join(root, 'app');
-      mkdirSync(app);
-      writeFileSync(workspaceLock, JSON.stringify(workspaceLockOf(workspace)));
-      writeFileSync(join(app, 'package-lock.json'), JSON.stringify(lockOf(runtime)));
+    const workspaceLock = () => join(root, 'workspace-lock.json');
+    const app = () => join(root, 'app');
+
+    function run(
+      workspace: Packages,
+      runtime: Packages,
+      { args, script = SCRIPT, nodeArgs = [], tamper }: RunOptions = {},
+    ) {
+      mkdirSync(app());
+      writeFileSync(workspaceLock(), JSON.stringify(workspaceLockOf(workspace)));
+      writeFileSync(join(app(), 'package-lock.json'), JSON.stringify(lockOf(runtime)));
       for (const [key, value] of Object.entries(runtime)) {
-        mkdirSync(join(app, key), { recursive: true });
-        writeFileSync(join(app, key, 'package.json'), JSON.stringify({ version: value.version }));
+        mkdirSync(join(app(), key), { recursive: true });
+        writeFileSync(join(app(), key, 'package.json'), JSON.stringify({ version: value.version }));
       }
+      tamper?.();
       // The lockfile is written for every platform; the fixture has no platform builds, so any host passes.
-      return spawnSync(process.execPath, [SCRIPT, ...(args ?? [workspaceLock, app])], {
+      return spawnSync(process.execPath, [...nodeArgs, script, ...(args ?? [workspaceLock(), app()])], {
         cwd: dirname(SCRIPT),
         encoding: 'utf8',
       });
@@ -385,9 +546,98 @@ describe('runtime tree check', () => {
     });
 
     it('exits 2 without the workspace lockfile argument', () => {
-      const result = run({}, {}, []);
+      const result = run({}, {}, { args: [] });
       expect(result.status).toBe(2);
       expect(result.stderr).toContain('usage:');
+    });
+
+    describe('through a symlinked path', () => {
+      function linked(): string {
+        const link = join(root, 'linked-check.mjs');
+        symlinkSync(SCRIPT, link);
+        return link;
+      }
+
+      it('still checks: exits 0 with the count on a matching tree', () => {
+        const packages = tree();
+        const result = run(packages, packages, { script: linked() });
+        expect(result.stdout).toBe(
+          `runtime tree matches package-lock.json: ${Object.keys(packages).length} packages compared\n`,
+        );
+        expect(result.status).toBe(0);
+      });
+
+      it('still checks: exits 1 on a drift', () => {
+        const workspace = tree();
+        const runtime = { ...workspace, 'node_modules/sharp': entry('node_modules/sharp', '0.35.6') };
+        const result = run(workspace, runtime, { script: linked() });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain('node_modules/sharp: installed 0.35.6 != workspace lockfile 0.35.5');
+      });
+
+      it('still checks when Node keeps the symlinked path as the main module', () => {
+        const result = run({}, {}, { script: linked(), nodeArgs: ['--preserve-symlinks-main'] });
+        expect(result.status).toBe(1);
+        expect(result.stderr).toContain(`only 0 packages compared, expected at least ${MIN_COMPARED}`);
+      });
+    });
+
+    describe('when an input cannot be read or parsed', () => {
+      const cannotCheck = 'cannot check the runtime tree: ';
+
+      it('exits 2 when the workspace lockfile does not exist', () => {
+        const packages = tree();
+        const result = run(packages, packages, { args: [join(root, 'absent.json'), app()] });
+        expect(result.status).toBe(2);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toContain(cannotCheck);
+        expect(result.stderr).toContain('absent.json');
+      });
+
+      it('exits 2 when the workspace lockfile is not JSON', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => writeFileSync(workspaceLock(), '{ "packages": '),
+        });
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain(cannotCheck);
+      });
+
+      it('exits 2 when the root has no pruned lockfile', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => rmSync(join(app(), 'package-lock.json')),
+        });
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain(cannotCheck);
+        expect(result.stderr).toContain('package-lock.json');
+      });
+
+      it('exits 2 when the pruned lockfile is not JSON', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => writeFileSync(join(app(), 'package-lock.json'), 'not json'),
+        });
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain(cannotCheck);
+      });
+
+      it('exits 2 when an installed package.json is not JSON', () => {
+        const packages = tree();
+        const result = run(packages, packages, {
+          tamper: () => writeFileSync(join(app(), 'node_modules/sharp/package.json'), '{'),
+        });
+        expect(result.status).toBe(2);
+        expect(result.stdout).toBe('');
+        expect(result.stderr).toContain(cannotCheck);
+      });
+
+      it('exits 2 when the root does not exist', () => {
+        const packages = tree();
+        const result = run(packages, packages, { args: [workspaceLock(), join(root, 'absent')] });
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain(cannotCheck);
+      });
     });
   });
 });
