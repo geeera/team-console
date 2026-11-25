@@ -5,9 +5,9 @@
 // The runtime image must hold exactly the packages the workspace lockfile pins for wrangler. Three things are
 // compared — the workspace lockfile, the pruned lockfile, and node_modules on disk — in both directions, and the
 // comparison has to cover a known minimum, so that reading the wrong directory cannot pass as "no drift".
-import { existsSync, lstatSync, readFileSync, readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * @typedef {{ version?: string, resolved?: string, integrity?: string, optional?: boolean, link?: boolean,
@@ -74,52 +74,94 @@ export function isAtLeast(version, floor) {
  * Every package directory under `<root>/node_modules`, as lockfile keys (`node_modules/a/node_modules/@s/b`).
  * It follows npm's layout only — `node_modules/<name>` and `node_modules/@scope/<name>`, recursively — so a
  * `package.json` a package ships among its own files is not taken for an installed package. A symlink is
- * reported and never followed.
+ * reported and never followed, a `node_modules` directory included. Whatever else sits where npm puts packages
+ * is reported as `unexpected`: a plain file, and any dot entry but the two npm writes itself — `.bin`, which
+ * may hold only links into its own `node_modules`, and the hidden lockfile at the top.
  * @param {string} root
- * @returns {{ packages: string[], links: string[] }}
+ * @returns {{ packages: string[], links: string[], unexpected: string[] }}
  */
 export function installedPackages(root) {
   /** @type {string[]} */
   const packages = [];
   /** @type {string[]} */
   const links = [];
+  /** @type {string[]} */
+  const unexpected = [];
+
+  /**
+   * Reports the entry unless it is a real directory.
+   * @param {string} key
+   * @param {string} otherwise what a non-directory is reported as
+   */
+  const isRealDirectory = (key, otherwise) => {
+    const stat = lstatSync(join(root, key));
+    if (stat.isSymbolicLink()) links.push(key);
+    else if (!stat.isDirectory()) unexpected.push(`${key}: ${otherwise}`);
+    else return true;
+    return false;
+  };
 
   /** @param {string} key a lockfile key of a candidate package directory */
   const visitPackage = (key) => {
-    const stat = lstatSync(join(root, key));
-    if (stat.isSymbolicLink()) {
-      links.push(key);
-      return;
-    }
-    if (!stat.isDirectory()) return;
+    if (!isRealDirectory(key, 'a file where a package directory belongs')) return;
     packages.push(key);
     visitModules(`${key}/node_modules`);
   };
 
+  /**
+   * npm links a package's executables as `.bin/<name> -> ../<package>/<file>`; the package itself is then held
+   * to the lockfile by the walk. Anything else in `.bin` would be code on PATH that no lockfile entry covers.
+   * @param {string} bin a `…/node_modules/.bin` entry, relative to root
+   */
+  const visitBin = (bin) => {
+    if (!isRealDirectory(bin, 'a file, not the directory npm links executables in')) return;
+    const modules = join(root, dirname(bin));
+    for (const name of readdirSync(join(root, bin)).sort()) {
+      const key = `${bin}/${name}`;
+      const path = join(root, key);
+      if (!lstatSync(path).isSymbolicLink()) {
+        unexpected.push(`${key}: not a link to a package executable`);
+        continue;
+      }
+      const target = relative(modules, resolve(dirname(path), readlinkSync(path)));
+      if (target === '' || target.startsWith('.') || isAbsolute(target)) {
+        unexpected.push(`${key}: links outside the packages of its node_modules`);
+      }
+    }
+  };
+
+  /**
+   * @param {string} key a dot entry, relative to root
+   * @param {boolean} isTopLevel whether it sits in `<root>/node_modules` itself
+   */
+  const visitDotEntry = (key, isTopLevel) => {
+    const stat = lstatSync(join(root, key));
+    if (stat.isSymbolicLink()) links.push(key);
+    // npm's hidden lockfile: only ever at the top, and only a regular file.
+    else if (isTopLevel && key.endsWith('/.package-lock.json') && stat.isFile()) return;
+    else unexpected.push(`${key}: a dot entry npm does not create`);
+  };
+
   /** @param {string} modules a `…/node_modules` directory, relative to root */
   const visitModules = (modules) => {
-    const directory = join(root, modules);
-    if (!existsSync(directory)) return;
-    for (const name of readdirSync(directory).sort()) {
-      // `.bin`, `.package-lock.json` and npm's other dot entries are not packages.
-      if (name.startsWith('.')) continue;
-      if (!name.startsWith('@')) {
-        visitPackage(`${modules}/${name}`);
-        continue;
-      }
-      const scope = `${modules}/${name}`;
-      if (lstatSync(join(root, scope)).isSymbolicLink()) {
-        links.push(scope);
-        continue;
-      }
-      for (const scoped of readdirSync(join(root, scope)).sort()) {
-        if (!scoped.startsWith('.')) visitPackage(`${scope}/${scoped}`);
+    if (!lstatSync(join(root, modules), { throwIfNoEntry: false })) return;
+    if (!isRealDirectory(modules, 'a file, not a directory')) return;
+    for (const name of readdirSync(join(root, modules)).sort()) {
+      const key = `${modules}/${name}`;
+      if (name === '.bin') visitBin(key);
+      else if (name.startsWith('.')) visitDotEntry(key, modules === 'node_modules');
+      else if (!name.startsWith('@')) visitPackage(key);
+      else if (isRealDirectory(key, 'a file where a scope directory belongs')) {
+        for (const scoped of readdirSync(join(root, key)).sort()) {
+          if (scoped.startsWith('.')) visitDotEntry(`${key}/${scoped}`, false);
+          else visitPackage(`${key}/${scoped}`);
+        }
       }
     }
   };
 
   visitModules('node_modules');
-  return { packages, links };
+  return { packages, links, unexpected };
 }
 
 /**
@@ -189,6 +231,7 @@ export function checkRuntimeTree({
   // Reverse: nothing is on disk that the pruned lockfile does not list.
   const onDisk = installedPackages(root);
   for (const key of onDisk.links) problems.push(`${key}: a symlink in node_modules`);
+  problems.push(...onDisk.unexpected);
   for (const key of onDisk.packages) {
     if (!runtime[key]) problems.push(`${key}: on disk but not in the pruned lockfile`);
     else if (installedVersion(root, key) === undefined)
@@ -226,7 +269,10 @@ function readLock(path) {
   return /** @type {Lockfile} */ (JSON.parse(readFileSync(path, 'utf8')));
 }
 
-/** @param {string[]} argv `<workspace-lockfile> [root]` */
+/**
+ * @param {string[]} argv `<workspace-lockfile> [root]`
+ * @returns {0 | 1 | 2} 0 the tree matches, 1 it drifts, 2 the check could not be made
+ */
 function main(argv) {
   const [workspaceLockPath, rootArg] = argv;
   if (!workspaceLockPath) {
@@ -234,12 +280,21 @@ function main(argv) {
     return 2;
   }
   const root = resolve(rootArg ?? '.');
-  const { compared, problems } = checkRuntimeTree({
-    root,
-    workspaceLock: readLock(workspaceLockPath),
-    runtimeLock: readLock(join(root, 'package-lock.json')),
-    platform: { os: process.platform, cpu: process.arch },
-  });
+  /** @type {CheckResult} */
+  let result;
+  try {
+    result = checkRuntimeTree({
+      root,
+      workspaceLock: readLock(workspaceLockPath),
+      runtimeLock: readLock(join(root, 'package-lock.json')),
+      platform: { os: process.platform, cpu: process.arch },
+    });
+  } catch (error) {
+    // An unreadable or unparsable lockfile or manifest is not drift: say so, with an exit code of its own.
+    console.error(`cannot check the runtime tree: ${error instanceof Error ? error.message : String(error)}`);
+    return 2;
+  }
+  const { compared, problems } = result;
   if (problems.length > 0) {
     console.error(`runtime tree drifts from package-lock.json:\n${problems.join('\n')}`);
     return 1;
@@ -248,6 +303,15 @@ function main(argv) {
   return 0;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  process.exitCode = main(process.argv.slice(2));
+/**
+ * Whether Node was started with this file. Both sides go through realpath: Node resolves a symlinked entry
+ * before it sets `import.meta.url` (unless `--preserve-symlinks-main`), while `argv[1]` keeps the path as typed,
+ * so comparing them as-is skipped `main()` and exited 0 without checking (#998). A path that cannot be resolved
+ * throws, so that case fails the build too.
+ */
+function isEntryPoint() {
+  const entry = process.argv[1];
+  return entry !== undefined && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
 }
+
+if (isEntryPoint()) process.exitCode = main(process.argv.slice(2));
