@@ -1,4 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
+import { contextDay } from './support/dates';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { en, ru } from './support/i18n';
 import { apiClient, seed } from './support/stack';
@@ -16,17 +17,13 @@ const numbers: number[] = [];
 
 test.describe.configure({ mode: 'serial' });
 
-function inDays(days: number): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Kyiv' }).format(new Date(Date.now() + days * 86_400_000));
-}
-
 test.beforeAll(async ({ stack }, testInfo) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
   const api = await apiClient(stack);
   try {
-    await createSprint(api, SLUG, inDays(10));
+    await createSprint(api, SLUG, contextDay(testInfo, 10));
     for (const title of TITLES) {
       numbers.push(await createItem(api, SLUG, { title, status: 'in-progress', sprint: 1 }));
     }

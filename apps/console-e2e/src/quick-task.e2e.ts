@@ -1,4 +1,5 @@
 import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import { contextDay } from './support/dates';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { apiClient, seed } from './support/stack';
@@ -12,11 +13,6 @@ import { createSprint, switchToConsoleTracker } from './support/tracker-seed';
 
 const SLUG = 'team-console';
 const isPhone = (): boolean => test.info().project.name !== 'desktop';
-
-function dayFromToday(days: number): string {
-  const day = new Date(Date.now() + days * 86_400_000);
-  return day.toISOString().slice(0, 10);
-}
 
 interface ItemRow {
   readonly number: number;
@@ -41,8 +37,8 @@ test.beforeAll(async ({ stack }, testInfo) => {
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
   api = await apiClient(stack);
   // Sprint 01 is in its freeze (its demo is tomorrow), Sprint 02 is the next one.
-  await createSprint(api, SLUG, dayFromToday(1));
-  await createSprint(api, SLUG, dayFromToday(15));
+  await createSprint(api, SLUG, contextDay(testInfo, 1));
+  await createSprint(api, SLUG, contextDay(testInfo, 15));
 });
 
 test.afterAll(async () => {
