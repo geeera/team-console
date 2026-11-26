@@ -459,4 +459,63 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await repo.findById(late.id)).toMatchObject({ state: 'approved' });
     });
   });
+
+  // #821: a row goes a day after its last possible use, `expires_at` plus the collection window, in any state.
+  describe('deleteRetired', () => {
+    // T0 + 600 s (expiry) + 120 s (collection) + one day.
+    const RETIRED_AT = 600 + 120 + 24 * 3600;
+
+    it('deletes every account’s rows past retention, of any state, and answers how many', async () => {
+      const pending = await created();
+      const foreign = await created({ accountId: ACCOUNT_B });
+      const boundOnly = await bound();
+      const withdrawn = await bound();
+      expect(
+        await repo.withdraw(ALICE, withdrawn.id, at(3), audit('enrolment-intent.withdrawn', withdrawn.id)),
+      ).toBe(true);
+      const used = await bound();
+      await approveOf(used.id);
+      expect(await repo.collect(used.id, 'a'.repeat(64), at(3), 120)).not.toBeNull();
+
+      expect(await repo.deleteRetired(at(RETIRED_AT + 1), 100)).toBe(5);
+      for (const intent of [pending, foreign, boundOnly, withdrawn, used]) {
+        expect(await repo.findById(intent.id)).toBeNull();
+      }
+      // The audit keeps the history of what went.
+      expect(await auditRows('enrolment-intent.created', pending.id)).toBe(1);
+    });
+
+    it('keeps a row up to the end of its retention, and deletes it right after', async () => {
+      const intent = await bound();
+      expect(await repo.deleteRetired(at(RETIRED_AT), 100)).toBe(0);
+      expect(await repo.findById(intent.id)).not.toBeNull();
+      expect(await repo.deleteRetired(at(RETIRED_AT + 1), 100)).toBe(1);
+      expect(await repo.findById(intent.id)).toBeNull();
+    });
+
+    it('keeps live intents and an approval still being collected', async () => {
+      const pending = await created();
+      const boundOnly = await bound();
+      const approved = await bound();
+      await approveOf(approved.id, 'ABCD-EFGH', at(599));
+      // Past the expiry, inside the collection window of the late approval.
+      expect(await repo.deleteRetired(at(700), 100)).toBe(0);
+      expect(await repo.collect(approved.id, 'a'.repeat(64), at(700), 120)).not.toBeNull();
+      expect(await repo.findById(pending.id)).toMatchObject({ state: 'pending' });
+      expect(await repo.findById(boundOnly.id)).toMatchObject({ state: 'bound' });
+    });
+
+    it('deletes at most the limit, oldest expiry first, and leaves the rest to the next sweep', async () => {
+      const oldest = await created({ expiresAt: at(300) });
+      const middle = await created({ expiresAt: at(400) });
+      const newest = await created({ expiresAt: at(500) });
+      const now = at(RETIRED_AT + 1);
+      expect(await repo.deleteRetired(now, 2)).toBe(2);
+      expect(await repo.findById(oldest.id)).toBeNull();
+      expect(await repo.findById(middle.id)).toBeNull();
+      expect(await repo.findById(newest.id)).not.toBeNull();
+      expect(await repo.deleteRetired(now, 2)).toBe(1);
+      expect(await repo.deleteRetired(now, 2)).toBe(0);
+    });
+  });
 });
