@@ -10,8 +10,19 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { privateDirectory, realDirectory } from './private-directory';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { privateDirectory, privateDirectoryBelow, realDirectory } from './private-directory';
+
+/** Paths whose `lstat` answers for another one: an entry swapped between the `lstat` and the `open`. */
+const swapped = vi.hoisted(() => new Map<string, string>());
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    lstatSync: (path: string) => actual.lstatSync(swapped.get(path) ?? path),
+  };
+});
 
 const modeOf = (path: string): number => statSync(path).mode & 0o777;
 
@@ -22,20 +33,26 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  swapped.clear();
   rmSync(dir, { recursive: true, force: true });
 });
 
 describe('privateDirectory', () => {
-  it('makes a directory for its owner only, and the missing ones above it with the default mode', () => {
+  it('makes a directory for its owner only', () => {
     const before = process.umask(0o022);
     try {
-      privateDirectory(join(dir, 'run/servers'));
+      privateDirectory(join(dir, 'servers'));
     } finally {
       process.umask(before);
     }
 
-    expect(modeOf(join(dir, 'run/servers'))).toBe(0o700);
-    expect(modeOf(join(dir, 'run'))).toBe(0o755);
+    expect(modeOf(join(dir, 'servers'))).toBe(0o700);
+  });
+
+  it('makes no parent that is missing: the way down is checked by the caller first', () => {
+    expect(() => privateDirectory(join(dir, 'run/servers'))).toThrow(/ENOENT/);
+
+    expect(readdirSync(dir)).toEqual([]);
   });
 
   it('closes a directory that is already there and open to others, and keeps what is in it', () => {
@@ -95,6 +112,47 @@ describe('privateDirectory', () => {
       expect(modeOf('/usr')).toBe(mode);
     },
   );
+
+  it.skipIf(process.getuid?.() === 0)(
+    'judges the owner by the directory it opened, not by what a lookup of the path found before',
+    () => {
+      const mode = modeOf('/usr');
+      swapped.set('/usr', dir);
+
+      expect(() => privateDirectory('/usr')).toThrow(/belongs to another user/);
+
+      expect(modeOf('/usr')).toBe(mode);
+    },
+  );
+});
+
+describe('privateDirectoryBelow', () => {
+  it('makes the way down with the default mode and the last directory for its owner only', () => {
+    const before = process.umask(0o022);
+    try {
+      privateDirectoryBelow(dir, join(dir, 'run/servers'));
+    } finally {
+      process.umask(before);
+    }
+
+    expect(modeOf(join(dir, 'run'))).toBe(0o755);
+    expect(modeOf(join(dir, 'run/servers'))).toBe(0o700);
+  });
+
+  it('refuses a link on the way down, and makes nothing where it points', () => {
+    const real = join(dir, 'elsewhere');
+    mkdirSync(real);
+    symlinkSync(real, join(dir, 'run'));
+
+    expect(() => privateDirectoryBelow(dir, join(dir, 'run/servers'))).toThrow(/run is a symbolic link/);
+
+    expect(readdirSync(real)).toEqual([]);
+  });
+
+  it('refuses a directory that is not below the root', () => {
+    expect(() => privateDirectoryBelow(dir, dir)).toThrow(/is not below/);
+    expect(() => privateDirectoryBelow(join(dir, 'a'), join(dir, 'b'))).toThrow(/is not below/);
+  });
 });
 
 describe('realDirectory', () => {
