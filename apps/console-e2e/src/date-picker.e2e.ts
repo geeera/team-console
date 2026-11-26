@@ -2,6 +2,7 @@ import type { Locator, Page, TestInfo } from '@playwright/test';
 import { addDays, calendarDayOf } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { press } from './support/press';
 import { strayScrollsOf } from './support/scroll-regions';
 import { clearFakeMilestones, fakePost, seed, seedFakeRunLog, type Stack } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
@@ -63,11 +64,6 @@ async function settled(locator: Locator): Promise<void> {
   });
 }
 
-/** Tap on the touch projects, click on the desktop. */
-async function press(locator: Locator, testInfo: TestInfo): Promise<void> {
-  await (isPhone(testInfo) ? locator.tap() : locator.click());
-}
-
 /** Sideways overflow anywhere on screen: the document, or an element past the right edge. */
 async function sidewaysOverflowOf(page: Page): Promise<string[]> {
   return page.evaluate(() => {
@@ -126,7 +122,7 @@ test('«Перенести демо» has no native date input: a typed field an
 test('pick a date in the calendar and move the demo', async ({ page, stack }, testInfo) => {
   const before = (await milestoneWrites(stack)).length;
   await openMoveDemo(page);
-  await press(calendarButton(page, DUE), testInfo);
+  await press(calendarButton(page, DUE));
   await expect(calendar(page, testInfo)).toBeVisible();
   await settled(calendar(page, testInfo));
 
@@ -182,19 +178,19 @@ test('pick a date in the calendar and move the demo', async ({ page, stack }, te
   // Pick: a day selects, «Готово» commits.
   const moved = addDays(DUE, 2);
   if ((await day(page, testInfo, moved).count()) === 0) {
-    await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.next') }), testInfo);
+    await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.next') }));
   }
-  await press(day(page, testInfo, moved), testInfo);
+  await press(day(page, testInfo, moved));
   await expect(day(page, testInfo, moved)).toHaveAttribute('aria-selected', 'true');
   await expect(dateField(page)).toHaveValue(shown(DUE));
-  await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.done') }), testInfo);
+  await press(calendar(page, testInfo).getByRole('button', { name: ru('ui.datePicker.done') }));
   await expect(calendar(page, testInfo)).toHaveCount(0);
   await expect(dateField(page)).toHaveValue(shown(moved));
   await expect(calendarButton(page, moved)).toBeFocused();
 
   const ok = moveDialog(page).locator('.tc-confirm__ok');
   await expect(ok).not.toHaveText(ru('commands.demo.same'));
-  await press(ok, testInfo);
+  await press(ok);
   await expect(moveDialog(page)).toHaveCount(0);
   expect((await milestoneWrites(stack)).slice(before)).toEqual([
     expect.objectContaining({ method: 'PATCH', number: 2, body: `{"due_on":"${moved}T12:00:00Z"}` }),
