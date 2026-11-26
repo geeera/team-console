@@ -8,13 +8,27 @@
 // Besides the packages: `.bin` holds only the executables its packages declare, each a regular file reached
 // through no other link; nothing else in node_modules is a symlink, setuid, setgid or a special file; and the
 // manifest the tree was pruned under still carries the overrides, in npm's shape and with the pins named below.
-import { existsSync, lstatSync, readFileSync, readdirSync, readlinkSync, realpathSync } from 'node:fs';
+// And no optional package is on disk that only absent packages depend on (#1012); `--prune-unreachable` removes
+// those, because `npm prune` keeps them: the Dockerfile runs that mode between `npm prune` and the check.
+import {
+  existsSync,
+  lstatSync,
+  readFileSync,
+  readdirSync,
+  readlinkSync,
+  realpathSync,
+  rmSync,
+  rmdirSync,
+  unlinkSync,
+} from 'node:fs';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
  * @typedef {{ version?: string, resolved?: string, integrity?: string, optional?: boolean, link?: boolean,
- *   os?: string[], cpu?: string[], devDependencies?: Record<string, string> }} LockEntry
+ *   os?: string[], cpu?: string[], dependencies?: Record<string, string>,
+ *   optionalDependencies?: Record<string, string>, peerDependencies?: Record<string, string>,
+ *   devDependencies?: Record<string, string> }} LockEntry
  * @typedef {{ packages?: Record<string, LockEntry> }} Lockfile
  * @typedef {{ os: string, cpu: string }} Platform
  * @typedef {{ root: string, workspaceLock: Lockfile, runtimeLock: Lockfile, runtimeManifest: unknown,
@@ -352,6 +366,77 @@ export function overrideProblems(manifest, pinned = PINNED_BY_OVERRIDE) {
 }
 
 /**
+ * The lockfile key `name` resolves to from the package at `from`, the way Node finds it: the package's own
+ * node_modules first, then each enclosing one up to the top. Undefined when the lockfile has no such package.
+ * @param {Record<string, LockEntry>} packages
+ * @param {string} from a lockfile key, `''` for the root
+ * @param {string} name
+ * @returns {string | undefined}
+ */
+function resolveDependency(packages, from, name) {
+  let base = from;
+  for (;;) {
+    const key = base === '' ? `node_modules/${name}` : `${base}/node_modules/${name}`;
+    if (packages[key]) return key;
+    if (base === '') return undefined;
+    const enclosing = base.lastIndexOf('/node_modules/');
+    base = enclosing === -1 ? '' : base.slice(0, enclosing);
+  }
+}
+
+/**
+ * Which optional packages the tree needs (#1012). npm installs a skipped platform build's own dependencies when
+ * they name no platform: sharp 0.35.5's optional `@img/sharp-freebsd-wasm32` and `@img/sharp-webcontainers-wasm32`
+ * are skipped on linux, yet `@img/sharp-wasm32` they both depend on, its `@emnapi/runtime` and that one's `tslib`
+ * were installed, and `npm prune` keeps them. An optional package is needed only while a package on disk that
+ * is needed depends on it, through any kind of dependency npm draws an edge for. The root and every
+ * non-optional package on disk are needed as such: the lockfile does not let npm skip them.
+ * @param {Record<string, LockEntry>} packages the pruned lockfile's packages
+ * @param {ReadonlySet<string>} present the lockfile keys installed on disk
+ * @returns {{ needed: Set<string>, wanted: Set<string> }} the needed packages on disk, and every key some needed
+ *   package depends on, installed or not
+ */
+export function neededPackages(packages, present) {
+  /** @type {Set<string>} */
+  const wanted = new Set();
+  const needed = new Set(
+    [...present].filter((key) => packages[key] !== undefined && packages[key].optional !== true),
+  );
+  const queue = ['', ...needed];
+  for (let key = queue.pop(); key !== undefined; key = queue.pop()) {
+    const entry = packages[key];
+    if (!entry) continue;
+    const names = new Set([
+      ...Object.keys(entry.dependencies ?? {}),
+      ...Object.keys(entry.optionalDependencies ?? {}),
+      ...Object.keys(entry.peerDependencies ?? {}),
+    ]);
+    for (const name of names) {
+      const target = resolveDependency(packages, key, name);
+      if (target === undefined) continue;
+      wanted.add(target);
+      if (present.has(target) && !needed.has(target)) {
+        needed.add(target);
+        queue.push(target);
+      }
+    }
+  }
+  return { needed, wanted };
+}
+
+/**
+ * The optional packages on disk that no needed package depends on, outermost first; a nested one is listed
+ * though removing its parent takes it along.
+ * @param {Record<string, LockEntry>} packages the pruned lockfile's packages
+ * @param {ReadonlySet<string>} present the lockfile keys installed on disk
+ * @returns {string[]}
+ */
+export function unneededOptionals(packages, present) {
+  const { needed } = neededPackages(packages, present);
+  return [...present].filter((key) => packages[key]?.optional === true && !needed.has(key)).sort();
+}
+
+/**
  * @param {string} root
  * @param {string} key
  * @returns {string | undefined}
@@ -380,6 +465,9 @@ export function checkRuntimeTree({
   const workspace = workspaceLock.packages ?? {};
   const runtime = runtimeLock.packages ?? {};
   let compared = 0;
+  const onDisk = installedPackages(root);
+  const present = presentPackages(root, runtime, onDisk.packages);
+  const { wanted } = neededPackages(runtime, present);
 
   // Forward: everything the pruned lockfile lists is the workspace lockfile's own entry, and is on disk.
   for (const [key, entry] of Object.entries(runtime)) {
@@ -402,10 +490,11 @@ export function checkRuntimeTree({
     }
     const installed = installedVersion(root, key);
     if (installed === undefined) {
-      // Only an optional build for another OS or CPU may be absent. An optional package that targets this
-      // platform (workerd, esbuild and sharp ship their binaries that way) is required here.
+      // Only an optional build for another OS or CPU may be absent, or an optional package nothing the tree needs
+      // depends on (#1012). An optional package that targets this platform and that a needed package depends on
+      // (workerd, esbuild and sharp ship their binaries that way) is required here.
       if (!entry.optional) problems.push(`${key}: missing`);
-      else if (targetsPlatform(entry, platform)) {
+      else if (targetsPlatform(entry, platform) && wanted.has(key)) {
         problems.push(`${key}: missing, though it targets ${platform.os}/${platform.cpu}`);
       }
       continue;
@@ -416,8 +505,10 @@ export function checkRuntimeTree({
     compared += 1;
   }
 
-  // Reverse: nothing is on disk that the pruned lockfile does not list.
-  const onDisk = installedPackages(root);
+  // Reverse: nothing is on disk that the pruned lockfile does not list, or that the tree does not need.
+  for (const key of unneededOptionals(runtime, present)) {
+    problems.push(`${key}: on disk, though no package the tree needs depends on it`);
+  }
   for (const key of onDisk.links) problems.push(`${key}: a symlink in node_modules`);
   problems.push(...onDisk.unexpected);
   for (const key of onDisk.packages) {
@@ -456,6 +547,61 @@ export function checkRuntimeTree({
 }
 
 /**
+ * The present lockfile keys under `<root>/node_modules`: real package directories with a package.json that the
+ * pruned lockfile lists.
+ * @param {string} root
+ * @param {Record<string, LockEntry>} packages
+ * @param {string[]} onDisk what installedPackages found
+ */
+function presentPackages(root, packages, onDisk) {
+  return new Set(onDisk.filter((key) => packages[key] && installedVersion(root, key) !== undefined));
+}
+
+/**
+ * The executable names a package's manifest declares, in npm's two `bin` forms.
+ * @param {string} root
+ * @param {string} key
+ * @returns {string[]}
+ */
+function declaredExecutables(root, key) {
+  const manifest = /** @type {unknown} */ (JSON.parse(readFileSync(join(root, key, 'package.json'), 'utf8')));
+  const bin = isRecord(manifest) ? manifest['bin'] : undefined;
+  if (typeof bin === 'string') return [key.split('/').at(-1) ?? ''];
+  return isRecord(bin) ? Object.keys(bin) : [];
+}
+
+/**
+ * Removes the optional packages no needed package depends on (#1012), with the `.bin` links npm made for them,
+ * and a scope directory that is left empty. Only real package directories the walk found are removed, and
+ * nothing is followed through a symlink.
+ * @param {string} root
+ * @param {Lockfile} runtimeLock the pruned lockfile, which keeps its entries: it is the record of what npm
+ *   resolved, and the check accepts these packages being absent
+ * @returns {string[]} the lockfile keys removed, a nested one only through its parent
+ */
+export function pruneUnneededOptionals(root, runtimeLock) {
+  const packages = runtimeLock.packages ?? {};
+  const present = presentPackages(root, packages, installedPackages(root).packages);
+  /** @type {string[]} */
+  const removed = [];
+  for (const key of unneededOptionals(packages, present)) {
+    if (removed.some((parent) => key.startsWith(`${parent}/`))) continue;
+    const directory = join(root, key);
+    const modules = key.slice(0, key.lastIndexOf('node_modules/') + 'node_modules'.length);
+    for (const name of declaredExecutables(root, key)) {
+      const link = join(root, modules, '.bin', name);
+      if (!lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink()) continue;
+      if (resolve(dirname(link), readlinkSync(link)).startsWith(`${directory}${sep}`)) unlinkSync(link);
+    }
+    rmSync(directory, { recursive: true });
+    removed.push(key);
+    const scope = dirname(directory);
+    if (posix.basename(dirname(key)).startsWith('@') && readdirSync(scope).length === 0) rmdirSync(scope);
+  }
+  return removed;
+}
+
+/**
  * @param {string} path
  * @returns {Lockfile}
  */
@@ -464,13 +610,36 @@ function readLock(path) {
 }
 
 /**
- * @param {string[]} argv `<workspace-lockfile> [root]`
- * @returns {0 | 1 | 2} 0 the tree matches, 1 it drifts, 2 the check could not be made
+ * @param {string[]} argv `[root]`
+ * @returns {0 | 2} 2 when the lockfile cannot be read or a package cannot be removed
+ */
+function pruneMain(argv) {
+  const root = resolve(argv[0] ?? '.');
+  /** @type {string[]} */
+  let removed;
+  try {
+    removed = pruneUnneededOptionals(root, readLock(join(root, 'package-lock.json')));
+  } catch (error) {
+    console.error(`cannot prune the runtime tree: ${error instanceof Error ? error.message : String(error)}`);
+    return 2;
+  }
+  console.log(
+    removed.length === 0
+      ? 'no unneeded optional packages on disk'
+      : `removed unneeded optional packages:\n${removed.join('\n')}`,
+  );
+  return 0;
+}
+
+/**
+ * @param {string[]} argv `<workspace-lockfile> [root]`, or `--prune-unneeded [root]`
+ * @returns {0 | 1 | 2} 0 the tree matches (or was pruned), 1 it drifts, 2 the check could not be made
  */
 function main(argv) {
+  if (argv[0] === '--prune-unneeded') return pruneMain(argv.slice(1));
   const [workspaceLockPath, rootArg] = argv;
   if (!workspaceLockPath) {
-    console.error('usage: check-runtime-tree.mjs <workspace-lockfile> [root]');
+    console.error('usage: check-runtime-tree.mjs <workspace-lockfile> [root] | --prune-unneeded [root]');
     return 2;
   }
   const root = resolve(rootArg ?? '.');

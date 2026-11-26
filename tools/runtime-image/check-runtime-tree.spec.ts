@@ -4,6 +4,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   renameSync,
   rmSync,
   symlinkSync,
@@ -17,8 +18,11 @@ import {
   checkRuntimeTree,
   installedPackages,
   isAtLeast,
+  neededPackages,
   overrideProblems,
+  pruneUnneededOptionals,
   specialFiles,
+  unneededOptionals,
 } from './check-runtime-tree.mjs';
 
 type Entry = {
@@ -29,6 +33,9 @@ type Entry = {
   link?: boolean;
   os?: string[];
   cpu?: string[];
+  dependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
 };
 type Packages = Record<string, Entry>;
 type RunOptions = {
@@ -80,6 +87,58 @@ function lockOf(packages: Packages, root: Record<string, unknown> = {}) {
 }
 
 const workspaceLockOf = (packages: Packages) => lockOf(packages, { devDependencies: { wrangler: WRANGLER } });
+
+const SHARP_WASM32 = 'node_modules/@img/sharp-wasm32';
+const NESTED_EMNAPI = `${SHARP_WASM32}/node_modules/@emnapi/runtime`;
+/** The packages only absent ones need in the image (#1012) — sharp-wasm32, its own copy of @emnapi/runtime, tslib. */
+const UNNEEDED = [SHARP_WASM32, NESTED_EMNAPI, 'node_modules/tslib'];
+
+/**
+ * tree() with sharp 0.35.5's wasm32 builds as the lockfile has them (#1012): two optional builds that target
+ * freebsd and wasm32 and so are skipped on linux, both depending on `@img/sharp-wasm32`, which names no platform
+ * and pulls in `@emnapi/runtime` and `tslib`; next to them the linux/x64 build, which sharp needs.
+ */
+function sharpTree(): Packages {
+  const opt = (key: string, extra: Partial<Entry> = {}) => entry(key, '0.35.5', { optional: true, ...extra });
+  return {
+    ...tree(),
+    'node_modules/sharp': entry('node_modules/sharp', '0.35.5', {
+      dependencies: { '@img/colour': '^1.0.0' },
+      optionalDependencies: {
+        '@img/sharp-freebsd-wasm32': '0.35.5',
+        '@img/sharp-linux-x64': '0.35.5',
+        '@img/sharp-webcontainers-wasm32': '0.35.5',
+      },
+    }),
+    'node_modules/@img/sharp-freebsd-wasm32': opt('node_modules/@img/sharp-freebsd-wasm32', {
+      os: ['freebsd'],
+      dependencies: { '@img/sharp-wasm32': '0.35.5' },
+    }),
+    'node_modules/@img/sharp-webcontainers-wasm32': opt('node_modules/@img/sharp-webcontainers-wasm32', {
+      cpu: ['wasm32'],
+      dependencies: { '@img/sharp-wasm32': '0.35.5' },
+    }),
+    'node_modules/@img/sharp-linux-x64': opt('node_modules/@img/sharp-linux-x64', {
+      os: ['linux'],
+      cpu: ['x64'],
+    }),
+    [SHARP_WASM32]: opt(SHARP_WASM32, { dependencies: { '@emnapi/runtime': '^1.11.3' } }),
+    [NESTED_EMNAPI]: entry(NESTED_EMNAPI, '1.11.3', { optional: true, dependencies: { tslib: '^2.4.0' } }),
+    'node_modules/tslib': entry('node_modules/tslib', '2.8.1', { optional: true }),
+  };
+}
+
+/** What npm installs of sharpTree() on linux/x64: everything but the two builds for other platforms. */
+function sharpInstall(packages: Packages): Packages {
+  const installed = { ...packages };
+  delete installed['node_modules/@img/sharp-freebsd-wasm32'];
+  delete installed['node_modules/@img/sharp-webcontainers-wasm32'];
+  return installed;
+}
+
+function without(packages: Packages, keys: string[]): Packages {
+  return Object.fromEntries(Object.entries(packages).filter(([key]) => !keys.includes(key)));
+}
 
 describe('runtime tree check', () => {
   let root: string;
@@ -605,10 +664,16 @@ describe('runtime tree check', () => {
     const platformBuild = (os: string, cpu: string, extra: Partial<Entry> = {}) =>
       entry('node_modules/@esbuild/build', '1.0.0', { os: [os], cpu: [cpu], ...extra });
 
+    // wrangler depends on the build, as on esbuild's in the real tree: an optional package only absent ones
+    // depend on may be missing (#1012).
     function checkWithout(missing: Entry) {
       const packages = tree();
       installAll(packages);
-      return check({ ...packages, 'node_modules/@esbuild/build': missing }).problems;
+      const wrangler = entry('node_modules/wrangler', WRANGLER, {
+        optionalDependencies: { '@esbuild/build': '1.0.0' },
+      });
+      return check({ ...packages, 'node_modules/wrangler': wrangler, 'node_modules/@esbuild/build': missing })
+        .problems;
     }
 
     it('accepts a missing optional build for another OS or CPU', () => {
@@ -636,6 +701,181 @@ describe('runtime tree check', () => {
       expect(checkWithout(platformBuild('darwin', 'arm64'))).toEqual([
         'node_modules/@esbuild/build: missing',
       ]);
+    });
+  });
+
+  describe('optional packages only absent packages depend on (#1012)', () => {
+    it('fails while they are on disk, as npm prune leaves them', () => {
+      const packages = sharpTree();
+      installAll(sharpInstall(packages));
+      expect(check(packages).problems).toEqual(
+        UNNEEDED.map((key) => `${key}: on disk, though no package the tree needs depends on it`),
+      );
+    });
+
+    it('accepts them absent, though they name no platform', () => {
+      const packages = sharpTree();
+      installAll(without(sharpInstall(packages), UNNEEDED));
+      expect(check(packages).problems).toEqual([]);
+    });
+
+    it('still fails when the build for this platform that sharp depends on is missing', () => {
+      const packages = sharpTree();
+      installAll(without(sharpInstall(packages), [...UNNEEDED, 'node_modules/@img/sharp-linux-x64']));
+      expect(check(packages).problems).toEqual([
+        'node_modules/@img/sharp-linux-x64: missing, though it targets linux/x64',
+      ]);
+    });
+
+    it('keeps one needed while a single dependent of it is on disk', () => {
+      const packages = sharpTree();
+      installAll({
+        ...sharpInstall(packages),
+        'node_modules/@img/sharp-freebsd-wasm32': entry('', '0.35.5'),
+      });
+      expect(check(packages).problems).toEqual([]);
+    });
+
+    it.each(['dependencies', 'optionalDependencies', 'peerDependencies'] as const)(
+      'counts a needed package that names it in %s',
+      (field) => {
+        const packages = {
+          ...tree(),
+          'node_modules/wrangler': entry('node_modules/wrangler', WRANGLER, { [field]: { tslib: '^2' } }),
+          'node_modules/tslib': entry('node_modules/tslib', '2.8.1', { optional: true }),
+        };
+        installAll(packages);
+        expect(check(packages).problems).toEqual([]);
+      },
+    );
+
+    it('resolves a dependency as Node does: the nearest node_modules first', () => {
+      const top = 'node_modules/@emnapi/runtime';
+      const packages: Packages = {
+        ...tree(),
+        'node_modules/wrangler': entry('node_modules/wrangler', WRANGLER, {
+          dependencies: { 'needs-runtime': '1' },
+        }),
+        'node_modules/wrangler/node_modules/needs-runtime': entry(
+          'node_modules/wrangler/node_modules/needs-runtime',
+          '1.0.0',
+          { optional: true, dependencies: { '@emnapi/runtime': '1' } },
+        ),
+        'node_modules/wrangler/node_modules/@emnapi/runtime': entry(
+          'node_modules/wrangler/node_modules/@emnapi/runtime',
+          '1.11.3',
+          { optional: true },
+        ),
+        [top]: entry(top, '1.4.5', { optional: true }),
+      };
+      const present = new Set(Object.keys(packages));
+      expect(unneededOptionals(packages, present)).toEqual([top]);
+      expect(neededPackages(packages, present).needed).toContain(
+        'node_modules/wrangler/node_modules/@emnapi/runtime',
+      );
+    });
+
+    it('takes a cycle of optional packages nothing needed depends on for unneeded', () => {
+      const packages: Packages = {
+        'node_modules/a': entry('node_modules/a', '1.0.0', { optional: true, dependencies: { b: '1' } }),
+        'node_modules/b': entry('node_modules/b', '1.0.0', { optional: true, dependencies: { a: '1' } }),
+      };
+      expect(unneededOptionals(packages, new Set(Object.keys(packages)))).toEqual([
+        'node_modules/a',
+        'node_modules/b',
+      ]);
+    });
+
+    it('lists what needed packages depend on as wanted, installed or not', () => {
+      const packages = sharpTree();
+      const { needed, wanted } = neededPackages(packages, new Set(Object.keys(sharpInstall(packages))));
+      expect(wanted).toContain('node_modules/@img/sharp-freebsd-wasm32');
+      expect(needed).not.toContain('node_modules/@img/sharp-freebsd-wasm32');
+      expect(wanted).not.toContain(SHARP_WASM32);
+    });
+
+    describe('pruneUnneededOptionals', () => {
+      it('removes them, and the check then passes', () => {
+        const packages = sharpTree();
+        installAll(sharpInstall(packages));
+        expect(pruneUnneededOptionals(root, lockOf(packages))).toEqual([SHARP_WASM32, 'node_modules/tslib']);
+        expect(installedPackages(root).packages).not.toContain(NESTED_EMNAPI);
+        expect(check(packages).problems).toEqual([]);
+        expect(pruneUnneededOptionals(root, lockOf(packages))).toEqual([]);
+      });
+
+      it('removes their .bin links and a scope left empty, and keeps the rest', () => {
+        const packages: Packages = {
+          ...tree(),
+          'node_modules/@dead/tool': entry('node_modules/@dead/tool', '1.0.0', { optional: true }),
+        };
+        installAll(packages);
+        install('node_modules/@dead/tool', '1.0.0', { bin: { tool: 'cli.js' } });
+        ship('node_modules/@dead/tool/cli.js');
+        linkBin('tool', '../@dead/tool/cli.js');
+        install('node_modules/wrangler', WRANGLER, { bin: { wrangler: 'bin.js' } });
+        ship('node_modules/wrangler/bin.js');
+        linkBin('wrangler', '../wrangler/bin.js');
+        expect(pruneUnneededOptionals(root, lockOf(packages))).toEqual(['node_modules/@dead/tool']);
+        expect(readdirSync(join(root, 'node_modules/.bin'))).toEqual(['wrangler']);
+        expect(readdirSync(join(root, 'node_modules'))).not.toContain('@dead');
+        expect(readdirSync(join(root, 'node_modules/@img'))).toEqual(['colour']);
+      });
+
+      it('does not remove a symlinked package or anything behind it', () => {
+        const outside = mkdtempSync(join(tmpdir(), 'runtime-tree-outside-'));
+        try {
+          writeFileSync(join(outside, 'package.json'), JSON.stringify({ version: '1.0.0' }));
+          const packages: Packages = {
+            'node_modules/linked': entry('node_modules/linked', '1.0.0', { optional: true }),
+          };
+          mkdirSync(join(root, 'node_modules'));
+          symlinkSync(outside, join(root, 'node_modules/linked'));
+          expect(pruneUnneededOptionals(root, lockOf(packages))).toEqual([]);
+          expect(readdirSync(outside)).toEqual(['package.json']);
+        } finally {
+          rmSync(outside, { recursive: true, force: true });
+        }
+      });
+    });
+
+    describe('as the Dockerfile runs --prune-unneeded', () => {
+      const prune = (args: string[]) =>
+        spawnSync(process.execPath, [SCRIPT, '--prune-unneeded', ...args], {
+          cwd: dirname(SCRIPT),
+          encoding: 'utf8',
+        });
+
+      it('prints what it removed and exits 0, before the check passes on the same tree', () => {
+        const packages = sharpTree();
+        installAll(sharpInstall(packages));
+        writeFileSync(join(root, 'package-lock.json'), JSON.stringify(lockOf(packages)));
+        const result = prune([root]);
+        expect(result.stderr).toBe('');
+        expect(result.stdout).toBe(
+          `removed unneeded optional packages:\n${SHARP_WASM32}\nnode_modules/tslib\n`,
+        );
+        expect(result.status).toBe(0);
+        expect(prune([root]).stdout).toBe('no unneeded optional packages on disk\n');
+        expect(check(packages).problems).toEqual([]);
+      });
+
+      it('exits 2 without a pruned lockfile', () => {
+        const result = prune([root]);
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain('cannot prune the runtime tree: ');
+      });
+
+      it('runs in the Dockerfile after `npm prune` and before the check', () => {
+        const dockerfile = readFileSync(join(import.meta.dirname, '../../Dockerfile'), 'utf8');
+        const steps = [
+          '&& npm prune --no-audit --no-fund',
+          '&& node /tmp/check-runtime-tree.mjs --prune-unneeded /app',
+          '&& node /tmp/check-runtime-tree.mjs /tmp/workspace-lock.json /app',
+        ].map((step) => dockerfile.indexOf(step));
+        expect(steps.every((at) => at > 0)).toBe(true);
+        expect([...steps].sort((a, b) => a - b)).toEqual(steps);
+      });
     });
   });
 

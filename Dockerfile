@@ -31,7 +31,10 @@ RUN npx nx run-many -t build
 # tools/runtime-image/check-runtime-tree.mjs compares the workspace lockfile, the pruned lockfile and node_modules
 # in both directions and refuses a comparison too small to be the wrangler tree. `npm ls --all` adds npm's verdict on
 # the dependency edges: it exits non-zero on a missing or invalid dependency, but 0 on an extraneous package, which
-# is why the script walks the disk itself.
+# is why the script walks the disk itself and why the build greps its output for one.
+# Before the check, `--prune-unneeded` removes the optional packages that only packages absent here depend on
+# (#1012): `npm prune` keeps what sharp's skipped freebsd and webcontainers wasm32 builds depend on
+# (@img/sharp-wasm32, its @emnapi/runtime and tslib; about 9.5 MB), which npm itself then calls extraneous.
 # Last, npm's hidden lockfile goes (#1005): node_modules/.package-lock.json is npm's cache of the tree it has just
 # been checked against, and nothing in the image runs npm.
 FROM deps AS runtime-deps
@@ -39,10 +42,12 @@ COPY tools/runtime-image/runtime-package.mjs tools/runtime-image/check-runtime-t
 RUN cp package-lock.json /tmp/workspace-lock.json \
   && node /tmp/runtime-package.mjs \
   && npm prune --no-audit --no-fund \
+  && node /tmp/check-runtime-tree.mjs --prune-unneeded /app \
   && node /tmp/check-runtime-tree.mjs /tmp/workspace-lock.json /app \
-  && npm ls --all > /dev/null \
+  && npm ls --all > /tmp/npm-ls.txt \
+  && ! grep ' extraneous$' /tmp/npm-ls.txt \
   && npm ls sharp undici \
-  && rm /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs node_modules/.package-lock.json
+  && rm /tmp/npm-ls.txt /tmp/workspace-lock.json /tmp/runtime-package.mjs /tmp/check-runtime-tree.mjs node_modules/.package-lock.json
 
 # --- runtime: wrangler only, the bundled Worker, the built assets, the config and the migrations ---
 # Everything under /app belongs to `node`. `COPY --chown` sets that as the files land; a `chown -R` afterwards
