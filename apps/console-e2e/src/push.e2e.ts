@@ -1,5 +1,6 @@
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { press } from './support/press';
 import {
   emulatePush,
   fakePushDeliveries,
@@ -42,7 +43,7 @@ test('Turn on: nothing is asked on load, one tap asks once and the api stores th
   expect(await storedPushDevices(stack)).toBe(0);
   await expectAccessible(page, 'Settings, Notifications off');
 
-  await off.getByRole('button', { name: ru('push.enable') }).click();
+  await press(off.getByRole('button', { name: ru('push.enable') }));
 
   const on = page.getByTestId('push-on');
   await expect(on).toBeVisible();
@@ -69,7 +70,7 @@ test('«Прислать тестовое» reaches this device decrypted and op
   await expect(on).toBeVisible();
 
   const send = on.getByRole('button', { name: ru('push.test.send') });
-  await send.click();
+  await press(send);
   await expect(on.getByTestId('push-test-sent')).toContainText(ru('push.test.sent'));
 
   const deliveries = await fakePushDeliveries(stack, endpoint);
@@ -90,7 +91,7 @@ test('«Прислать тестовое» reaches this device decrypted and op
       answers.push(response.status());
     }
   });
-  await send.click();
+  await press(send);
   const [before, after] = ru('push.test.wait', { s: '\u0000' }).split('\u0000');
   const wait = on.getByTestId('push-test-wait');
   await expect(wait).toHaveText(
@@ -145,7 +146,7 @@ test('«Выключить» drops this device on the server and in the browser'
   await expect(on).toBeVisible();
   expect(await storedPushDevices(stack)).toBe(1);
 
-  await on.getByRole('button', { name: ru('push.turnOffAria') }).click();
+  await press(on.getByRole('button', { name: ru('push.turnOffAria') }));
 
   const off = page.getByTestId('push-off');
   await expect(off).toBeVisible();
