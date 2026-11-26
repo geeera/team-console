@@ -3,6 +3,7 @@ import {
   checkCreateEnrolmentIntentInput,
   checkPollEnrolmentInput,
   checkStartEnrolmentInput,
+  hasUnshownText,
   isEnrolmentIntentCreatedDto,
   isLinuxInstallCommandsDto,
   isRunnerInstallCommandsDto,
@@ -12,6 +13,7 @@ import {
   isStartEnrolmentResponse,
   runnerKeyFingerprintOf,
   setupCommandOf,
+  shownTextOf,
   type EnrolmentIntentDto,
 } from './enrolment-intent';
 
@@ -186,6 +188,31 @@ describe('checkPollEnrolmentInput and checkApproveEnrolmentIntentInput', () => {
       ok: false,
       field: 'body',
     });
+  });
+});
+
+describe('console text shown to the owner (R-INT-3, R-INT-7)', () => {
+  it.each([
+    ['an escape sequence', 'Geeera\u001b[31m'],
+    ['a right-to-left override', 'Geeera\u202Egpj.exe'],
+    ['a first-strong isolate', '\u2068Geeera\u2069'],
+    ['a zero-width joiner', 'Gee\u200Dera'],
+    ['a line separator', 'Geeera\u2028Approve now'],
+    ['a newline', 'Geeera\nApprove now'],
+  ])('finds %s', (_label, value) => {
+    expect(hasUnshownText(value)).toBe(true);
+  });
+
+  it('passes plain text in any script', () => {
+    expect(hasUnshownText('Geeera')).toBe(false);
+    expect(hasUnshownText('Команда Кирилла')).toBe(false);
+  });
+
+  it('strips those characters, collapses whitespace and cuts to the cap in code points', () => {
+    expect(shownTextOf('  Gee\u202Eera\u001b[31m\n team ', 64)).toBe('Geeera[31m team');
+    expect(shownTextOf('😀'.repeat(70), 64)).toBe('😀'.repeat(64));
+    expect(shownTextOf('\u202E\u2066', 64)).toBe('');
+    expect(hasUnshownText(shownTextOf('a\u2067b\u0007c', 64))).toBe(false);
   });
 });
 

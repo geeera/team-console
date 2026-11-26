@@ -410,6 +410,21 @@ describe('setup (#634 PR 2)', () => {
     expect(await readdir(home)).toEqual(expect.not.arrayContaining(['config.json']));
   });
 
+  // R-INT-3: a pasted line cannot point the root setup at a plain-http console, or at anything but an origin.
+  it.each([
+    'http://console.example',
+    'http://192.168.1.10:8787',
+    'ftp://console.example',
+    'https://user:pass@console.example',
+    'https://console.example/path',
+    'https://console.example/?url=https://evil.example',
+  ])('refuses --url %s before anything runs as _tcrunner', async (url) => {
+    const mac = world();
+    await expect(run(mac, { url })).rejects.toThrow(/--url must be the console origin, https:/);
+    expect(mac.execs).toEqual([]);
+    expect(mac.requests).toEqual([]);
+  });
+
   it('refuses to re-enrol against another console', async () => {
     const mac = world();
     await run(mac);

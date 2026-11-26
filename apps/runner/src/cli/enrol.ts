@@ -1,7 +1,9 @@
 import { join } from 'node:path';
 import { ENROLMENT_CODE_PREFIX, OPAQUE_TOKEN_TAIL } from '@shared/redaction';
 import {
+  ENROLMENT_ACCOUNT_NAME_MAX,
   ENROLMENT_INTENT_COLLECT_SECONDS,
+  hasUnshownText,
   isEnrolmentIntentId,
   runnerKeyFingerprintOf,
   type EnrolRunnerInput,
@@ -22,6 +24,7 @@ import {
   type EnrolBackend,
   type RunnerConfig,
 } from '../config/config';
+import { isBuiltInConsoleOrigin } from '../config/console-origins';
 import { RunnerFileError, ensurePrivateDir, pathExists } from '../config/private-files';
 import {
   CREDENTIALS_DIR,
@@ -82,7 +85,7 @@ export interface EnrolDeps {
   readonly host: RunnerHostDto;
   /** Where the key is stored; the host's keychain or file when absent. */
   readonly keys?: RunnerKeyDeps;
-  /** The intent door's lines for the operator: the account and the fingerprint to compare. */
+  /** The intent door's lines for the operator: the console's origin, its account name and the fingerprint to compare. */
   readonly out?: (line: string) => void;
   readonly sleep?: (ms: number) => Promise<void>;
   readonly now?: () => Date;
@@ -245,8 +248,29 @@ export class EnrolIntentError extends Error {
   }
 }
 
-/** Text from the console printed to a terminal: no control or format character can move the cursor or recolour it. */
-const terminalText = (value: string): string => value.replace(/[\p{Cc}\p{Cf}]/gu, '').slice(0, 128);
+/**
+ * The console's identity on the confirmation (R-INT-3): the origin this runner talks to, said to be one compiled into
+ * it or loudly not. A rogue console chooses its account name, so the name never stands for the console.
+ */
+export function consoleLineOf(apiUrl: string): string {
+  return isBuiltInConsoleOrigin(apiUrl)
+    ? `Console: ${apiUrl} (built into this runner).`
+    : `Console: ${apiUrl}. THIS IS NOT A CONSOLE BUILT INTO THIS RUNNER: stop (Ctrl-C) unless you run it yourself.`;
+}
+
+/**
+ * The account name `start` returned, judged as untrusted console text (R-INT-3, as R-INT-7 judges host fields): one
+ * with a control, bidi or separator character, blank or longer than the console ever sends is refused, never
+ * cleaned up, because only a console that is not ours sends one.
+ */
+function accountNameOf(value: string): string {
+  if (hasUnshownText(value) || value.trim() === '' || [...value].length > ENROLMENT_ACCOUNT_NAME_MAX) {
+    throw new EnrolIntentError(
+      'the console sent an account name with control or direction characters: do not approve; press «Отклонить» (Reject) in the console, and check the --url you were given',
+    );
+  }
+  return value;
+}
 
 const sleepFor = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -285,14 +309,18 @@ async function enrolByIntent(
   const out = deps.out ?? ((): void => undefined);
   const sleep = deps.sleep ?? sleepFor;
   const now = deps.now ?? ((): Date => new Date());
+  out(consoleLineOf(apiUrl));
   const start = await startEnrolment(apiUrl, { intentId, ...described }, deps.fetch).catch(intentRefusalOf);
+  const accountName = accountNameOf(start.accountName);
   const fingerprint = await runnerKeyFingerprintOf(described.publicKey);
   if (start.fingerprint !== fingerprint) {
     throw new EnrolIntentError(
       `the console names another key (${start.fingerprint}) than this machine's (${fingerprint}): do not approve; press «Отклонить» (Reject) in the console`,
     );
   }
-  out(`Request sent to account «${terminalText(start.accountName)}».`);
+  out(
+    `Request sent to the account that console names «${accountName}» (its text, not checked by this runner).`,
+  );
   out(
     `Compare this code with the one in the console, then press «Подтвердить» (Approve) there: ${fingerprint}`,
   );
