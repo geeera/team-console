@@ -497,6 +497,11 @@ describe('RunnersRepo', () => {
       // `all` keeps no list, so no attribution either.
       expect(await repo.setScope(ACCOUNT_D, runner.id, ALL, 'owner-1', inD(runner.id))).toBe('changed');
       expect(await nonEnrollerOf(runner.id)).toEqual([]);
+      await expect(
+        env.DB.prepare(`UPDATE runners SET non_enroller_projects = '["d824-theirs"]' WHERE id = ?1`)
+          .bind(runner.id)
+          .run(),
+      ).rejects.toThrow(/CHECK constraint failed/u);
     });
 
     it('migration 0046 marks the entries whose latest addition another actor audited', async () => {
