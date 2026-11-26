@@ -974,6 +974,8 @@ describe('ci.yml scope decisions', () => {
       expect(commands).toContainEqual(['node', 'tools/runtime-image/image-files.mjs', 'check', '"${lists}"']);
       expect(all).toContain('http://127.0.0.1:8787/api/v1/healthz');
       expect(all).toContain("grep --quiet --fixed-strings 'No migrations to apply'");
+      // #1019: the trace the bundled update-check package leaves before any request.
+      expect(all).toContain("sh -c 'test ! -e /tmp/update-check && echo none'");
       // #1019: the listings held as one call, not as a line. They only read: no network, the script mounted
       // read-only, and no option beyond these (no `--privileged`, no second volume).
       const listings = dockerCallsIn(imageRuns, 'run', ['--rm', '--detach']).filter(
