@@ -90,7 +90,7 @@ const workspaceLockOf = (packages: Packages) => lockOf(packages, { devDependenci
 
 const SHARP_WASM32 = 'node_modules/@img/sharp-wasm32';
 const NESTED_EMNAPI = `${SHARP_WASM32}/node_modules/@emnapi/runtime`;
-/** The packages only absent ones need in the image (#1012) — sharp-wasm32, its own copy of @emnapi/runtime, tslib. */
+/** What only absent packages need on linux (#1012): sharp-wasm32, its own @emnapi/runtime, tslib. */
 const UNNEEDED = [SHARP_WASM32, NESTED_EMNAPI, 'node_modules/tslib'];
 
 /**

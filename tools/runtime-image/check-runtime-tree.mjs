@@ -36,7 +36,7 @@ import { fileURLToPath } from 'node:url';
  * @typedef {{ compared: number, problems: string[] }} CheckResult
  */
 
-/** The pruned tree has 43 packages on linux (2026-11). A floor, not the exact count: a wrangler bump may move it. */
+/** The pruned tree has 40 packages on linux (#1012). A floor, not the exact count: a wrangler bump may move it. */
 export const MIN_COMPARED = 30;
 /** The `miniflare.sharp` override exists for a fix that landed in 0.35.5; an older sharp means it was dropped. */
 export const SHARP_FLOOR = '0.35.5';
