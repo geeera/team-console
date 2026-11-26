@@ -172,224 +172,214 @@ function intentOwnerOf(c: Context, account: AccountRecord): IntentOwner {
  * (R-INT-6) after comparing the fingerprint the wizard displayed with the bound key (compare-and-set).
  */
 export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
-  return (
-    new Hono<WorkerHonoEnv<ApiEnv>>()
-      .post('/:id/runners/enrolment-intents', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-        const account = await ownedAccountOf(c);
-        if (account instanceof Response) {
-          return account;
-        }
-        const input = checkCreateEnrolmentIntentInput(await jsonBody(c));
-        if (!input.ok) {
-          return invalid(c, 'enrolment-intent-invalid', input.field, input.detail);
-        }
-        const { name, isolation, projectScope, allowedProjects } = input.value;
-        const isolationRefusal = isolationNoneRefusal(c, isolation);
-        if (isolationRefusal !== null) {
-          return isolationRefusal;
-        }
-        if ((await foreignSlugsOf(c, account, allowedProjects)).length > 0) {
-          return invalid(
-            c,
-            'allowed-projects-invalid',
-            'allowedProjects',
-            'allowedProjects must name active projects of this account',
-          );
-        }
-        const now = new Date();
-        const at = now.toISOString();
-        const expiresAt = new Date(now.getTime() + ENROLMENT_INTENT_TTL_SECONDS * 1000).toISOString();
-        const intentId = newUlid(now.getTime());
-        // Judged before the write: the command names only the origin and this id, so it is known now.
-        const origin = commandOriginOf(c);
-        const command = origin === null ? null : setupCommandOf(origin, intentId);
-        if (origin === null || command === null) {
-          return commandOriginMissing(c);
-        }
-        const outcome = await new EnrolmentIntentsRepo(c.env.DB).create(
-          {
-            id: intentId,
-            ...intentOwnerOf(c, account),
-            name,
-            projectScope,
-            allowedProjects,
-            isolation,
-            at,
-            expiresAt,
-          },
-          { liveMax: ENROLMENT_INTENTS_LIVE_MAX, perHour: ENROLMENT_INTENTS_PER_HOUR },
-          auditOf(c, account, at, 'enrolment-intent.created', intentId, {
-            name,
-            projectScope,
-            allowedProjects,
-            isolation,
-            expiresAt,
-          }),
+  return new Hono<WorkerHonoEnv<ApiEnv>>()
+    .post('/:id/runners/enrolment-intents', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const input = checkCreateEnrolmentIntentInput(await jsonBody(c));
+      if (!input.ok) {
+        return invalid(c, 'enrolment-intent-invalid', input.field, input.detail);
+      }
+      const { name, isolation, projectScope, allowedProjects } = input.value;
+      const isolationRefusal = isolationNoneRefusal(c, isolation);
+      if (isolationRefusal !== null) {
+        return isolationRefusal;
+      }
+      if ((await foreignSlugsOf(c, account, allowedProjects)).length > 0) {
+        return invalid(
+          c,
+          'allowed-projects-invalid',
+          'allowedProjects',
+          'allowedProjects must name active projects of this account',
         );
-        if (outcome === 'live-limit') {
-          return conflict(
-            c,
-            'enrolment-intent-limit',
-            `An account holds at most ${String(ENROLMENT_INTENTS_LIVE_MAX)} open enrolment requests: withdraw one or wait for it to expire`,
-          );
-        }
-        if (outcome === 'hourly-limit') {
-          c.get('logger').warn('enrolment intent refused', { reason: 'hourly-limit', accountId: account.id });
-          return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429 });
-        }
-        c.get('logger').info('enrolment intent created', { accountId: account.id, projectScope, isolation });
-        const body: EnrolmentIntentCreatedDto = {
-          intentId,
+      }
+      const now = new Date();
+      const at = now.toISOString();
+      const expiresAt = new Date(now.getTime() + ENROLMENT_INTENT_TTL_SECONDS * 1000).toISOString();
+      const intentId = newUlid(now.getTime());
+      // Judged before the write: the command names only the origin and this id, so it is known now.
+      const origin = commandOriginOf(c);
+      const command = origin === null ? null : setupCommandOf(origin, intentId);
+      if (origin === null || command === null) {
+        return commandOriginMissing(c);
+      }
+      const outcome = await new EnrolmentIntentsRepo(c.env.DB).create(
+        {
+          id: intentId,
+          ...intentOwnerOf(c, account),
+          name,
+          projectScope,
+          allowedProjects,
+          isolation,
+          at,
           expiresAt,
-          command,
-          installCommands: isolation === 'user' ? macInstallCommandsOf(c.env, origin, intentId) : null,
-          linuxInstall: isolation === 'container' ? linuxInstallCommandsOf(c.env, origin, intentId) : null,
-        };
-        return c.json(body, 201);
-      })
-
-      // #817: the caller's own open intents, so one held by a closed tab can be withdrawn before it expires.
-      .get('/:id/runners/enrolment-intents', async (c) => {
-        const account = await ownedAccountOf(c);
-        if (account instanceof Response) {
-          return account;
-        }
-        const now = new Date().toISOString();
-        const intents = await new EnrolmentIntentsRepo(c.env.DB).listOpen(
-          intentOwnerOf(c, account),
-          now,
-          ENROLMENT_INTENTS_LIVE_MAX,
-        );
-        const body: EnrolmentIntentListDto = { intents: intents.map((intent) => intentDtoOf(intent, now)) };
-        return c.json(body);
-      })
-
-      .get('/:id/runners/enrolment-intents/:intent', async (c) => {
-        const account = await ownedAccountOf(c);
-        if (account instanceof Response) {
-          return account;
-        }
-        const intentId = c.req.param('intent');
-        const intent = isEnrolmentIntentId(intentId)
-          ? await new EnrolmentIntentsRepo(c.env.DB).findOwned(intentOwnerOf(c, account), intentId)
-          : null;
-        return intent === null ? intentNotFound(c) : c.json(intentDtoOf(intent, new Date().toISOString()));
-      })
-
-      .post(
-        '/:id/runners/enrolment-intents/:intent/approve',
-        writeLimit(SMALL_WRITE_MAX_BYTES),
-        async (c) => {
-          const account = await ownedAccountOf(c);
-          if (account instanceof Response) {
-            return account;
-          }
-          const intentId = c.req.param('intent');
-          const owner = intentOwnerOf(c, account);
-          const intents = new EnrolmentIntentsRepo(c.env.DB);
-          const found = isEnrolmentIntentId(intentId) ? await intents.findOwned(owner, intentId) : null;
-          if (found === null) {
-            return intentNotFound(c);
-          }
-          const input = checkApproveEnrolmentIntentInput(await jsonBody(c));
-          if (!input.ok) {
-            return invalid(c, 'enrolment-intent-invalid', input.field, input.detail);
-          }
-          const { fingerprint } = input.value;
-          const now = new Date();
-          const at = now.toISOString();
-
-          // The answer for an intent the approval cannot (or need not) write, from the row as it stands now.
-          const settled = (intent: EnrolmentIntentRecord): Response => {
-            const state = intentStateAt(intent, at);
-            if (state === 'expired' || state === 'withdrawn') {
-              return intentNotFound(c);
-            }
-            if (state === 'pending') {
-              return conflict(c, 'enrolment-intent-not-bound', 'No runner has asked on this request yet');
-            }
-            // R-INT-1: the owner approves the key they were shown, never one bound since.
-            if (intent.bind?.fingerprint !== fingerprint) {
-              c.get('logger').warn('enrolment refused', { reason: 'fingerprint-mismatch' });
-              return conflict(
-                c,
-                'enrolment-fingerprint-mismatch',
-                'The fingerprint is not the one of the runner that asked',
-              );
-            }
-            // Approved already with this very key (a repeated click): the same answer, nothing written again.
-            return state === 'bound'
-              ? conflict(
-                  c,
-                  'enrolment-intent-changed',
-                  'The request changed while it was being approved: read it again',
-                )
-              : c.json(intentDtoOf(intent, at));
-          };
-
-          if (intentStateAt(found, at) !== 'bound' || found.bind?.fingerprint !== fingerprint) {
-            return settled(found);
-          }
-          const isolationRefusal = isolationNoneRefusal(c, found.isolation);
-          if (isolationRefusal !== null) {
-            return isolationRefusal;
-          }
-          if (account.suspendedAt !== null) {
-            return accountSuspended(c);
-          }
-          const runnerId = newUlid(now.getTime());
-          const approved = await intents.approve(
-            owner,
-            found.id,
-            { fingerprint, runnerId, at },
-            (intent, bind) =>
-              auditOf(c, account, at, 'runner.enrolled', runnerId, {
-                name: intent.name,
-                isolation: intent.isolation,
-                version: bind.version,
-                projectScope: intent.projectScope,
-                allowedProjects: intent.allowedProjects,
-                accessSources: bind.capabilities.accessSources ?? null,
-                createdBy: intent.createdBy,
-                via: 'intent',
-                intentId: intent.id,
-                fingerprint: bind.fingerprint,
-              }),
-          );
-          if (approved === null) {
-            // The write decided (a withdrawal, an expiry or a second approval won since the read above); read again to say which.
-            const current = await intents.findOwned(owner, found.id);
-            return current === null ? intentNotFound(c) : settled(current);
-          }
-          c.get('logger').info('runner enrolled', { runnerId, isolation: approved.isolation, via: 'intent' });
-          return c.json(intentDtoOf(approved, at));
         },
-      )
+        { liveMax: ENROLMENT_INTENTS_LIVE_MAX, perHour: ENROLMENT_INTENTS_PER_HOUR },
+        auditOf(c, account, at, 'enrolment-intent.created', intentId, {
+          name,
+          projectScope,
+          allowedProjects,
+          isolation,
+          expiresAt,
+        }),
+      );
+      if (outcome === 'live-limit') {
+        return conflict(
+          c,
+          'enrolment-intent-limit',
+          `An account holds at most ${String(ENROLMENT_INTENTS_LIVE_MAX)} open enrolment requests: withdraw one or wait for it to expire`,
+        );
+      }
+      if (outcome === 'hourly-limit') {
+        c.get('logger').warn('enrolment intent refused', { reason: 'hourly-limit', accountId: account.id });
+        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429 });
+      }
+      c.get('logger').info('enrolment intent created', { accountId: account.id, projectScope, isolation });
+      const body: EnrolmentIntentCreatedDto = {
+        intentId,
+        expiresAt,
+        command,
+        installCommands: isolation === 'user' ? macInstallCommandsOf(c.env, origin, intentId) : null,
+        linuxInstall: isolation === 'container' ? linuxInstallCommandsOf(c.env, origin, intentId) : null,
+      };
+      return c.json(body, 201);
+    })
 
-      .post('/:id/runners/enrolment-intents/:intent/withdraw', async (c) => {
-        const account = await ownedAccountOf(c);
-        if (account instanceof Response) {
-          return account;
-        }
-        const intentId = c.req.param('intent');
-        const at = new Date().toISOString();
-        // One 404 for a malformed id, another account's or another owner's intent, an expired, an approved or an
-        // already withdrawn one.
-        const withdrawn =
-          isEnrolmentIntentId(intentId) &&
-          (await new EnrolmentIntentsRepo(c.env.DB).withdraw(
-            intentOwnerOf(c, account),
-            intentId,
-            at,
-            auditOf(c, account, at, 'enrolment-intent.withdrawn', intentId, {}),
-          ));
-        if (!withdrawn) {
+    .get('/:id/runners/enrolment-intents', async (c) => {
+      // #817: the caller's own open intents, so one held by a closed tab can be withdrawn before it expires.
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const now = new Date().toISOString();
+      const intents = await new EnrolmentIntentsRepo(c.env.DB).listOpen(
+        intentOwnerOf(c, account),
+        now,
+        ENROLMENT_INTENTS_LIVE_MAX,
+      );
+      const body: EnrolmentIntentListDto = { intents: intents.map((intent) => intentDtoOf(intent, now)) };
+      return c.json(body);
+    })
+
+    .get('/:id/runners/enrolment-intents/:intent', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const intentId = c.req.param('intent');
+      const intent = isEnrolmentIntentId(intentId)
+        ? await new EnrolmentIntentsRepo(c.env.DB).findOwned(intentOwnerOf(c, account), intentId)
+        : null;
+      return intent === null ? intentNotFound(c) : c.json(intentDtoOf(intent, new Date().toISOString()));
+    })
+
+    .post('/:id/runners/enrolment-intents/:intent/approve', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const intentId = c.req.param('intent');
+      const owner = intentOwnerOf(c, account);
+      const intents = new EnrolmentIntentsRepo(c.env.DB);
+      const found = isEnrolmentIntentId(intentId) ? await intents.findOwned(owner, intentId) : null;
+      if (found === null) {
+        return intentNotFound(c);
+      }
+      const input = checkApproveEnrolmentIntentInput(await jsonBody(c));
+      if (!input.ok) {
+        return invalid(c, 'enrolment-intent-invalid', input.field, input.detail);
+      }
+      const { fingerprint } = input.value;
+      const now = new Date();
+      const at = now.toISOString();
+
+      // The answer for an intent the approval cannot (or need not) write, from the row as it stands now.
+      const settled = (intent: EnrolmentIntentRecord): Response => {
+        const state = intentStateAt(intent, at);
+        if (state === 'expired' || state === 'withdrawn') {
           return intentNotFound(c);
         }
-        c.get('logger').info('enrolment intent withdrawn', { accountId: account.id });
-        return c.body(null, 204);
-      })
-  );
+        if (state === 'pending') {
+          return conflict(c, 'enrolment-intent-not-bound', 'No runner has asked on this request yet');
+        }
+        // R-INT-1: the owner approves the key they were shown, never one bound since.
+        if (intent.bind?.fingerprint !== fingerprint) {
+          c.get('logger').warn('enrolment refused', { reason: 'fingerprint-mismatch' });
+          return conflict(
+            c,
+            'enrolment-fingerprint-mismatch',
+            'The fingerprint is not the one of the runner that asked',
+          );
+        }
+        // Approved already with this very key (a repeated click): the same answer, nothing written again.
+        return state === 'bound'
+          ? conflict(
+              c,
+              'enrolment-intent-changed',
+              'The request changed while it was being approved: read it again',
+            )
+          : c.json(intentDtoOf(intent, at));
+      };
+
+      if (intentStateAt(found, at) !== 'bound' || found.bind?.fingerprint !== fingerprint) {
+        return settled(found);
+      }
+      const isolationRefusal = isolationNoneRefusal(c, found.isolation);
+      if (isolationRefusal !== null) {
+        return isolationRefusal;
+      }
+      if (account.suspendedAt !== null) {
+        return accountSuspended(c);
+      }
+      const runnerId = newUlid(now.getTime());
+      const approved = await intents.approve(owner, found.id, { fingerprint, runnerId, at }, (intent, bind) =>
+        auditOf(c, account, at, 'runner.enrolled', runnerId, {
+          name: intent.name,
+          isolation: intent.isolation,
+          version: bind.version,
+          projectScope: intent.projectScope,
+          allowedProjects: intent.allowedProjects,
+          accessSources: bind.capabilities.accessSources ?? null,
+          createdBy: intent.createdBy,
+          via: 'intent',
+          intentId: intent.id,
+          fingerprint: bind.fingerprint,
+        }),
+      );
+      if (approved === null) {
+        // The write decided (a withdrawal, an expiry or a second approval won since the read above); read again to say which.
+        const current = await intents.findOwned(owner, found.id);
+        return current === null ? intentNotFound(c) : settled(current);
+      }
+      c.get('logger').info('runner enrolled', { runnerId, isolation: approved.isolation, via: 'intent' });
+      return c.json(intentDtoOf(approved, at));
+    })
+
+    .post('/:id/runners/enrolment-intents/:intent/withdraw', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const intentId = c.req.param('intent');
+      const at = new Date().toISOString();
+      // One 404 for a malformed id, another account's or another owner's intent, an expired, an approved or an
+      // already withdrawn one.
+      const withdrawn =
+        isEnrolmentIntentId(intentId) &&
+        (await new EnrolmentIntentsRepo(c.env.DB).withdraw(
+          intentOwnerOf(c, account),
+          intentId,
+          at,
+          auditOf(c, account, at, 'enrolment-intent.withdrawn', intentId, {}),
+        ));
+      if (!withdrawn) {
+        return intentNotFound(c);
+      }
+      c.get('logger').info('enrolment intent withdrawn', { accountId: account.id });
+      return c.body(null, 204);
+    });
 }
 
 /**
