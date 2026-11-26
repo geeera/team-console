@@ -475,6 +475,23 @@ describe('runtime tree check', () => {
       ]);
     });
 
+    // #1019: a manifest that cannot be read was reported as "not JSON". Root reads it anyway, so no case to make.
+    it.skipIf(process.getuid?.() === 0)(
+      'fails on a .bin link into a package whose package.json cannot be read, and says why',
+      () => {
+        const packages = tree();
+        installAll(packages);
+        mkdirSync(join(root, 'node_modules/stranger'));
+        writeFileSync(join(root, 'node_modules/stranger/package.json'), '{ "bin": "cli.js" }');
+        chmodSync(join(root, 'node_modules/stranger/package.json'), 0o000);
+        linkBin('stranger', '../stranger/cli.js');
+        expect(check(packages).problems).toEqual([
+          'node_modules/.bin/stranger: links into stranger, whose package.json cannot be read (EACCES)',
+          'node_modules/stranger: on disk but not in the pruned lockfile',
+        ]);
+      },
+    );
+
     it.each([
       ['a list', '[]'],
       ['a string', '"cli.js"'],
@@ -753,7 +770,21 @@ describe('runtime tree check', () => {
         readFileSync(join(import.meta.dirname, '../../package.json'), 'utf8'),
       );
       expect(overrideProblems(workspace)).toEqual([]);
-      expect(PINNED_BY_OVERRIDE).toEqual(['sharp', 'undici']);
+    });
+
+    // #1019: the pins are named twice, here and in the Dockerfile's `npm ls`; the two must agree.
+    it('pins what the Dockerfile lists with `npm ls`, each under a package that depends on it', () => {
+      const dockerfile = readFileSync(join(import.meta.dirname, '../../Dockerfile'), 'utf8');
+      // The one `npm ls` that names packages: `npm ls --all` takes none.
+      const listed = [...dockerfile.matchAll(/^\s*&& npm ls ([^-\s][^\\>&]*?)\s*\\$/gm)];
+      expect(listed).toHaveLength(1);
+      expect((listed[0]?.[1] ?? '').split(/\s+/).sort()).toEqual(Object.keys(PINNED_BY_OVERRIDE).sort());
+      const lock = JSON.parse(readFileSync(join(import.meta.dirname, '../../package-lock.json'), 'utf8')) as {
+        packages: Record<string, { dependencies?: Record<string, string> }>;
+      };
+      for (const [name, dependent] of Object.entries(PINNED_BY_OVERRIDE)) {
+        expect(Object.keys(lock.packages[`node_modules/${dependent}`]?.dependencies ?? {}), name).toContain(name);
+      }
     });
 
     it.each([
@@ -763,7 +794,7 @@ describe('runtime tree check', () => {
       ['the package itself as `.`', { sharp: { '.': '0.35.5', 'detect-libc': '2.0.0' }, undici: '7.30.1' }],
       ['a scoped package beside them', { '@img/colour': '1.0.0', sharp: '0.35.5', undici: '7.30.1' }],
     ])('accepts %s', (_case, overrides) => {
-      expect(overrideProblems({ overrides }, ['sharp', 'undici'])).toEqual([]);
+      expect(overrideProblems({ overrides }, { sharp: 'miniflare', undici: 'miniflare' })).toEqual([]);
     });
 
     it.each([
@@ -781,7 +812,7 @@ describe('runtime tree check', () => {
       ['an empty name', { '': '1.0.0', sharp: '0.35.5' }, 'overrides."" names no package'],
       ['`.` at the top, where no package owns the map', { '.': '1.0.0' }, 'overrides."." names no package'],
     ])('reports %s', (_case, overrides, problem) => {
-      expect(overrideProblems({ overrides }, [])).toEqual([`package.json: ${problem}`]);
+      expect(overrideProblems({ overrides }, {})).toEqual([`package.json: ${problem}`]);
     });
 
     it('reports each required pin no override names with a version', () => {
@@ -791,6 +822,30 @@ describe('runtime tree check', () => {
         'package.json: no override pins sharp',
         'package.json: no override pins undici',
       ]);
+    });
+
+    // #1019: a pin counted at any depth, under any package.
+    it.each([
+      [
+        'nested a level deeper',
+        { miniflare: { youch: { sharp: '0.35.5' } }, undici: '7.30.1' },
+        'overrides."miniflare"."youch"."sharp"',
+      ],
+      ['under another package', { nx: { sharp: '0.35.5' }, undici: '7.30.1' }, 'overrides."nx"."sharp"'],
+      [
+        'as `.` of a map under another package',
+        { nx: { sharp: { '.': '0.35.5' } }, undici: '7.30.1' },
+        'overrides."nx"."sharp"."."',
+      ],
+    ])('rejects a pin %s, which npm does not apply to the copy `npm ls` names', (_case, overrides, path) => {
+      expect(overrideProblems({ overrides })).toEqual([
+        `package.json: ${path} does not pin miniflare's sharp; only a pin at the top or under miniflare does`,
+      ]);
+    });
+
+    it('accepts a misplaced pin beside one where it applies', () => {
+      const overrides = { nx: { sharp: '0.35.5' }, miniflare: { 'sharp@0.35': '0.35.5', undici: '7.30.1' } };
+      expect(overrideProblems({ overrides })).toEqual([]);
     });
   });
 

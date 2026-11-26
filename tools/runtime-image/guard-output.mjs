@@ -11,10 +11,9 @@
 //                                             (a build); the token is made first and never leaves the runner
 //
 // Exit codes: 0 printed, 2 it could not be. The step's own failure comes from `set -o pipefail`.
-// No dependencies: the job runs this on the runner without `npm ci`.
+// No dependencies but check-runtime-tree.mjs beside it: the job runs this on the runner without `npm ci`.
 import { randomBytes } from 'node:crypto';
-import { realpathSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { isEntryPoint } from './check-runtime-tree.mjs';
 
 /** @returns {string} */
 const randomToken = () => randomBytes(16).toString('hex');
@@ -110,14 +109,4 @@ async function main(argv) {
   }
 }
 
-/** As in check-runtime-tree.mjs: realpath on both sides, so a symlinked entry still runs `main()`. */
-function isEntryPoint() {
-  const entry = process.argv[1];
-  // No script path (`node -e`, a script piped to stdin): nothing says this file was meant to run, and guessing
-  // "imported" would end 0 without doing the work.
-  if (entry === undefined)
-    throw new Error(`guard-output.mjs must be started as a file: node guard-output.mjs …`);
-  return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
-}
-
-if (isEntryPoint()) process.exitCode = await main(process.argv.slice(2));
+if (isEntryPoint(import.meta.url, 'guard-output.mjs')) process.exitCode = await main(process.argv.slice(2));
