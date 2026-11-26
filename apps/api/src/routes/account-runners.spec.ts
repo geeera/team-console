@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import {
   OWNER_ACCOUNT_ID,
+  type ClaimResponse,
   type EnrolmentCodeDto,
   type RunnerDto,
   type RunnerListDto,
@@ -18,6 +19,7 @@ import { sha256Hex } from '@worker/core';
 import {
   createEnrolmentCode,
   enrolBodyOf,
+  enqueueJob,
   enrolRunner,
   generateRunnerKey,
   postEnrol,
@@ -41,6 +43,7 @@ import { seedTrackerProject, send, sendAsService, slugOf } from '../testing/trac
 // 0008 security re-review on allowed_projects writes); every change audited.
 
 const RELEASE = '/api/v1/runner/release';
+const CLAIM = '/api/v1/runner/jobs/claim';
 const runnersPath = (accountId: string): string => `/api/v1/accounts/${accountId}/runners`;
 
 describe('enrolment codes', () => {
@@ -648,6 +651,50 @@ describe('the scope of a subscription runner in a two-owner account', () => {
       (await patch(other, apiKey.id, { projectScope: 'selected', allowedProjects: [theirs] })).status,
     ).toBe(200);
     expect((await patch(other, apiKey.id, { projectScope: 'all', allowedProjects: [] })).status).toBe(200);
+  });
+
+  // #824: the guard above is judged at write time; the runner re-declares its access sources on every claim poll.
+  it('stops serving another owner’s entries once the runner switches to a subscription, and cancels their live job', async () => {
+    // One API-key project, so the runner has a job of it in flight, and the case the finding names: a subscription one.
+    const theirKeyed = await projectOf(other);
+    await setProjectAccessSource(theirKeyed, 'api_key', other);
+    const theirSubscription = await projectOf(other);
+    const runner = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'selected',
+      enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
+    });
+    const listedSlugs = [theirKeyed, theirSubscription];
+    expect(
+      (await patch(other, runner.id, { projectScope: 'selected', allowedProjects: listedSlugs })).status,
+    ).toBe(200);
+    const jobId = await enqueueJob(theirKeyed, {}, other);
+    const claimed = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['api_key'] });
+    expect(claimed.status).toBe(200);
+    expect(((await claimed.json()) as ClaimResponse).job.id).toBe(jobId);
+
+    await enqueueJob(theirSubscription, {}, other);
+    const switched = await sendAsRunner(runner, 'POST', CLAIM, {
+      accessSources: ['api_key', 'subscription'],
+    });
+    // The enroller's subscription takes neither project's job, and the live one is cancelled as a narrowed scope does.
+    expect(switched.status).toBe(204);
+    const job = await env.DB.prepare(`SELECT state, result FROM jobs WHERE id = ?1`)
+      .bind(jobId)
+      .first<{ state: string; result: string }>();
+    expect(job).toEqual({ state: 'cancelled', result: JSON.stringify({ reason: 'runner-allow-list' }) });
+    // The entries stay listed (the other owner's choice for an API-key runner); nothing serves them now.
+    expect(await storedScope(runner.id)).toEqual({
+      project_scope: 'selected',
+      allowed_projects: JSON.stringify(listedSlugs),
+    });
+    const listed = await sendAsSession(enroller, 'GET', runnersPath(enroller.account.id));
+    expect(listed.status).toBe(200);
+    const row = ((await listed.json()) as RunnerListDto).runners.find((entry) => entry.id === runner.id);
+    expect(row?.servedProjects).toEqual([]);
+    expect(
+      (await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] })).status,
+    ).toBe(204);
   });
 });
 
