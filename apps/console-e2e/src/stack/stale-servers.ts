@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, join, sep } from 'node:path';
-import { privateDirectory } from './private-directory';
+import { privateDirectoryBelow } from './private-directory';
 import { groupOf, type GroupMember } from './process-group';
 import { signal } from './process-signal';
 import { WORKSPACE_ROOT } from './workspace';
@@ -57,8 +57,12 @@ export interface ServerRecord {
   readonly pid: number;
   readonly token: string;
   readonly label: string;
-  /** When the system started the server (`GroupMember.startedAt`), read right after the spawn (`startedAtOf`). */
-  readonly startedAt: string;
+  /**
+   * When the system started the server (`GroupMember.startedAt`), read right after the spawn (`leaderStartOf`).
+   * `null` when its line could not be read then (#1019): the record still finds the workerd a dead server leaves,
+   * but never takes a live leader for the server.
+   */
+  readonly startedAt: string | null;
 }
 
 /** The argument that carries a server's token; `serve-worker.mts` ignores it. */
@@ -100,14 +104,58 @@ function recordPath(dir: string, port: number): string {
 
 const RECORD_MODE = 0o600;
 
+/** What the process table tells of the leader of a group (`leaderStartOf`). */
+export type LeaderStart =
+  | { readonly state: 'started'; readonly startedAt: string }
+  | { readonly state: 'unreadable' }
+  | { readonly state: 'gone' };
+
 /**
- * When the system started the leader of the group `pid`, for its record; `null` when it is not running (any more).
- * Read through `groupOf`, so the record and the later check take it from the same source. `null` as well for a
- * leader the system's line could not be read for: there is no start time to record.
+ * When the system started the leader of the group `pid`, for its record. Read through `groupOf`, so the record and
+ * the later check take it from the same source. A leader the system's line could not be read for is running, but
+ * has no start time to record.
  */
-export function startedAtOf(pid: number, control: StaleServerControl = SYSTEM_CONTROL): string | null {
+export function leaderStartOf(pid: number, control: StaleServerControl = SYSTEM_CONTROL): LeaderStart {
   const leader = control.groupOf(pid).find((member) => member.pid === pid);
-  return leader === undefined || leader.unreadable === true ? null : leader.startedAt;
+  if (leader === undefined) {
+    return { state: 'gone' };
+  }
+  return leader.unreadable === true
+    ? { state: 'unreadable' }
+    : { state: 'started', startedAt: leader.startedAt };
+}
+
+/** A server just spawned, before its start time is read. */
+export interface SpawnedServer {
+  readonly pid: number;
+  readonly token: string;
+  readonly label: string;
+}
+
+/**
+ * Records `server` under `port` with its start time (`recordServer`), and answers a line for its log when the record
+ * is not the whole one. A server that is gone already is not recorded: there is nothing left to stop. One whose
+ * line could not be read is recorded without a start time (#1019), so a later start can still stop the workerd it
+ * leaves on the port; a live leader of such a record is never taken for the server (`isRecorded`).
+ */
+export function recordSpawnedServer(
+  dir: string,
+  port: number,
+  server: SpawnedServer,
+  root: string,
+  control: StaleServerControl = SYSTEM_CONTROL,
+): string | null {
+  const start = leaderStartOf(server.pid, control);
+  switch (start.state) {
+    case 'gone':
+      return `${server.label} (pid ${server.pid}) is not running any more: not recorded`;
+    case 'unreadable':
+      recordServer(dir, port, { ...server, startedAt: null }, root);
+      return `${server.label} (pid ${server.pid}): its start time could not be read, recorded without one`;
+    case 'started':
+      recordServer(dir, port, { ...server, startedAt: start.startedAt }, root);
+      return null;
+  }
 }
 
 /**
@@ -118,9 +166,12 @@ export function startedAtOf(pid: number, control: StaleServerControl = SYSTEM_CO
  * The `fchmod` is for a umask that takes owner bits away; it cannot give others any. It goes through the descriptor
  * of the file just created (#1013): a `chmod` by path would follow a link swapped in after the create. One writer
  * in the stack, so the write stays here; the directory rule has two and is shared (`privateDirectory`).
+ *
+ * The records sit in `dir` below `root` (the checkout): every directory on the way is checked here (#1019), not left
+ * to whoever ran before (`privateDirectoryBelow`).
  */
-export function recordServer(dir: string, port: number, record: ServerRecord): void {
-  privateDirectory(dir);
+export function recordServer(dir: string, port: number, record: ServerRecord, root: string): void {
+  privateDirectoryBelow(root, dir);
   const path = recordPath(dir, port);
   rmSync(path, { force: true });
   const descriptor = openSync(
@@ -147,7 +198,7 @@ export function forgetServer(dir: string, port: number, pid: number): void {
 /**
  * `null` for a missing or unreadable record: a run killed mid-write leaves one, and it names nothing to stop. So
  * does a record from before the start time was kept (#1006): without one the server cannot be told from a process
- * that took its pid, and it is left alone.
+ * that took its pid, and it is left alone. A start time of `null` is not missing: it was written as unknown (#1019).
  */
 function readRecord(path: string): ServerRecord | null {
   if (!existsSync(path)) {
@@ -172,8 +223,7 @@ function readRecord(path: string): ServerRecord | null {
     typeof token === 'string' &&
     token !== '' &&
     typeof label === 'string' &&
-    typeof startedAt === 'string' &&
-    startedAt !== ''
+    (startedAt === null || (typeof startedAt === 'string' && startedAt !== ''))
     ? { pid, token, label, startedAt }
     : null;
 }
@@ -241,7 +291,8 @@ export interface StackIdentity {
  * leader is, when it started at the recorded moment and its arguments after the executable are the server's own,
  * word for word and nothing more: a word that merely contains the token among other text is not one of them.
  * A group with a member that could not be read (`GroupMember.unreadable`) is nobody's, leader or not (#1013): what
- * is not known about it might be the very thing that tells it apart.
+ * is not known about it might be the very thing that tells it apart. Nor is a live leader, for a record that does not
+ * know when the server started (#1019): no start time read is `null`.
  */
 export function isRecorded(
   record: ServerRecord,

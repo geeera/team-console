@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isAlive } from './process-signal';
 import { parsePsListing, type GroupMember } from './process-group';
@@ -25,7 +25,8 @@ import {
   SERVE_WORKER,
   SERVER_TOKEN_FLAG,
   serverArgs,
-  startedAtOf,
+  leaderStartOf,
+  recordSpawnedServer,
   stopStaleServers,
   type StaleServerControl,
 } from './stale-servers';
@@ -62,11 +63,11 @@ function throughPs(argv: readonly string[]): readonly string[] {
 
 /** When the stand-in with `pid` started, as the system tells it. */
 function startOf(pid: number): string {
-  const startedAt = startedAtOf(pid);
-  if (startedAt === null) {
-    throw new Error(`the stand-in server with pid ${pid} is not running`);
+  const start = leaderStartOf(pid);
+  if (start.state !== 'started') {
+    throw new Error(`the stand-in server with pid ${pid} has no start time to read: ${start.state}`);
   }
-  return startedAt;
+  return start.startedAt;
 }
 
 /**
@@ -132,7 +133,7 @@ describe('stopStaleServers', () => {
   it('kills the process group a record points at and drops the record', async () => {
     const token = randomUUID();
     const pid = await startIdleServer(token);
-    recordServer(dir, 8700, { pid, token, label: 'worker-0 api', startedAt: startOf(pid) });
+    recordServer(dir, 8700, { pid, token, label: 'worker-0 api', startedAt: startOf(pid) }, dirname(dir));
 
     const stopped = await stopStaleServers(dir, { serverArgs: idleServerArgs });
 
@@ -143,7 +144,12 @@ describe('stopStaleServers', () => {
 
   it('leaves a live process alone when its command line does not carry the recorded token (a reused pid)', async () => {
     const pid = await startIdleServer(randomUUID());
-    recordServer(dir, 8700, { pid, token: randomUUID(), label: 'worker-0 api', startedAt: startOf(pid) });
+    recordServer(
+      dir,
+      8700,
+      { pid, token: randomUUID(), label: 'worker-0 api', startedAt: startOf(pid) },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { serverArgs: idleServerArgs });
 
@@ -155,7 +161,12 @@ describe('stopStaleServers', () => {
   it('leaves a live process alone when it started at another moment than the recorded server (a reused pid)', async () => {
     const token = randomUUID();
     const pid = await startIdleServer(token);
-    recordServer(dir, 8700, { pid, token, label: 'worker-0 api', startedAt: `not ${startOf(pid)}` });
+    recordServer(
+      dir,
+      8700,
+      { pid, token, label: 'worker-0 api', startedAt: `not ${startOf(pid)}` },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { serverArgs: idleServerArgs });
 
@@ -166,7 +177,12 @@ describe('stopStaleServers', () => {
 
   it('leaves a later process alone that spells the whole command line of the server out, token and all', async () => {
     const table = control({ 4242: [{ pid: 4242, argv: throughPs(server('abc')), startedAt: LATER }] });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -188,7 +204,12 @@ describe('stopStaleServers', () => {
 
   it('drops the record of a server that is already gone, without signalling anything', async () => {
     const table = control({});
-    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -199,7 +220,12 @@ describe('stopStaleServers', () => {
 
   it('kills the workerd a killed server left holding its port: a leaderless group of the workerd of this checkout on that port', async () => {
     const table = control({ 4242: [{ pid: 4250, argv: workerd(8700), startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -232,7 +258,12 @@ describe('stopStaleServers', () => {
     ],
   ])('leaves a leaderless group alone when it is %s', async (_what, argv) => {
     const table = control({ 4242: [{ pid: 4250, argv, startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -248,7 +279,12 @@ describe('stopStaleServers', () => {
         { pid: 4251, argv: ['vim', 'notes-on-workerd.md'], startedAt: STARTED },
       ],
     });
-    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -259,7 +295,12 @@ describe('stopStaleServers', () => {
 
   it('kills the group of a live leader that carries exactly the arguments the stack started it with', async () => {
     const table = control({ 4242: [{ pid: 4242, argv: server('abc'), startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -280,7 +321,12 @@ describe('stopStaleServers', () => {
     ['it has no arguments at all', []],
   ])('leaves a live leader alone when %s', async (_what, argv) => {
     const table = control({ 4242: [{ pid: 4242, argv, startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -298,7 +344,12 @@ describe('stopStaleServers', () => {
     ],
   ])('leaves a live leader alone on macOS, where ps joins the words, when %s', async (_what, argv) => {
     const table = control({ 4242: [{ pid: 4242, argv: throughPs(argv), startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -313,7 +364,12 @@ describe('stopStaleServers', () => {
         { pid: 4251, argv: [], startedAt: '', unreadable: true },
       ],
     });
-    recordServer(dir, 8700, { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 't', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -328,7 +384,12 @@ describe('stopStaleServers', () => {
         { pid: 4250, argv: [], startedAt: '', unreadable: true },
       ],
     });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { control: table, workerdRoot: ROOT });
 
@@ -338,7 +399,12 @@ describe('stopStaleServers', () => {
 
   it('never takes a leader for a server when the expected arguments do not carry the token', async () => {
     const table = control({ 4242: [{ pid: 4242, argv: ['node', 'serve-worker.mts'], startedAt: STARTED }] });
-    recordServer(dir, 8700, { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'abc', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, {
       control: table,
@@ -355,8 +421,18 @@ describe('stopStaleServers', () => {
       4242: [{ pid: 4242, argv: server('a'), startedAt: STARTED }],
       4343: [{ pid: 4343, argv: server('b'), startedAt: STARTED }],
     });
-    recordServer(dir, 8700, { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED });
-    recordServer(dir, 8710, { pid: 4343, token: 'b', label: 'worker-1 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
+    recordServer(
+      dir,
+      8710,
+      { pid: 4343, token: 'b', label: 'worker-1 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     const stopped = await stopStaleServers(dir, { ports: [8700, 8701], control: table, workerdRoot: ROOT });
 
@@ -387,7 +463,12 @@ describe('stopStaleServers', () => {
   it('throws when a server outlives its SIGKILL, so the start does not go on to a taken port', async () => {
     vi.useFakeTimers();
     try {
-      recordServer(dir, 8700, { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED });
+      recordServer(
+        dir,
+        8700,
+        { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED },
+        dirname(dir),
+      );
       const stuck: StaleServerControl = {
         groupOf: () => [{ pid: 4242, argv: server('a'), startedAt: STARTED }],
         killGroup: vi.fn(),
@@ -455,6 +536,17 @@ describe('isRecorded', () => {
     ).toBe(false);
   });
 
+  it('refuses a live leader for a record that does not know when the server started, but not its workerd', () => {
+    const unknownStart = { ...record, startedAt: null };
+
+    expect(
+      isRecorded(unknownStart, 8700, [{ pid: 4242, argv: server('abc'), startedAt: STARTED }], stack),
+    ).toBe(false);
+    expect(
+      isRecorded(unknownStart, 8700, [{ pid: 4250, argv: workerd(8700), startedAt: LATER }], stack),
+    ).toBe(true);
+  });
+
   it('refuses a group whose leader could not be read, also when the rest is the workerd of this stack', () => {
     const unreadLeader = { pid: 4242, argv: [], startedAt: '', unreadable: true } as const;
 
@@ -485,7 +577,7 @@ describe('recordServer', () => {
   const modeOf = (path: string): number => statSync(path).mode & 0o777;
 
   it('writes a record only its owner can read or write', () => {
-    recordServer(dir, 8700, record);
+    recordServer(dir, 8700, record, dirname(dir));
 
     expect(modeOf(join(dir, '8700.json'))).toBe(0o600);
     expect(JSON.parse(readFileSync(join(dir, '8700.json'), 'utf8'))).toEqual(record);
@@ -497,7 +589,7 @@ describe('recordServer', () => {
     // Past the umask, which would have closed part of it already.
     chmodSync(path, 0o666);
 
-    recordServer(dir, 8700, record);
+    recordServer(dir, 8700, record, dirname(dir));
 
     expect(modeOf(path)).toBe(0o600);
     expect(JSON.parse(readFileSync(path, 'utf8'))).toEqual(record);
@@ -505,14 +597,14 @@ describe('recordServer', () => {
 
   it('makes the directory of the records for its owner only, and closes one that is already there', () => {
     const made = join(dir, 'run/servers');
-    recordServer(made, 8700, record);
+    recordServer(made, 8700, record, dir);
     expect(modeOf(made)).toBe(0o700);
 
     const open = join(dir, 'open');
     mkdirSync(open);
     // Past the umask, which would have closed part of it already.
     chmodSync(open, 0o777);
-    recordServer(open, 8700, record);
+    recordServer(open, 8700, record, dir);
     expect(modeOf(open)).toBe(0o700);
     expect(JSON.parse(readFileSync(join(open, '8700.json'), 'utf8'))).toEqual(record);
   });
@@ -523,7 +615,7 @@ describe('recordServer', () => {
     chmodSync(real, 0o755);
     symlinkSync(real, join(dir, 'servers'));
 
-    expect(() => recordServer(join(dir, 'servers'), 8700, record)).toThrow(/servers is a symbolic link/);
+    expect(() => recordServer(join(dir, 'servers'), 8700, record, dir)).toThrow(/servers is a symbolic link/);
 
     expect(readdirSync(real)).toEqual([]);
     expect(modeOf(real)).toBe(0o755);
@@ -532,7 +624,7 @@ describe('recordServer', () => {
   it('writes a record for its owner only under a umask that would take owner bits away', () => {
     const before = process.umask(0o277);
     try {
-      recordServer(dir, 8700, record);
+      recordServer(dir, 8700, record, dirname(dir));
     } finally {
       process.umask(before);
     }
@@ -541,13 +633,25 @@ describe('recordServer', () => {
     expect(JSON.parse(readFileSync(join(dir, '8700.json'), 'utf8'))).toEqual(record);
   });
 
+  it('checks the way down from the root itself: a link on it is refused, and nothing is written where it points', () => {
+    const real = join(dir, 'elsewhere');
+    mkdirSync(real);
+    symlinkSync(real, join(dir, 'tmp'));
+
+    expect(() => recordServer(join(dir, 'tmp/run/servers'), 8700, record, dir)).toThrow(
+      /tmp is a symbolic link/,
+    );
+
+    expect(readdirSync(real)).toEqual([]);
+  });
+
   it('does not write through a link left at the path of the record: the link goes, its target stays as it was', () => {
     const target = join(dir, 'elsewhere.txt');
     writeFileSync(target, 'not a record');
     chmodSync(target, 0o644);
     symlinkSync(target, join(dir, '8700.json'));
 
-    recordServer(dir, 8700, record);
+    recordServer(dir, 8700, record, dirname(dir));
 
     expect(readFileSync(target, 'utf8')).toBe('not a record');
     expect(modeOf(target)).toBe(0o644);
@@ -555,35 +659,93 @@ describe('recordServer', () => {
   });
 });
 
-describe('startedAtOf', () => {
-  it('tells nothing for a leader that could not be read: there is no start time to record', () => {
+describe('leaderStartOf', () => {
+  it('tells a leader that could not be read apart from one that is gone: it runs, without a start time to record', () => {
     const table = control({ 4242: [{ pid: 4242, argv: [], startedAt: '', unreadable: true }] });
 
-    expect(startedAtOf(4242, table)).toBeNull();
+    expect(leaderStartOf(4242, table)).toEqual({ state: 'unreadable' });
   });
 
-  it('tells when a live server started, the same at every reading, and nothing once it is gone', async () => {
+  it('tells when a live server started, the same at every reading, and that it is gone once it is', async () => {
     const pid = await startIdleServer(randomUUID());
 
-    const startedAt = startedAtOf(pid);
-    expect(startedAt).toMatch(/\S/);
-    expect(startedAtOf(pid)).toBe(startedAt);
+    const start = leaderStartOf(pid);
+    expect(start).toEqual({ state: 'started', startedAt: expect.stringMatching(/\S/) });
+    expect(leaderStartOf(pid)).toEqual(start);
 
     process.kill(pid, 'SIGKILL');
     await exitSignal(pid);
-    expect(startedAtOf(pid)).toBeNull();
+    expect(leaderStartOf(pid)).toEqual({ state: 'gone' });
   });
 
-  it('tells nothing for a group whose leader is gone, whoever is left in it', () => {
+  it('tells a group whose leader is gone as gone, whoever is left in it', () => {
     const table = control({ 4242: [{ pid: 4250, argv: workerd(8700), startedAt: STARTED }] });
 
-    expect(startedAtOf(4242, table)).toBeNull();
+    expect(leaderStartOf(4242, table)).toEqual({ state: 'gone' });
+  });
+});
+
+describe('recordSpawnedServer', () => {
+  const spawned = { pid: 4242, token: 'abc', label: 'worker-0 api' };
+  const recordAt = (port: number): unknown => JSON.parse(readFileSync(join(dir, `${port}.json`), 'utf8'));
+
+  it('records a running server with its start time, with nothing to log', () => {
+    const table = control({ 4242: [{ pid: 4242, argv: server('abc'), startedAt: STARTED }] });
+
+    expect(recordSpawnedServer(dir, 8700, spawned, dirname(dir), table)).toBeNull();
+
+    expect(recordAt(8700)).toEqual({ ...spawned, startedAt: STARTED });
+  });
+
+  it('keeps the record of a server it could not read, without a start time, and says so', () => {
+    const table = control({ 4242: [{ pid: 4242, argv: [], startedAt: '', unreadable: true }] });
+
+    const note = recordSpawnedServer(dir, 8700, spawned, dirname(dir), table);
+
+    expect(note).toBe('worker-0 api (pid 4242): its start time could not be read, recorded without one');
+    expect(note).not.toMatch(/not running/);
+    expect(recordAt(8700)).toEqual({ ...spawned, startedAt: null });
+  });
+
+  it('records nothing for a server that is gone already, and says so', () => {
+    expect(recordSpawnedServer(dir, 8700, spawned, dirname(dir), control({}))).toBe(
+      'worker-0 api (pid 4242) is not running any more: not recorded',
+    );
+
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it('lets a later start stop the workerd that a server recorded without a start time left on its port', async () => {
+    const unread = control({ 4242: [{ pid: 4242, argv: [], startedAt: '', unreadable: true }] });
+    recordSpawnedServer(dir, 8700, spawned, dirname(dir), unread);
+    const orphaned = control({ 4242: [{ pid: 4250, argv: workerd(8700), startedAt: LATER }] });
+
+    const stopped = await stopStaleServers(dir, { control: orphaned, workerdRoot: ROOT });
+
+    expect(stopped).toEqual(['worker-0 api (pid 4242)']);
+    expect(orphaned.killed).toEqual([4242]);
+  });
+
+  it('never takes a live leader for the server of a record without a start time, whatever its words', async () => {
+    const unread = control({ 4242: [{ pid: 4242, argv: [], startedAt: '', unreadable: true }] });
+    recordSpawnedServer(dir, 8700, spawned, dirname(dir), unread);
+    const live = control({ 4242: [{ pid: 4242, argv: server('abc'), startedAt: STARTED }] });
+
+    const stopped = await stopStaleServers(dir, { control: live, workerdRoot: ROOT });
+
+    expect(stopped).toEqual([]);
+    expect(live.killed).toEqual([]);
   });
 });
 
 describe('forgetServer', () => {
   it('drops the record of the server that stopped', () => {
-    recordServer(dir, 8700, { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4242, token: 'a', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     forgetServer(dir, 8700, 4242);
 
@@ -591,7 +753,12 @@ describe('forgetServer', () => {
   });
 
   it('keeps the record of a later server on the same port', () => {
-    recordServer(dir, 8700, { pid: 4343, token: 'b', label: 'worker-0 api', startedAt: STARTED });
+    recordServer(
+      dir,
+      8700,
+      { pid: 4343, token: 'b', label: 'worker-0 api', startedAt: STARTED },
+      dirname(dir),
+    );
 
     forgetServer(dir, 8700, 4242);
 

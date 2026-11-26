@@ -1,6 +1,5 @@
-import { mkdirSync } from 'node:fs';
-import { dirname, isAbsolute, join, relative, sep } from 'node:path';
-import { privateDirectory, realDirectory } from './private-directory';
+import { dirname, join } from 'node:path';
+import { privateDirectory, realDirectoriesBelow } from './private-directory';
 
 /**
  * The environment of every process the local stack starts (#982): the Workers on Miniflare (`serve-worker.mts`) and
@@ -42,13 +41,10 @@ export interface StackHome {
  * link in its place is refused, not followed (#1006): `chmod` would change whatever the link names, and the children
  * would write there (`privateDirectory`). The same holds for a link anywhere on the way down (#1013): every
  * directory below `root` — the checkout for the suite, the parent of `stacksDir` when left out — down to `stacksDir`
- * has to be a directory itself, or the home made in it is somewhere else. Those keep their mode: logs live there too.
+ * has to be a directory itself, or the home made in it is somewhere else (`realDirectoriesBelow`).
  */
 export function stackHome(stacksDir: string, root: string = dirname(stacksDir)): StackHome {
-  for (const dir of directoriesBelow(root, stacksDir)) {
-    mkdirSync(dir, { recursive: true });
-    realDirectory(dir);
-  }
+  realDirectoriesBelow(root, stacksDir);
   const home = join(stacksDir, 'home');
   const config = join(home, '.config');
   const cache = join(home, '.cache');
@@ -56,23 +52,6 @@ export function stackHome(stacksDir: string, root: string = dirname(stacksDir)):
     privateDirectory(dir);
   }
   return { HOME: home, XDG_CONFIG_HOME: config, XDG_CACHE_HOME: cache };
-}
-
-/** Every directory on the way from `root` down to `dir`, `root` left out and `dir` last. */
-function directoriesBelow(root: string, dir: string): string[] {
-  const below = relative(root, dir);
-  if (below === '' || isAbsolute(below) || below.split(sep).includes('..')) {
-    throw new Error(
-      `${dir} is not below ${root}: the stack cannot tell which directories on the way are its own.`,
-    );
-  }
-  const directories: string[] = [];
-  let path = root;
-  for (const name of below.split(sep)) {
-    path = join(path, name);
-    directories.push(path);
-  }
-  return directories;
 }
 
 /**
