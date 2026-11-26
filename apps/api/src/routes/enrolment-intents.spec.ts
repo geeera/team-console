@@ -6,12 +6,14 @@ import {
   ENROLMENT_INTENT_POLL_SECONDS,
   isEnrolmentIntentCreatedDto,
   isEnrolmentIntentDto,
+  isEnrolmentIntentListDto,
   isStartEnrolmentResponse,
   runnerAudienceOf,
   runnerKeyFingerprintOf,
   type EnrolRunnerResponse,
   type EnrolmentIntentCreatedDto,
   type EnrolmentIntentDto,
+  type EnrolmentIntentListDto,
   type RunnerSelfDto,
   type StartEnrolmentResponse,
 } from '@shared/contracts';
@@ -82,6 +84,14 @@ async function intentRow(intentId: string): Promise<Record<string, unknown> | nu
   return env.DB.prepare(`SELECT * FROM runner_enrolment_requests WHERE id = ?1`)
     .bind(intentId)
     .first<Record<string, unknown>>();
+}
+
+async function intentCountOf(accountId: string): Promise<number> {
+  return (
+    (await env.DB.prepare(`SELECT COUNT(*) AS n FROM runner_enrolment_requests WHERE account_id = ?1`)
+      .bind(accountId)
+      .first<number>('n')) ?? 0
+  );
 }
 
 async function runnersOf(accountId: string): Promise<Record<string, unknown>[]> {
@@ -268,20 +278,20 @@ describe('the owner’s enrolment intents', () => {
       `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment ${configured.intentId}`,
     );
 
-    // No origin configured on a deployed environment: no command, rather than one that names whatever host was asked.
-    const unconfigured = (await (
-      await create(
-        accessEnv(uniqueTeamDomain(), { CONSOLE_PUBLIC_ORIGIN: undefined }),
+    // #817: no origin configured on a deployed environment, or one not safe to paste into a terminal, is one defined
+    // answer — 503 and no intent — rather than a command naming whatever host was asked, or an intent with none.
+    const before = await intentCountOf(owner.account.id);
+    for (const origin of [undefined, '', 'https://x.example; rm -rf ~']) {
+      const refused = await create(
+        accessEnv(uniqueTeamDomain(), { CONSOLE_PUBLIC_ORIGIN: origin }),
         'https://evil.example',
-      )
-    ).json()) as EnrolmentIntentCreatedDto;
-    expect(unconfigured.command).toBeNull();
-
-    // A configured origin that is not safe to paste into a terminal is no command either.
-    const unsafe = (await (
-      await create(accessEnv(uniqueTeamDomain(), { CONSOLE_PUBLIC_ORIGIN: 'https://x.example; rm -rf ~' }))
-    ).json()) as EnrolmentIntentCreatedDto;
-    expect(unsafe.command).toBeNull();
+      );
+      expect(refused.status, String(origin)).toBe(503);
+      expect(await slugOf(refused)).toBe('console-origin-misconfigured');
+      expect(await refused.text()).not.toContain('evil.example');
+    }
+    expect(await intentCountOf(owner.account.id)).toBe(before);
+    expect(await auditOf(owner.account.id, 'enrolment-intent.created')).toHaveLength(before);
   });
 
   it('names the request’s own origin on a local environment only, whatever var the stack inherited', async () => {
@@ -533,6 +543,53 @@ describe('the owner’s enrolment intents', () => {
     expect((await getIntent(owner, pending)).state).toBe('expired');
     expect((await getIntent(owner, bound)).state).toBe('expired');
   });
+
+  // #817: a tab closed without withdrawing leaves intents the cap still counts; the owner lists and withdraws them.
+  it('lists the owner’s open intents, newest first and at most three, so one the cap holds can be withdrawn', async () => {
+    const owner = await seedSessionUser('owner');
+    const list = async (): Promise<EnrolmentIntentListDto> => {
+      const response = await sendAsSession(owner, 'GET', intentsPath(owner.account.id));
+      expect(response.status).toBe(200);
+      const body: unknown = await response.json();
+      expect(isEnrolmentIntentListDto(body)).toBe(true);
+      return body as EnrolmentIntentListDto;
+    };
+    expect(await list()).toEqual({ intents: [] });
+
+    const now = Date.now();
+    // Neither an expired nor a withdrawn nor an approved intent is open.
+    await seedIntentAt(owner, new Date(now - 11 * 60_000), new Date(now - 60_000));
+    const withdrawn = (await createEnrolmentIntent(owner.account.id, {}, owner)).intentId;
+    expect(
+      (await sendAsSession(owner, 'POST', intentPath(owner.account.id, withdrawn, 'withdraw'))).status,
+    ).toBe(204);
+    const approved = await bindIntent(owner.account.id, { as: owner });
+    expect((await approve(owner, approved.intentId, approved.start.fingerprint)).status).toBe(200);
+
+    const pending = await seedIntentAt(owner, new Date(now - 3000), new Date(now + 600_000));
+    const bound = await seedIntentAt(owner, new Date(now - 2000), new Date(now + 600_000));
+    const { fingerprint } = await seedBindAt(owner, bound, new Date(now - 1000));
+    const newest = (await createEnrolmentIntent(owner.account.id, {}, owner)).intentId;
+
+    const open = await list();
+    expect(open.intents.map((intent) => [intent.id, intent.state])).toEqual([
+      [newest, 'pending'],
+      [bound, 'bound'],
+      [pending, 'pending'],
+    ]);
+    expect(open.intents[1]?.fingerprint).toBe(fingerprint);
+
+    // A fourth open one (seeded past the cap, as a race could never make it) still lists three: the newest.
+    const fourth = await seedIntentAt(owner, new Date(now - 4000), new Date(now + 600_000));
+    expect((await list()).intents.map((intent) => intent.id)).not.toContain(fourth);
+    expect((await list()).intents).toHaveLength(ENROLMENT_INTENTS_LIVE_MAX);
+
+    // Withdrawn from the list, it leaves it, and the place is free again.
+    expect(
+      (await sendAsSession(owner, 'POST', intentPath(owner.account.id, newest, 'withdraw'))).status,
+    ).toBe(204);
+    expect((await list()).intents.map((intent) => intent.id)).toEqual([bound, pending, fourth]);
+  });
 });
 
 describe('who may see and decide an intent (R-INT-2)', () => {
@@ -575,6 +632,13 @@ describe('who may see and decide an intent (R-INT-2)', () => {
       expect(underTheirs.status).toBe(404);
       expect(await slugOf(underTheirs)).toBe('account-not-found');
     }
+    // #817: the list as well — her own account's is empty, Alice's is no account of hers.
+    expect(await (await sendAsSession(mallory, 'GET', intentsPath(mallory.account.id))).json()).toEqual({
+      intents: [],
+    });
+    const listUnderTheirs = await sendAsSession(mallory, 'GET', intentsPath(alice.account.id));
+    expect(listUnderTheirs.status).toBe(404);
+    expect(await slugOf(listUnderTheirs)).toBe('account-not-found');
 
     // Nothing moved: the intent is still Alice's to approve, and no runner exists in either account.
     expect(await intentRow(bound.intentId)).toMatchObject({
@@ -627,6 +691,14 @@ describe('who may see and decide an intent (R-INT-2)', () => {
       expect(response.status, `${method} ${action}`).toBe(404);
       expect(await refusalOf(response)).toEqual(await refusalOf(unknown));
     }
+    // #817: nor does Bob's list of open intents name Alice's; hers names it.
+    const bobs = await sendAsSession(bob, 'GET', intentsPath(alice.account.id));
+    expect(bobs.status).toBe(200);
+    expect(await bobs.json()).toEqual({ intents: [] });
+    const alices = (await (
+      await sendAsSession(alice, 'GET', intentsPath(alice.account.id))
+    ).json()) as EnrolmentIntentListDto;
+    expect(alices.intents.map((intent) => intent.id)).toEqual([bound.intentId]);
     expect(await intentRow(bound.intentId)).toMatchObject({ state: 'bound', runner_id: null });
     expect(await runnersOf(alice.account.id)).toEqual([]);
   });
@@ -842,11 +914,11 @@ describe('POST /api/v1/runner/enrol/start', () => {
     expect(await slugOf(mismatch)).toBe('enrolment-fingerprint-mismatch');
     expect(await runnersOf(owner.account.id)).toEqual([]);
 
-    // Rejected: the attacker's token collects nothing, ever.
+    // Rejected: the attacker's token collects nothing, ever; its holder learns the request is gone (#817).
     expect(
       (await sendAsSession(owner, 'POST', intentPath(owner.account.id, intentId, 'withdraw'))).status,
     ).toBe(204);
-    expect((await poll(intentId, attackerStart.pollToken)).status).toBe(404);
+    expect((await poll(intentId, attackerStart.pollToken)).status).toBe(410);
     expect(await runnersOf(owner.account.id)).toEqual([]);
   });
 
@@ -1062,11 +1134,15 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
     });
     expect((await getIntent(owner, bound.intentId)).state).toBe('used');
 
-    // Once: the token is spent, and the answer is the door's one 404.
+    // #817: a poll whose answer was lost asks again within the window and gets the same runner, no second one.
     await resetPollClock(bound.intentId);
     const again = await poll(bound.intentId, bound.start.pollToken);
-    expect(again.status).toBe(404);
-    expect(await slugOf(again)).toBe('enrolment-not-found');
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual(enrolment);
+    expect((await runnersOf(owner.account.id)).map((row) => row['id'])).toEqual([enrolment.runnerId]);
+    expect(await auditOf(owner.account.id, 'runner.enrolled')).toHaveLength(1);
+    // Still paced like any poll.
+    expect(await slugOf(await poll(bound.intentId, bound.start.pollToken))).toBe('slow-down');
 
     // The key that never left the host now authenticates the runner.
     const self = await sendAsRunner(
@@ -1204,7 +1280,7 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
     expect((await withdraw('not-an-id')).status).toBe(404);
   });
 
-  it('answers a wrong token, an expired and a withdrawn intent with one 404 and one body', async () => {
+  it('answers every wrong token with one 404, and the token’s holder of an expired or withdrawn intent with one 410', async () => {
     const owner = await seedSessionUser('owner');
     const live = await bindIntent(owner.account.id, { as: owner });
     const withdrawn = await bindIntent(owner.account.id, { as: owner });
@@ -1224,8 +1300,9 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
       ['another intent’s token', live.intentId, withdrawn.start.pollToken],
       ['a token that is no token', live.intentId, 'x'],
       ['a pending intent', pending, guess],
-      ['a withdrawn intent', withdrawn.intentId, withdrawn.start.pollToken],
-      ['an expired intent', expired, expiredBind.pollToken],
+      // Someone else's token on a withdrawn or expired intent proves nothing: the stranger's 404 still.
+      ['a guess on a withdrawn intent', withdrawn.intentId, guess],
+      ['a guess on an expired intent', expired, guess],
     ];
     const refusals = [];
     for (const [, intentId, token] of cases) {
@@ -1238,6 +1315,17 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
     for (const [index, [name]] of cases.entries()) {
       expect(refusals[index], name).toEqual(refusals[0]);
     }
+
+    // #817: the binder, its own token proven, learns the request will never enrol it.
+    const gone = [
+      await refusalOf(await poll(withdrawn.intentId, withdrawn.start.pollToken)),
+      await refusalOf(await poll(expired, expiredBind.pollToken)),
+    ];
+    expect(gone[0]).toMatchObject({
+      status: 410,
+      type: expect.stringContaining('enrolment-gone') as unknown,
+    });
+    expect(gone[1]).toEqual(gone[0]);
     // And it is the body `start` gives for the same three.
     expect(
       await refusalOf(await postEnrolDoor('start', startBodyOf(UNKNOWN_INTENT, live.publicKeyJwk))),
@@ -1297,14 +1385,14 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
     expect(collected.status).toBe(200);
     expect(((await collected.json()) as EnrolRunnerResponse).runnerId).toBe(inside.runnerId);
 
-    // Approved four minutes ago and never collected: the window closed, the one 404.
+    // Approved four minutes ago and never collected: the window closed, and the binder hears it is gone.
     const outside = await seed(200_000, 240_000);
     const late = await poll(outside.id, outside.pollToken);
-    expect(late.status).toBe(404);
-    expect(await slugOf(late)).toBe('enrolment-not-found');
+    expect(late.status).toBe(410);
+    expect(await slugOf(late)).toBe('enrolment-gone');
   });
 
-  it('gives a runner the owner revoked before it collected the one 404', async () => {
+  it('gives a runner the owner revoked before it collected 410 enrolment-gone', async () => {
     const owner = await seedSessionUser('owner');
     const bound = await bindIntent(owner.account.id, { as: owner });
     const dto = (await (
@@ -1316,7 +1404,9 @@ describe('approval and POST /api/v1/runner/enrol/poll', () => {
       `/api/v1/accounts/${owner.account.id}/runners/${String(dto.runnerId)}/revoke`,
     );
     expect(revoked.status).toBe(200);
-    expect((await poll(bound.intentId, bound.start.pollToken)).status).toBe(404);
+    const refused = await poll(bound.intentId, bound.start.pollToken);
+    expect(refused.status).toBe(410);
+    expect(await slugOf(refused)).toBe('enrolment-gone');
   });
 
   // D3 (owner, 2026-11-17): the enroller is the owner who made the intent, so a subscription runner scoped to `all`

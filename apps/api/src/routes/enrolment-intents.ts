@@ -19,6 +19,7 @@ import {
   type EnrolRunnerResponse,
   type EnrolmentIntentCreatedDto,
   type EnrolmentIntentDto,
+  type EnrolmentIntentListDto,
   type EnrolmentIntentState,
   type PollEnrolmentPendingDto,
   type StartEnrolmentResponse,
@@ -82,6 +83,30 @@ function intentNotFound(c: Context): Response {
   return problem(c, { type: 'enrolment-not-found', title: 'Enrolment request not found', status: 404 });
 }
 
+/**
+ * 410 `enrolment-gone` (#817): only to the binder, once its poll token proved it, for an intent that will never enrol
+ * it — withdrawn, expired, past its collection window, or its runner revoked. The binder already knows the intent,
+ * so telling it apart from an unknown one leaks nothing, and the runner can stop for good instead of guessing.
+ */
+function intentGone(c: Context, reason: string): Response {
+  c.get('logger').warn('enrolment refused', { reason });
+  return problem(c, { type: 'enrolment-gone', title: 'Enrolment request gone', status: 410 });
+}
+
+/**
+ * 503 `console-origin-misconfigured` (#817): this console has no origin a pasted command may name, so it makes no
+ * intent at all — one without a command could only hold an open slot until it expired.
+ */
+function commandOriginMissing(c: Context): Response {
+  c.get('logger').error('enrolment intent refused', { reason: 'console-origin-misconfigured' });
+  return problem(c, {
+    type: 'console-origin-misconfigured',
+    title: 'The console cannot build the setup command',
+    status: 503,
+    detail: 'CONSOLE_PUBLIC_ORIGIN of this console is missing or not safe to put in a command',
+  });
+}
+
 function conflict(c: Context, type: string, detail: string): Response {
   return problem(c, { type, title: 'Conflict', status: 409, detail });
 }
@@ -139,8 +164,9 @@ function intentOwnerOf(c: Context, account: AccountRecord): IntentOwner {
 }
 
 /**
- * `POST /api/v1/accounts/:id/runners/enrolment-intents`, `GET …/enrolment-intents/:intent`, `POST …/:intent/approve`
- * and `POST …/:intent/withdraw` (#634 PR 3, architect note section 2): owner-of-account, CSRF-protected as every
+ * `POST /api/v1/accounts/:id/runners/enrolment-intents`, `GET …/enrolment-intents` (the caller's open ones, #817),
+ * `GET …/enrolment-intents/:intent`, `POST …/:intent/approve` and `POST …/:intent/withdraw` (#634 PR 3, architect
+ * note section 2): owner-of-account, CSRF-protected as every
  * cookie-borne write, and narrower than the account — an intent answers only to the owner who made it (R-INT-2), so
  * there is no approve page a stranger's link could lead to. The approval creates the runner from the intent row alone
  * (R-INT-6) after comparing the fingerprint the wizard displayed with the bound key (compare-and-set).
@@ -173,6 +199,12 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
       const at = now.toISOString();
       const expiresAt = new Date(now.getTime() + ENROLMENT_INTENT_TTL_SECONDS * 1000).toISOString();
       const intentId = newUlid(now.getTime());
+      // Judged before the write: the command names only the origin and this id, so it is known now.
+      const origin = commandOriginOf(c);
+      const command = origin === null ? null : setupCommandOf(origin, intentId);
+      if (origin === null || command === null) {
+        return commandOriginMissing(c);
+      }
       const outcome = await new EnrolmentIntentsRepo(c.env.DB).create(
         {
           id: intentId,
@@ -205,15 +237,30 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
         return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429 });
       }
       c.get('logger').info('enrolment intent created', { accountId: account.id, projectScope, isolation });
-      const origin = commandOriginOf(c);
       const body: EnrolmentIntentCreatedDto = {
         intentId,
         expiresAt,
-        command: origin === null ? null : setupCommandOf(origin, intentId),
+        command,
         installCommands: isolation === 'user' ? macInstallCommandsOf(c.env, origin, intentId) : null,
         linuxInstall: isolation === 'container' ? linuxInstallCommandsOf(c.env, origin, intentId) : null,
       };
       return c.json(body, 201);
+    })
+
+    // #817: the caller's own open intents, so one held by a closed tab can be withdrawn before it expires.
+    .get('/:id/runners/enrolment-intents', async (c) => {
+      const account = await ownedAccountOf(c);
+      if (account instanceof Response) {
+        return account;
+      }
+      const now = new Date().toISOString();
+      const intents = await new EnrolmentIntentsRepo(c.env.DB).listOpen(
+        intentOwnerOf(c, account),
+        now,
+        ENROLMENT_INTENTS_LIVE_MAX,
+      );
+      const body: EnrolmentIntentListDto = { intents: intents.map((intent) => intentDtoOf(intent, now)) };
+      return c.json(body);
     })
 
     .get('/:id/runners/enrolment-intents/:intent', async (c) => {
@@ -339,9 +386,10 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
  * `POST /api/v1/runner/enrol/start` and `POST /api/v1/runner/enrol/poll` (#634 PR 3): the runner's side of an intent,
  * with no identity yet. `start` binds the runner's public key to a pending intent — first bind wins, a second is 409
  * `enrolment-intent-bound` — and returns the poll token once (256 random bits; D1 holds its hash). `poll` answers 202
- * until the owner approved, then the enrolment once. The request carries a key, host, capabilities, backend and
- * version and nothing else: no account, name or scope (the intent row's alone, R-INT-6) and no credential of any
- * kind. An unknown, expired or withdrawn intent is one 404 with one body on both calls. Counted in the door's own
+ * until the owner approved, then the enrolment on every poll of the collection window (#817). The request carries a
+ * key, host, capabilities, backend and version and nothing else: no account, name or scope (the intent row's alone,
+ * R-INT-6) and no credential of any kind. To anyone without the poll token an unknown, expired or withdrawn intent is
+ * one 404 with one body on both calls; the token's holder learns 410 `enrolment-gone` instead (#817). Counted in the door's own
  * buckets (`DoorRateLimits('enrol')`): per address, junk for the environment, verified for the environment.
  */
 export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
@@ -522,11 +570,10 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
       ) {
         return junk('poll-token-unknown', () => intentNotFound(c));
       }
-      // From here the caller is the binder. An expired, withdrawn or already collected intent is the same 404.
+      // From here the caller is the binder: an intent that will never enrol it is 410, not the stranger's 404 (#817).
       const state = intentStateAt(intent, at);
-      if (state !== 'bound' && state !== 'approved') {
-        logger.warn('enrolment refused', { reason: `intent-${state}` });
-        return intentNotFound(c);
+      if (state === 'expired' || state === 'withdrawn') {
+        return intentGone(c, `intent-${state}`);
       }
       if (!(await intents.admitPoll(intent.id, tokenHash, at, POLL_MIN_GAP_SECONDS))) {
         logger.warn('enrolment refused', { reason: 'slow-down' });
@@ -544,12 +591,13 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
         };
         return c.json(pending, 202);
       }
+      // Approved or already collected: every poll in the window gets the same runner (#817), so an answer lost on the
+      // way is not the enrolment lost.
       const runnerId = await intents.collect(intent.id, tokenHash, at, ENROLMENT_INTENT_COLLECT_SECONDS);
       const runner = runnerId === null ? null : await new RunnersRepo(c.env.DB).findById(runnerId);
-      // Collected by a racing poll, past the collection window, or revoked by the owner since the approval.
+      // Past the collection window, or revoked by the owner since the approval.
       if (runner === null || runner.revokedAt !== null) {
-        logger.warn('enrolment refused', { reason: 'intent-not-collectable' });
-        return intentNotFound(c);
+        return intentGone(c, 'intent-not-collectable');
       }
       logger.info('enrolment collected', { runnerId: runner.id });
       // The same answer `/enrol` gives, from the runner row the approval wrote: no secret in it.

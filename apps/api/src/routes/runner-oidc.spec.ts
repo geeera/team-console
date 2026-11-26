@@ -590,6 +590,16 @@ describe('one run, one job, once', () => {
       issuer.bindings,
     );
     expect(await refusalOf(privateMember)).toMatchObject({ status: 422, slug: 'oidc-exchange-invalid' });
+    // #817: a host field with a bidi override never reaches the runner row the owner is shown.
+    const bidiHost = await postExchange(
+      {
+        ...(await exchangeBodyOf(token, '01M6YSNJ0000000000000N0NE1')).body,
+        host: { os: 'linux', arch: 'x64', hostname: 'fv-az‮1' },
+      },
+      issuer.bindings,
+    );
+    expect(await refusalOf(bidiHost)).toMatchObject({ status: 422, slug: 'oidc-exchange-invalid' });
+    expect(((await bidiHost.json()) as { field: string }).field).toBe('host.hostname');
   });
 });
 
