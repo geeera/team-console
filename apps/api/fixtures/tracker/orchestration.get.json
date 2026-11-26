@@ -1,0 +1,27 @@
+{
+  "route": "GET /api/v1/projects/:slug/orchestration",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/v1/projects/tc/orchestration"
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "runId": "00000000000000000000000001",
+      "steps": 1,
+      "state": "running",
+      "liveStepId": "00000000000000000000000001",
+      "children": {
+        "queued": 0,
+        "running": 0,
+        "finished": 0,
+        "failed": 0
+      }
+    }
+  }
+}

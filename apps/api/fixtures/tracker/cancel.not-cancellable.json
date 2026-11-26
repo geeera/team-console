@@ -1,0 +1,23 @@
+{
+  "route": "POST /api/v1/projects/:slug/jobs/:id/cancel",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/jobs/{job}/cancel",
+    "body": {}
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://team-console/problems/job-not-cancellable",
+      "title": "Conflict",
+      "status": 409,
+      "instance": "request-id",
+      "detail": "The job is finished"
+    }
+  }
+}

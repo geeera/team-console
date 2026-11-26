@@ -17,6 +17,7 @@ import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createRunnerSelfRoutes } from './routes/runner-self';
 import { createRunnerOidcRoutes } from './routes/runner-oidc';
 import { createJobRoutes } from './routes/jobs';
+import { createOrchestrationRoutes } from './routes/orchestration';
 import { createProjectDispatchRoutes } from './routes/project-dispatch';
 import { createActionsSetupRoutes } from './routes/actions-setup';
 import { createTeamConfigRoutes } from './routes/team-config';
@@ -166,6 +167,8 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   v1.route('/runner', createRunnerEnrolmentIntentRoutes());
   // The queue (#467): the owner's Run now and the reads behind the matrix; the runner's claim, heartbeat, events, finish.
   v1.route('/projects', createJobRoutes(github));
+  // #1039: console-driven orchestration, beside the queue it writes.
+  v1.route('/projects', createOrchestrationRoutes(github));
   // Pull or GitHub Actions per project (#670): the owner's switch; an Actions job is dispatched at enqueue.
   v1.route('/projects', createProjectDispatchRoutes(github));
   // The customer's Actions setup (#759): this console's rendering of the runner workflow and the readiness check.

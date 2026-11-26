@@ -564,7 +564,8 @@ describe('the claim response (ADR 0009 d.7)', () => {
     const project = await seedTrackerProject();
     await saved(project, doc({ preset: 'economy', access: { source: 'api_key' } }));
     await enqueueJob(project.slug, { kind: 'slot-qa' });
-    await enqueueJob(project.slug, { kind: 'slot-dev' });
+    // Not a second slot: they share `<slug>:orchestrator` since #1039. `dev` is read below from the same view.
+    await enqueueJob(project.slug, { kind: 'chat' });
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, {
       allowedProjects: [project.slug],
       enrol: { capabilities: { local: true, maxConcurrency: 2 } },

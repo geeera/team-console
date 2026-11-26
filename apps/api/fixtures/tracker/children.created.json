@@ -1,0 +1,69 @@
+{
+  "route": "POST /api/v1/projects/:slug/jobs/:id/children",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/jobs/{job}/children",
+    "body": {
+      "role": "dev",
+      "items": [12, 13],
+      "base": "dev",
+      "branchPrefix": "feature",
+      "pr": null
+    }
+  },
+  "response": {
+    "status": 201,
+    "body": {
+      "jobs": [
+        {
+          "id": "00000000000000000000000001",
+          "projectSlug": "tc",
+          "kind": "task",
+          "role": "dev",
+          "state": "queued",
+          "items": [12],
+          "priority": 2,
+          "requestedBy": "job:00000000000000000000000001",
+          "needsLocal": false,
+          "dispatch": "pull",
+          "runnerId": null,
+          "attempt": 0,
+          "maxMinutes": 90,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "claimedAt": null,
+          "leaseUntil": null,
+          "startedAt": null,
+          "finishedAt": null,
+          "result": null
+        },
+        {
+          "id": "00000000000000000000000002",
+          "projectSlug": "tc",
+          "kind": "task",
+          "role": "dev",
+          "state": "queued",
+          "items": [13],
+          "priority": 2,
+          "requestedBy": "job:00000000000000000000000001",
+          "needsLocal": false,
+          "dispatch": "pull",
+          "runnerId": null,
+          "attempt": 0,
+          "maxMinutes": 90,
+          "createdAt": "2026-11-12T10:00:00.000Z",
+          "claimedAt": null,
+          "leaseUntil": null,
+          "startedAt": null,
+          "finishedAt": null,
+          "result": null
+        }
+      ],
+      "nextCursor": null
+    }
+  }
+}

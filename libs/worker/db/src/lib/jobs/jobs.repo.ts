@@ -202,7 +202,8 @@ export interface JobFilter {
   readonly limit: number;
 }
 
-interface JobRow {
+/** A `jobs` row as `JOB_COLUMNS` reads it. */
+export interface JobRow {
   id: string;
   account_id: string;
   project_slug: string;
@@ -228,9 +229,11 @@ interface JobRow {
   team_config_revision: number | null;
 }
 
-const COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
+/** The columns a `JobRecord` is read from (`jobRecordOf`), for the repos that read `jobs` beside this one. */
+export const JOB_COLUMNS = `id, account_id, project_slug, kind, role, payload, priority, state, requested_by, dedupe_key, needs_local,
   parent_job_id, dispatch, runner_id, attempt, max_minutes, created_at, claimed_at, lease_until, started_at, finished_at, result,
   team_config_revision`;
+const COLUMNS = JOB_COLUMNS;
 const PREFIXED_COLUMNS = COLUMNS.split(',')
   .map((column) => `j.${column.trim()}`)
   .join(', ');
@@ -296,6 +299,10 @@ interface AccountEntitlementsRow {
   entitlements: string;
 }
 
+export function jobRecordOf(row: JobRow): JobRecord {
+  return toRecord(row);
+}
+
 function toRecord(row: JobRow): JobRecord {
   return {
     id: row.id,
@@ -348,6 +355,70 @@ export function effectivePolicyOf(projectPolicy: string | null, accountPolicy: s
   return json === null ? { mode: 'any' } : (JSON.parse(json) as RunnerPolicy);
 }
 
+/** The first placeholder number `jobInsertStatement` leaves to a caller's `extra` parameters. */
+export const JOB_INSERT_EXTRA_FIRST = 14;
+
+/**
+ * The one INSERT of a job, shared by `enqueueAll` and the orchestration batches (#1039). `account` replaces `?2` (a
+ * guard that yields NULL fails the insert, so its batch rolls back); `where` makes it a conditional insert that writes
+ * nothing when false. Both number their own placeholders from `JOB_INSERT_EXTRA_FIRST`, bound from `extra`.
+ *
+ * A job takes its project's `dispatch` as the insert reads it (#670); a `needs_local` job stays `pull` (#695).
+ */
+export function jobInsertStatement(
+  db: D1Database,
+  job: NewJob,
+  options: {
+    readonly account?: string;
+    readonly where?: string;
+    readonly extra?: readonly (string | number | null)[];
+  } = {},
+): D1PreparedStatement {
+  return db
+    .prepare(
+      `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id, dispatch)
+       SELECT ?1, ${options.account ?? '?2'}, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
+         CASE WHEN ?10 = 1 THEN 'pull' ELSE COALESCE((SELECT dispatch FROM projects WHERE slug = ?3), 'pull') END
+       ${options.where === undefined ? '' : `WHERE ${options.where}`}`,
+    )
+    .bind(
+      job.id,
+      job.accountId,
+      job.projectSlug,
+      job.kind,
+      job.role,
+      JSON.stringify(job.payload),
+      job.priority,
+      job.requestedBy,
+      job.dedupeKey,
+      job.needsLocal ? 1 : 0,
+      job.maxMinutes,
+      job.at,
+      job.parentJobId ?? null,
+      ...(options.extra ?? []),
+    );
+}
+
+/**
+ * Runs a batch holding job inserts and maps the refusals of the schema to an outcome: `job-exists` when a live job
+ * holds a dedupe key (0022's partial unique index), `access-source-hosted` when 0032's trigger refuses an Actions job of
+ * a `subscription` project (#706). The batch is one transaction, so a refusal wrote nothing.
+ */
+export async function enqueueOutcomeOf(run: () => Promise<unknown>): Promise<EnqueueOutcome> {
+  try {
+    await run();
+  } catch (error: unknown) {
+    if (isConstraintError(error, 'UNIQUE constraint failed: jobs.dedupe_key')) {
+      return 'job-exists';
+    }
+    if (isConstraintError(error, 'access-source-hosted:')) {
+      return 'access-source-hosted';
+    }
+    throw error;
+  }
+  return 'ok';
+}
+
 export class JobsRepo {
   /** `eventsCap`: the per-job run-log cap; the default is the product's, a spec lowers it to reach the cap path. */
   constructor(
@@ -376,47 +447,21 @@ export class JobsRepo {
       return 'ok';
     }
     // A NULL account fails the insert (the account trigger, else NOT NULL), so the whole batch rolls back.
-    const account =
-      hold === undefined ? '?2' : `CASE WHEN EXISTS (${jobTokenHoldsSql(14)}) THEN ?2 ELSE NULL END`;
-    const holdParams = hold === undefined ? [] : [hold.tokenHash, hold.jobId, hold.at];
-    try {
-      await this.db.batch(
+    const guard =
+      hold === undefined
+        ? {}
+        : {
+            account: `CASE WHEN EXISTS (${jobTokenHoldsSql(JOB_INSERT_EXTRA_FIRST)}) THEN ?2 ELSE NULL END`,
+            extra: [hold.tokenHash, hold.jobId, hold.at],
+          };
+    return enqueueOutcomeOf(() =>
+      this.db.batch(
         entries.flatMap(({ job, audit }) => [
-          this.db
-            .prepare(
-              `INSERT INTO jobs (id, account_id, project_slug, kind, role, payload, priority, requested_by, dedupe_key, needs_local, max_minutes, created_at, parent_job_id, dispatch)
-               VALUES (?1, ${account}, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13,
-                 CASE WHEN ?10 = 1 THEN 'pull' ELSE COALESCE((SELECT dispatch FROM projects WHERE slug = ?3), 'pull') END)`,
-            )
-            .bind(
-              job.id,
-              job.accountId,
-              job.projectSlug,
-              job.kind,
-              job.role,
-              JSON.stringify(job.payload),
-              job.priority,
-              job.requestedBy,
-              job.dedupeKey,
-              job.needsLocal ? 1 : 0,
-              job.maxMinutes,
-              job.at,
-              job.parentJobId ?? null,
-              ...holdParams,
-            ),
+          jobInsertStatement(this.db, job, guard),
           auditEventStatement(this.db, audit),
         ]),
-      );
-    } catch (error: unknown) {
-      if (isConstraintError(error, 'UNIQUE constraint failed: jobs.dedupe_key')) {
-        return 'job-exists';
-      }
-      if (isConstraintError(error, 'access-source-hosted:')) {
-        return 'access-source-hosted';
-      }
-      throw error;
-    }
-    return 'ok';
+      ),
+    );
   }
 
   /** The queued, claimed or running jobs of the project that hold one of `dedupeKeys`. */

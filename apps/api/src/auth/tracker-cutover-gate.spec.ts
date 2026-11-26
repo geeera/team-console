@@ -16,6 +16,12 @@ const NOT_TRACKER_WRITES: ReadonlySet<TrackerRoute> = new Set<TrackerRoute>([
   'PUT /api/v1/projects/:slug/team-config',
   'POST /api/v1/projects/:slug/team-config/reset',
   'POST /api/v1/projects/:slug/team-config/import',
+  // #1039: a console run and its jobs are queue writes, judged by `JOB_KINDS_BEFORE_CUTOVER` as Run now is
+  // (team-console runs its console runs on the GitHub tracker until #437).
+  'POST /api/v1/projects/:slug/orchestration/start',
+  'POST /api/v1/projects/:slug/orchestration/stop',
+  'POST /api/v1/projects/:slug/jobs/:id/children',
+  'POST /api/v1/projects/:slug/jobs/:id/cancel',
 ]);
 
 const WRITES = (Object.keys(TRACKER_MATRIX) as TrackerRoute[]).filter(

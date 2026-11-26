@@ -138,6 +138,13 @@ export const ROUTE_SCOPES = {
   [`GET ${P}/jobs/:id/events`]: PROJECT,
   [`GET ${P}/runner-policy`]: PROJECT,
   [`PUT ${P}/runner-policy`]: PROJECT,
+  // #1039: console-driven orchestration; the run, a step's children and the owner's cancel, all within the project.
+  [`POST ${P}/orchestration/start`]: PROJECT,
+  [`POST ${P}/orchestration/stop`]: PROJECT,
+  [`GET ${P}/orchestration`]: PROJECT,
+  [`POST ${P}/jobs/:id/children`]: PROJECT,
+  [`GET ${P}/jobs/:id/children`]: PROJECT,
+  [`POST ${P}/jobs/:id/cancel`]: PROJECT,
   // #670: pull or GitHub Actions; the matrix decides the actor (the account reads, the owner switches).
   [`GET ${P}/dispatch`]: PROJECT,
   [`PUT ${P}/dispatch`]: PROJECT,

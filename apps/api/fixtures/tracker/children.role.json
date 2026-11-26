@@ -1,0 +1,27 @@
+{
+  "route": "POST /api/v1/projects/:slug/jobs/:id/children",
+  "as": {
+    "kind": "job",
+    "role": "dev",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/jobs/{job}/children",
+    "body": {
+      "role": "dev",
+      "items": [12]
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/child-role",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "Child jobs are minted by the orchestrator job",
+      "reason": "dev"
+    }
+  }
+}

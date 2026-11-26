@@ -38,6 +38,7 @@ import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
 import { SMALL_WRITE_MAX_BYTES, TEXT_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { claimTeamConfigOf } from '../team-config/resolved';
+import { wakeAfterFinish } from '../jobs/orchestration-wake';
 import { jobDtoOf } from './jobs';
 
 type Context = WorkerContext<ApiEnv>;
@@ -402,6 +403,8 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
           reason: limitReason,
         });
       }
+      // #1039: any finish may be the last live job of a console run, so the run's next step is judged once, here.
+      await wakeAfterFinish(c.env.DB, logger, job.projectSlug, new Date(now));
       // #716, #746: this job's slot is free, so the account's Actions jobs held back by a role's `max_parallel` or by the
       // account's entitled concurrency get their run now rather than at the next sweep, whichever way this job ran. The
       // dispatch's own write judges admission; nothing here can start one too many. No waiting job reads nothing more.

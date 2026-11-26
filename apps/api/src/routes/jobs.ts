@@ -9,6 +9,7 @@ import {
   runnerIdsOfPolicy,
   type JobDto,
   type JobEventListDto,
+  type JobKind,
   type JobListDto,
   type RunnerPolicyDto,
 } from '@shared/contracts';
@@ -30,6 +31,7 @@ import {
 } from '@worker/db';
 import { dispatchActionsJob } from '../actions/dispatch';
 import { isJobRole } from '../auth/job-roles';
+import { orchestratorDedupeKeyOf } from '../jobs/orchestration-wake';
 import type { ApiGitHub } from '../github';
 import { actionsOnSubscription } from './dispatch-problems';
 import { auditActorOf } from '../auth/scope';
@@ -107,9 +109,17 @@ function limitOf(c: Context): number | Response {
   return Number(limit);
 }
 
-/** The slug of a slot job, so one slot per project is live at a time (ADR 0006: the overlap guard). */
-function dedupeKeyOf(slug: string, kind: string): string | null {
-  return kind.startsWith('slot-') || kind === 'burn' || kind === 'import' ? `${slug}:${kind}` : null;
+/**
+ * Run now's dedupe key (ADR 0006: the overlap guard): every kind that runs as the orchestrator (`slot-*`, `burn`,
+ * `kickoff`, a console run's `orchestrate` step) shares `<slug>:orchestrator`, so Run now and a console run never
+ * overlap (ADR 0010 decision 3); `import` keeps its own; `review` and `task` take theirs from their own routes.
+ */
+export function dedupeKeyOf(slug: string, kind: JobKind): string | null {
+  return roleOfJobKind(kind, null) === 'orchestrator'
+    ? orchestratorDedupeKeyOf(slug)
+    : kind === 'import'
+      ? `${slug}:import`
+      : null;
 }
 
 /** An audit row of a write on the queue; who acted comes from the identity, never from a body. */

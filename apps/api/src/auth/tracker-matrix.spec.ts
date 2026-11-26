@@ -23,7 +23,7 @@ import {
   type SeededProject,
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
-import { seedClaimedJob } from '../testing/runner-kit';
+import { cancelJobsInFlight, seedClaimedJob } from '../testing/runner-kit';
 import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
 import {
@@ -184,6 +184,56 @@ const ROWS: readonly Row[] = [
       body: { mode: 'any' },
     }),
     expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  // #1039: the owner starts and stops a console run and cancels a job; every actor reads the run and a job's
+  // children; the orchestrator job alone mints children, of itself.
+  {
+    route: `POST ${P}/:slug/orchestration/start`,
+    setup: async (project) => ({
+      method: 'POST',
+      path: `${P}/${project.slug}/orchestration/start`,
+      body: {},
+    }),
+    expect: (who) => (who === 'owner' ? ok(201) : refused('owner-only')),
+  },
+  {
+    route: `POST ${P}/:slug/orchestration/stop`,
+    setup: async (project) => {
+      const started = await send('POST', `${P}/${project.slug}/orchestration/start`, {});
+      if (started.status !== 201) {
+        throw new Error(`starting a run answered ${String(started.status)}`);
+      }
+      return { method: 'POST', path: `${P}/${project.slug}/orchestration/stop`, body: {} };
+    },
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  reads(`GET ${P}/:slug/orchestration`, async (project) => `${P}/${project.slug}/orchestration`),
+  {
+    route: `POST ${P}/:slug/jobs/:id/cancel`,
+    setup: async (project) => ({
+      method: 'POST',
+      path: `${P}/${project.slug}/jobs/${await job(project)}/cancel`,
+      body: {},
+    }),
+    expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
+  },
+  reads(
+    `GET ${P}/:slug/jobs/:id/children`,
+    async (project) => `${P}/${project.slug}/jobs/${await job(project)}/children`,
+  ),
+  {
+    route: `POST ${P}/:slug/jobs/:id/children`,
+    setup: async (project) => {
+      const { jobId } = await seedClaimedJob(project.slug);
+      return {
+        method: 'POST',
+        path: `${P}/${project.slug}/jobs/${jobId}/children`,
+        body: { role: 'dev', items: [1] },
+        jobId,
+      };
+    },
+    // The orchestrator job alone, the owner included among the refused.
+    expect: (who) => (who === 'orchestrator' ? ok(201) : refused('child-role')),
   },
   // #670: the account reads the dispatch, the owner switches it (`pull` here: no GitHub call).
   accountReads(`GET ${P}/:slug/dispatch`, async (project) => `${P}/${project.slug}/dispatch`),
@@ -459,6 +509,12 @@ async function expectOutcome(response: Response, expected: Expected, label: stri
 const label = (row: Row): string => (row.variant === undefined ? row.route : `${row.route} (${row.variant})`);
 const WHO: readonly Who[] = ['owner', ...JOB_ROLES];
 
+// The claimed parents of the reviews and children rows (#612, #1039) would otherwise pile up past the account's
+// entitled concurrency (#746): D1 is shared by the file's cases, and each case seeds its own jobs.
+beforeEach(async () => {
+  await cancelJobsInFlight();
+});
+
 describe('the route matrix covers the tracker', () => {
   const trackerRoutes = [
     ...new Set(
@@ -466,7 +522,7 @@ describe('the route matrix covers the tracker', () => {
         .routes.filter(
           (route) =>
             route.method !== 'ALL' &&
-            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config|dispatch|actions-setup)\b/.test(
+            /^\/api\/v1\/projects\/:slug\/(items|sprints|labels|prs|requests|decisions|jobs|runner-policy|team-config|dispatch|actions-setup|orchestration)\b/.test(
               route.path,
             ),
         )
@@ -534,6 +590,10 @@ const OWNER_ROWS: readonly TrackerRoute[] = [
   `GET ${P}/:slug/actions-setup`,
   // #759 PR 4: the workflow pull request is the owner's alone.
   `POST ${P}/:slug/actions-setup/workflow-pr`,
+  // #1039: a console run is started and stopped, and a job cancelled, by the owner alone.
+  `POST ${P}/:slug/orchestration/start`,
+  `POST ${P}/:slug/orchestration/stop`,
+  `POST ${P}/:slug/jobs/:id/cancel`,
 ];
 const PLANNING_ROWS: readonly TrackerRoute[] = [
   `POST ${P}/:slug/sprints`,
@@ -545,16 +605,18 @@ const ASK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/asks`;
 const PR_LINK_ROW: TrackerRoute = `POST ${P}/:slug/items/:key/pr-links`;
 // #612: review jobs are the orchestrator's to request.
 const REVIEW_ROW: TrackerRoute = `POST ${P}/:slug/prs/:number/reviews`;
+// #1039: child jobs are the orchestrator's to mint.
+const CHILD_ROW: TrackerRoute = `POST ${P}/:slug/jobs/:id/children`;
 const TEAM_REFUSED: readonly TrackerRoute[] = [...OWNER_ROWS, ...PLANNING_ROWS, ...PM_ROWS];
-const NON_LINKERS: readonly TrackerRoute[] = [...TEAM_REFUSED, PR_LINK_ROW, REVIEW_ROW];
+const NON_LINKERS: readonly TrackerRoute[] = [...TEAM_REFUSED, PR_LINK_ROW, REVIEW_ROW, CHILD_ROW];
 
 const REFUSED_ROWS: Readonly<Record<JobRole, readonly TrackerRoute[]>> = {
-  pm: [...OWNER_ROWS, PR_LINK_ROW, REVIEW_ROW],
+  pm: [...OWNER_ROWS, PR_LINK_ROW, REVIEW_ROW, CHILD_ROW],
   architect: NON_LINKERS,
   orchestrator: TEAM_REFUSED,
-  dev: [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
-  'dev-light': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
-  'dev-heavy': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW],
+  dev: [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW, CHILD_ROW],
+  'dev-light': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW, CHILD_ROW],
+  'dev-heavy': [...TEAM_REFUSED, ASK_ROW, REVIEW_ROW, CHILD_ROW],
   qa: NON_LINKERS,
   reviewer: NON_LINKERS,
   security: NON_LINKERS,

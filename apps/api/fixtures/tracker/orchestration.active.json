@@ -1,0 +1,23 @@
+{
+  "route": "POST /api/v1/projects/:slug/orchestration/start",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/orchestration/start",
+    "body": {}
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://team-console/problems/orchestration-active",
+      "title": "Conflict",
+      "status": 409,
+      "instance": "request-id",
+      "detail": "A team run is already on for this project; stop it first"
+    }
+  }
+}

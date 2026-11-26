@@ -1,0 +1,26 @@
+{
+  "route": "POST /api/v1/projects/:slug/jobs/:id/children",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/jobs/{job}/children",
+    "body": {
+      "role": "dev",
+      "items": [12]
+    }
+  },
+  "response": {
+    "status": 403,
+    "body": {
+      "type": "https://team-console/problems/child-parent-not-live",
+      "title": "Forbidden",
+      "status": 403,
+      "instance": "request-id",
+      "detail": "Children are minted by a claimed or running orchestrator job of the project"
+    }
+  }
+}

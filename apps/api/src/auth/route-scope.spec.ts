@@ -63,6 +63,13 @@ describe('the deny-by-default route inventory', () => {
         'GET /api/v1/projects/:slug/team-config/revisions',
         'GET /api/v1/projects/:slug/team-config/revisions/:n',
         'GET /api/v1/projects/:slug/team-config/resolved',
+        // #1039: console-driven orchestration, every route of slice 1a.
+        'POST /api/v1/projects/:slug/orchestration/start',
+        'POST /api/v1/projects/:slug/orchestration/stop',
+        'GET /api/v1/projects/:slug/orchestration',
+        'POST /api/v1/projects/:slug/jobs/:id/children',
+        'GET /api/v1/projects/:slug/jobs/:id/children',
+        'POST /api/v1/projects/:slug/jobs/:id/cancel',
       ]),
     );
   });
