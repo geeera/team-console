@@ -109,6 +109,7 @@ describe('migrations on a fresh D1', () => {
       '0044_access_owner_link_member_and_intents.sql',
       '0045_job_kinds_orchestration.sql',
       '0046_runner_non_enroller_projects.sql',
+      '0047_runner_enrolment_requests_deleted_with_owner.sql',
     ]);
   });
 
@@ -328,6 +329,98 @@ describe('migrations on a fresh D1', () => {
         insert('project_scope, isolation, created_by', `'all', 'actions-ephemeral', 'owner'`),
       ).rejects.toThrow(/CHECK/);
       await expect(insert('project_scope, isolation', `'all', 'user'`)).rejects.toThrow(/NOT NULL/);
+    });
+  });
+
+  // #821: an intent holds the binder's host, country, key and fingerprint, so it goes with its account (T-6) and with
+  // the runner it made; a refused account deletion takes nothing with it.
+  describe('0047 enrolment requests deleted with their owner', () => {
+    const account = '01M6YSNJ0000000000000M047A';
+    const runner = '01M6YSNJ0000000000000M047R';
+    const T0 = '2026-11-18T10:00:00.000Z';
+    const T1 = '2026-11-18T10:10:00.000Z';
+    let counter = 0;
+
+    async function intent(accountId: string): Promise<string> {
+      counter += 1;
+      const id = `01M6YSNJ0000000000000M04${String(counter).padStart(2, '0')}`;
+      await env.DB.prepare(
+        `INSERT INTO runner_enrolment_requests (id, account_id, name, project_scope, isolation, created_by, created_at, expires_at)
+         VALUES (?1, ?2, 'mac', 'all', 'user', 'owner', ?3, ?4)`,
+      )
+        .bind(id, accountId, T0, T1)
+        .run();
+      return id;
+    }
+    async function approved(accountId: string, runnerId: string): Promise<string> {
+      const id = await intent(accountId);
+      await env.DB.prepare(
+        `UPDATE runner_enrolment_requests
+         SET state = 'bound', public_key = ?2, host = '{}', capabilities = '{}', version = '0.1.0',
+             fingerprint = 'ABCD-EFGH', poll_token_hash = ?3, bound_at = ?4
+         WHERE id = ?1`,
+      )
+        .bind(id, 'x'.repeat(43), 'a'.repeat(64), T0)
+        .run();
+      await env.DB.prepare(
+        `UPDATE runner_enrolment_requests SET state = 'approved', approved_at = ?2, approved_by = 'owner', runner_id = ?3 WHERE id = ?1`,
+      )
+        .bind(id, T0, runnerId)
+        .run();
+      return id;
+    }
+    const exists = async (id: string): Promise<boolean> =>
+      (await env.DB.prepare(`SELECT 1 AS hit FROM runner_enrolment_requests WHERE id = ?1`)
+        .bind(id)
+        .first()) !== null;
+
+    beforeAll(async () => {
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm047', 'M', ?2)`).bind(
+          account,
+          T0,
+        ),
+        env.DB.prepare(
+          `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+             VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`,
+        ).bind(runner, account, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0),
+      ]);
+    });
+
+    it('deletes the runner’s intent with the runner, then the account’s intents with the account, and no other', async () => {
+      const made = await approved(account, runner);
+      const pending = await intent(account);
+      const foreign = await intent(OWNER_ACCOUNT_ID);
+
+      await env.DB.prepare(`DELETE FROM runners WHERE id = ?1`).bind(runner).run();
+      expect(await exists(made)).toBe(false);
+      expect(await exists(pending)).toBe(true);
+
+      await env.DB.prepare(`DELETE FROM accounts WHERE id = ?1`).bind(account).run();
+      expect(await exists(pending)).toBe(false);
+      expect(await exists(foreign)).toBe(true);
+      await env.DB.prepare(`DELETE FROM runner_enrolment_requests WHERE id = ?1`).bind(foreign).run();
+    });
+
+    it('keeps the intents of an account whose deletion is refused', async () => {
+      const withProject = '01M6YSNJ0000000000000M047P';
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm047p', 'P', ?2)`,
+        ).bind(withProject, T0),
+        env.DB.prepare(
+          `INSERT INTO projects (slug, repo, display_name, added_at, account_id) VALUES ('m047p', 'acme/m047p', 'm047p', ?1, ?2)`,
+        ).bind(T0, withProject),
+      ]);
+      const kept = await intent(withProject);
+      await expect(
+        env.DB.prepare(`DELETE FROM accounts WHERE id = ?1`).bind(withProject).run(),
+      ).rejects.toThrow(/an account with projects is not deleted/);
+      expect(await exists(kept)).toBe(true);
+      await env.DB.batch([
+        env.DB.prepare(`DELETE FROM runner_enrolment_requests WHERE id = ?1`).bind(kept),
+        env.DB.prepare(`DELETE FROM projects WHERE slug = 'm047p'`),
+      ]);
     });
   });
 
