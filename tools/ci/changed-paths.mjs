@@ -7,8 +7,9 @@
 //
 // The second form is the whole decision of the `runner-darwin-scope` and `runtime-image-scope` jobs (#1005: the
 // two steps repeated it in bash): it works out what to compare from the event, read from EVENT, BASE_REF and
-// BEFORE in the environment and from the checked-out HEAD, and answers `true` without comparing on a release PR
-// or when a push has no usable base. One line on stderr says which case it was, in constant words.
+// BEFORE in the environment (and GITHUB_SHA, which the runner sets itself) and from the checked-out HEAD, and
+// answers `true` without comparing on a release PR or when a push has no usable base. One line on stderr says
+// which case it was, in constant words.
 // It knows two events, `pull_request` and `push`, and refuses any other by name (#1013): a new trigger in
 // ci.yml has to be given its own case here, not be read as a push.
 //
@@ -112,6 +113,17 @@ function parentsOfHead(cwd) {
   return parents;
 }
 
+/** Whether the clone is shallow: its boundary commits show no parents, so a merge there looks like none. */
+function isShallow(cwd) {
+  const answer = execFileSync('git', ['rev-parse', '--is-shallow-repository'], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'inherit'],
+  }).trim();
+  if (answer !== 'true' && answer !== 'false') throw new Error('git rev-parse did not answer true or false');
+  return answer === 'true';
+}
+
 /** Whether the repository has that commit. Only ever asked about a full sha. */
 function hasCommit(sha, cwd) {
   return spawnSync('git', ['cat-file', '-e', `${sha}^{commit}`], { cwd, stdio: 'ignore' }).status === 0;
@@ -123,17 +135,19 @@ function hasCommit(sha, cwd) {
  *  - a pull request into `dev` compares the merge commit GitHub checked out with its first parent, the base
  *    branch's tip. HEAD must be that merge, a commit with exactly two parents (#1013): the first parent of
  *    anything else (the PR's own head, checked out by a `ref:`) is not the base, and the diff would be one
- *    commit of the PR instead of all of it;
+ *    commit of the PR instead of all of it. And HEAD must be the commit GITHUB_SHA names (#1019): two parents
+ *    alone do not make a commit GitHub's merge, a PR head that is itself a merge has them too. In a shallow
+ *    clone the merge shows no parents, and the failure says that is why;
  *  - a push compares `before` with HEAD when `before` is a commit this clone has;
  *  - a push without one (a first push, a forced one, a shallow clone) has no base to compare with: in scope;
  *  - any other event is refused (#1013): it used to be read as a push.
  * Every failure throws, a pattern that is not a regular expression included, whichever case applies: the
  * caller must stop rather than fall back to "nothing changed".
  * @param {{ event: string | undefined, baseRef: string | undefined, before: string | undefined,
- *   pattern: string, cwd?: string }} input
+ *   githubSha?: string | undefined, pattern: string, cwd?: string }} input
  * @returns {{ run: boolean, why: string }} `why` is constant text, safe to print
  */
-export function scopeOfEvent({ event, baseRef, before, pattern, cwd = process.cwd() }) {
+export function scopeOfEvent({ event, baseRef, before, githubSha, pattern, cwd = process.cwd() }) {
   if (typeof event !== 'string' || event === '') throw new ArgumentError('EVENT', 'is not set');
   if (typeof baseRef !== 'string' || baseRef === '') throw new ArgumentError('BASE_REF', 'is not set');
   if (event !== 'pull_request' && event !== 'push') {
@@ -143,8 +157,23 @@ export function scopeOfEvent({ event, baseRef, before, pattern, cwd = process.cw
   const head = commitOf('HEAD', cwd);
   if (event === 'pull_request') {
     if (baseRef !== 'dev') return { run: true, why: 'a release PR, into a branch other than dev' };
+    if (typeof githubSha !== 'string' || githubSha === '') {
+      throw new ArgumentError('GITHUB_SHA', 'is not set');
+    }
+    if (!FULL_SHA.test(githubSha)) {
+      throw new ArgumentError('GITHUB_SHA', 'is not a full 40-character commit sha');
+    }
+    if (head !== githubSha) throw new ArgumentError('HEAD', 'is not the commit GITHUB_SHA names');
     const parents = parentsOfHead(cwd);
-    if (parents.length !== 2) throw new ArgumentError('HEAD', 'is not a merge commit with two parents');
+    if (parents.length !== 2) {
+      if (isShallow(cwd)) {
+        throw new ArgumentError(
+          'HEAD',
+          'shows no two parents in a shallow clone; check out with fetch-depth: 0',
+        );
+      }
+      throw new ArgumentError('HEAD', 'is not a merge commit with two parents');
+    }
     const [base] = parents;
     return {
       run: anyPathMatches(listChangedPaths(base, head, cwd), pattern),
@@ -197,8 +226,8 @@ function mainEventScope(argv) {
   }
   let scope;
   try {
-    const { EVENT: event, BASE_REF: baseRef, BEFORE: before } = process.env;
-    scope = scopeOfEvent({ event, baseRef, before, pattern });
+    const { EVENT: event, BASE_REF: baseRef, BEFORE: before, GITHUB_SHA: githubSha } = process.env;
+    scope = scopeOfEvent({ event, baseRef, before, githubSha, pattern });
   } catch (error) {
     reportFailure(error, 'git could not tell what this event changed');
     return 1;

@@ -9,7 +9,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   ArgumentError,
   anyPathMatches,
@@ -276,7 +276,16 @@ try {
     sgit('commit', '--quiet', '--message', message);
     return sgit('rev-parse', 'HEAD');
   };
-  const eventEnv = (event) => ({ ...gitEnv, EVENT: '', BASE_REF: '', BEFORE: '', ...event });
+  // GITHUB_SHA is the checked-out commit unless a case says otherwise, as on the runner; never the runner's own.
+  const headOf = () => sgit('rev-parse', 'HEAD');
+  const eventEnv = (event) => ({
+    ...gitEnv,
+    EVENT: '',
+    BASE_REF: '',
+    BEFORE: '',
+    GITHUB_SHA: headOf(),
+    ...event,
+  });
   const runScope = (event, ...args) =>
     spawnSync(process.execPath, [SCRIPT, '--event-scope', ...args], {
       cwd: scopeRepo,
@@ -290,6 +299,7 @@ try {
         event: event.EVENT,
         baseRef: event.BASE_REF,
         before: event.BEFORE,
+        githubSha: 'GITHUB_SHA' in event ? event.GITHUB_SHA : headOf(),
         pattern,
         cwd: scopeRepo,
       }),
@@ -332,36 +342,40 @@ try {
     [['.github/actions/setup-node-npm/action.yml'], true, false],
     [['docs/a.md', 'docs/x\nDockerfile', 'docs/y\napps/runner/z.ts'], false, false],
   ];
-  for (const [at, [files, inSweep, inImage]] of probes.entries()) {
+  // Each distinct (event, pattern, answer) goes through the command line the first time it comes up, and is
+  // asked in-process after that.
+  const askedOnCommandLine = new Set();
+  const assertProbe = (event, pattern, expected, why, label) => {
+    const answer = JSON.stringify([event, pattern, expected]);
+    if (askedOnCommandLine.has(answer)) return assertScope(event, pattern, expected, why, label);
+    askedOnCommandLine.add(answer);
+    return assertScopeAnswer(event, pattern, expected, why, label);
+  };
+  const push = { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip };
+  const release = { EVENT: 'pull_request', BASE_REF: 'stage' };
+  for (const [files, inSweep, inImage] of probes) {
     const label = JSON.stringify(files);
-    // Every case goes through the command line once, for the first probe that gets each answer.
-    const firstWith = (column) => probes.findIndex((probe) => probe[column] === probes[at][column]) === at;
-    const asserted = (column) => (firstWith(column) ? assertScopeAnswer : assertScope);
+    const answers = [
+      [RUNNER, inSweep],
+      [IMAGE, inImage],
+    ];
     sgit('checkout', '--quiet', '--detach', devTip);
     for (const file of files) swrite(file, `${label}\n`);
     const change = scommit(`change ${label}`);
     // A push of that commit onto dev.
-    for (const [pattern, expected, column] of [
-      [RUNNER, inSweep, 1],
-      [IMAGE, inImage, 2],
-    ]) {
-      const push = { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip };
-      asserted(column)(push, pattern, expected, PUSH_WHY, label);
-    }
+    for (const [pattern, expected] of answers) assertProbe(push, pattern, expected, PUSH_WHY, label);
     // The pull request: GitHub checks out a merge of the head into the base, the base tip its first parent.
     sgit('checkout', '--quiet', '--detach', devTip);
     sgit('merge', '--quiet', '--no-ff', '--no-edit', change);
     assert.strictEqual(sgit('rev-parse', 'HEAD^1'), devTip);
-    for (const [pattern, expected, column] of [
-      [RUNNER, inSweep, 1],
-      [IMAGE, inImage, 2],
-    ]) {
-      asserted(column)(PR_INTO_DEV, pattern, expected, PR_WHY, `PR ${label}`);
-      // A release PR is in scope whatever it touches, and so is a push with nothing to compare with.
-      const release = { EVENT: 'pull_request', BASE_REF: 'stage' };
-      asserted(column)(release, pattern, true, RELEASE, `release ${label}`);
+    for (const [pattern, expected] of answers) {
+      assertProbe(PR_INTO_DEV, pattern, expected, PR_WHY, `PR ${label}`);
+      // A release PR is in scope whatever it touches.
+      assertProbe(release, pattern, true, RELEASE, `release ${label}`);
     }
   }
+  // Both answers of both patterns, and the release case, did reach the command line.
+  assert.strictEqual(askedOnCommandLine.size, 2 * 2 + 2 * 2 + 2, 'every distinct answer on the command line');
   // HEAD is the docs-only-like last probe's merge; a rename out of apps/runner counts by its old path.
   sgit('checkout', '--quiet', '--detach', devTip);
   renameSync(path.join(scopeRepo, 'apps/runner/src/moved.ts'), path.join(scopeRepo, 'docs/moved.ts'));
@@ -436,7 +450,14 @@ try {
   const NOT_A_MERGE = scopeError('<HEAD> is not a merge commit with two parents');
   assertArgumentError(
     () =>
-      scopeOfEvent({ event: 'pull_request', baseRef: 'dev', before: '', pattern: RUNNER, cwd: scopeRepo }),
+      scopeOfEvent({
+        event: 'pull_request',
+        baseRef: 'dev',
+        before: '',
+        githubSha: headOf(),
+        pattern: RUNNER,
+        cwd: scopeRepo,
+      }),
     'HEAD',
     '<HEAD> is not a merge commit with two parents',
   );
@@ -462,7 +483,85 @@ try {
   // The real merge of that PR head is compared whole: the early runner change counts.
   sgit('checkout', '--quiet', '--detach', devTip);
   sgit('merge', '--quiet', '--no-ff', '--no-edit', prHead);
+  const prMerge = headOf();
   assertScopeAnswer(PR_INTO_DEV, RUNNER, true, PR_WHY, 'the merge of a two-commit PR');
+
+  // #1019: a pull request into dev is compared only on the commit GITHUB_SHA names, GitHub's merge.
+  const NO_GITHUB_SHA = scopeError('<GITHUB_SHA> is not set');
+  assertScopeFails(1, NO_GITHUB_SHA, 'an empty GITHUB_SHA', { ...PR_INTO_DEV, GITHUB_SHA: '' }, RUNNER);
+  assertArgumentError(
+    () =>
+      scopeOfEvent({ event: 'pull_request', baseRef: 'dev', before: '', pattern: RUNNER, cwd: scopeRepo }),
+    'GITHUB_SHA',
+    '<GITHUB_SHA> is not set',
+  );
+  const BAD_GITHUB_SHA = scopeError('<GITHUB_SHA> is not a full 40-character commit sha');
+  for (const githubSha of ['HEAD', prMerge.toUpperCase(), `${prMerge}\n`, prMerge.slice(0, 12)]) {
+    const label = `GITHUB_SHA ${JSON.stringify(githubSha)}`;
+    assertScopeFails(1, BAD_GITHUB_SHA, label, { ...PR_INTO_DEV, GITHUB_SHA: githubSha }, RUNNER);
+  }
+  const NOT_GITHUB_SHA = scopeError('<HEAD> is not the commit GITHUB_SHA names');
+  assertScopeFails(
+    1,
+    NOT_GITHUB_SHA,
+    'a merge other than GITHUB_SHA',
+    { ...PR_INTO_DEV, GITHUB_SHA: devTip },
+    RUNNER,
+  );
+  // The case two parents alone let through: a checkout with `ref:` of a PR head that is itself a merge (of
+  // `second` into the PR). Its first parent is the PR's previous commit, not the base tip, so only
+  // docs/second.md would be compared and the early runner change missed: `false`.
+  sgit('checkout', '--quiet', '--detach', prHead);
+  sgit('merge', '--quiet', '--no-ff', '--no-edit', second);
+  const mergingHead = headOf();
+  assert.deepStrictEqual(listChangedPaths(prHead, mergingHead, scopeRepo), ['docs/second.md']);
+  sgit('checkout', '--quiet', '--detach', devTip);
+  sgit('merge', '--quiet', '--no-ff', '--no-edit', mergingHead);
+  const githubMerge = headOf();
+  sgit('checkout', '--quiet', '--detach', mergingHead);
+  assert.strictEqual(sgit('rev-list', '--parents', '--max-count=1', 'HEAD').split(' ').length, 3);
+  const onPrHead = { ...PR_INTO_DEV, GITHUB_SHA: githubMerge };
+  assertScopeFails(1, NOT_GITHUB_SHA, 'a PR head that is a merge, checked out by ref', onPrHead, RUNNER);
+  sgit('checkout', '--quiet', '--detach', githubMerge);
+  assertScopeAnswer(onPrHead, RUNNER, true, PR_WHY, 'the merge GITHUB_SHA names');
+  // A release PR and a push never compare a merge, so neither needs GITHUB_SHA.
+  const noSha = { GITHUB_SHA: '' };
+  assertScopeAnswer(
+    { EVENT: 'pull_request', BASE_REF: 'main', ...noSha },
+    RUNNER,
+    true,
+    RELEASE,
+    'release, no sha',
+  );
+  assertScopeAnswer(
+    { EVENT: 'push', BASE_REF: 'dev', BEFORE: devTip, ...noSha },
+    RUNNER,
+    true,
+    PUSH_WHY,
+    'a push, no GITHUB_SHA',
+  );
+
+  // #1019: in a shallow clone GitHub's merge shows no parents. The failure names the shallow clone as the
+  // cause rather than calling the merge "not a merge commit".
+  sgit('branch', 'pr-merge', githubMerge);
+  const shallowRepo = path.join(tmp, 'shallow');
+  execFileSync(
+    'git',
+    ['clone', '--quiet', '--depth', '1', '--branch', 'pr-merge', pathToFileURL(scopeRepo).href, shallowRepo],
+    { env: gitEnv },
+  );
+  const inShallow = spawnSync(process.execPath, [SCRIPT, '--event-scope', RUNNER], {
+    cwd: shallowRepo,
+    env: eventEnv(onPrHead),
+    encoding: 'utf8',
+  });
+  assert.strictEqual(inShallow.status, 1, 'a shallow clone');
+  assert.strictEqual(inShallow.stdout, '', 'a shallow clone');
+  assert.strictEqual(
+    inShallow.stderr,
+    scopeError('<HEAD> shows no two parents in a shallow clone; check out with fetch-depth: 0'),
+    'a shallow clone',
+  );
   // A release PR and a push never read a parent, so neither asks for a merge.
   sgit('checkout', '--quiet', '--detach', prHead);
   assertScopeAnswer({ EVENT: 'pull_request', BASE_REF: 'main' }, RUNNER, true, RELEASE, 'a release PR head');
