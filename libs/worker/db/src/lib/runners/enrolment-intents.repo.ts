@@ -242,6 +242,22 @@ export class EnrolmentIntentsRepo {
   }
 
   /**
+   * The owner's open intents at `now` (#817): pending or bound and unexpired, the ones the live cap counts, newest
+   * first and at most `limit` of them. Only the caller's own, in their account (R-INT-2).
+   */
+  async listOpen(owner: IntentOwner, now: string, limit: number): Promise<EnrolmentIntentRecord[]> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT ${COLUMNS} FROM runner_enrolment_requests
+         WHERE account_id = ?1 AND created_by = ?2 AND ${liveSql('?3')}
+         ORDER BY created_at DESC, id DESC LIMIT ?4`,
+      )
+      .bind(owner.accountId, owner.createdBy, now, limit)
+      .all<IntentRow>();
+    return results.map(toRecord);
+  }
+
+  /**
    * Binds a runner's key to a pending intent: first bind wins. `false` when the intent is no longer pending (another
    * `start` won, or the owner withdrew it), has expired at `bind.at`, was made for another backend than `isolation`,
    * or its account is suspended; nothing is written then, the audit row included. The UPDATE's own WHERE decides, and
@@ -344,9 +360,11 @@ export class EnrolmentIntentsRepo {
       at: approval.at,
     };
     // The key in the gate ties the row written to the row read: a bound key never changes (0037), so this holds
-    // exactly while the intent is still the one the owner saw.
-    const stillBound = `i.id = ? AND i.account_id = ?2 AND i.created_by = ? AND i.state = 'bound' AND i.fingerprint = ?
-      AND i.public_key = ? AND julianday(i.expires_at) > julianday(?10)`;
+    // exactly while the intent is still the one the owner saw. Numbered placeholders only (#817): the gate's own
+    // parameters bind after the runner row's `?1`–`?13`, so they are `?14`–`?17` in `params` order, beside the row's
+    // `?2` (account) and `?10` (time); an anonymous `?` would take its number from whatever came before it.
+    const stillBound = `i.id = ?14 AND i.account_id = ?2 AND i.created_by = ?15 AND i.state = 'bound'
+      AND i.fingerprint = ?16 AND i.public_key = ?17 AND julianday(i.expires_at) > julianday(?10)`;
     const [, update] = await this.db.batch([
       // Never hosted: an intent enrols a customer's own machine only.
       runnerInsertStatement(this.db, runner, false, {
@@ -391,9 +409,10 @@ export class EnrolmentIntentsRepo {
   }
 
   /**
-   * The binder collects its enrolment, once: the approved intent becomes `used` and the runner's id comes back.
-   * `null` when the intent is not approved, was collected already, the token is not its own, or the collection
-   * window (`expires_at`, or `collectSeconds` after the approval, whichever is later) has passed.
+   * The binder collects its enrolment: the approved intent becomes `used` and the runner's id comes back. Repeatable
+   * within the collection window (#817), so a runner whose answer was lost on the way asks again and gets the same
+   * runner; `collected_at` keeps the first collection. `null` when the intent is not approved, the token is not its
+   * own, or the window (`expires_at`, or `collectSeconds` after the approval, whichever is later) has passed.
    */
   async collect(
     id: string,
@@ -403,8 +422,8 @@ export class EnrolmentIntentsRepo {
   ): Promise<string | null> {
     const row = await this.db
       .prepare(
-        `UPDATE runner_enrolment_requests SET state = 'used', collected_at = ?3
-         WHERE id = ?1 AND poll_token_hash = ?2 AND state = 'approved'
+        `UPDATE runner_enrolment_requests SET state = 'used', collected_at = COALESCE(collected_at, ?3)
+         WHERE id = ?1 AND poll_token_hash = ?2 AND state IN ('approved', 'used')
            AND (julianday(expires_at) > julianday(?3) OR julianday(approved_at, ?4) > julianday(?3))
          RETURNING runner_id`,
       )
