@@ -44,13 +44,14 @@ describe('SrOnlyOnPhone', () => {
     expect(heading.classList.contains('tc-sr-only')).toBe(true);
   });
 
-  it('shows the hidden heading while it has focus and hides it again on blur', async () => {
+  it('stays hidden while it has focus on the phone and is still the active element', async () => {
     const { fixture, heading } = await render(true);
     document.body.appendChild(fixture.nativeElement);
 
     heading.focus();
     await fixture.whenStable();
-    expect(heading.classList.contains('tc-sr-only')).toBe(false);
+    expect(document.activeElement).toBe(heading);
+    expect(heading.classList.contains('tc-sr-only')).toBe(true);
 
     heading.blur();
     await fixture.whenStable();
