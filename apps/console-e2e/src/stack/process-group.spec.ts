@@ -165,6 +165,31 @@ describe('procMember', () => {
     });
   });
 
+  it('keeps a member whose command line it may not read as one it could not read', () => {
+    for (const code of ['EACCES', 'EPERM']) {
+      const denied = (): string => {
+        throw Object.assign(new Error(`${code}: permission denied, open '/proc/4250/cmdline'`), { code });
+      };
+
+      expect(procMember(4250, 4242, statLine('node', 'S', 4242, '8675309'), denied)).toEqual({
+        pid: 4250,
+        argv: [],
+        startedAt: '',
+        unreadable: true,
+      });
+    }
+  });
+
+  it('passes on any other failure of the command line read, a process gone by then included', () => {
+    const gone = (): string => {
+      throw Object.assign(new Error("ENOENT: no such file or directory, open '/proc/4250/cmdline'"), {
+        code: 'ENOENT',
+      });
+    };
+
+    expect(() => procMember(4250, 4242, statLine('node', 'S', 4242, '8675309'), gone)).toThrow(/ENOENT/);
+  });
+
   it('keeps a process whose line does not tell the group as one it could not read: it may be of this one', () => {
     expect(procMember(4250, 4242, '4250 (node) S\n', unread)).toEqual({
       pid: 4250,

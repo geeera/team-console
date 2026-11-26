@@ -66,7 +66,8 @@ function groupFromProc(pgid: number): GroupMember[] {
 /**
  * The process `pid` as a member of `pgid`, from its `stat` line and, only when it is one, its `cmdline`; `null` for
  * a process of another group and for a zombie. A line that does not tell the group might be of any, this one too,
- * and one that tells this group but no start time is of it for sure: both are members that could not be read.
+ * and one that tells this group but no start time is of it for sure: both are members that could not be read. So is
+ * a member whose `cmdline` it may not read (`EACCES`, `EPERM`); a process that is gone by then throws as it is.
  */
 export function procMember(
   pid: number,
@@ -81,9 +82,20 @@ export function procMember(
   if (parsed.pgrp !== pgid || parsed.state === 'Z') {
     return null;
   }
-  return parsed.startedAt === null
-    ? unreadableMember(pid)
-    : { pid, argv: parseProcCmdline(cmdline()), startedAt: parsed.startedAt };
+  if (parsed.startedAt === null) {
+    return unreadableMember(pid);
+  }
+  let words: string;
+  try {
+    words = cmdline();
+  } catch (error: unknown) {
+    // A member whose words the system will not hand out (#1019): read as one, it would be judged by the others.
+    if (error instanceof Error && 'code' in error && (error.code === 'EACCES' || error.code === 'EPERM')) {
+      return unreadableMember(pid);
+    }
+    throw error;
+  }
+  return { pid, argv: parseProcCmdline(words), startedAt: parsed.startedAt };
 }
 
 export interface ProcStat {
@@ -141,6 +153,12 @@ function groupFromPs(pgid: number): GroupMember[] {
 }
 
 /**
+ * pid, pgid, then what may follow: `stat`, the five words of `lstart`, the command. A line cut before the start time
+ * has no group 4; with one, whatever follows it is the command.
+ */
+const PS_LINE = /^\s*(\d+)\s+(\d+)(?:\s+(\S+))?(?:\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+))?(?:\s+(.*))?$/;
+
+/**
  * The members of `pgid` in the output of `ps -o pid=,pgid=,stat=,lstart=,command=`, zombies (`Z…`) left out as
  * above. `lstart` is five words (`Wed Nov 25 18:33:54 2026`, the day padded with a space below 10), kept with single
  * spaces. The command is split at every single space: `ps` has already joined the words, so this cannot give a word
@@ -153,20 +171,21 @@ function groupFromPs(pgid: number): GroupMember[] {
 export function parsePsListing(listing: string, pgid: number): GroupMember[] {
   const members: GroupMember[] = [];
   for (const line of listing.split('\n')) {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\S+)\s+(\S+\s+\S+\s+\S+\s+\S+\s+\S+)(?:\s+(.*))?$/.exec(line);
-    if (match !== null && Number(match[2]) === pgid && !(match[3] ?? '').startsWith('Z')) {
-      const command = (match[5] ?? '').trimEnd();
-      members.push({
-        pid: Number(match[1]),
-        argv: command === '' ? [] : command.split(' '),
-        startedAt: (match[4] ?? '').split(/\s+/).join(' '),
-      });
-    } else if (match === null) {
-      const head = /^\s*(\d+)\s+(\d+)(?:\s+(\S+))?/.exec(line);
-      if (head !== null && Number(head[2]) === pgid && !(head[3] ?? '').startsWith('Z')) {
-        members.push(unreadableMember(Number(head[1])));
-      }
+    const match = PS_LINE.exec(line);
+    if (match === null || Number(match[2]) !== pgid || (match[3] ?? '').startsWith('Z')) {
+      continue;
     }
+    const startedAt = match[4];
+    if (startedAt === undefined) {
+      members.push(unreadableMember(Number(match[1])));
+      continue;
+    }
+    const command = (match[5] ?? '').trimEnd();
+    members.push({
+      pid: Number(match[1]),
+      argv: command === '' ? [] : command.split(' '),
+      startedAt: startedAt.split(/\s+/).join(' '),
+    });
   }
   return members;
 }
