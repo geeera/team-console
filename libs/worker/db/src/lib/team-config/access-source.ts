@@ -27,6 +27,10 @@ export function hostedRunnerAdmittedSql(slug: string, policy: string): string {
  * enrolling owner created; the other owners' projects need explicit selection. An API-key-only runner is one
  * person's bill, not one person's subscription doing another's work, so D3 leaves it alone.
  *
+ * #824 (migration 0046): D3 also judges each `selected` entry that an owner other than the enroller added
+ * (`non_enroller_projects`), since #795 checks the declaration at write time only and the runner re-declares on every
+ * claim poll; an entry added while it declared `api_key` only would otherwise outlive a switch to `subscription`.
+ *
  * The project term only: **every** caller ANDs it with the account equality (`runner.account_id = jobs.account_id`
  * or `= p.account_id`), so a tampered list or a slug of another account never reaches past the account boundary
  * (threat model C9, R-SCOPE-3). `hostedRunnerAdmittedSql` stays blind to it on purpose (R-SCOPE-4).
@@ -36,9 +40,11 @@ export function runnerServesSql(runner: string, slug: string): string {
   const oneOwner = runnerAccountHasOneOwnerSql(runner);
   const ownProject = `(${runner}.enrolled_by IS NOT NULL
           AND ${runner}.enrolled_by = (SELECT cp.created_by FROM projects cp WHERE cp.slug = ${slug}))`;
+  const d3 = `(NOT ${subscriptionCapable} OR ${oneOwner} OR ${ownProject})`;
   return `(
-      (${runner}.project_scope = 'all' AND (NOT ${subscriptionCapable} OR ${oneOwner} OR ${ownProject}))
-      OR ${slug} IN (SELECT value FROM json_each(${runner}.allowed_projects))
+      (${runner}.project_scope = 'all' AND ${d3})
+      OR (${slug} IN (SELECT value FROM json_each(${runner}.allowed_projects))
+          AND (${slug} NOT IN (SELECT value FROM json_each(${runner}.non_enroller_projects)) OR ${d3}))
     )`;
 }
 

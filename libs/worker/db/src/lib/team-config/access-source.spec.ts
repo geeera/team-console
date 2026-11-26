@@ -60,6 +60,12 @@ describe('runnerServesSql', () => {
       runner('01M6YSNJ0000000000000RSQA1', 'all', [], 'owner-1', ['subscription']),
       runner('01M6YSNJ0000000000000RSQK1', 'all', [], 'owner-1', ['api_key']),
       runner('01M6YSNJ0000000000000RSQS1', 'selected', ['rsql-theirs'], 'owner-1', ['subscription']),
+      // #824: entries another owner added, on a subscription runner and on an API-key one.
+      runner('01M6YSNJ0000000000000RSQN1', 'selected', ['rsql-mine', 'rsql-theirs'], 'owner-1', ['subscription']),
+      runner('01M6YSNJ0000000000000RSQN2', 'selected', ['rsql-mine', 'rsql-theirs'], 'owner-1', ['api_key']),
+      env.DB.prepare(
+        `UPDATE runners SET non_enroller_projects = '["rsql-mine","rsql-theirs"]' WHERE id IN ('01M6YSNJ0000000000000RSQN1', '01M6YSNJ0000000000000RSQN2')`,
+      ),
     ]);
     const served = async (): Promise<string[]> => {
       const { results } = await env.DB.prepare(
@@ -76,10 +82,15 @@ describe('runnerServesSql', () => {
       '01M6YSNJ0000000000000RSQA1:rsql-theirs',
       '01M6YSNJ0000000000000RSQK1:rsql-mine',
       '01M6YSNJ0000000000000RSQK1:rsql-theirs',
+      '01M6YSNJ0000000000000RSQN1:rsql-mine',
+      '01M6YSNJ0000000000000RSQN1:rsql-theirs',
+      '01M6YSNJ0000000000000RSQN2:rsql-mine',
+      '01M6YSNJ0000000000000RSQN2:rsql-theirs',
       '01M6YSNJ0000000000000RSQS1:rsql-theirs',
     ]);
-    // Two owners (D3): the subscription runner under `all` keeps its enroller's project only; the API-key runner and
-    // the explicit selection are unchanged.
+    // Two owners (D3): the subscription runner under `all` keeps its enroller's project only, and so do the entries
+    // another owner added to a subscription runner (#824); the API-key runners and the enroller's own selection are
+    // unchanged.
     for (const n of [1, 2]) {
       const user = `01M6YSNJ0000000000000RSQM${String(n)}`;
       await env.DB.batch([
@@ -95,6 +106,9 @@ describe('runnerServesSql', () => {
       '01M6YSNJ0000000000000RSQA1:rsql-mine',
       '01M6YSNJ0000000000000RSQK1:rsql-mine',
       '01M6YSNJ0000000000000RSQK1:rsql-theirs',
+      '01M6YSNJ0000000000000RSQN1:rsql-mine',
+      '01M6YSNJ0000000000000RSQN2:rsql-mine',
+      '01M6YSNJ0000000000000RSQN2:rsql-theirs',
       '01M6YSNJ0000000000000RSQS1:rsql-theirs',
     ]);
   });

@@ -187,20 +187,25 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         return invalid(c, 'claim-invalid', input.field, input.detail);
       }
       const runners = new RunnersRepo(c.env.DB);
+      const now = new Date();
+      const nowIso = now.toISOString();
+      const jobs = new JobsRepo(c.env.DB);
       // #775 (SECURITY question 7): the declaration is stored before the claim reads it, so the claim's `AND` term
-      // judges the stored row; a hosted or ephemeral identity's declaration is ignored by the write itself.
+      // judges the stored row; a hosted or ephemeral identity's declaration is ignored by the write itself. #824: a
+      // change cancels in the same batch the live jobs D3 no longer lets the runner serve, as a scope write does.
       if (
         input.value.accessSources !== undefined &&
-        (await runners.setAccessSources(runner.runnerId, input.value.accessSources))
+        (await runners.setAccessSources(
+          runner.runnerId,
+          input.value.accessSources,
+          jobs.cancelUnservedStatements(runner.runnerId, nowIso),
+        ))
       ) {
         logger.info('runner declared access sources', {
           runnerId: runner.runnerId,
           accessSources: input.value.accessSources,
         });
       }
-      const now = new Date();
-      const nowIso = now.toISOString();
-      const jobs = new JobsRepo(c.env.DB);
       const teamState = new TeamStateRepo(c.env.DB);
       const lapsed = await jobs.requeueLapsed(nowIso);
       for (const lost of lapsed.lost) {

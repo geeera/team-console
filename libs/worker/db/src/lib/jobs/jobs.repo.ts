@@ -1262,10 +1262,11 @@ export class JobsRepo {
 
   /**
    * The statements that cancel this runner's live jobs its new scope no longer serves, for the scope write's batch
-   * (#490 review, #794). Judged by `RUNNER_STILL_ALLOWS_SQL` on the row the write just stored, so `selected`→`all`
-   * under owner decision D3 cancels the other owners' jobs as a narrowed list does. `AUDITED_WRITE_HAPPENED_SQL` reads
-   * the audit row just before it (#533): they run only when the write happened, so they must come directly after the
-   * `auditedWrite` pair, as `RunnersRepo.setScope` places them.
+   * (#490 review, #794) and the access-source declaration's (#824: a switch to a subscription narrows D3). Judged by
+   * `RUNNER_STILL_ALLOWS_SQL` on the row the write just stored, so `selected`→`all` under owner decision D3 cancels
+   * the other owners' jobs as a narrowed list does. `AUDITED_WRITE_HAPPENED_SQL` reads `changes()` of the statement
+   * just before it (#533): they run only when the write happened, so they must come directly after the `auditedWrite`
+   * pair, as `RunnersRepo.setScope` places them, or directly after the write, as `RunnersRepo.setAccessSources` does.
    */
   cancelUnservedStatements(runnerId: string, now: string): D1PreparedStatement[] {
     return [
