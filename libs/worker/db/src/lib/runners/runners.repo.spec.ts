@@ -452,7 +452,13 @@ describe('RunnersRepo', () => {
 
       // The other owner may narrow and keep the held-back entry; keeping it never makes it served.
       expect(
-        await repo.setScope(ACCOUNT_D, runner.id, selected(['d824-theirs']), OWNER_2, inD(runner.id, OWNER_2)),
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-theirs']),
+          OWNER_2,
+          inD(runner.id, OWNER_2),
+        ),
       ).toBe('changed');
       expect(await nonEnrollerOf(runner.id)).toEqual(['d824-theirs']);
       expect(await servedSlugs(runner.id)).toEqual([]);
@@ -524,7 +530,9 @@ describe('RunnersRepo', () => {
       expect(await change('owner-1', ['d824-mine', 'd824-theirs'], ['d824-theirs'])).toBe('changed');
       expect(await change('owner-1', ['d824-theirs'], ['d824-theirs', 'd824-mine'])).toBe('changed');
       // The row as it was before 0046 recorded who added what.
-      await env.DB.prepare(`UPDATE runners SET non_enroller_projects = '[]' WHERE id = ?1`).bind(runner.id).run();
+      await env.DB.prepare(`UPDATE runners SET non_enroller_projects = '[]' WHERE id = ?1`)
+        .bind(runner.id)
+        .run();
 
       const backfill = env.TEST_MIGRATIONS.find((m) => m.name.startsWith('0046_'))?.queries.find((query) =>
         query.trimStart().startsWith('UPDATE runners'),

@@ -61,7 +61,9 @@ describe('runnerServesSql', () => {
       runner('01M6YSNJ0000000000000RSQK1', 'all', [], 'owner-1', ['api_key']),
       runner('01M6YSNJ0000000000000RSQS1', 'selected', ['rsql-theirs'], 'owner-1', ['subscription']),
       // #824: entries another owner added, on a subscription runner and on an API-key one.
-      runner('01M6YSNJ0000000000000RSQN1', 'selected', ['rsql-mine', 'rsql-theirs'], 'owner-1', ['subscription']),
+      runner('01M6YSNJ0000000000000RSQN1', 'selected', ['rsql-mine', 'rsql-theirs'], 'owner-1', [
+        'subscription',
+      ]),
       runner('01M6YSNJ0000000000000RSQN2', 'selected', ['rsql-mine', 'rsql-theirs'], 'owner-1', ['api_key']),
       env.DB.prepare(
         `UPDATE runners SET non_enroller_projects = '["rsql-mine","rsql-theirs"]' WHERE id IN ('01M6YSNJ0000000000000RSQN1', '01M6YSNJ0000000000000RSQN2')`,

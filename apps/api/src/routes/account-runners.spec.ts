@@ -692,9 +692,7 @@ describe('the scope of a subscription runner in a two-owner account', () => {
     expect(listed.status).toBe(200);
     const row = ((await listed.json()) as RunnerListDto).runners.find((entry) => entry.id === runner.id);
     expect(row?.servedProjects).toEqual([]);
-    expect(
-      (await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] })).status,
-    ).toBe(204);
+    expect((await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] })).status).toBe(204);
   });
 });
 
