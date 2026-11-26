@@ -746,6 +746,26 @@ describe('POST /api/v1/runner/enrol/start', () => {
     expect(await runnersOf(owner.account.id)).toEqual([]);
   });
 
+  // R-INT-3: the runner refuses an account name with control or bidi characters, so the console never sends one.
+  it.each([
+    [
+      'strips control, bidi and separator characters from',
+      'Gee\u202Eera\u001b[31m\u2028 team',
+      'Geeera[31m team',
+    ],
+    ['caps at 64 code points', 'A'.repeat(80), 'A'.repeat(64)],
+    ['falls back to the slug for', '\u2066\u2069\u0007', null],
+  ])('%s the account name it returns', async (_label, name, shown) => {
+    const owner = await seedSessionUser('owner');
+    await env.DB.prepare(`UPDATE accounts SET name = ?1 WHERE id = ?2`).bind(name, owner.account.id).run();
+    const { intentId } = await createEnrolmentIntent(owner.account.id, { isolation: 'user' }, owner);
+    const key = await generateRunnerKey();
+    const response = await postEnrolDoor('start', startBodyOf(intentId, key.publicKeyJwk));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as StartEnrolmentResponse;
+    expect(body.accountName).toBe(shown ?? owner.account.slug);
+  });
+
   // R-INT-1: a local user who read the intent's id binds their own key; only one bind ever holds.
   it('lets the first bind win a race: one 200, one 409, and the row holds the winner’s key', async () => {
     const owner = await seedSessionUser('owner');

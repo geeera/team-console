@@ -204,6 +204,22 @@ export interface PollEnrolmentPendingDto {
 }
 
 const UNSAFE_HOST_TEXT = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+const UNSAFE_TEXT_ALL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+
+/** The longest account name `start` returns, in code points; the runner refuses a longer one (R-INT-3). */
+export const ENROLMENT_ACCOUNT_NAME_MAX = 64;
+
+/** Whether console text holds a control, format (bidi overrides and isolates among them) or separator character. */
+export const hasUnshownText = (value: string): boolean => UNSAFE_HOST_TEXT.test(value);
+
+/**
+ * Text for a terminal or a native dialog (R-INT-3, R-INT-7): those characters removed, whitespace collapsed, cut to
+ * `max` code points and trimmed. Still untrusted plain text for interpolation only, never markup.
+ */
+export function shownTextOf(value: string, max: number): string {
+  const cleaned = value.replace(UNSAFE_TEXT_ALL, '').replace(/\s+/gu, ' ').trim();
+  return [...cleaned].slice(0, max).join('').trim();
+}
 
 /**
  * A host field shown to the owner at approval (R-INT-7): no control character and no format character (the bidi

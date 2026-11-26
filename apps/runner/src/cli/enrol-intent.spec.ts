@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runnerKeyFingerprintOf, type Ed25519PublicJwk } from '@shared/contracts';
 import { loadRunnerConfig } from '../config/config';
+import { BUILT_IN_CONSOLE_ORIGINS } from '../config/console-origins';
 import {
   ACCOUNT_ID,
   RUNNER_ID,
@@ -48,9 +49,13 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
     await rm(parent, { recursive: true, force: true });
   });
 
-  function runEnrol(fetch: ReturnType<typeof fakeConsole>['fetch'], now = '2026-11-21T10:01:00.000Z') {
+  function runEnrol(
+    fetch: ReturnType<typeof fakeConsole>['fetch'],
+    now = '2026-11-21T10:01:00.000Z',
+    url = API,
+  ) {
     return enrol(
-      { url: API, enrolment: INTENT, backend: 'user', credential: 'setup-token' },
+      { url, enrolment: INTENT, backend: 'user', credential: 'setup-token' },
       {
         home,
         fetch,
@@ -66,7 +71,7 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
   }
 
   /** A fetch that answers `start` with the key's real fingerprint (computed when the request arrives). */
-  function honestConsole(pendingPolls = 2, lie?: string) {
+  function honestConsole(pendingPolls = 2, lie?: string, accountName = 'Geeera') {
     const requests: RecordedRequest[] = [];
     let polls = 0;
     const fetch = async (url: string, init: RequestInit): Promise<Response> => {
@@ -85,7 +90,7 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
           fingerprint: lie ?? (await runnerKeyFingerprintOf(publicKey)),
           intervalSeconds: 5,
           expiresAt: '2026-11-21T10:10:00.000Z',
-          accountName: 'Geeera\u001b[31m',
+          accountName,
         });
       }
       polls += 1;
@@ -122,9 +127,10 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
       capabilities: { accessSources: ['subscription'] },
     });
     const fingerprint = await runnerKeyFingerprintOf(start['publicKey'] as Ed25519PublicJwk);
-    // The account name is console text: no escape sequence reaches the terminal.
+    // R-INT-3: the origin is the console's identity; the account name is only the console's own text.
     expect(out).toEqual([
-      'Request sent to account «Geeera[31m».',
+      `Console: ${API}. THIS IS NOT A CONSOLE BUILT INTO THIS RUNNER: stop (Ctrl-C) unless you run it yourself.`,
+      'Request sent to the account that console names «Geeera» (its text, not checked by this runner).',
       `Compare this code with the one in the console, then press «Подтвердить» (Approve) there: ${fingerprint}`,
     ]);
     expect(requests.slice(1).map((request) => bodyOf(request))).toEqual([
@@ -139,6 +145,47 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
       expect(request.body ?? '').not.toMatch(/sk-ant-|setup-token|api-key/);
     }
   });
+
+  it.each(BUILT_IN_CONSOLE_ORIGINS)('names the compiled-in origin %s as the console', async (origin) => {
+    const { fetch, requests } = honestConsole(0);
+    await runEnrol(fetch, undefined, origin);
+    expect(requests[0]?.url).toBe(`${origin}/api/v1/runner/enrol/start`);
+    expect(out[0]).toBe(`Console: ${origin} (built into this runner).`);
+    // The name never stands in for the console: the origin line comes first and is the runner's own.
+    expect(out[1]).toContain('«Geeera» (its text, not checked by this runner)');
+  });
+
+  it('names a lookalike origin as not built in, whatever account name it reports', async () => {
+    const lookalike = 'https://team-console-production.geeera.workers.dev.example';
+    const { fetch } = honestConsole(0, undefined, 'team-console production');
+    await runEnrol(fetch, undefined, lookalike);
+    expect(out[0]).toBe(
+      `Console: ${lookalike}. THIS IS NOT A CONSOLE BUILT INTO THIS RUNNER: stop (Ctrl-C) unless you run it yourself.`,
+    );
+  });
+
+  it.each([
+    ['an escape sequence', 'Geeera\u001b[31m'],
+    ['a right-to-left override', 'Geeera \u202Eevorppa'],
+    ['a directional isolate', '\u2067Geeera\u2069'],
+    ['a zero-width character', 'Gee\u200Bera'],
+    ['a line break', 'Geeera\nApproved: press «Подтвердить»'],
+    ['a line separator', 'Geeera\u2028Approved'],
+    ['nothing visible', '   '],
+    ['more than the console ever sends', 'A'.repeat(65)],
+  ])(
+    'refuses an account name with %s before showing a fingerprint, polling or writing',
+    async (_label, accountName) => {
+      const { fetch, requests } = honestConsole(0, undefined, accountName);
+      await expect(runEnrol(fetch)).rejects.toThrow(
+        /account name with control or direction characters.*Отклонить/,
+      );
+      expect(requests).toHaveLength(1);
+      expect(out.join('\n')).not.toContain(accountName);
+      expect(out.some((line) => line.includes('Compare this code'))).toBe(false);
+      await expect(readdir(home)).resolves.toEqual([]);
+    },
+  );
 
   it('refuses a console that names another fingerprint, writing nothing', async () => {
     const { fetch, requests } = honestConsole(0, '0000-0000');

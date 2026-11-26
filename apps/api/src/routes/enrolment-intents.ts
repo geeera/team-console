@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import {
+  ENROLMENT_ACCOUNT_NAME_MAX,
   ENROLMENT_INTENTS_LIVE_MAX,
   ENROLMENT_INTENTS_PER_HOUR,
   ENROLMENT_INTENT_COLLECT_SECONDS,
@@ -14,6 +15,7 @@ import {
   runnerAudienceOf,
   runnerKeyFingerprintOf,
   setupCommandOf,
+  shownTextOf,
   type EnrolRunnerResponse,
   type EnrolmentIntentCreatedDto,
   type EnrolmentIntentDto,
@@ -465,7 +467,9 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
         fingerprint,
         intervalSeconds: ENROLMENT_INTENT_POLL_SECONDS,
         expiresAt: intent.expiresAt,
-        accountName: account.name,
+        // Untrusted text at the runner (R-INT-3), which refuses control and bidi characters: never send one. The
+        // slug is the account's own safe name when nothing visible is left.
+        accountName: shownTextOf(account.name, ENROLMENT_ACCOUNT_NAME_MAX) || account.slug,
       };
       return c.json(body);
     })

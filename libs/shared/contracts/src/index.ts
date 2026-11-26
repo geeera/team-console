@@ -156,6 +156,7 @@ export type {
   UpdateRunnerInput,
 } from './lib/runner';
 export {
+  ENROLMENT_ACCOUNT_NAME_MAX,
   ENROLMENT_INTENTS_LIVE_MAX,
   ENROLMENT_INTENTS_PER_HOUR,
   ENROLMENT_INTENT_COLLECT_SECONDS,
@@ -175,8 +176,10 @@ export {
   isPollEnrolmentPendingDto,
   isRunnerKeyFingerprint,
   isStartEnrolmentResponse,
+  hasUnshownText,
   runnerKeyFingerprintOf,
   setupCommandOf,
+  shownTextOf,
 } from './lib/enrolment-intent';
 export type {
   ApproveEnrolmentIntentInput,
