@@ -23,7 +23,7 @@ import {
   type SeededProject,
 } from '../testing/tracker-kit';
 import type { TestJob } from '../testing/local-job-kit';
-import { seedClaimedJob } from '../testing/runner-kit';
+import { cancelJobsInFlight, seedClaimedJob } from '../testing/runner-kit';
 import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { JOB_ROLES, type JobRole } from './job-roles';
 import {
@@ -508,6 +508,12 @@ async function expectOutcome(response: Response, expected: Expected, label: stri
 
 const label = (row: Row): string => (row.variant === undefined ? row.route : `${row.route} (${row.variant})`);
 const WHO: readonly Who[] = ['owner', ...JOB_ROLES];
+
+// The claimed parents of the reviews and children rows (#612, #1039) would otherwise pile up past the account's
+// entitled concurrency (#746): D1 is shared by the file's cases, and each case seeds its own jobs.
+beforeEach(async () => {
+  await cancelJobsInFlight();
+});
 
 describe('the route matrix covers the tracker', () => {
   const trackerRoutes = [
