@@ -318,6 +318,7 @@ export {
   STEP_NEXTS,
   TASK_ROLES,
   checkCreateChildJobInput,
+  checkOrchestrationCommandInput,
   isChildJobListDto,
   isOrchestrationDto,
   isStepNext,

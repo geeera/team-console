@@ -21,7 +21,8 @@ const RESUME = '/api/v1/runner/resume';
 const CLAIM = '/api/v1/runner/jobs/claim';
 
 /** Slot jobs are one per kind per project (the overlap guard), so specs that queue several use one of each. */
-const SLOT_KINDS = ['slot-pm', 'slot-dev', 'slot-qa'] as const;
+// One orchestrator kind at most: the slots share `<slug>:orchestrator` since #1039 (ADR 0010 decision 3).
+const DISTINCT_KINDS = ['slot-dev', 'chat', 'digest'] as const;
 
 const inMinutes = (minutes: number): string => new Date(Date.now() + minutes * 60_000).toISOString();
 
@@ -169,7 +170,7 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
     const project = await seedTrackerProject();
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
     const first = await enqueueJob(project.slug, { kind: 'slot-dev' });
-    const second = await enqueueJob(project.slug, { kind: 'slot-qa' });
+    const second = await enqueueJob(project.slug, { kind: 'chat' });
     expect((await claim(runner))?.job.id).toBe(first);
     expect(await claim(runner)).toBeNull();
     const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`)
@@ -191,7 +192,7 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
       allowedProjects: [project.slug],
       enrol: { capabilities: { local: true, maxConcurrency: 2 } },
     });
-    for (const kind of SLOT_KINDS) {
+    for (const kind of DISTINCT_KINDS) {
       await enqueueJob(project.slug, { kind });
     }
     expect(await claim(runner)).not.toBeNull();
@@ -204,7 +205,7 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
     const mac = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
     const vps = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
     await enqueueJob(project.slug, { kind: 'slot-dev' });
-    await enqueueJob(project.slug, { kind: 'slot-qa' });
+    await enqueueJob(project.slug, { kind: 'chat' });
     const claims = await Promise.all([claim(mac), claim(vps), claim(mac), claim(vps)]);
     const taken = claims.filter((outcome): outcome is ClaimResponse => outcome !== null);
     expect(taken.map((outcome) => outcome.job.runnerId).sort()).toEqual([mac.id, vps.id].sort());

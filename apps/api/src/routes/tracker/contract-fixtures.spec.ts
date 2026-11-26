@@ -1,4 +1,22 @@
 import asksCreated from '../../../fixtures/tracker/asks.created.json';
+import cancelCancelled from '../../../fixtures/tracker/cancel.cancelled.json';
+import cancelNotCancellable from '../../../fixtures/tracker/cancel.not-cancellable.json';
+import cancelOwnerOnly from '../../../fixtures/tracker/cancel.owner-only.json';
+import childrenCreated from '../../../fixtures/tracker/children.created.json';
+import childrenExists from '../../../fixtures/tracker/children.exists.json';
+import childrenInvalid from '../../../fixtures/tracker/children.invalid.json';
+import childrenList from '../../../fixtures/tracker/children.list.json';
+import childrenNotOwnJob from '../../../fixtures/tracker/children.not-own-job.json';
+import childrenParentNotLive from '../../../fixtures/tracker/children.parent-not-live.json';
+import childrenRole from '../../../fixtures/tracker/children.role.json';
+import childrenRoleDisabled from '../../../fixtures/tracker/children.role-disabled.json';
+import orchestrationActive from '../../../fixtures/tracker/orchestration.active.json';
+import orchestrationGet from '../../../fixtures/tracker/orchestration.get.json';
+import orchestrationIdle from '../../../fixtures/tracker/orchestration.idle.json';
+import orchestrationOwnerOnly from '../../../fixtures/tracker/orchestration.owner-only.json';
+import orchestrationPaused from '../../../fixtures/tracker/orchestration.paused.json';
+import orchestrationStarted from '../../../fixtures/tracker/orchestration.started.json';
+import orchestrationStopped from '../../../fixtures/tracker/orchestration.stopped.json';
 import asksList from '../../../fixtures/tracker/asks.list.json';
 import commentsCreated from '../../../fixtures/tracker/comments.created.json';
 import commentsList from '../../../fixtures/tracker/comments.list.json';
@@ -34,7 +52,9 @@ import sprintsChanged from '../../../fixtures/tracker/sprints.changed.json';
 import sprintsCreated from '../../../fixtures/tracker/sprints.created.json';
 import sprintsGet from '../../../fixtures/tracker/sprints.get.json';
 import sprintsList from '../../../fixtures/tracker/sprints.list.json';
-import { seedClaimedJob } from '../../testing/runner-kit';
+import { env } from 'cloudflare:test';
+import { TEAM_CONFIG_SCHEMA } from '@shared/contracts';
+import { cancelJobsInFlight, enqueueJob, seedClaimedJob } from '../../testing/runner-kit';
 import {
   pullRequestsGitHub,
   seedAsk,
@@ -88,12 +108,45 @@ type Setup = (project: SeededProject) => Promise<{
   readonly projectSlug?: string;
   readonly pathProject?: SeededProject;
   readonly jobId?: string;
+  /** #1039: the job a path's `{job}` names, when it is not `jobId`; `{other}` names `otherJobId`. */
+  readonly pathJobId?: string;
+  readonly otherJobId?: string;
 } | void>;
 
 /** Pull request 57 open at a fixed head, and a claimed `slot-qa` job (the orchestrator) to request its reviews. */
 const seedReviewable: Setup = async (project) => {
   await seedPullRequest(project.slug, 57, { headSha: '5'.repeat(40) });
   return { jobId: (await seedClaimedJob(project.slug)).jobId };
+};
+
+/** #1039: a claimed `slot-qa` job (the orchestrator) to mint children of itself. */
+const seedParent: Setup = async (project) => ({ jobId: (await seedClaimedJob(project.slug)).jobId });
+
+const startRun = async (project: SeededProject): Promise<void> => {
+  const response = await send('POST', `/api/v1/projects/${project.slug}/orchestration/start`, {});
+  if (response.status !== 201) {
+    throw new Error(`starting a run answered ${String(response.status)}`);
+  }
+};
+
+const createChildren = async (project: SeededProject, jobId: string, items: readonly number[]) => {
+  const response = await send(
+    'POST',
+    `/api/v1/projects/${project.slug}/jobs/${jobId}/children`,
+    { role: 'dev', items },
+    { job: { role: 'orchestrator', jobId } },
+  );
+  if (response.status !== 201) {
+    throw new Error(`creating children answered ${String(response.status)}`);
+  }
+};
+
+const finishedJob = async (project: SeededProject): Promise<string> => {
+  const jobId = await enqueueJob(project.slug, { kind: 'chat' });
+  await env.DB.prepare(`UPDATE jobs SET state = 'finished', finished_at = ?2 WHERE id = ?1`)
+    .bind(jobId, '2026-11-12T10:00:00.000Z')
+    .run();
+  return jobId;
 };
 
 const seedFeature = (project: SeededProject, title: string, status?: 'approved') =>
@@ -266,6 +319,80 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
   // #627: the merge gate reads the console's links, not the PR's text.
   'pr-items.linked': [prItemsLinked, seedLinked],
   'pr-items.none': [prItemsNone, seedLinked],
+  // #1039: console-driven orchestration — the owner's Start/Stop/cancel, a step's children and its reads.
+  'orchestration.started': [orchestrationStarted, async () => undefined],
+  'orchestration.active': [orchestrationActive, startRun],
+  'orchestration.paused': [
+    orchestrationPaused,
+    async (project) => {
+      await env.DB.prepare(
+        `INSERT INTO team_state (project_slug, paused_at, paused_by, failed_streak, updated_at) VALUES (?1, ?2, 'owner', 0, ?2)`,
+      )
+        .bind(project.slug, '2026-11-12T10:00:00.000Z')
+        .run();
+    },
+  ],
+  'orchestration.owner-only': [orchestrationOwnerOnly, async () => undefined],
+  'orchestration.stopped': [orchestrationStopped, startRun],
+  'orchestration.idle': [orchestrationIdle, async () => undefined],
+  'orchestration.get': [orchestrationGet, startRun],
+  'children.created': [childrenCreated, seedParent],
+  'children.role': [childrenRole, seedParent],
+  'children.not-own-job': [
+    childrenNotOwnJob,
+    async (project) => ({
+      jobId: (await seedClaimedJob(project.slug)).jobId,
+      otherJobId: await enqueueJob(project.slug, { kind: 'chat' }),
+    }),
+  ],
+  'children.parent-not-live': [
+    childrenParentNotLive,
+    async (project) => ({ jobId: await finishedJob(project) }),
+  ],
+  'children.invalid': [childrenInvalid, seedParent],
+  'children.exists': [
+    childrenExists,
+    async (project) => {
+      const { jobId } = await seedClaimedJob(project.slug);
+      await createChildren(project, jobId, [12]);
+      return { jobId };
+    },
+  ],
+  'children.role-disabled': [
+    childrenRoleDisabled,
+    async (project) => {
+      const saved = await send(
+        'PUT',
+        `/api/v1/projects/${project.slug}/team-config`,
+        { config: { schema: TEAM_CONFIG_SCHEMA, roles: { 'dev-light': { enabled: false } } } },
+        { ifMatch: '"0"' },
+      );
+      if (saved.status !== 200) {
+        throw new Error(`saving the configuration answered ${String(saved.status)}`);
+      }
+      return { jobId: (await seedClaimedJob(project.slug)).jobId };
+    },
+  ],
+  'children.list': [
+    childrenList,
+    async (project) => {
+      const { jobId } = await seedClaimedJob(project.slug);
+      await createChildren(project, jobId, [12, 13]);
+      return { jobId };
+    },
+  ],
+  'cancel.cancelled': [
+    cancelCancelled,
+    async (project) => ({ pathJobId: await enqueueJob(project.slug, { kind: 'chat' }) }),
+  ],
+  'cancel.not-cancellable': [
+    cancelNotCancellable,
+    async (project) => ({ pathJobId: await finishedJob(project) }),
+  ],
+  'cancel.owner-only': [
+    cancelOwnerOnly,
+    async (project) => ({ pathJobId: await enqueueJob(project.slug, { kind: 'chat' }) }),
+  ],
 };
 
 const ID_FAMILIES: Readonly<Record<string, string>> = { id: 'id', next: 'id' };
@@ -305,6 +432,11 @@ function stabilised(value: unknown, ids: SeenIds, key = ''): unknown {
   if (typeof value === 'string' && (key === 'id' || key.endsWith('Id')) && ULID.test(value)) {
     return String(renumberedIn(ids, `ulid:${key}`, value)).padStart(26, '0');
   }
+  // #1039: a child names its parent job in `requestedBy` (`job:<id>`).
+  const requester = key === 'requestedBy' && typeof value === 'string' ? /^job:(.+)$/.exec(value) : null;
+  if (requester !== null && ULID.test(requester[1] ?? '')) {
+    return `job:${String(renumberedIn(ids, 'ulid:requestedBy', requester[1] ?? '')).padStart(26, '0')}`;
+  }
   return value;
 }
 
@@ -329,7 +461,9 @@ describe('the tracker contract fixtures (#445, #611)', () => {
       'GET /api/v1/projects/:slug/items/:key/comments',
       'GET /api/v1/projects/:slug/items/:key/decisions',
       'GET /api/v1/projects/:slug/items/:key/events',
+      'GET /api/v1/projects/:slug/jobs/:id/children',
       'GET /api/v1/projects/:slug/labels',
+      'GET /api/v1/projects/:slug/orchestration',
       'GET /api/v1/projects/:slug/prs/:number/items',
       'GET /api/v1/projects/:slug/requests',
       'GET /api/v1/projects/:slug/sprints',
@@ -341,17 +475,25 @@ describe('the tracker contract fixtures (#445, #611)', () => {
       'POST /api/v1/projects/:slug/items/:key/comments',
       'POST /api/v1/projects/:slug/items/:key/pr-links',
       'POST /api/v1/projects/:slug/items/:key/queue',
+      'POST /api/v1/projects/:slug/jobs/:id/cancel',
+      'POST /api/v1/projects/:slug/jobs/:id/children',
       'POST /api/v1/projects/:slug/labels',
+      'POST /api/v1/projects/:slug/orchestration/start',
+      'POST /api/v1/projects/:slug/orchestration/stop',
       'POST /api/v1/projects/:slug/prs/:number/reviews',
       'POST /api/v1/projects/:slug/sprints',
     ]);
   });
 
   it.each(Object.entries(SETUPS))('%s answers as the fixture says', async (name, [fixture, setup]) => {
+    // #1039: the claimed parents of the file's cases count against the account's entitled concurrency (#746).
+    await cancelJobsInFlight();
     const project = await seedTrackerProject();
     const seeded = (await setup(project)) ?? {};
     const named = seeded.pathProject ?? project;
-    const path = toProject(fixture.request.path, named);
+    const path = toProject(fixture.request.path, named)
+      .replace('{job}', seeded.pathJobId ?? seeded.jobId ?? '')
+      .replace('{other}', seeded.otherJobId ?? '');
     const body =
       fixture.request.body === undefined
         ? undefined
@@ -364,12 +506,17 @@ describe('the tracker contract fixtures (#445, #611)', () => {
     const response = await send(fixture.request.method as 'GET' | 'POST' | 'PATCH', path, body, {
       github,
       ...(fixture.request.ifMatch === undefined ? {} : { ifMatch: fixture.request.ifMatch }),
-      job: {
-        role: fixture.as.role,
-        items: fixture.as.items,
-        ...(seeded.projectSlug === undefined ? {} : { projectSlug: seeded.projectSlug }),
-        ...(seeded.jobId === undefined ? {} : { jobId: seeded.jobId }),
-      },
+      // #1039: the owner's orchestration fixtures are sent as the owner (the local bypass), every other as a job.
+      ...(fixture.as.kind === 'owner'
+        ? {}
+        : {
+            job: {
+              role: fixture.as.role,
+              items: fixture.as.items,
+              ...(seeded.projectSlug === undefined ? {} : { projectSlug: seeded.projectSlug }),
+              ...(seeded.jobId === undefined ? {} : { jobId: seeded.jobId }),
+            },
+          }),
     });
     const text = await response.text();
     const actual = {

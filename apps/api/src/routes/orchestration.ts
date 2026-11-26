@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import {
   checkCreateChildJobInput,
+  checkOrchestrationCommandInput,
   isJobKindBeforeCutover,
   isJobState,
   isUlid,
@@ -90,6 +91,25 @@ async function orchestrationDtoOf(db: D1Database, slug: string): Promise<Orchest
 }
 
 /**
+ * The member-less body of Start and Stop: none at all, or JSON that `checkOrchestrationCommandInput` judges. Text that
+ * is not JSON reads as `null`, which it refuses.
+ */
+async function commandRefusal(c: Context): Promise<Response | null> {
+  const text = await c.req.text();
+  let body: unknown;
+  if (text.trim() !== '') {
+    try {
+      body = JSON.parse(text) as unknown;
+    } catch {
+      // Malformed JSON is the client's input, answered as a validation problem; the parser's message is dropped.
+      body = null;
+    }
+  }
+  const input = checkOrchestrationCommandInput(body);
+  return input.ok ? null : invalid(c, 'orchestration-invalid', input.field, input.detail);
+}
+
+/**
  * #775: a job is not a tracker write, so a project still on GitHub Issues takes the kinds of
  * `JOB_KINDS_BEFORE_CUTOVER` (team-console runs its console runs there until #437); any other kind waits for the cut-over.
  */
@@ -145,6 +165,10 @@ export function createOrchestrationRoutes(github: ApiGitHub): Hono<WorkerHonoEnv
 
 async function startRun(c: Context, github: ApiGitHub): Promise<Response> {
   const row = trackerProjectOfContext(c);
+  const refused = await commandRefusal(c);
+  if (refused !== null) {
+    return refused;
+  }
   const notCutOver = cutOverRefusal(c, 'orchestrate');
   if (notCutOver !== null) {
     return notCutOver;
@@ -212,6 +236,10 @@ async function startRun(c: Context, github: ApiGitHub): Promise<Response> {
 
 async function stopRun(c: Context): Promise<Response> {
   const row = trackerProjectOfContext(c);
+  const refused = await commandRefusal(c);
+  if (refused !== null) {
+    return refused;
+  }
   const idle = (): Response =>
     problem(c, {
       type: 'orchestration-idle',

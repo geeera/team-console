@@ -200,6 +200,21 @@ describe('POST …/orchestration/start', () => {
     expect(await rowsOf(slug, 'orchestrate')).toHaveLength(0);
   });
 
+  it.each([
+    ['a member', { steps: 40 }],
+    ['text that is not JSON', '{steps'],
+  ])('refuses a body with %s with 422 orchestration-invalid, writing nothing', async (_, body) => {
+    const { slug } = await seedTrackerProject();
+    const response = await send('POST', `${P}/${slug}/orchestration/start`, body);
+    expect(response.status).toBe(422);
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('orchestration-invalid') as unknown,
+      field: 'body',
+    });
+    expect(await countRows('jobs', slug)).toBe(0);
+    expect((await orchestrationOf(slug)).state).toBe('idle');
+  });
+
   it('starts on a project still on GitHub Issues (team-console until #437)', async () => {
     const slug = await seedGitHubProject();
     expect((await start(slug)).status).toBe(201);

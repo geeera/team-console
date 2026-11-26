@@ -79,6 +79,19 @@ export function checkCreateChildJobInput(body: unknown): InputCheck<CreateChildJ
   });
 }
 
+/**
+ * `POST …/orchestration/start|stop` take no members: no body, or `{}`. Anything else is refused, so a client that
+ * thinks it can name a role, an item or a step count learns that it cannot (`undefined` stands for no body).
+ */
+export function checkOrchestrationCommandInput(body: unknown): InputCheck<Record<string, never>> {
+  return checked(() => {
+    if (body !== undefined) {
+      record(body, []);
+    }
+    return {};
+  });
+}
+
 /** `POST|GET …/jobs/:id/children`: the children, oldest first; `nextCursor` is the last id shown when there are more. */
 export interface ChildJobListDto {
   readonly jobs: readonly JobDto[];

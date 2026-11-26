@@ -3,6 +3,7 @@ import {
   ORCHESTRATE_MAX_STEPS,
   TASK_ROLES,
   checkCreateChildJobInput,
+  checkOrchestrationCommandInput,
   isChildJobListDto,
   isOrchestrationDto,
   isStepNext,
@@ -140,6 +141,22 @@ describe('isChildJobListDto', () => {
     expect(isChildJobListDto({ jobs: [], nextCursor: null })).toBe(true);
     expect(isChildJobListDto({ jobs: [], nextCursor: 'x' })).toBe(false);
     expect(isChildJobListDto({ jobs: [{}], nextCursor: null })).toBe(false);
+  });
+});
+
+describe('checkOrchestrationCommandInput', () => {
+  it('takes no body or an empty object', () => {
+    expect(checkOrchestrationCommandInput(undefined)).toEqual({ ok: true, value: {} });
+    expect(checkOrchestrationCommandInput({})).toEqual({ ok: true, value: {} });
+  });
+
+  it.each<[string, unknown]>([
+    ['a member', { steps: 40 }],
+    ['a role', { role: 'dev' }],
+    ['a list', []],
+    ['null (text that is not JSON)', null],
+  ])('refuses %s on the body', (_, body) => {
+    expect(checkOrchestrationCommandInput(body)).toMatchObject({ ok: false, field: 'body' });
   });
 });
 

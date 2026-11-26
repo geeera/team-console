@@ -1,0 +1,26 @@
+{
+  "route": "POST /api/v1/projects/:slug/jobs/:id/children",
+  "as": {
+    "kind": "job",
+    "role": "orchestrator",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/jobs/{job}/children",
+    "body": {
+      "role": "dev",
+      "items": [12]
+    }
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://team-console/problems/job-exists",
+      "title": "Conflict",
+      "status": 409,
+      "instance": "request-id",
+      "detail": "An item of the request already has a live task job"
+    }
+  }
+}

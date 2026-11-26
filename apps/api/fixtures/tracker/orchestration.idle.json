@@ -1,0 +1,23 @@
+{
+  "route": "POST /api/v1/projects/:slug/orchestration/stop",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/orchestration/stop",
+    "body": {}
+  },
+  "response": {
+    "status": 409,
+    "body": {
+      "type": "https://team-console/problems/orchestration-idle",
+      "title": "Conflict",
+      "status": 409,
+      "instance": "request-id",
+      "detail": "No team run is on for this project"
+    }
+  }
+}

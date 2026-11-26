@@ -1,0 +1,28 @@
+{
+  "route": "POST /api/v1/projects/:slug/orchestration/stop",
+  "as": {
+    "kind": "owner",
+    "role": "owner",
+    "items": []
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/v1/projects/tc/orchestration/stop",
+    "body": {}
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "runId": null,
+      "steps": 0,
+      "state": "idle",
+      "liveStepId": null,
+      "children": {
+        "queued": 0,
+        "running": 0,
+        "finished": 0,
+        "failed": 0
+      }
+    }
+  }
+}

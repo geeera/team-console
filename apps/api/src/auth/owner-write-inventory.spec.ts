@@ -82,6 +82,12 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   // #759 PR 4: the workflow pull request, an owner row of the matrix (app token, never the owner's).
   'POST /api/v1/projects/:slug/actions-setup/workflow-pr': 'tracker-matrix',
   'PUT /api/v1/projects/:slug/runner-policy': 'tracker-matrix',
+  // #1039: a console run's start and stop and the owner's cancel of a job, owner rows of the matrix (D1 only).
+  'POST /api/v1/projects/:slug/orchestration/start': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/orchestration/stop': 'tracker-matrix',
+  'POST /api/v1/projects/:slug/jobs/:id/cancel': 'tracker-matrix',
+  // #1039: a step's child jobs, the orchestrator job only (the owner gets 403 child-role).
+  'POST /api/v1/projects/:slug/jobs/:id/children': 'job-only',
   // #670: the dispatch switch, an owner-only row of the matrix.
   'PUT /api/v1/projects/:slug/dispatch': 'tracker-matrix',
   // #687 (ADR 0009 d.9, threat model C12 row 1): the team configuration's writes, owner-only rows of the matrix.
@@ -306,9 +312,13 @@ describe('owner-write inventory (#62)', () => {
       const path = pattern.replace(':slug', slug).replace(/:[^/]+/g, '1');
       const owner = await send(method as 'POST', path, {});
       expect(owner.status).toBe(403);
-      expect(['ask-role', 'request-handled-role', 'pr-link-role', 'review-request-role']).toContain(
-        await slugOf(owner),
-      );
+      expect([
+        'ask-role',
+        'request-handled-role',
+        'pr-link-role',
+        'review-request-role',
+        'child-role',
+      ]).toContain(await slugOf(owner));
       const service = await sendAsService(method, path, {});
       expect(service.status).toBe(403);
       expect(await slugOf(service)).toBe('owner-only');
