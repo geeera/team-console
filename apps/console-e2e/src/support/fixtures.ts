@@ -34,6 +34,7 @@ function externalStack(baseURL: string): Stack {
   return {
     baseURL: baseURL.replace(/\/+$/, ''),
     fakeURL: process.env['FAKE_GITHUB_URL'] ?? null,
+    fakePushURL: null,
     isLocal: false,
     reset: () => Promise.reject(new Error('An external target (BASE_URL) cannot be reset')),
     incidents: () => [],
@@ -60,6 +61,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
         await use({
           baseURL: local.baseURL,
           fakeURL: local.fakeURL,
+          fakePushURL: local.fakePushURL,
           isLocal: true,
           reset: () => local.reset(),
           incidents: () => local.incidents(),

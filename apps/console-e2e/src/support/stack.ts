@@ -11,6 +11,8 @@ export interface Stack {
   readonly baseURL: string;
   /** The fake GitHub's origin; `null` when the target talks to the real GitHub. */
   readonly fakeURL: string | null;
+  /** The fake push service's origin (#36, `apps/api/fake-push`); `null` when the target sends to real push services. */
+  readonly fakePushURL: string | null;
   readonly isLocal: boolean;
   /** Fresh database and api isolate. Local stacks only. */
   reset(): Promise<void>;
