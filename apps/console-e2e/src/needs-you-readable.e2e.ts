@@ -108,8 +108,7 @@ for (const screen of [
     const heading = page.getByRole('heading', { level: 1, name: ru(screen.title) });
 
     await expect(heading).toHaveCount(1);
-    // Settings focuses its heading on load, and a focused heading is shown (#212); measure it at rest.
-    await heading.evaluate((element) => element.blur());
+    // Settings focuses its heading on load; focus no longer reveals it (#1031), so this measures it focused too.
     const box = await heading.boundingBox();
     if (isPhone(page)) {
       expect(box?.height ?? 0).toBeLessThanOrEqual(1);

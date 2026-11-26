@@ -99,6 +99,7 @@ test('connects GitHub through the OAuth round trip', async ({
   await page.goto('/settings');
   await expect(page.getByTestId('gh-none')).toBeVisible();
 
+  // press(), not click(): a tap on the touch projects, as the demo iPhone does (#959); the title race is #1031's spec.
   await press(page.getByRole('button', { name: ru('settings.gh.connect') }));
 
   await expect(page.getByTestId('gh-connected')).toContainText(

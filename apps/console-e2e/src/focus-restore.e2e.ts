@@ -1,11 +1,13 @@
 import type { Page } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { settled } from './support/motion';
 import { fakePost, seed, seedFakeRunLog } from './support/stack';
 
 /**
- * Keyboard focus never falls to <body> or sits on something invisible (#135, #144, #212): Retry on the board's error
- * state, Resume on the paused banner and the page heading on the phone.
+ * Keyboard focus never falls to <body> or sits on something invisible (#135, #144): Retry on the board's error state
+ * and Resume on the paused banner. The page heading takes arrival focus without changing layout (#1031), even if on
+ * the phone that leaves it clipped for one step (#212, accepted).
  */
 
 const SLUG = 'team-console';
@@ -103,13 +105,29 @@ for (const viewport of RESUME_VIEWPORTS) {
   });
 }
 
-test('Settings loads with focus on a heading that can be seen (#212)', async ({ page }) => {
+test('Settings loads with focus on its heading, and focus or blur never moves the layout (#1031)', async ({
+  page,
+  hasTouch,
+}) => {
   await page.goto('/settings');
-  await expect(page.getByTestId('push-section')).toBeVisible();
+  const section = page.getByTestId('push-section');
+  await expect(section).toBeVisible();
 
   const heading = page.getByRole('heading', { level: 1 });
   await expect(heading).toBeFocused();
   const focused = await focusedElement(page);
   expect(focused.tag).toBe('H1');
-  expect(focused.width).toBeGreaterThan(1);
+  // Accepted #212 tradeoff (#1031): on the phone the focused title stays clipped; the top bar shows the same words.
+  if (hasTouch) {
+    await expect(heading).toHaveClass(/\btc-sr-only\b/);
+    expect(focused.width).toBeLessThanOrEqual(1);
+  } else {
+    expect(focused.width).toBeGreaterThan(1);
+  }
+  await settled(page);
+  const whileFocused = await section.boundingBox();
+
+  await heading.evaluate((element) => element.blur());
+  await expect(heading).not.toBeFocused();
+  expect(await section.boundingBox(), 'blur moves nothing').toEqual(whileFocused);
 });
