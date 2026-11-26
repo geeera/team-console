@@ -165,6 +165,36 @@ describe('runtime image file list', () => {
       expect(RUNTIME_COPIES).toContainEqual({ stage: 'runtime-deps', path: '/app/node_modules' });
     });
 
+    // #1019: the bundle and the config by absolute paths too, each one a path the runtime stage copies.
+    it('hands wrangler the bundle and the config by absolute paths under /app', () => {
+      const runtimeStage = DOCKERFILE.slice(DOCKERFILE.indexOf('FROM ${NODE_IMAGE} AS runtime\n'));
+      const cmd = runtimeStage.split('\n').find((line) => line.startsWith('CMD ')) ?? '';
+      const configs = [...cmd.matchAll(/--config (\S+)/g)].map((match) => match[1]);
+      expect(configs).toEqual(['/app/apps/api/wrangler.jsonc', '/app/apps/api/wrangler.jsonc']);
+      const bundles = [...cmd.matchAll(/\bwrangler dev (\S+)/g)].map((match) => match[1]);
+      expect(bundles).toEqual(['/app/dist/apps/api/main.js']);
+      expect(RUNTIME_COPIES).toContainEqual({ stage: 'build', path: '/app/apps/api/wrangler.jsonc' });
+      expect(RUNTIME_COPIES).toContainEqual({ stage: 'build', path: '/app/dist/apps/api' });
+      // No operand of the CMD is a relative path.
+      expect(cmd).not.toMatch(/\s(?!\/)[\w.-]+\/[\w./-]+/);
+    });
+
+    // #1019: wrangler 4.130 asks the npm registry for a newer version before every banner and has no switch for
+    // that query but the banner's; metrics and error reports have switches of their own.
+    it('runs wrangler with the banner (and its update check), metrics and error reports off', () => {
+      const runtimeStage = DOCKERFILE.slice(DOCKERFILE.indexOf('FROM ${NODE_IMAGE} AS runtime\n'));
+      const envLines = runtimeStage.split('\n').filter((line) => line.startsWith('ENV '));
+      expect(envLines).toHaveLength(1);
+      const pairs = (envLines[0] ?? '').slice('ENV '.length).split(' ');
+      expect(Object.fromEntries(pairs.map((pair) => pair.split('=')))).toEqual({
+        NODE_ENV: 'production',
+        WRANGLER_SEND_METRICS: 'false',
+        WRANGLER_SEND_ERROR_REPORTS: 'false',
+        WRANGLER_HIDE_BANNER: 'true',
+        CI: 'true',
+      });
+    });
+
     it('lists the whole base and final image, and only the copied paths of the stages between', () => {
       expect(rootsOf('base')).toEqual(['/']);
       expect(rootsOf('runtime')).toEqual(['/']);

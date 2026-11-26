@@ -51,7 +51,12 @@ RUN cp package-lock.json /tmp/workspace-lock.json \
 # nothing here reads it or npm's hidden copy of it — wrangler is started from node_modules/.bin, without npm. CI's
 # `runtime-image` job fails on any file in the image that this stage does not copy, and on either lockfile.
 FROM ${NODE_IMAGE} AS runtime
-ENV NODE_ENV=production WRANGLER_SEND_METRICS=false CI=true
+# Nothing in the container calls out on wrangler's behalf (#1019). WRANGLER_SEND_METRICS=false stops the usage
+# metrics; WRANGLER_SEND_ERROR_REPORTS=false the error report it would otherwise ask about on a TTY
+# (`docker run -it`). WRANGLER_HIDE_BANNER=true skips the banner, and with it the npm registry query for a newer
+# wrangler that every command makes before it prints the banner. wrangler 4.130 has no switch for that query
+# itself: it still runs to word an error or a config warning, and CI's smoke fails if it ran on a clean start.
+ENV NODE_ENV=production WRANGLER_SEND_METRICS=false WRANGLER_SEND_ERROR_REPORTS=false WRANGLER_HIDE_BANNER=true CI=true
 WORKDIR /app
 RUN chown node:node /app
 COPY --chown=node:node --from=runtime-deps /app/package.json ./
@@ -74,5 +79,6 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=30s --retries=6 \
 # the connected account (#15, #59); `OWNER_GITHUB_LOGIN:geeera` is that owner, the login a connect would accept.
 # wrangler is called by its path, never through `npx` (#1005): npx offers to fetch from the registry whatever it
 # does not find in node_modules/.bin, and here a missing wrangler must be a container that does not start.
-# The path is absolute (#1013), so which wrangler runs does not depend on the directory the container starts in.
-CMD ["sh", "-c", "/app/node_modules/.bin/wrangler d1 migrations apply team-console-dev --local --config apps/api/wrangler.jsonc --env dev && exec /app/node_modules/.bin/wrangler dev dist/apps/api/main.js --config apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]
+# Its path, the bundle's and the config's are absolute (#1013, #1019), so what runs does not depend on the directory
+# the container starts in.
+CMD ["sh", "-c", "/app/node_modules/.bin/wrangler d1 migrations apply team-console-dev --local --config /app/apps/api/wrangler.jsonc --env dev && exec /app/node_modules/.bin/wrangler dev /app/dist/apps/api/main.js --config /app/apps/api/wrangler.jsonc --env dev --ip 0.0.0.0 --port 8787 --var ENVIRONMENT:local --var AUTH_MODE:local --var GITHUB_MOCK:true --var OWNER_GITHUB_LOGIN:geeera"]

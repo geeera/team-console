@@ -463,6 +463,9 @@ jobs:
       # (curl's errors, jq's, docker's) through `show`, and the container id `docker run --detach` answers goes
       # there too. `show` writes to the step's own stdout (fd 3), also from inside `$(…)`. The `::error::` lines
       # below carry constant text only.
+      # After those three wrangler runs, none may have asked the npm registry for a newer wrangler (#1019): the
+      # update-check package wrangler bundles creates /tmp/update-check before its request, whether or not the
+      # request gets through, so the directory is the attempt's trace on any network.
       # Last, the container must end on `docker stop` (#1013): its PID 1 is wrangler's launcher, which has to
       # pass SIGTERM on. Exit code 143 is that signal; 137 would be the SIGKILL Docker sends after the 20 s,
       # and `timeout` bounds the stop itself.
@@ -509,6 +512,8 @@ jobs:
           show "${migrations}"
           grep --quiet --fixed-strings 'No migrations to apply' <<<"${migrations}" \
             || { echo "::error::the running container still has migrations to apply"; exit 1; }
+          checked=$(docker exec "${CONTAINER}" sh -c 'test ! -e /tmp/update-check && echo none' 2>&1) \
+            || { show "${checked}"; echo "::error::wrangler asked the npm registry for a newer version"; exit 1; }
           stopped=$(timeout 40 docker stop -t 20 "${CONTAINER}" 2>&1) \
             || { show "${stopped}"; echo "::error::docker stop failed or did not return in 40 s"; exit 1; }
           ended=$(captured docker inspect --format '{{.State.Status}}/{{.State.ExitCode}}/{{.State.OOMKilled}}' "${CONTAINER}")
