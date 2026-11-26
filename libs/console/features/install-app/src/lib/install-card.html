@@ -21,10 +21,23 @@
     {{ 'install.card.mac' | transloco: { app: appName() } }}
   </p>
   <div class="install__actions install__actions--line">
-    <button tc-button variant="quiet" type="button" data-testid="install-card-later" (click)="answer('later')">
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      data-testid="install-card-later"
+      (click)="answer('later')"
+    >
       {{ 'install.card.later' | transloco }}
     </button>
-    <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="install__never"
+      data-testid="install-card-never"
+      (click)="answer('never')"
+    >
       {{ 'install.card.never' | transloco }}
     </button>
   </div>
@@ -61,11 +74,25 @@
       {{ 'install.card.install' | transloco }}
     </button>
     }
-    <button tc-button variant="quiet" type="button" class="install__later" data-testid="install-card-later" (click)="answer('later')">
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="install__later"
+      data-testid="install-card-later"
+      (click)="answer('later')"
+    >
       {{ 'install.card.later' | transloco }}
     </button>
     @if (!isPhone()) {
-    <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+    <button
+      tc-button
+      variant="quiet"
+      type="button"
+      class="install__never"
+      data-testid="install-card-never"
+      (click)="answer('never')"
+    >
       {{ 'install.card.never' | transloco }}
     </button>
     }
@@ -82,7 +109,14 @@
     [finalStep]="'install.guide.s3' | transloco: { app: appName() }"
   />
   } @if (isPhone()) {
-  <button tc-button variant="quiet" type="button" class="install__never" data-testid="install-card-never" (click)="answer('never')">
+  <button
+    tc-button
+    variant="quiet"
+    type="button"
+    class="install__never"
+    data-testid="install-card-never"
+    (click)="answer('never')"
+  >
     {{ 'install.card.never' | transloco }}
   </button>
   }

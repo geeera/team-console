@@ -34,7 +34,10 @@ describe('RateLimitsRepo', () => {
     await repo.hit('runner:r1', rateWindowOf(T0 + 300_000, 60), 120);
     await repo.hit('runner:r1', rateWindowOf(T0 + 540_000, 60), 120);
     expect(await repo.hit('job:j1:sprint', rateWindowOf(T0 + 599_000, 600), 2)).toMatchObject({ count: 2 });
-    expect(await repo.hit('job:j1:sprint', rateWindowOf(T0 + 599_000, 600), 2)).toEqual({ allowed: false, count: 3 });
+    expect(await repo.hit('job:j1:sprint', rateWindowOf(T0 + 599_000, 600), 2)).toEqual({
+      allowed: false,
+      count: 3,
+    });
   });
 });
 

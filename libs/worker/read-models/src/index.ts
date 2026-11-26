@@ -67,12 +67,7 @@ export {
   screensJsonOf,
   treeListingOf,
 } from './lib/designs/design-files';
-export type {
-  DesignFiles,
-  DesignManifestInput,
-  TreeEntry,
-  TreeListing,
-} from './lib/designs/design-files';
+export type { DesignFiles, DesignManifestInput, TreeEntry, TreeListing } from './lib/designs/design-files';
 export { IMAGE_MAGIC_LENGTH, imageMediaTypeOf, imageTypeOfBytes } from './lib/designs/image-magic';
 export type { ProjectConfig, ProjectConfigFailure } from './lib/project-config';
 export {

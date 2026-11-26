@@ -19,10 +19,7 @@
           "createdBy": "local-owner",
           "createdByName": null,
           "reason": "First import",
-          "paths": [
-            "access.source",
-            "schema"
-          ]
+          "paths": ["access.source", "schema"]
         },
         {
           "revision": 2,
@@ -30,10 +27,7 @@
           "createdBy": "local-owner",
           "createdByName": null,
           "reason": null,
-          "paths": [
-            "language",
-            "preset"
-          ]
+          "paths": ["language", "preset"]
         }
       ],
       "nextCursor": null

@@ -12,7 +12,11 @@ const ulid = (): string => {
   counter += 1;
   return `01M6YSNJ0000000000RN${String(counter).padStart(6, '0')}`;
 };
-const hash = (seed: string): string => seed.repeat(64).slice(0, 64).replace(/[^0-9a-f]/g, '0');
+const hash = (seed: string): string =>
+  seed
+    .repeat(64)
+    .slice(0, 64)
+    .replace(/[^0-9a-f]/g, '0');
 
 const audit = (kind: NewAuditEvent['kind'], accountId = ACCOUNT_A): NewAuditEvent => ({
   accountId,
@@ -40,13 +44,22 @@ const runnerOf = (overrides: Partial<NewRunner> = {}): NewRunner => ({
 });
 
 const SCOPE_AUDIT = 'runner.scope-changed' as const;
-const selected = (allowedProjects: readonly string[]) => ({ projectScope: 'selected' as const, allowedProjects });
+const selected = (allowedProjects: readonly string[]) => ({
+  projectScope: 'selected' as const,
+  allowedProjects,
+});
 const ALL = { projectScope: 'all' as const, allowedProjects: [] as readonly string[] };
 
 beforeAll(async () => {
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-a', 'A', ?2)`).bind(ACCOUNT_A, T0),
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-b', 'B', ?2)`).bind(ACCOUNT_B, T0),
+    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-a', 'A', ?2)`).bind(
+      ACCOUNT_A,
+      T0,
+    ),
+    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-b', 'B', ?2)`).bind(
+      ACCOUNT_B,
+      T0,
+    ),
   ]);
 });
 
@@ -120,18 +133,33 @@ describe('RunnersRepo', () => {
   it('writes nothing, no runner.enrolled row either, when the code is withdrawn mid-enrolment', async () => {
     const codeHash = hash('c');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'mac', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'mac',
+        projectScope: 'selected',
+        allowedProjects: [],
+        createdBy: 'owner-1',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
     expect(await repo.findEnrolment(codeHash)).not.toBeNull();
-    expect(await repo.withdrawEnrolment(ACCOUNT_A, codeHash, T0, audit('enrolment-code.withdrawn'))).toBe(true);
+    expect(await repo.withdrawEnrolment(ACCOUNT_A, codeHash, T0, audit('enrolment-code.withdrawn'))).toBe(
+      true,
+    );
 
     const late = runnerOf();
-    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe('code-used');
+    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe(
+      'code-used',
+    );
 
     expect(await repo.findById(late.id)).toBeNull();
     expect(
-      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`)
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`,
+      )
         .bind(late.id)
         .first<number>('n'),
     ).toBe(0);
@@ -140,13 +168,24 @@ describe('RunnersRepo', () => {
   it('writes the runner.enrolled row with the enrolment it records', async () => {
     const codeHash = hash('d');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'mac', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'mac',
+        projectScope: 'selected',
+        allowedProjects: [],
+        createdBy: 'owner-1',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
     const runner = runnerOf();
     expect(await repo.enrol(codeHash, runner, { ...audit('runner.enrolled'), target: runner.id })).toBe('ok');
     expect(
-      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`)
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.enrolled' AND target = ?1`,
+      )
         .bind(runner.id)
         .first<number>('n'),
     ).toBe(1);
@@ -156,11 +195,22 @@ describe('RunnersRepo', () => {
   it('enrols nothing and audits nothing on a code that expires between the route check and the batch', async () => {
     const codeHash = hash('e');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'mac', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'mac',
+        projectScope: 'selected',
+        allowedProjects: [],
+        createdBy: 'owner-1',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
     const late = runnerOf({ at: T1 });
-    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe('code-used');
+    expect(await repo.enrol(codeHash, late, { ...audit('runner.enrolled'), target: late.id })).toBe(
+      'code-used',
+    );
 
     expect(await repo.findById(late.id)).toBeNull();
     expect(await auditRows('runner.enrolled', late.id)).toBe(0);
@@ -170,7 +220,16 @@ describe('RunnersRepo', () => {
   it('still enrols on a code one millisecond before it expires', async () => {
     const codeHash = hash('f');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'mac', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'mac',
+        projectScope: 'selected',
+        allowedProjects: [],
+        createdBy: 'owner-1',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
     const runner = runnerOf({ at: '2026-11-10T10:00:59.999Z' });
@@ -181,7 +240,16 @@ describe('RunnersRepo', () => {
   it('refuses a private key member or another curve at the row', async () => {
     const codeHash = hash('b');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'x', projectScope: 'selected', allowedProjects: [], createdBy: 'o', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'x',
+        projectScope: 'selected',
+        allowedProjects: [],
+        createdBy: 'o',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
     const leaked = runnerOf({
@@ -209,8 +277,12 @@ describe('RunnersRepo', () => {
 
   it('changes the scope inside the account only', async () => {
     const runner = await enrolled();
-    expect(await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', audit(SCOPE_AUDIT, ACCOUNT_B))).toBe('unchanged');
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3']), 'owner-1', audit(SCOPE_AUDIT))).toBe('changed');
+    expect(
+      await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', audit(SCOPE_AUDIT, ACCOUNT_B)),
+    ).toBe('unchanged');
+    expect(
+      await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3']), 'owner-1', audit(SCOPE_AUDIT)),
+    ).toBe('changed');
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p2', 'p3']);
   });
 
@@ -218,45 +290,94 @@ describe('RunnersRepo', () => {
   it('switches to all and back without re-enrolment, auditing each change once', async () => {
     const runner = await enrolled();
     const changed = { ...audit(SCOPE_AUDIT), target: runner.id };
-    expect(await repo.setScope(ACCOUNT_A, runner.id, { projectScope: 'all', allowedProjects: ['p1'] }, 'owner-1', changed)).toBe('changed');
+    expect(
+      await repo.setScope(
+        ACCOUNT_A,
+        runner.id,
+        { projectScope: 'all', allowedProjects: ['p1'] },
+        'owner-1',
+        changed,
+      ),
+    ).toBe('changed');
     expect(await repo.findById(runner.id)).toMatchObject({ projectScope: 'all', allowedProjects: [] });
     expect(await repo.setScope(ACCOUNT_A, runner.id, ALL, 'owner-1', changed)).toBe('unchanged');
     expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p1']), 'owner-1', changed)).toBe('changed');
-    expect(await repo.findById(runner.id)).toMatchObject({ projectScope: 'selected', allowedProjects: ['p1'] });
+    expect(await repo.findById(runner.id)).toMatchObject({
+      projectScope: 'selected',
+      allowedProjects: ['p1'],
+    });
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(2);
   });
 
   // #795: on a runner that can serve a subscription only its enroller adds; any owner narrows; the guard is in the write.
   it('lets only the enroller add to a subscription runner, any writer narrow, and leaves an api_key runner alone', async () => {
     const ACCOUNT_C = '01M6YSNJ00000000000000RNC3';
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-c', 'C', ?2)`).bind(ACCOUNT_C, T0).run();
+    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-c', 'C', ?2)`)
+      .bind(ACCOUNT_C, T0)
+      .run();
     const addOwner = async (userId: string): Promise<void> => {
       await env.DB.batch([
-        env.DB
-          .prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
-          .bind(userId, String(795000 + Number(userId.slice(-3))), `rn-${userId.slice(-3)}`, T0),
-        env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`).bind(ACCOUNT_C, userId, T0),
+        env.DB.prepare(
+          `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+        ).bind(userId, String(795000 + Number(userId.slice(-3))), `rn-${userId.slice(-3)}`, T0),
+        env.DB.prepare(
+          `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`,
+        ).bind(ACCOUNT_C, userId, T0),
       ]);
     };
     await addOwner('01M6YSNJ00000000000000W001');
     const inC = (target: string) => ({ ...audit(SCOPE_AUDIT, ACCOUNT_C), target });
     const subscription = await enrolled({ accountId: ACCOUNT_C, enrolledBy: 'owner-1' });
     const legacy = await enrolled({ accountId: ACCOUNT_C, enrolledBy: null });
-    const apiKey = await enrolled({ accountId: ACCOUNT_C, enrolledBy: 'owner-1', capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } });
+    const apiKey = await enrolled({
+      accountId: ACCOUNT_C,
+      enrolledBy: 'owner-1',
+      capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] },
+    });
 
-    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1', 'p2']), 'owner-2', inC(subscription.id))).toBe('enroller-only');
-    expect(await repo.setScope(ACCOUNT_C, subscription.id, ALL, 'owner-2', inC(subscription.id))).toBe('enroller-only');
-    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1']), 'owner-2', inC(subscription.id))).toBe('unchanged');
-    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1', 'p2']), 'owner-1', inC(subscription.id))).toBe('changed');
-    expect(await repo.setScope(ACCOUNT_C, subscription.id, selected(['p2']), 'owner-2', inC(subscription.id))).toBe('changed');
+    expect(
+      await repo.setScope(
+        ACCOUNT_C,
+        subscription.id,
+        selected(['p1', 'p2']),
+        'owner-2',
+        inC(subscription.id),
+      ),
+    ).toBe('enroller-only');
+    expect(await repo.setScope(ACCOUNT_C, subscription.id, ALL, 'owner-2', inC(subscription.id))).toBe(
+      'enroller-only',
+    );
+    expect(
+      await repo.setScope(ACCOUNT_C, subscription.id, selected(['p1']), 'owner-2', inC(subscription.id)),
+    ).toBe('unchanged');
+    expect(
+      await repo.setScope(
+        ACCOUNT_C,
+        subscription.id,
+        selected(['p1', 'p2']),
+        'owner-1',
+        inC(subscription.id),
+      ),
+    ).toBe('changed');
+    expect(
+      await repo.setScope(ACCOUNT_C, subscription.id, selected(['p2']), 'owner-2', inC(subscription.id)),
+    ).toBe('changed');
     expect(await auditRows(SCOPE_AUDIT, subscription.id)).toBe(2);
-    expect(await repo.setScope(ACCOUNT_C, apiKey.id, selected(['p1', 'p9']), 'owner-2', inC(apiKey.id))).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_C, apiKey.id, selected(['p1', 'p9']), 'owner-2', inC(apiKey.id))).toBe(
+      'changed',
+    );
 
     // A row from before `enrolled_by`: its sole owner's to widen; with a second owner, nobody's until enrolled again.
-    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2']), 'owner-2', inC(legacy.id))).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2']), 'owner-2', inC(legacy.id))).toBe(
+      'changed',
+    );
     await addOwner('01M6YSNJ00000000000000W002');
-    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2', 'p3']), 'owner-1', inC(legacy.id))).toBe('enroller-only');
-    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1']), 'owner-1', inC(legacy.id))).toBe('changed');
+    expect(
+      await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1', 'p2', 'p3']), 'owner-1', inC(legacy.id)),
+    ).toBe('enroller-only');
+    expect(await repo.setScope(ACCOUNT_C, legacy.id, selected(['p1']), 'owner-1', inC(legacy.id))).toBe(
+      'changed',
+    );
     expect((await repo.findById(legacy.id))?.allowedProjects).toEqual(['p1']);
   });
 
@@ -264,10 +385,23 @@ describe('RunnersRepo', () => {
   it('never widens a hosted runner, and a hosted enrolment declares api_key for it', async () => {
     const codeHash = hash('h1');
     await repo.createEnrolment(
-      { codeHash, accountId: ACCOUNT_A, name: 'hosted', projectScope: 'all', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+      {
+        codeHash,
+        accountId: ACCOUNT_A,
+        name: 'hosted',
+        projectScope: 'all',
+        allowedProjects: [],
+        createdBy: 'owner-1',
+        at: T0,
+        expiresAt: T1,
+      },
       audit('enrolment-code.created'),
     );
-    const hosted = runnerOf({ projectScope: 'all', allowedProjects: [], capabilities: { local: false, maxConcurrency: 1, accessSources: ['subscription'] } });
+    const hosted = runnerOf({
+      projectScope: 'all',
+      allowedProjects: [],
+      capabilities: { local: false, maxConcurrency: 1, accessSources: ['subscription'] },
+    });
     expect(await repo.enrolHosted(codeHash, hosted, audit('runner.enrolled'))).toBe('ok');
     expect(await repo.findById(hosted.id)).toMatchObject({
       hosted: true,
@@ -275,8 +409,15 @@ describe('RunnersRepo', () => {
       allowedProjects: [],
       capabilities: { local: false, maxConcurrency: 1, accessSources: ['api_key'] },
     });
-    expect(await repo.setScope(ACCOUNT_A, hosted.id, ALL, 'owner-1', { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe('unchanged');
-    expect(await repo.setScope(ACCOUNT_A, hosted.id, selected(['p1']), 'owner-1', { ...audit(SCOPE_AUDIT), target: hosted.id })).toBe('unchanged');
+    expect(
+      await repo.setScope(ACCOUNT_A, hosted.id, ALL, 'owner-1', { ...audit(SCOPE_AUDIT), target: hosted.id }),
+    ).toBe('unchanged');
+    expect(
+      await repo.setScope(ACCOUNT_A, hosted.id, selected(['p1']), 'owner-1', {
+        ...audit(SCOPE_AUDIT),
+        target: hosted.id,
+      }),
+    ).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, hosted.id)).toBe(0);
     expect(await repo.setAccessSources(hosted.id, ['subscription'])).toBe(false);
     expect((await repo.findById(hosted.id))?.capabilities.accessSources).toEqual(['api_key']);
@@ -288,10 +429,16 @@ describe('RunnersRepo', () => {
     expect((await repo.findById(runner.id))?.capabilities.accessSources).toBeUndefined();
     expect(await repo.setAccessSources(runner.id, ['subscription'])).toBe(true);
     expect(await repo.setAccessSources(runner.id, ['subscription'])).toBe(false);
-    expect((await repo.findById(runner.id))?.capabilities).toEqual({ local: true, maxConcurrency: 1, accessSources: ['subscription'] });
+    expect((await repo.findById(runner.id))?.capabilities).toEqual({
+      local: true,
+      maxConcurrency: 1,
+      accessSources: ['subscription'],
+    });
     expect(await repo.setAccessSources(runner.id, ['api_key', 'subscription'])).toBe(true);
     expect((await repo.findById(runner.id))?.capabilities.accessSources).toEqual(['api_key', 'subscription']);
-    expect(await repo.revoke(ACCOUNT_A, runner.id, T1, { ...audit('runner.revoked'), target: runner.id })).toBe(true);
+    expect(
+      await repo.revoke(ACCOUNT_A, runner.id, T1, { ...audit('runner.revoked'), target: runner.id }),
+    ).toBe(true);
     expect(await repo.setAccessSources(runner.id, ['api_key'])).toBe(false);
   });
 
@@ -309,11 +456,19 @@ describe('RunnersRepo', () => {
   it('treats a reordered or duplicated list as no change, and a real narrowing as a change', async () => {
     const runner = await enrolled();
     const updated = { ...audit(SCOPE_AUDIT), target: runner.id };
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3', 'p4']), 'owner-1', updated)).toBe('changed');
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2', 'p3']), 'owner-1', updated)).toBe('unchanged');
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p3', 'p3', 'p2', 'p4']), 'owner-1', updated)).toBe('unchanged');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2', 'p3', 'p4']), 'owner-1', updated)).toBe(
+      'changed',
+    );
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2', 'p3']), 'owner-1', updated)).toBe(
+      'unchanged',
+    );
+    expect(
+      await repo.setScope(ACCOUNT_A, runner.id, selected(['p3', 'p3', 'p2', 'p4']), 'owner-1', updated),
+    ).toBe('unchanged');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(1);
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2']), 'owner-1', updated)).toBe('changed');
+    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p4', 'p2']), 'owner-1', updated)).toBe(
+      'changed',
+    );
     expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['p4', 'p2']);
     expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), 'owner-1', updated)).toBe('changed');
     expect(await repo.setScope(ACCOUNT_A, runner.id, selected([]), 'owner-1', updated)).toBe('unchanged');
@@ -335,15 +490,26 @@ describe('RunnersRepo', () => {
   it('audits no revoke or scope change that changed nothing', async () => {
     const runner = await enrolled();
     expect(
-      await repo.revoke(ACCOUNT_B, runner.id, T1, { ...audit('runner.revoked', ACCOUNT_B), target: runner.id }),
+      await repo.revoke(ACCOUNT_B, runner.id, T1, {
+        ...audit('runner.revoked', ACCOUNT_B),
+        target: runner.id,
+      }),
     ).toBe(false);
     expect(
-      await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', { ...audit(SCOPE_AUDIT, ACCOUNT_B), target: runner.id }),
+      await repo.setScope(ACCOUNT_B, runner.id, selected(['p9']), 'owner-1', {
+        ...audit(SCOPE_AUDIT, ACCOUNT_B),
+        target: runner.id,
+      }),
     ).toBe('unchanged');
     expect(await auditRows('runner.revoked', runner.id)).toBe(0);
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(0);
 
-    expect(await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), 'owner-1', { ...audit(SCOPE_AUDIT), target: runner.id })).toBe('changed');
+    expect(
+      await repo.setScope(ACCOUNT_A, runner.id, selected(['p2']), 'owner-1', {
+        ...audit(SCOPE_AUDIT),
+        target: runner.id,
+      }),
+    ).toBe('changed');
     expect(await auditRows(SCOPE_AUDIT, runner.id)).toBe(1);
   });
 
@@ -384,18 +550,29 @@ describe('RunnersRepo', () => {
       if (!seededUsers.has(userId)) {
         seededUsers.add(userId);
         users += 1;
-        await env.DB.prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
+        await env.DB.prepare(
+          `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+        )
           .bind(userId, String(827000 + users), `rn-ce-${userId.slice(-3)}`, T0)
           .run();
       }
-      await env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`)
+      await env.DB.prepare(
+        `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`,
+      )
         .bind(accountId, userId, T0)
         .run();
     }
 
-    const claimAudit = (accountId: string, target: string): NewAuditEvent => ({ ...audit(CLAIM, accountId), target });
-    const claim = (accountId: string, runnerId: string, userId: string | null, by: string = userId ?? 'access-owner') =>
-      repo.claimEnroller(accountId, runnerId, by, userId, claimAudit(accountId, runnerId));
+    const claimAudit = (accountId: string, target: string): NewAuditEvent => ({
+      ...audit(CLAIM, accountId),
+      target,
+    });
+    const claim = (
+      accountId: string,
+      runnerId: string,
+      userId: string | null,
+      by: string = userId ?? 'access-owner',
+    ) => repo.claimEnroller(accountId, runnerId, by, userId, claimAudit(accountId, runnerId));
 
     const U1 = '01M6YSNJ00000000000000CEA1';
     const U2 = '01M6YSNJ00000000000000CEA2';
@@ -454,12 +631,26 @@ describe('RunnersRepo', () => {
     it('answers revoked, fixed and not-found for a revoked, a hosted and another account’s runner', async () => {
       const accountId = await accountWithOwners(U1);
       const revoked = await enrolled({ accountId, enrolledBy: null });
-      expect(await repo.revoke(accountId, revoked.id, T1, { ...audit('runner.revoked', accountId), target: revoked.id })).toBe(true);
+      expect(
+        await repo.revoke(accountId, revoked.id, T1, {
+          ...audit('runner.revoked', accountId),
+          target: revoked.id,
+        }),
+      ).toBe(true);
       expect(await claim(accountId, revoked.id, U1)).toBe('revoked');
 
       const codeHash = hash('ce');
       await repo.createEnrolment(
-        { codeHash, accountId, name: 'hosted', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+        {
+          codeHash,
+          accountId,
+          name: 'hosted',
+          projectScope: 'selected',
+          allowedProjects: [],
+          createdBy: 'owner-1',
+          at: T0,
+          expiresAt: T1,
+        },
         audit('enrolment-code.created', accountId),
       );
       const hosted = runnerOf({ accountId, enrolledBy: null, allowedProjects: [] });
@@ -586,12 +777,18 @@ describe('RunnersRepo', () => {
     it('pauses inside the account, audits once per change, and resume clears it', async () => {
       const runner = await enrolled();
       const pauseAudit = { ...audit('runner.paused'), target: runner.id };
-      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit)).toBe(true);
+      expect(
+        await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit),
+      ).toBe(true);
       expect((await repo.findById(runner.id))?.pause).toEqual({ reason: 'usage-limit', until: UNTIL });
       // The same pause again (a restart mirroring state.json) changes nothing and audits nothing.
-      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit)).toBe(false);
+      expect(
+        await repo.pause(ACCOUNT_A, runner.id, { reason: 'usage-limit', until: UNTIL }, pauseAudit),
+      ).toBe(false);
       expect(await auditRows('runner.paused', runner.id)).toBe(1);
-      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'rate-limit', until: UNTIL }, pauseAudit)).toBe(true);
+      expect(await repo.pause(ACCOUNT_A, runner.id, { reason: 'rate-limit', until: UNTIL }, pauseAudit)).toBe(
+        true,
+      );
       expect(await auditRows('runner.paused', runner.id)).toBe(2);
 
       const resumeAudit = { ...audit('runner.resumed'), target: runner.id };
@@ -603,23 +800,48 @@ describe('RunnersRepo', () => {
 
     it('never pauses or resumes another account’s runner, nor a revoked one', async () => {
       const theirs = await enrolled({ accountId: ACCOUNT_B });
-      expect(await repo.pause(ACCOUNT_A, theirs.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused'), target: theirs.id })).toBe(false);
+      expect(
+        await repo.pause(
+          ACCOUNT_A,
+          theirs.id,
+          { reason: 'manual', until: UNTIL },
+          { ...audit('runner.paused'), target: theirs.id },
+        ),
+      ).toBe(false);
       expect((await repo.findById(theirs.id))?.pause).toBeNull();
       expect(await auditRows('runner.paused', theirs.id)).toBe(0);
 
-      expect(await repo.pause(ACCOUNT_B, theirs.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused', ACCOUNT_B), target: theirs.id })).toBe(true);
-      expect(await repo.resume(ACCOUNT_A, theirs.id, { ...audit('runner.resumed'), target: theirs.id })).toBe(false);
+      expect(
+        await repo.pause(
+          ACCOUNT_B,
+          theirs.id,
+          { reason: 'manual', until: UNTIL },
+          { ...audit('runner.paused', ACCOUNT_B), target: theirs.id },
+        ),
+      ).toBe(true);
+      expect(await repo.resume(ACCOUNT_A, theirs.id, { ...audit('runner.resumed'), target: theirs.id })).toBe(
+        false,
+      );
       expect((await repo.findById(theirs.id))?.pause).toEqual({ reason: 'manual', until: UNTIL });
 
       const revoked = await enrolled();
       await repo.revoke(ACCOUNT_A, revoked.id, T1, { ...audit('runner.revoked'), target: revoked.id });
-      expect(await repo.pause(ACCOUNT_A, revoked.id, { reason: 'manual', until: UNTIL }, { ...audit('runner.paused'), target: revoked.id })).toBe(false);
+      expect(
+        await repo.pause(
+          ACCOUNT_A,
+          revoked.id,
+          { reason: 'manual', until: UNTIL },
+          { ...audit('runner.paused'), target: revoked.id },
+        ),
+      ).toBe(false);
     });
 
     it('refuses at the row a reason without a time, a time without a reason, an unknown reason or a local time', async () => {
       const runner = await enrolled();
       const write = (until: string | null, reason: string | null): Promise<unknown> =>
-        env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = ?3 WHERE id = ?1`).bind(runner.id, until, reason).run();
+        env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = ?3 WHERE id = ?1`)
+          .bind(runner.id, until, reason)
+          .run();
       await expect(write(null, 'manual')).rejects.toThrow(/CHECK/);
       await expect(write(UNTIL, null)).rejects.toThrow(/CHECK/);
       await expect(write(UNTIL, 'tired')).rejects.toThrow(/CHECK/);
@@ -633,9 +855,9 @@ describe('RunnersRepo', () => {
     expect(await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:05:00.000Z', T0)).toBe(true);
     expect(await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:05:00.000Z', T0)).toBe(false);
     // Past its expiry the row is swept on the next call and the same jti is a new token's (the clock moved on).
-    expect(await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:12:00.000Z', '2026-11-10T10:06:00.000Z')).toBe(
-      true,
-    );
+    expect(
+      await repo.consumeNonce(runner.id, 'j1', '2026-11-10T10:12:00.000Z', '2026-11-10T10:06:00.000Z'),
+    ).toBe(true);
   });
 
   // #707 (ADR 0009 d.3, threat model C12 row 6): the placement refusal holds inside the hosted enrolment write too.
@@ -645,13 +867,19 @@ describe('RunnersRepo', () => {
     async function account(defaultPolicy: string | null = null): Promise<string> {
       accounts += 1;
       const id = `01M6YSNJ000000000000HS${String(accounts).padStart(4, '0')}`;
-      await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at, default_runner_policy) VALUES (?1, ?2, 'H', ?3, ?4)`)
+      await env.DB.prepare(
+        `INSERT INTO accounts (id, slug, name, created_at, default_runner_policy) VALUES (?1, ?2, 'H', ?3, ?4)`,
+      )
         .bind(id, `rn-h${String(accounts)}`, T0, defaultPolicy)
         .run();
       return id;
     }
 
-    async function project(accountId: string, source: 'subscription' | 'api_key', policy: string | null = null): Promise<void> {
+    async function project(
+      accountId: string,
+      source: 'subscription' | 'api_key',
+      policy: string | null = null,
+    ): Promise<void> {
       counter += 1;
       const slug = `rn-hp-${String(counter)}`;
       await env.DB.prepare(
@@ -666,7 +894,16 @@ describe('RunnersRepo', () => {
       counter += 1;
       const codeHash = String(counter).padStart(64, 'e');
       await repo.createEnrolment(
-        { codeHash, accountId, name: 'hosted', projectScope: 'selected', allowedProjects: [], createdBy: 'owner-1', at: T0, expiresAt: T1 },
+        {
+          codeHash,
+          accountId,
+          name: 'hosted',
+          projectScope: 'selected',
+          allowedProjects: [],
+          createdBy: 'owner-1',
+          at: T0,
+          expiresAt: T1,
+        },
         audit('enrolment-code.created', accountId),
       );
       return codeHash;
@@ -674,7 +911,10 @@ describe('RunnersRepo', () => {
 
     async function enrolHosted(accountId: string, codeHash: string, id: string = ulid()) {
       const runner = runnerOf({ id, accountId, isolation: 'container' });
-      const outcome = await repo.enrolHosted(codeHash, runner, { ...audit('runner.enrolled', accountId), target: runner.id });
+      const outcome = await repo.enrolHosted(codeHash, runner, {
+        ...audit('runner.enrolled', accountId),
+        target: runner.id,
+      });
       return { outcome, runner };
     }
 
@@ -709,14 +949,20 @@ describe('RunnersRepo', () => {
         const id = ulid();
         const accountId = await account();
         await project(accountId, 'subscription', JSON.stringify(policy(id)));
-        expect((await enrolHosted(accountId, await code(accountId), id)).outcome).toBe('access-source-hosted');
+        expect((await enrolHosted(accountId, await code(accountId), id)).outcome).toBe(
+          'access-source-hosted',
+        );
       }
     });
 
     it('enrols a hosted runner when no subscription project would admit it', async () => {
       const accountId = await account(JSON.stringify({ mode: 'pinned', runner: 'mac-1' }));
       await project(accountId, 'subscription');
-      await project(accountId, 'subscription', JSON.stringify({ mode: 'failover', preferred: 'mac-1', fallback: ['mac-2'] }));
+      await project(
+        accountId,
+        'subscription',
+        JSON.stringify({ mode: 'failover', preferred: 'mac-1', fallback: ['mac-2'] }),
+      );
       await project(accountId, 'api_key', JSON.stringify({ mode: 'any' }));
       // Another account's subscription project is not this enrolment's business.
       await project(await account(), 'subscription');
@@ -744,7 +990,9 @@ describe('RunnersRepo', () => {
       await project(accountId, 'subscription');
       const codeHash = await code(accountId);
       const runner = runnerOf({ accountId });
-      expect(await repo.enrol(codeHash, runner, { ...audit('runner.enrolled', accountId), target: runner.id })).toBe('ok');
+      expect(
+        await repo.enrol(codeHash, runner, { ...audit('runner.enrolled', accountId), target: runner.id }),
+      ).toBe('ok');
       expect((await repo.findById(runner.id))?.hosted).toBe(false);
     });
   });

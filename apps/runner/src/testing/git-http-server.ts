@@ -68,7 +68,10 @@ function serve(root: string, request: IncomingMessage, response: ServerResponse)
   });
 }
 
-export async function startGitHttpServer(root: string, expectedAuthorization: string): Promise<GitHttpServer> {
+export async function startGitHttpServer(
+  root: string,
+  expectedAuthorization: string,
+): Promise<GitHttpServer> {
   const authorizations: (string | null)[] = [];
   const server = createServer((request, response) => {
     const authorization = request.headers.authorization ?? null;

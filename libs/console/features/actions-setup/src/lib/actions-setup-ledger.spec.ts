@@ -23,7 +23,10 @@ function refusal(slug: string, extra: Record<string, unknown> = {}): RunnerResul
 describe('ActionsSetupLedger (#759)', () => {
   async function render(
     setup: ActionsSetupDto | null,
-    write: () => RunnerResult<ProjectDispatchDto> = () => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } }),
+    write: () => RunnerResult<ProjectDispatchDto> = () => ({
+      ok: true,
+      value: { dispatch: 'actions', defaultBranch: 'main' },
+    }),
     firstJob: ActionsFirstJob | null = null,
   ) {
     const writes: string[] = [];
@@ -68,8 +71,10 @@ describe('ActionsSetupLedger (#759)', () => {
     };
     await settle();
     const root = fixture.nativeElement as HTMLElement;
-    const find = <T extends HTMLElement = HTMLElement>(selector: string): T | null => root.querySelector<T>(selector);
-    const states = (): string[] => Array.from(root.querySelectorAll('[data-testid="step-state"]')).map((n) => n.textContent?.trim() ?? '');
+    const find = <T extends HTMLElement = HTMLElement>(selector: string): T | null =>
+      root.querySelector<T>(selector);
+    const states = (): string[] =>
+      Array.from(root.querySelectorAll('[data-testid="step-state"]')).map((n) => n.textContent?.trim() ?? '');
     return { root, find, states, writes, switched, rechecks, announce, settle };
   }
 
@@ -87,21 +92,31 @@ describe('ActionsSetupLedger (#759)', () => {
     );
     expect(states()).toEqual(['Готово', 'Готово', 'Не хватает', 'Не хватает', 'Не включено']);
     expect(find('[data-testid="actions-env-how"]')?.hidden).toBe(false);
-    expect(find('[data-item="secret"]')?.textContent).toContain('Секрета TC_INFERENCE_API_KEY в окружении нет');
+    expect(find('[data-item="secret"]')?.textContent).toContain(
+      'Секрета TC_INFERENCE_API_KEY в окружении нет',
+    );
   });
 
   it('never reads an unchecked secret as ok and links the installation', async () => {
     const link = 'https://github.com/settings/installations/7';
     const { find } = await render(
-      actionsSetupFixture({ items: { 'app-permissions': { status: 'missing', link }, secret: { status: 'unknown' } } }),
+      actionsSetupFixture({
+        items: { 'app-permissions': { status: 'missing', link }, secret: { status: 'unknown' } },
+      }),
     );
     expect(find('[data-item="secret"]')?.getAttribute('data-tone')).toBe('unknown');
-    expect(find('[data-item="secret"]')?.textContent).toContain('Не проверить, пока приложение не получило права');
-    expect(find<HTMLAnchorElement>('[data-testid="actions-permissions-link"]')?.getAttribute('href')).toBe(link);
+    expect(find('[data-item="secret"]')?.textContent).toContain(
+      'Не проверить, пока приложение не получило права',
+    );
+    expect(find<HTMLAnchorElement>('[data-testid="actions-permissions-link"]')?.getAttribute('href')).toBe(
+      link,
+    );
   });
 
   it('warns about reviewers without holding the step back (owner decision 2)', async () => {
-    const { find, states } = await render(actionsSetupFixture({ items: { 'protection-rules': { status: 'wrong' } } }));
+    const { find, states } = await render(
+      actionsSetupFixture({ items: { 'protection-rules': { status: 'wrong' } } }),
+    );
     expect(states()[2]).toBe('Готово');
     expect(find('[data-item="protection-rules"]')?.textContent).toContain('будет ждать вашего одобрения');
   });
@@ -114,10 +129,14 @@ describe('ActionsSetupLedger (#759)', () => {
   });
 
   it('holds «Включить» while not ready and moves focus to the first missing step', async () => {
-    const { find, writes, settle } = await render(actionsSetupFixture({ items: { workflow: { status: 'missing' } } }));
+    const { find, writes, settle } = await render(
+      actionsSetupFixture({ items: { workflow: { status: 'missing' } } }),
+    );
     const button = find<HTMLButtonElement>('[data-testid="switch-on"]');
     expect(button?.getAttribute('aria-disabled')).toBe('true');
-    expect(find('[data-testid="switch-blocked"]')?.textContent).toContain('Сначала шаги выше: не хватает 1 шага.');
+    expect(find('[data-testid="switch-blocked"]')?.textContent).toContain(
+      'Сначала шаги выше: не хватает 1 шага.',
+    );
     button?.click();
     await settle();
     expect(writes).toEqual([]);
@@ -134,7 +153,9 @@ describe('ActionsSetupLedger (#759)', () => {
   });
 
   it('names the items of a not-ready refusal and checks again', async () => {
-    const { find, rechecks, settle } = await render(actionsSetupFixture(), () => refusal('actions-not-ready', { items: ['secret'] }));
+    const { find, rechecks, settle } = await render(actionsSetupFixture(), () =>
+      refusal('actions-not-ready', { items: ['secret'] }),
+    );
     find<HTMLButtonElement>('[data-testid="switch-on"]')?.click();
     await settle();
     expect(find('[data-testid="switch-error"]')?.textContent).toContain(
@@ -147,21 +168,32 @@ describe('ActionsSetupLedger (#759)', () => {
     const { find, settle } = await render(actionsSetupFixture(), () => refusal('access-source-hosted'));
     find<HTMLButtonElement>('[data-testid="switch-on"]')?.click();
     await settle();
-    expect(find<HTMLAnchorElement>('[data-testid="switch-team"]')?.getAttribute('href')).toBe('/settings/projects/storify/team');
+    expect(find<HTMLAnchorElement>('[data-testid="switch-team"]')?.getAttribute('href')).toBe(
+      '/settings/projects/storify/team',
+    );
   });
 
   it('says where to switch back once on', async () => {
     const { find } = await render(actionsSetupFixture({ dispatch: 'actions' }));
-    expect(find('[data-testid="switch-done"]')?.textContent).toContain('Задания проекта идут на GitHub Actions.');
-    expect(find<HTMLAnchorElement>('[data-testid="switch-change"]')?.getAttribute('href')).toBe('/settings/runners');
+    expect(find('[data-testid="switch-done"]')?.textContent).toContain(
+      'Задания проекта идут на GitHub Actions.',
+    );
+    expect(find<HTMLAnchorElement>('[data-testid="switch-change"]')?.getAttribute('href')).toBe(
+      '/settings/runners',
+    );
   });
 
   describe('step 6, the first job', () => {
     const on = () => actionsSetupFixture({ dispatch: 'actions' });
-    const ok = (): RunnerResult<ProjectDispatchDto> => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } });
+    const ok = (): RunnerResult<ProjectDispatchDto> => ({
+      ok: true,
+      value: { dispatch: 'actions', defaultBranch: 'main' },
+    });
 
     it('stays out until the project runs on Actions', async () => {
-      expect((await render(actionsSetupFixture(), ok, { kind: 'waiting' })).find('[data-step="first-job"]')).toBeNull();
+      expect(
+        (await render(actionsSetupFixture(), ok, { kind: 'waiting' })).find('[data-step="first-job"]'),
+      ).toBeNull();
     });
 
     it('stays out until the jobs were read', async () => {
@@ -171,7 +203,9 @@ describe('ActionsSetupLedger (#759)', () => {
     it('waits for the first job and points to the project', async () => {
       const { find } = await render(on(), ok, { kind: 'waiting' });
       expect(find('[data-testid="first-job-text"]')?.textContent).toContain('Ждём первое задание');
-      expect(find<HTMLAnchorElement>('[data-testid="first-job-open"]')?.getAttribute('href')).toBe('/p/storify/questions');
+      expect(find<HTMLAnchorElement>('[data-testid="first-job-open"]')?.getAttribute('href')).toBe(
+        '/p/storify/questions',
+      );
     });
 
     it('says when the first job passed', async () => {

@@ -51,7 +51,12 @@ describe('pickNextSprint', () => {
 
   it('takes the open milestone due soonest after the current demo', () => {
     const next = pickNextSprint(
-      [milestone(1, '2026-09-30T00:00:00Z', 'closed'), current, milestone(5, '2026-11-11T12:00:00Z'), milestone(4, '2026-10-28T12:00:00Z')],
+      [
+        milestone(1, '2026-09-30T00:00:00Z', 'closed'),
+        current,
+        milestone(5, '2026-11-11T12:00:00Z'),
+        milestone(4, '2026-10-28T12:00:00Z'),
+      ],
       current,
     );
     expect(next?.number).toBe(4);
@@ -60,7 +65,12 @@ describe('pickNextSprint', () => {
   it('skips closed milestones, ones without a due date and ones due the same day as the current demo', () => {
     expect(
       pickNextSprint(
-        [current, milestone(6, null), milestone(7, '2026-10-28T12:00:00Z', 'closed'), milestone(8, '2026-10-14T00:00:00Z')],
+        [
+          current,
+          milestone(6, null),
+          milestone(7, '2026-10-28T12:00:00Z', 'closed'),
+          milestone(8, '2026-10-14T00:00:00Z'),
+        ],
         current,
       ),
     ).toBeNull();
@@ -68,10 +78,15 @@ describe('pickNextSprint', () => {
 });
 
 describe('nextSprintNumber', () => {
-  const titled = (title: string, state = 'open'): MilestoneRecord => ({ ...milestone(1, null, state), title });
+  const titled = (title: string, state = 'open'): MilestoneRecord => ({
+    ...milestone(1, null, state),
+    title,
+  });
 
   it('is the highest Sprint NN, open or closed, + 1 (gaps are not filled)', () => {
-    expect(nextSprintNumber([titled('Sprint 01', 'closed'), titled('Sprint 04', 'closed'), titled('Sprint 02')])).toBe(5);
+    expect(
+      nextSprintNumber([titled('Sprint 01', 'closed'), titled('Sprint 04', 'closed'), titled('Sprint 02')]),
+    ).toBe(5);
   });
 
   it('ignores milestones that are not sprints', () => {

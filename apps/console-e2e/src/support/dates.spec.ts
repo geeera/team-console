@@ -35,15 +35,23 @@ describe('dayFromToday', () => {
 
 describe('instantInZone', () => {
   it('reads the wall clock of the zone in winter and in summer time', () => {
-    expect(instantInZone('2026-11-27', '09:00', 'Europe/Kyiv').toISOString()).toBe('2026-11-27T07:00:00.000Z');
-    expect(instantInZone('2026-07-01', '09:00', 'Europe/Kyiv').toISOString()).toBe('2026-07-01T06:00:00.000Z');
+    expect(instantInZone('2026-11-27', '09:00', 'Europe/Kyiv').toISOString()).toBe(
+      '2026-11-27T07:00:00.000Z',
+    );
+    expect(instantInZone('2026-07-01', '09:00', 'Europe/Kyiv').toISOString()).toBe(
+      '2026-07-01T06:00:00.000Z',
+    );
     expect(instantInZone('2026-11-27', '21:30', 'UTC').toISOString()).toBe('2026-11-27T21:30:00.000Z');
   });
 
   it('takes the offset of the day itself next to a DST change', () => {
     // Kyiv enters summer time at 03:00 on 2026-03-29.
-    expect(instantInZone('2026-03-28', '23:30', 'Europe/Kyiv').toISOString()).toBe('2026-03-28T21:30:00.000Z');
-    expect(instantInZone('2026-03-29', '09:00', 'Europe/Kyiv').toISOString()).toBe('2026-03-29T06:00:00.000Z');
+    expect(instantInZone('2026-03-28', '23:30', 'Europe/Kyiv').toISOString()).toBe(
+      '2026-03-28T21:30:00.000Z',
+    );
+    expect(instantInZone('2026-03-29', '09:00', 'Europe/Kyiv').toISOString()).toBe(
+      '2026-03-29T06:00:00.000Z',
+    );
   });
 });
 

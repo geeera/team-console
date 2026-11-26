@@ -78,7 +78,11 @@ async function refusalOf(response: Response): Promise<Refusal> {
   };
 }
 
-const refusedFor = (status: number, claim: string): Refusal => ({ status, slug: 'oidc-exchange-refused', claim });
+const refusedFor = (status: number, claim: string): Refusal => ({
+  status,
+  slug: 'oidc-exchange-refused',
+  claim,
+});
 
 /** One exchange of a run of `project` for `jobId`, with `claims` changed as the case says. */
 async function exchange(
@@ -94,9 +98,17 @@ async function exchange(
 }
 
 async function jobRow(id: string) {
-  return env.DB.prepare(`SELECT state, runner_id, actions_run_id, token_hash, dispatch FROM jobs WHERE id = ?1`)
+  return env.DB.prepare(
+    `SELECT state, runner_id, actions_run_id, token_hash, dispatch FROM jobs WHERE id = ?1`,
+  )
     .bind(id)
-    .first<{ state: string; runner_id: string | null; actions_run_id: string | null; token_hash: string | null; dispatch: string }>();
+    .first<{
+      state: string;
+      runner_id: string | null;
+      actions_run_id: string | null;
+      token_hash: string | null;
+      dispatch: string;
+    }>();
 }
 
 async function runnerRow(id: string) {
@@ -133,24 +145,44 @@ describe('POST /api/v1/runner/oidc-exchange: a valid run', () => {
     expect(isOidcExchangeResponse(body)).toBe(true);
     const answer = body as OidcExchangeResponse;
     expect(answer.runner.audience).toBe(runnerAudienceOf('local'));
-    expect(answer.job).toMatchObject({ id: jobId, state: 'claimed', dispatch: 'actions', runnerId: answer.runner.id });
+    expect(answer.job).toMatchObject({
+      id: jobId,
+      state: 'claimed',
+      dispatch: 'actions',
+      runnerId: answer.runner.id,
+    });
     expect(answer.jobToken.startsWith('tcj_')).toBe(true);
 
     const runner = await runnerRow(answer.runner.id);
-    expect(runner).toMatchObject({ account_id: OWNER_ACCOUNT_ID, isolation: 'actions-ephemeral', hosted: 0, revoked_at: null });
+    expect(runner).toMatchObject({
+      account_id: OWNER_ACCOUNT_ID,
+      isolation: 'actions-ephemeral',
+      hosted: 0,
+      revoked_at: null,
+    });
     expect(runner?.name).toMatch(/^actions:[0-9]+$/);
     expect(JSON.parse(runner?.allowed_projects ?? 'null')).toEqual([project.slug]);
     // #775, R-SCOPE-4: the exchange declares `api_key` for the identity itself and creates it `selected`.
-    expect(JSON.parse(runner?.capabilities ?? 'null')).toEqual({ local: false, maxConcurrency: 1, accessSources: ['api_key'] });
-    const scope = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`).bind(answer.runner.id).first<{ project_scope: string }>();
+    expect(JSON.parse(runner?.capabilities ?? 'null')).toEqual({
+      local: false,
+      maxConcurrency: 1,
+      accessSources: ['api_key'],
+    });
+    const scope = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`)
+      .bind(answer.runner.id)
+      .first<{ project_scope: string }>();
     expect(scope?.project_scope).toBe('selected');
-    const stored = await env.DB.prepare(`SELECT public_key_jwk FROM runners WHERE id = ?1`).bind(answer.runner.id).first<{ public_key_jwk: string }>();
+    const stored = await env.DB.prepare(`SELECT public_key_jwk FROM runners WHERE id = ?1`)
+      .bind(answer.runner.id)
+      .first<{ public_key_jwk: string }>();
     expect(JSON.parse(stored?.public_key_jwk ?? '{}')).toEqual(publicKeyJwk);
 
     const job = await jobRow(jobId);
     expect(job).toMatchObject({ state: 'claimed', runner_id: answer.runner.id, dispatch: 'actions' });
     expect(job?.actions_run_id).toBe(runner?.name.slice('actions:'.length));
-    const audit = await env.DB.prepare(`SELECT kind, actor, target FROM audit_events WHERE actor = ?1 ORDER BY id`)
+    const audit = await env.DB.prepare(
+      `SELECT kind, actor, target FROM audit_events WHERE actor = ?1 ORDER BY id`,
+    )
       .bind(answer.runner.id)
       .all<{ kind: string; actor: string; target: string }>();
     expect(audit.results.map((row) => [row.kind, row.target])).toEqual([
@@ -171,7 +203,12 @@ describe('POST /api/v1/runner/oidc-exchange: a valid run', () => {
     });
     expect(started.status).toBe(201);
     // The job token works only with this run's runner JWT (R4), as for any claimed job.
-    const read = await sendAsJob(run, answer.jobToken, 'GET', `/api/v1/projects/${project.slug}/jobs/${jobId}`);
+    const read = await sendAsJob(
+      run,
+      answer.jobToken,
+      'GET',
+      `/api/v1/projects/${project.slug}/jobs/${jobId}`,
+    );
     expect(read.status).toBe(200);
 
     const finish = await sendAsRunner(run, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, {
@@ -271,9 +308,15 @@ describe('the token (jose against the issuer JWKS)', () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
     const claims = runClaimsOf(project, dispatchedRunOf(jobId));
-    const bad = await postExchange((await exchangeBodyOf(await actionsToken(issuer, claims, wrong), jobId)).body, issuer.bindings);
+    const bad = await postExchange(
+      (await exchangeBodyOf(await actionsToken(issuer, claims, wrong), jobId)).body,
+      issuer.bindings,
+    );
     expect(await refusalOf(bad)).toEqual(refusedFor(401, claim));
-    const good = await postExchange((await exchangeBodyOf(await actionsToken(issuer, claims), jobId)).body, issuer.bindings);
+    const good = await postExchange(
+      (await exchangeBodyOf(await actionsToken(issuer, claims), jobId)).body,
+      issuer.bindings,
+    );
     expect(good.status).toBe(200);
   });
 
@@ -281,9 +324,9 @@ describe('the token (jose against the issuer JWKS)', () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
     const token = await actionsToken(issuer, runClaimsOf(project, dispatchedRunOf(jobId)), { omit: ['aud'] });
-    expect(await refusalOf(await postExchange((await exchangeBodyOf(token, jobId)).body, issuer.bindings))).toEqual(
-      refusedFor(401, 'aud'),
-    );
+    expect(
+      await refusalOf(await postExchange((await exchangeBodyOf(token, jobId)).body, issuer.bindings)),
+    ).toEqual(refusedFor(401, 'aud'));
   });
 
   it('accepts a token expired inside the 30 s tolerance and refuses one past it', async () => {
@@ -292,18 +335,23 @@ describe('the token (jose against the issuer JWKS)', () => {
     const now = Math.floor(Date.now() / 1000);
     const claims = runClaimsOf(project, dispatchedRunOf(jobId));
     const stale = await actionsToken(issuer, claims, { issuedAt: now - 400, lifetimeSeconds: 340 });
-    expect(await refusalOf(await postExchange((await exchangeBodyOf(stale, jobId)).body, issuer.bindings))).toEqual(
-      refusedFor(401, 'exp'),
-    );
+    expect(
+      await refusalOf(await postExchange((await exchangeBodyOf(stale, jobId)).body, issuer.bindings)),
+    ).toEqual(refusedFor(401, 'exp'));
     const late = await actionsToken(issuer, claims, { issuedAt: now - 320, lifetimeSeconds: 300 });
     expect((await postExchange((await exchangeBodyOf(late, jobId)).body, issuer.bindings)).status).toBe(200);
   });
 
   it('takes the JWKS override only on ENVIRONMENT = local', () => {
     const jwks = JSON.stringify({ keys: [] });
-    expect(actionsJwksSourceOf({ ENVIRONMENT: 'local', ACTIONS_OIDC_JWKS: jwks })).toEqual({ kind: 'local', json: jwks });
+    expect(actionsJwksSourceOf({ ENVIRONMENT: 'local', ACTIONS_OIDC_JWKS: jwks })).toEqual({
+      kind: 'local',
+      json: jwks,
+    });
     for (const environment of ['dev', 'stage', 'production']) {
-      expect(actionsJwksSourceOf({ ENVIRONMENT: environment, ACTIONS_OIDC_JWKS: jwks })).toEqual({ kind: 'remote' });
+      expect(actionsJwksSourceOf({ ENVIRONMENT: environment, ACTIONS_OIDC_JWKS: jwks })).toEqual({
+        kind: 'remote',
+      });
     }
     expect(actionsJwksSourceOf({ ENVIRONMENT: 'local' })).toEqual({ kind: 'remote' });
   });
@@ -320,10 +368,14 @@ describe('each claim against the job’s project: one accepted value, one wrong 
     ['ref', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'ref', 'refs/heads/feature')],
     ['ref', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'ref', 'refs/tags/main')],
     ['ref_type', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'ref_type', 'tag')],
-    ['workflow_ref', (p: ActionsProject, c: Record<string, unknown>) => at(c, 'workflow_ref', workflowOf(p, 'other.yml'))],
     [
       'workflow_ref',
-      (p: ActionsProject, c: Record<string, unknown>) => at(c, 'workflow_ref', workflowOf(p, 'team-console-runner.yml', 'refs/heads/feature')),
+      (p: ActionsProject, c: Record<string, unknown>) => at(c, 'workflow_ref', workflowOf(p, 'other.yml')),
+    ],
+    [
+      'workflow_ref',
+      (p: ActionsProject, c: Record<string, unknown>) =>
+        at(c, 'workflow_ref', workflowOf(p, 'team-console-runner.yml', 'refs/heads/feature')),
     ],
     [
       'workflow_ref',
@@ -338,14 +390,21 @@ describe('each claim against the job’s project: one accepted value, one wrong 
     ['event_name', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'event_name', 'push')],
     ['environment', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'environment', 'production')],
     ['environment', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'environment', undefined)],
-    ['runner_environment', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'runner_environment', 'self-hosted')],
+    [
+      'runner_environment',
+      (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'runner_environment', 'self-hosted'),
+    ],
     ['run_id', (_p: ActionsProject, c: Record<string, unknown>) => at(c, 'run_id', '12a')],
   ])('%s: refuses the wrong value with the claim named, then accepts the right one', async (claim, wrong) => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
     const refused = await exchange(project, jobId, (claims) => wrong(project, claims));
     expect(await refusalOf(refused.response)).toEqual(refusedFor(401, claim));
-    expect(await jobRow(jobId)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: dispatchedRunOf(jobId) });
+    expect(await jobRow(jobId)).toMatchObject({
+      state: 'queued',
+      runner_id: null,
+      actions_run_id: dispatchedRunOf(jobId),
+    });
 
     const accepted = await exchange(project, jobId);
     expect(accepted.response.status).toBe(200);
@@ -354,19 +413,34 @@ describe('each claim against the job’s project: one accepted value, one wrong 
   it('compares the repository part of workflow_ref in any case, as GitHub keeps its own casing', async () => {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const lower = workflowOf(project, 'team-console-runner.yml', 'refs/heads/main', project.repo.toLowerCase());
-    const response = (await exchange(project, jobId, (claims) => ({ ...claims, workflow_ref: lower, job_workflow_ref: lower }))).response;
+    const lower = workflowOf(
+      project,
+      'team-console-runner.yml',
+      'refs/heads/main',
+      project.repo.toLowerCase(),
+    );
+    const response = (
+      await exchange(project, jobId, (claims) => ({
+        ...claims,
+        workflow_ref: lower,
+        job_workflow_ref: lower,
+      }))
+    ).response;
     expect(response.status).toBe(200);
   });
 
   it('refuses every run of a project whose repository id or default branch the console never recorded', async () => {
     const project = await seedActionsProject();
     const noBranch = await seedActionsJob(project);
-    await env.DB.prepare(`UPDATE projects SET default_branch = NULL WHERE slug = ?1`).bind(project.slug).run();
+    await env.DB.prepare(`UPDATE projects SET default_branch = NULL WHERE slug = ?1`)
+      .bind(project.slug)
+      .run();
     expect(await refusalOf((await exchange(project, noBranch)).response)).toEqual(refusedFor(401, 'ref'));
     const unrecorded = await seedActionsProject(OWNER_ACCOUNT_ID, { recordRepoId: false });
     const noRepoId = await seedActionsJob(unrecorded);
-    expect(await refusalOf((await exchange(unrecorded, noRepoId)).response)).toEqual(refusedFor(401, 'repository_id'));
+    expect(await refusalOf((await exchange(unrecorded, noRepoId)).response)).toEqual(
+      refusedFor(401, 'repository_id'),
+    );
   });
 
   it('refuses a run of another repository for this job, even when its token is otherwise perfect', async () => {
@@ -391,9 +465,9 @@ describe('one run, one job, once', () => {
     const replayed = await postExchange((await exchangeBodyOf(token, first)).body, issuer.bindings);
     expect(await refusalOf(replayed)).toEqual(refusedFor(401, 'run_id'));
     const rerun = await actionsToken(issuer, { ...runClaimsOf(project, runId), run_attempt: '2' });
-    expect(await refusalOf(await postExchange((await exchangeBodyOf(rerun, second)).body, issuer.bindings))).toEqual(
-      refusedFor(401, 'run_id'),
-    );
+    expect(
+      await refusalOf(await postExchange((await exchangeBodyOf(rerun, second)).body, issuer.bindings)),
+    ).toEqual(refusedFor(401, 'run_id'));
     expect(await jobRow(second)).toMatchObject({ state: 'queued', runner_id: null });
     // Accepted: the run dispatched for the second job takes it.
     expect((await exchange(project, second)).response.status).toBe(200);
@@ -420,11 +494,25 @@ describe('one run, one job, once', () => {
     const first = await seedActionsJob(project);
     const second = await seedActionsJob(project);
     const runId = dispatchedRunOf(first);
-    expect((await postExchange((await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, runId)), first)).body, issuer.bindings)).status).toBe(200);
+    expect(
+      (
+        await postExchange(
+          (await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, runId)), first)).body,
+          issuer.bindings,
+        )
+      ).status,
+    ).toBe(200);
     const key = await generateRunnerKey();
     const repo = new JobsRepo(env.DB);
     const at = new Date().toISOString();
-    const audit = { accountId: OWNER_ACCOUNT_ID, at, actorKind: 'runner' as const, actor: 'x', kind: 'job.claimed' as const, target: second };
+    const audit = {
+      accountId: OWNER_ACCOUNT_ID,
+      at,
+      actorKind: 'runner' as const,
+      actor: 'x',
+      kind: 'job.claimed' as const,
+      target: second,
+    };
     const outcome = await repo.exchangeForActions({
       jobId: second,
       runId,
@@ -444,7 +532,11 @@ describe('one run, one job, once', () => {
     // #723: the second job waits for its own dispatched run, so neither write of the batch lands.
     expect(outcome).toEqual({ kind: 'not-claimable' });
     expect(await runnerRow('01M6YSNJ0000000000000RACE1')).toBeNull();
-    expect(await jobRow(second)).toMatchObject({ state: 'queued', runner_id: null, actions_run_id: dispatchedRunOf(second) });
+    expect(await jobRow(second)).toMatchObject({
+      state: 'queued',
+      runner_id: null,
+      actions_run_id: dispatchedRunOf(second),
+    });
   });
 
   it.each([
@@ -455,7 +547,9 @@ describe('one run, one job, once', () => {
         const id = await seedActionsJob(project);
         await env.DB.prepare(
           `INSERT INTO team_state (project_slug, paused_at, paused_by, updated_at) VALUES (?1, ?2, 'owner', ?2)`,
-        ).bind(project.slug, new Date().toISOString()).run();
+        )
+          .bind(project.slug, new Date().toISOString())
+          .run();
         return id;
       },
       409,
@@ -464,7 +558,9 @@ describe('one run, one job, once', () => {
       'a finished job',
       async (project: ActionsProject) => {
         const id = await seedActionsJob(project);
-        await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`).bind(id, new Date().toISOString()).run();
+        await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`)
+          .bind(id, new Date().toISOString())
+          .run();
         return id;
       },
       409,
@@ -477,12 +573,20 @@ describe('one run, one job, once', () => {
 
   it('refuses a job id that names no job, and an ill-formed body before any token check', async () => {
     const project = await seedActionsProject();
-    expect(await refusalOf((await exchange(project, '01M6YSNJ0000000000000N0NE1')).response)).toEqual(refusedFor(401, 'job_id'));
+    expect(await refusalOf((await exchange(project, '01M6YSNJ0000000000000N0NE1')).response)).toEqual(
+      refusedFor(401, 'job_id'),
+    );
     const token = await actionsToken(issuer, runClaimsOf(project));
-    const malformed = await postExchange({ ...(await exchangeBodyOf(token, 'not-a-ulid')).body }, issuer.bindings);
+    const malformed = await postExchange(
+      { ...(await exchangeBodyOf(token, 'not-a-ulid')).body },
+      issuer.bindings,
+    );
     expect(await refusalOf(malformed)).toMatchObject({ status: 422, slug: 'oidc-exchange-invalid' });
     const privateMember = await postExchange(
-      { ...(await exchangeBodyOf(token, '01M6YSNJ0000000000000N0NE1')).body, publicKey: { kty: 'OKP', crv: 'Ed25519', x: 'A'.repeat(43), d: 'B'.repeat(43) } },
+      {
+        ...(await exchangeBodyOf(token, '01M6YSNJ0000000000000N0NE1')).body,
+        publicKey: { kty: 'OKP', crv: 'Ed25519', x: 'A'.repeat(43), d: 'B'.repeat(43) },
+      },
       issuer.bindings,
     );
     expect(await refusalOf(privateMember)).toMatchObject({ status: 422, slug: 'oidc-exchange-invalid' });
@@ -504,7 +608,10 @@ describe('the token never reaches a log (sentinel)', () => {
       (claims: Record<string, unknown>) => claims,
     ]) {
       const { token, response } = await exchange(project, jobId, change, { logSink: sink });
-      tokens.push(token, ((await response.clone().json()) as { jobToken?: string }).jobToken ?? 'no-job-token');
+      tokens.push(
+        token,
+        ((await response.clone().json()) as { jobToken?: string }).jobToken ?? 'no-job-token',
+      );
     }
     const expired = await actionsToken(issuer, runClaimsOf(project), { issuedAt: 1_700_000_000 });
     await postExchange((await exchangeBodyOf(expired, jobId)).body, issuer.bindings, { logSink: sink });
@@ -542,7 +649,10 @@ describe('rate limits, as for enrol', () => {
       // Unsigned guesses: they never count against the repository, only against the address.
       const guesses: number[] = [];
       for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
-        guesses.push((await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers })).status);
+        guesses.push(
+          (await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers }))
+            .status,
+        );
       }
       const limited = (await exchange(project, jobId, undefined, { headers })).response;
       // Another address is judged on its own.
@@ -562,15 +672,24 @@ describe('rate limits, as for enrol', () => {
       const jobId = await seedActionsJob(project);
       const refused: number[] = [];
       for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE; attempt += 1) {
-        const { response } = await exchange(project, jobId, (claims) => ({ ...claims, runner_environment: 'self-hosted' }));
+        const { response } = await exchange(project, jobId, (claims) => ({
+          ...claims,
+          runner_environment: 'self-hosted',
+        }));
         refused.push(response.status);
       }
       const limited = (await exchange(project, jobId)).response.status;
       // Another repository is judged on its own.
       const other = await seedActionsProject();
-      return { refused, limited, otherRepository: (await exchange(other, await seedActionsJob(other))).response.status };
+      return {
+        refused,
+        limited,
+        otherRepository: (await exchange(other, await seedActionsJob(other))).response.status,
+      };
     });
-    expect(outcome.refused).toEqual(new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE).fill(401));
+    expect(outcome.refused).toEqual(
+      new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE).fill(401),
+    );
     expect(outcome.limited).toBe(429);
     expect(outcome.otherRepository).toBe(200);
   });
@@ -584,10 +703,21 @@ describe('rate limits, as for enrol', () => {
       const junk: number[] = [];
       for (let attempt = 1; attempt <= OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
         const headers = { 'CF-Connecting-IP': `${prefix}::${attempt.toString(16)}` };
-        junk.push((await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers })).status);
+        junk.push(
+          (await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers }))
+            .status,
+        );
       }
-      const sameRange = (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `${prefix}:ffff:ffff:ffff:ffff` } })).response;
-      const otherRange = (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` } })).response;
+      const sameRange = (
+        await exchange(project, jobId, undefined, {
+          headers: { 'CF-Connecting-IP': `${prefix}:ffff:ffff:ffff:ffff` },
+        })
+      ).response;
+      const otherRange = (
+        await exchange(project, jobId, undefined, {
+          headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` },
+        })
+      ).response;
       return { junk, sameRange: await refusalOf(sameRange), otherRange: otherRange.status };
     });
     expect(outcome.junk).toEqual(new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE).fill(401));
@@ -601,9 +731,13 @@ describe('rate limits, as for enrol', () => {
       const jobId = await seedActionsJob(project);
       const address = uniqueAddress();
       for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
-        await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers: { 'CF-Connecting-IP': address } });
+        await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, {
+          headers: { 'CF-Connecting-IP': address },
+        });
       }
-      return (await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `::ffff:${address}` } })).response.status;
+      return (
+        await exchange(project, jobId, undefined, { headers: { 'CF-Connecting-IP': `::ffff:${address}` } })
+      ).response.status;
     });
     expect(outcome).toBe(429);
   });
@@ -615,7 +749,9 @@ describe('rate limits, as for enrol', () => {
         const project = await seedActionsProject();
         const jobId = await seedActionsJob(project);
         for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
-          await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers: { 'CF-Connecting-IP': '' } });
+          await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, {
+            headers: { 'CF-Connecting-IP': '' },
+          });
         }
         const malformed = await exchange(project, jobId, undefined, {
           headers: { 'CF-Connecting-IP': 'not-an-address' },
@@ -637,7 +773,12 @@ describe('rate limits, as for enrol', () => {
         const junk = await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings);
         const invalid = await postExchange({ idToken: 1 }, issuer.bindings);
         const real = (await exchange(project, jobId)).response;
-        return { junk: await refusalOf(junk), invalid: invalid.status, real: real.status, retryAfter: junk.headers.get('Retry-After') };
+        return {
+          junk: await refusalOf(junk),
+          invalid: invalid.status,
+          real: real.status,
+          retryAfter: junk.headers.get('Retry-After'),
+        };
       });
     });
     expect(outcome.junk).toMatchObject({ status: 429, slug: 'rate-limited' });
@@ -647,7 +788,10 @@ describe('rate limits, as for enrol', () => {
   });
 
   it('never counts junk in the bucket of real exchanges, nor a real exchange in the junk bucket', async () => {
-    const counts = async () => ({ verified: await rateBucketCount('oidc:verified'), unverified: await rateBucketCount('oidc:unverified') });
+    const counts = async () => ({
+      verified: await rateBucketCount('oidc:verified'),
+      unverified: await rateBucketCount('oidc:unverified'),
+    });
     const outcome = await inOneRateWindow(async () => {
       const project = await seedActionsProject();
       const jobId = await seedActionsJob(project);
@@ -660,8 +804,14 @@ describe('rate limits, as for enrol', () => {
       const afterReal = await counts();
       return {
         real,
-        junkDelta: { verified: afterJunk.verified - before.verified, unverified: afterJunk.unverified - before.unverified },
-        realDelta: { verified: afterReal.verified - afterJunk.verified, unverified: afterReal.unverified - afterJunk.unverified },
+        junkDelta: {
+          verified: afterJunk.verified - before.verified,
+          unverified: afterJunk.unverified - before.unverified,
+        },
+        realDelta: {
+          verified: afterReal.verified - afterJunk.verified,
+          unverified: afterReal.unverified - afterJunk.unverified,
+        },
       };
     });
     expect(outcome.real).toBe(200);
@@ -672,7 +822,10 @@ describe('rate limits, as for enrol', () => {
   // #729 security review: GitHub signs a token for any repository, so a signed token spends the verified budget only
   // once it is tied to the job's registered repository; an unknown job or a foreign repository is junk.
   it('answers a real exchange after a full minute of signed tokens for unknown jobs and foreign repositories', async () => {
-    const counts = async () => ({ verified: await rateBucketCount('oidc:verified'), unverified: await rateBucketCount('oidc:unverified') });
+    const counts = async () => ({
+      verified: await rateBucketCount('oidc:verified'),
+      unverified: await rateBucketCount('oidc:unverified'),
+    });
     const outcome = await inOneRateWindow(async () => {
       const project = await seedActionsProject();
       const jobId = await seedActionsJob(project);
@@ -682,20 +835,28 @@ describe('rate limits, as for enrol', () => {
         for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE; attempt += 1) {
           const { response } =
             attempt % 2 === 0
-              ? await exchange(project, jobId, (claims) => ({ ...claims, repository_id: String(900000 + attempt) }))
+              ? await exchange(project, jobId, (claims) => ({
+                  ...claims,
+                  repository_id: String(900000 + attempt),
+                }))
               : await exchange(project, '01M6YSNJ0000000000000N0NE2');
           const refusal = await refusalOf(response);
           const key = `${String(refusal.status)}:${String(refusal.claim)}`;
           refusals.set(key, (refusals.get(key) ?? 0) + 1);
         }
         const full = await counts();
-        const foreign = await refusalOf((await exchange(project, jobId, (claims) => ({ ...claims, repository_id: '424242' }))).response);
+        const foreign = await refusalOf(
+          (await exchange(project, jobId, (claims) => ({ ...claims, repository_id: '424242' }))).response,
+        );
         const unknownJob = await refusalOf((await exchange(project, '01M6YSNJ0000000000000N0NE2')).response);
         const real = (await exchange(project, jobId)).response.status;
         const after = await counts();
         return {
           refusals: Object.fromEntries(refusals),
-          floodDelta: { verified: full.verified - before.verified, unverified: full.unverified - before.unverified },
+          floodDelta: {
+            verified: full.verified - before.verified,
+            unverified: full.unverified - before.unverified,
+          },
           foreign,
           unknownJob,
           real,
@@ -705,7 +866,10 @@ describe('rate limits, as for enrol', () => {
     });
     const half = OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE / 2;
     expect(outcome.refusals).toEqual({ '401:repository_id': half, '401:job_id': half });
-    expect(outcome.floodDelta).toEqual({ verified: 0, unverified: OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE });
+    expect(outcome.floodDelta).toEqual({
+      verified: 0,
+      unverified: OIDC_EXCHANGE_RATE_LIMIT_UNVERIFIED_PER_MINUTE,
+    });
     // Over the junk limit both answer alike, so the 429 tells nothing about which jobs or repositories exist.
     expect(outcome.foreign).toMatchObject({ status: 429, slug: 'rate-limited' });
     expect(outcome.unknownJob).toMatchObject({ status: 429, slug: 'rate-limited' });
@@ -730,17 +894,28 @@ describe('rate limits, as for enrol', () => {
 });
 
 describe('the ephemeral identity (threat model C4)', () => {
-  async function exchanged(): Promise<{ project: ActionsProject; jobId: string; run: { id: string; privateKey: CryptoKey | KeyObject }; answer: OidcExchangeResponse }> {
+  async function exchanged(): Promise<{
+    project: ActionsProject;
+    jobId: string;
+    run: { id: string; privateKey: CryptoKey | KeyObject };
+    answer: OidcExchangeResponse;
+  }> {
     const project = await seedActionsProject();
     const jobId = await seedActionsJob(project);
-    const { response, privateKey } = await exchange(project, jobId, undefined, { headers: { 'CF-IPCountry': 'US' } });
+    const { response, privateKey } = await exchange(project, jobId, undefined, {
+      headers: { 'CF-IPCountry': 'US' },
+    });
     const answer = (await response.json()) as OidcExchangeResponse;
     return { project, jobId, run: { id: answer.runner.id, privateKey }, answer };
   }
 
   it('is never marked suspect, from a new country or a second address', async () => {
     const { run } = await exchanged();
-    for (const [ip, country] of [['198.51.100.1', 'DE'], ['198.51.100.2', 'NL'], ['198.51.100.3', 'IE']]) {
+    for (const [ip, country] of [
+      ['198.51.100.1', 'DE'],
+      ['198.51.100.2', 'NL'],
+      ['198.51.100.3', 'IE'],
+    ]) {
       const response = await sendAsRunner(run, 'GET', '/api/v1/runner/release', undefined, {
         headers: { 'CF-Connecting-IP': ip ?? '', 'CF-IPCountry': country ?? '' },
       });
@@ -749,8 +924,12 @@ describe('the ephemeral identity (threat model C4)', () => {
     expect((await runnerRow(run.id))?.suspect_reason).toBeNull();
     // An enrolled runner still is (the rule is unchanged for the other backends).
     const enrolled = await enrolRunner(OWNER_ACCOUNT_ID);
-    await sendAsRunner(enrolled, 'GET', '/api/v1/runner/release', undefined, { headers: { 'CF-Connecting-IP': '198.51.100.9', 'CF-IPCountry': 'US' } });
-    await sendAsRunner(enrolled, 'GET', '/api/v1/runner/release', undefined, { headers: { 'CF-Connecting-IP': '198.51.100.10', 'CF-IPCountry': 'US' } });
+    await sendAsRunner(enrolled, 'GET', '/api/v1/runner/release', undefined, {
+      headers: { 'CF-Connecting-IP': '198.51.100.9', 'CF-IPCountry': 'US' },
+    });
+    await sendAsRunner(enrolled, 'GET', '/api/v1/runner/release', undefined, {
+      headers: { 'CF-Connecting-IP': '198.51.100.10', 'CF-IPCountry': 'US' },
+    });
     expect((await runnerRow(enrolled.id))?.suspect_reason).toBe('two-pollers');
   });
 
@@ -763,7 +942,9 @@ describe('the ephemeral identity (threat model C4)', () => {
 
     await env.DB.prepare(
       `UPDATE jobs SET state = 'cancelled', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
-    ).bind(jobId, new Date().toISOString()).run();
+    )
+      .bind(jobId, new Date().toISOString())
+      .run();
     const idle = await sendAsRunner(run, 'POST', '/api/v1/runner/jobs/claim', {});
     expect(await refusalOf(idle)).toMatchObject({ status: 403, slug: 'runner-isolation-ephemeral' });
     expect(await jobRow(pulled)).toMatchObject({ state: 'queued', runner_id: null });
@@ -774,7 +955,9 @@ describe('the ephemeral identity (threat model C4)', () => {
 
   it('is revoked by the lease sweep once its job lapses, and the job is lost rather than requeued', async () => {
     const { jobId, run } = await exchanged();
-    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(jobId).run();
+    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+      .bind(jobId)
+      .run();
     // The sweep runs at the next claim of any runner.
     const puller = await enrolRunner(OWNER_ACCOUNT_ID);
     await sendAsRunner(puller, 'POST', '/api/v1/runner/jobs/claim', {});
@@ -787,7 +970,9 @@ describe('the ephemeral identity (threat model C4)', () => {
     const { jobId, run } = await exchanged();
     await env.DB.prepare(
       `UPDATE jobs SET state = 'cancelled', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
-    ).bind(jobId, new Date().toISOString()).run();
+    )
+      .bind(jobId, new Date().toISOString())
+      .run();
     await sendAsRunner(await enrolRunner(OWNER_ACCOUNT_ID), 'POST', '/api/v1/runner/jobs/claim', {});
     expect((await runnerRow(run.id))?.revoked_at).not.toBeNull();
   });
@@ -798,22 +983,32 @@ describe('the ephemeral identity (threat model C4)', () => {
     expect(live).toMatchObject({ isolation: 'actions-ephemeral', revokedAt: null });
     expect(live?.name).toMatch(/^actions:[0-9]+$/);
 
-    await sendAsRunner(run, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, { result: 'failed', summary: 'x' });
+    await sendAsRunner(run, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, {
+      result: 'failed',
+      summary: 'x',
+    });
     expect((await listRunners()).runners.map((runner) => runner.id)).not.toContain(answer.runner.id);
 
     const enrolled = await enrolRunner(OWNER_ACCOUNT_ID);
-    await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(enrolled.id, new Date().toISOString()).run();
+    await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`)
+      .bind(enrolled.id, new Date().toISOString())
+      .run();
     expect((await listRunners()).runners.map((runner) => runner.id)).toContain(enrolled.id);
   });
 
   it('is never granted by an enrolment code', async () => {
     const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
     const key = await generateRunnerKey();
-    const refused = await postEnrol({ ...enrolBodyOf(code, key.publicKeyJwk), isolation: 'actions-ephemeral' });
+    const refused = await postEnrol({
+      ...enrolBodyOf(code, key.publicKeyJwk),
+      isolation: 'actions-ephemeral',
+    });
     expect(refused.status).toBe(422);
     expect(await refusalOf(refused)).toMatchObject({ slug: 'enrol-invalid' });
     // The same code still enrols one of the backends it can grant.
-    expect((await postEnrol(enrolBodyOf(code, key.publicKeyJwk, { isolation: 'container' }))).status).toBe(201);
+    expect((await postEnrol(enrolBodyOf(code, key.publicKeyJwk, { isolation: 'container' }))).status).toBe(
+      201,
+    );
   });
 });
 
@@ -824,7 +1019,10 @@ describe('the issuer JWKS', () => {
       const project = await seedActionsProject();
       const jobId = await seedActionsJob(project);
       const token = await actionsToken(issuer, runClaimsOf(project));
-      const response = await postExchange((await exchangeBodyOf(token, jobId)).body, localEnv({ ACTIONS_OIDC_JWKS: jwks }));
+      const response = await postExchange(
+        (await exchangeBodyOf(token, jobId)).body,
+        localEnv({ ACTIONS_OIDC_JWKS: jwks }),
+      );
       expect(await refusalOf(response)).toMatchObject({ status: 503, slug: 'oidc-issuer-unavailable' });
       expect(response.headers.get('Retry-After')).toBe('30');
       expect((await jobRow(jobId))?.state).toBe('queued');

@@ -11,7 +11,10 @@ interface Args {
 
 const meta: Meta<Args> = {
   title: 'Features/Actions setup/Switch on',
-  decorators: [applicationConfig({ providers: actionsStoryProviders() }), moduleMetadata({ imports: [ActionsSwitchOn] })],
+  decorators: [
+    applicationConfig({ providers: actionsStoryProviders() }),
+    moduleMetadata({ imports: [ActionsSwitchOn] }),
+  ],
   render: (args) => ({
     props: args,
     template: `
@@ -30,7 +33,10 @@ type Story = StoryObj<Args>;
 export const Ready: Story = {};
 /** Steps are missing: the button is `aria-disabled` and the line under it says how many. */
 export const Blocked: Story = {
-  args: { setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }), missing: 2 },
+  args: {
+    setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }),
+    missing: 2,
+  },
 };
 /** Already on: the state and the way back to Runners. */
 export const On: Story = { args: { setup: actionsSetupFixture({ dispatch: 'actions' }) } };

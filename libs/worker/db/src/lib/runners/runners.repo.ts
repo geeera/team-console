@@ -380,7 +380,12 @@ export class RunnersRepo {
    * audit row is written only when this call deleted the row. An enrol racing this either won first (the DELETE
    * finds a used row) or finds no row; D1 runs one batch at a time.
    */
-  async withdrawEnrolment(accountId: string, codeHash: string, now: string, audit: NewAuditEvent): Promise<boolean> {
+  async withdrawEnrolment(
+    accountId: string,
+    codeHash: string,
+    now: string,
+    audit: NewAuditEvent,
+  ): Promise<boolean> {
     const [deleted] = await this.db.batch([
       ...auditedWrite(
         this.db,
@@ -398,9 +403,7 @@ export class RunnersRepo {
 
   async findEnrolment(codeHash: string): Promise<EnrolmentRecord | null> {
     const row = await this.db
-      .prepare(
-        `SELECT ${ENROLMENT_COLUMNS} FROM runner_enrolments WHERE code_hash = ?1`,
-      )
+      .prepare(`SELECT ${ENROLMENT_COLUMNS} FROM runner_enrolments WHERE code_hash = ?1`)
       .bind(codeHash)
       .first<EnrolmentRow>();
     return row === null ? null : toEnrolment(row);
@@ -738,7 +741,11 @@ export class RunnersRepo {
       .all<{ runner_id: string; slug: string; access_source: string }>();
     return results
       .filter((row) => isAccessSource(row.access_source))
-      .map((row) => ({ runnerId: row.runner_id, slug: row.slug, accessSource: row.access_source as AccessSource }));
+      .map((row) => ({
+        runnerId: row.runner_id,
+        slug: row.slug,
+        accessSource: row.access_source as AccessSource,
+      }));
   }
 
   /**
@@ -875,7 +882,11 @@ export class RunnersRepo {
    * suspect once — until the owner clears it (2-E) — and the caller audits the alert. One read, one write: a race
    * between two calls of the same runner costs at most a duplicate alert, never a missed one.
    */
-  async sight(id: string, sighting: RunnerSighting, audit: (alert: RunnerSuspectReason) => NewAuditEvent): Promise<SightingOutcome> {
+  async sight(
+    id: string,
+    sighting: RunnerSighting,
+    audit: (alert: RunnerSuspectReason) => NewAuditEvent,
+  ): Promise<SightingOutcome> {
     const runner = await this.findById(id);
     if (runner === null) {
       return { alert: null, previousCountry: null };
@@ -885,9 +896,12 @@ export class RunnersRepo {
         ? [...runner.seenCountries, sighting.country]
         : runner.seenCountries;
     const newCountry =
-      sighting.country !== null && runner.seenCountries.length > 0 && !runner.seenCountries.includes(sighting.country);
+      sighting.country !== null &&
+      runner.seenCountries.length > 0 &&
+      !runner.seenCountries.includes(sighting.country);
     const withinWindow =
-      runner.lastSeenAt !== null && Date.parse(sighting.at) - Date.parse(runner.lastSeenAt) <= TWO_POLLERS_WINDOW_MS;
+      runner.lastSeenAt !== null &&
+      Date.parse(sighting.at) - Date.parse(runner.lastSeenAt) <= TWO_POLLERS_WINDOW_MS;
     const twoPollers =
       sighting.ipHash !== null &&
       runner.lastSeenIpHash !== null &&
@@ -896,7 +910,13 @@ export class RunnersRepo {
     // #668: an ephemeral Actions identity calls from whatever egress GitHub gives the run, so neither rule applies; it
     // lives for one job on one VM and is revoked with it.
     const judged = runner.suspectAt === null && runner.isolation !== 'actions-ephemeral';
-    const alert: RunnerSuspectReason | null = !judged ? null : twoPollers ? 'two-pollers' : newCountry ? 'new-country' : null;
+    const alert: RunnerSuspectReason | null = !judged
+      ? null
+      : twoPollers
+        ? 'two-pollers'
+        : newCountry
+          ? 'new-country'
+          : null;
     const statements: D1PreparedStatement[] = [
       this.db
         .prepare(

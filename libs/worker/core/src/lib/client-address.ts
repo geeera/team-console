@@ -62,7 +62,12 @@ function hextetsOf(text: string): number[] | null {
     return null;
   }
   const zeros = new Array<number>(8 - given).fill(0);
-  return [...head.map((group) => parseInt(group, 16)), ...zeros, ...back.map((group) => parseInt(group, 16)), ...tail];
+  return [
+    ...head.map((group) => parseInt(group, 16)),
+    ...zeros,
+    ...back.map((group) => parseInt(group, 16)),
+    ...tail,
+  ];
 }
 
 /** The rate-limit unit of a `CF-Connecting-IP` value (see `RateLimitAddress`). */
@@ -85,5 +90,11 @@ export function rateLimitAddressOf(header: string | null | undefined): RateLimit
     const [high = 0, low = 0] = hextets.slice(6);
     return { kind: 'ipv4', key: [high >> 8, high & 0xff, low >> 8, low & 0xff].join('.') };
   }
-  return { kind: 'ipv6-64', key: `${hextets.slice(0, 4).map((group) => group.toString(16)).join(':')}::/64` };
+  return {
+    kind: 'ipv6-64',
+    key: `${hextets
+      .slice(0, 4)
+      .map((group) => group.toString(16))
+      .join(':')}::/64`,
+  };
 }

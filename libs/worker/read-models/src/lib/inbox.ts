@@ -25,8 +25,7 @@ export const INBOX_EXCLUDED_FLAGS: readonly string[] = ['team:inbox', 'team:run-
 /** The issues `scripts/inbox` classifies (`mine`). */
 function ownerFacing(issues: readonly IssueRecord[]): IssueRecord[] {
   return issues.filter(
-    (issue) =>
-      !issue.isPullRequest && !INBOX_EXCLUDED_FLAGS.some((flag) => issue.labels.includes(flag)),
+    (issue) => !issue.isPullRequest && !INBOX_EXCLUDED_FLAGS.some((flag) => issue.labels.includes(flag)),
   );
 }
 

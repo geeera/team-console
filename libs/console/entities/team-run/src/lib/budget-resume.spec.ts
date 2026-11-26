@@ -15,8 +15,14 @@ async function settle(): Promise<void> {
   }
 }
 
-function problem(status: number, slug: string): { body: object; init: { status: number; statusText: string } } {
-  return { body: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status }, init: { status, statusText: 'x' } };
+function problem(
+  status: number,
+  slug: string,
+): { body: object; init: { status: number; statusText: string } } {
+  return {
+    body: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status },
+    init: { status, statusText: 'x' },
+  };
 }
 
 describe('budget figures', () => {
@@ -32,7 +38,9 @@ describe('BudgetResume (#684, shared with Settings › Team #688)', () => {
   let resume: BudgetResume;
 
   beforeEach(async () => {
-    TestBed.configureTestingModule({ providers: [provideConsoleI18n(), provideHttpClient(), provideHttpClientTesting()] });
+    TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), provideHttpClient(), provideHttpClientTesting()],
+    });
     await TestBed.inject(ApplicationInitStatus).donePromise;
     http = TestBed.inject(HttpTestingController);
     resume = TestBed.inject(BudgetResume);

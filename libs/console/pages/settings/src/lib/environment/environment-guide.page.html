@@ -30,7 +30,8 @@
     }
     <li class="guide__tag">{{ 'env.g.kind.' + view.row.item.kind | transloco }}</li>
     <li class="guide__tag">
-      {{ 'env.g.place.' + view.row.group | transloco: { env: environment(), project: view.row.project ?? '' } }}
+      {{ 'env.g.place.' + view.row.group | transloco: { env: environment(), project: view.row.project ?? '' }
+      }}
     </li>
     @if (source(); as source) {
     <li class="guide__tag">{{ 'env.g.src.' + source | transloco }}</li>

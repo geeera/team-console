@@ -15,7 +15,11 @@ describe('ActionsSetupState', () => {
   beforeEach(() => {
     handleError.mockReset();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), { provide: ErrorHandler, useValue: { handleError } }],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: ErrorHandler, useValue: { handleError } },
+      ],
     });
     http = TestBed.inject(HttpTestingController);
     api = TestBed.inject(ActionsSetupApi);
@@ -23,7 +27,10 @@ describe('ActionsSetupState', () => {
 
   afterEach(() => http.verify());
 
-  async function settle(pending: Promise<unknown>, respond: (request: ReturnType<HttpTestingController['expectOne']>) => void): Promise<void> {
+  async function settle(
+    pending: Promise<unknown>,
+    respond: (request: ReturnType<HttpTestingController['expectOne']>) => void,
+  ): Promise<void> {
     await Promise.resolve();
     respond(http.expectOne(URL));
     await pending;
@@ -51,7 +58,10 @@ describe('ActionsSetupState', () => {
     const state = new ActionsSetupState(api, 'storify');
     await settle(state.load(), (request) => request.flush(actionsSetupFixture()));
     await settle(state.load(), (request) =>
-      request.flush({ type: 'https://team-console/problems/owner-only', title: 'x', status: 403 }, { status: 403, statusText: 'Forbidden' }),
+      request.flush(
+        { type: 'https://team-console/problems/owner-only', title: 'x', status: 403 },
+        { status: 403, statusText: 'Forbidden' },
+      ),
     );
     expect(state.problem()).toEqual({ kind: 'forbidden' });
     expect(state.snapshot()).toBeNull();
@@ -59,7 +69,9 @@ describe('ActionsSetupState', () => {
 
   it('reports an answer outside the contract and reads it as failed', async () => {
     const state = new ActionsSetupState(api, 'storify');
-    await settle(state.load(), (request) => request.flush({ ...actionsSetupFixture(), secretNames: ['OTHER'] }));
+    await settle(state.load(), (request) =>
+      request.flush({ ...actionsSetupFixture(), secretNames: ['OTHER'] }),
+    );
     expect(state.problem()).toEqual({ kind: 'failed' });
     expect(handleError).toHaveBeenCalledTimes(1);
   });

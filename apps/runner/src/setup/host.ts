@@ -61,7 +61,10 @@ export function systemSetupHost(options: SetupHostOptions): SetupHost {
     ...base,
     runAsRunner: (args) =>
       new Promise((resolve, reject) => {
-        const child = spawnChild(SUDO, runnerArgv(options, args), { stdio: 'inherit', env: { PATH: SYSTEM_PATH } });
+        const child = spawnChild(SUDO, runnerArgv(options, args), {
+          stdio: 'inherit',
+          env: { PATH: SYSTEM_PATH },
+        });
         child.once('error', reject);
         child.once('close', (code) => resolve(code ?? 1));
       }),
@@ -70,7 +73,11 @@ export function systemSetupHost(options: SetupHostOptions): SetupHost {
       try {
         return await readdir(path);
       } catch (error: unknown) {
-        if (error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+        if (
+          error instanceof Error &&
+          'code' in error &&
+          (error.code === 'ENOENT' || error.code === 'ENOTDIR')
+        ) {
           return null;
         }
         throw error;
@@ -85,7 +92,10 @@ export function systemSetupHost(options: SetupHostOptions): SetupHost {
  * A root-owned 0711 directory holding one file `_tcrunner` may append to and nothing else: the runner's user cannot
  * add, rename or link anything there, and root reads through the descriptor it opened first.
  */
-export async function openRequestChannel(tmpRoot: string, exec: Exec = hostExec): Promise<OpenRequestChannel> {
+export async function openRequestChannel(
+  tmpRoot: string,
+  exec: Exec = hostExec,
+): Promise<OpenRequestChannel> {
   const { code, stdout } = await exec('/usr/bin/id', ['-u', RUNNER_USER]);
   if (code !== 0 || !/^\d+$/.test(stdout.trim())) {
     throw new Error(`could not resolve ${RUNNER_USER}`);
@@ -93,7 +103,11 @@ export async function openRequestChannel(tmpRoot: string, exec: Exec = hostExec)
   const dir = await mkdtemp(join(tmpRoot, 'tcr-open-'));
   await chmod(dir, 0o711);
   const path = join(dir, 'requests');
-  const created = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+  const created = await open(
+    path,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+    0o600,
+  );
   await created.chown(Number(stdout.trim()), -1);
   await created.close();
   const reader = await open(path, constants.O_RDONLY | constants.O_NOFOLLOW);

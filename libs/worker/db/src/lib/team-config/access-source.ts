@@ -85,7 +85,12 @@ export function policyAdmitsRunnerSql(policy: string, runnerId: string): string 
  * jobs tile's `runnerAvailability` (#775) share it, so the tile never says `ready` for a runner the claim would skip.
  * Every argument is an SQL expression; `offlineDefault` stands for a policy without `offline_after_seconds`.
  */
-export function claimPlacementAdmitsSql(policy: string, runnerId: string, now: string, offlineDefault: string): string {
+export function claimPlacementAdmitsSql(
+  policy: string,
+  runnerId: string,
+  now: string,
+  offlineDefault: string,
+): string {
   return `(
                ${policy} IS NULL
                OR json_extract(${policy}, '$.mode') = 'any'
@@ -150,6 +155,10 @@ export function subscriptionActionsSql(slug: string, dispatch: string): string {
  * The team-config save judges both halves. A placement write judges only the hosted half (it cannot change dispatch);
  * the dispatch switch (#670) needs the reverse: `actions` refused while the project's source is `subscription`.
  */
-export function subscriptionHostedSql(slug: string, source: string, policy: string = effectivePolicySql(slug)): string {
+export function subscriptionHostedSql(
+  slug: string,
+  source: string,
+  policy: string = effectivePolicySql(slug),
+): string {
   return `(${source} = 'subscription' AND (${hostedRunnerAdmittedSql(slug, policy)} OR ${actionsDispatchSql(slug)}))`;
 }

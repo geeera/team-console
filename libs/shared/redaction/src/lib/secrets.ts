@@ -227,9 +227,8 @@ export const SECRET_KINDS: readonly SecretKind[] = [
   ...new Set<SecretKind>([...SECRET_PATTERNS.map(({ kind }) => kind), 'jwt']),
 ];
 
-const STRICT_TESTERS: readonly { readonly kind: SecretKind; readonly pattern: RegExp }[] = SECRET_PATTERNS.map(
-  ({ kind, strict }) => ({ kind, pattern: new RegExp(strict) }),
-);
+const STRICT_TESTERS: readonly { readonly kind: SecretKind; readonly pattern: RegExp }[] =
+  SECRET_PATTERNS.map(({ kind, strict }) => ({ kind, pattern: new RegExp(strict) }));
 
 /**
  * The kind of the first secret shape found in `text` (in pattern order, JWTs last), or `null` when there is none.

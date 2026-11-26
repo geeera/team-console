@@ -27,7 +27,11 @@ export function repositoryOwners(): {
 export interface MintScope {
   readonly permissions: Readonly<Record<string, 'read' | 'write'>>;
   readonly repository_selection: 'selected' | 'all';
-  readonly repositories?: readonly { readonly id?: number; readonly name: string; readonly full_name: string }[];
+  readonly repositories?: readonly {
+    readonly id?: number;
+    readonly name: string;
+    readonly full_name: string;
+  }[];
 }
 
 /**

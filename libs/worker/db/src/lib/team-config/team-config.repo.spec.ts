@@ -26,7 +26,9 @@ const jobs = new JobsRepo(env.DB);
 // The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
 // range keeps it out of the rules each case is about; the concurrency specs set their own.
 beforeAll(async () => {
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'tc-a', 'A', '{"max_concurrency":32}', ?2)`)
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'tc-a', 'A', '{"max_concurrency":32}', ?2)`,
+  )
     .bind(ACCOUNT, T0)
     .run();
 });
@@ -76,7 +78,12 @@ const audit = (target: string): NewAuditEvent => ({
   details: { revision_from: 0, revision_to: 1, paths: ['preset'] },
 });
 
-function write(slug: string, expected: number, config: Partial<TeamConfig> = {}, source: AccessSource = 'api_key'): TeamConfigWrite {
+function write(
+  slug: string,
+  expected: number,
+  config: Partial<TeamConfig> = {},
+  source: AccessSource = 'api_key',
+): TeamConfigWrite {
   return {
     projectSlug: slug,
     expectedRevision: expected,
@@ -91,10 +98,17 @@ function write(slug: string, expected: number, config: Partial<TeamConfig> = {},
 }
 
 async function count(sql: string, ...params: unknown[]): Promise<number> {
-  return (await env.DB.prepare(sql).bind(...params).first<{ n: number }>())?.n ?? 0;
+  return (
+    (
+      await env.DB.prepare(sql)
+        .bind(...params)
+        .first<{ n: number }>()
+    )?.n ?? 0
+  );
 }
 
-const revisionsOf = (slug: string) => count('SELECT COUNT(*) AS n FROM team_config_revisions WHERE project_slug = ?1', slug);
+const revisionsOf = (slug: string) =>
+  count('SELECT COUNT(*) AS n FROM team_config_revisions WHERE project_slug = ?1', slug);
 const auditsOf = (slug: string) =>
   count(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team-config.changed' AND target = ?1`, slug);
 
@@ -115,7 +129,11 @@ describe('TeamConfigRepo.save', () => {
     expect(await repo.save(write(slug, 0, { preset: 'economy' }))).toEqual({ kind: 'saved', revision: 1 });
     const current = await repo.findCurrent(slug);
     expect(current?.revision).toBe(1);
-    expect(current?.config).toEqual({ schema: TEAM_CONFIG_SCHEMA, preset: 'economy', access: { source: 'api_key' } });
+    expect(current?.config).toEqual({
+      schema: TEAM_CONFIG_SCHEMA,
+      preset: 'economy',
+      access: { source: 'api_key' },
+    });
     expect((await repo.findRevision(slug, 1))?.diff).toEqual([{ path: 'preset', to: 'economy' }]);
     expect(await auditsOf(slug)).toBe(1);
     expect(await repo.accessSourceOf(slug)).toBe('api_key');
@@ -136,7 +154,10 @@ describe('TeamConfigRepo.save', () => {
   it('gives two concurrent saves of the same revision one success and one stale', async () => {
     const slug = await project();
     await repo.save(write(slug, 0));
-    const outcomes = await Promise.all([repo.save(write(slug, 1, { preset: 'max' })), repo.save(write(slug, 1, { preset: 'economy' }))]);
+    const outcomes = await Promise.all([
+      repo.save(write(slug, 1, { preset: 'max' })),
+      repo.save(write(slug, 1, { preset: 'economy' })),
+    ]);
     expect(outcomes.map((outcome) => outcome.kind).sort()).toEqual(['saved', 'stale']);
     expect(await revisionsOf(slug)).toBe(2);
     expect(await currentEqualsMax(slug)).toBe(true);
@@ -146,7 +167,9 @@ describe('TeamConfigRepo.save', () => {
     const slug = await project();
     await repo.save(write(slug, 0));
     // A reason past the column's bound fails the revision INSERT, so the whole batch rolls back with it.
-    await expect(repo.save({ ...write(slug, 1, { preset: 'max' }), reason: 'x'.repeat(501) })).rejects.toThrow();
+    await expect(
+      repo.save({ ...write(slug, 1, { preset: 'max' }), reason: 'x'.repeat(501) }),
+    ).rejects.toThrow();
     expect((await repo.findCurrent(slug))?.revision).toBe(1);
     expect(await revisionsOf(slug)).toBe(1);
     expect(await auditsOf(slug)).toBe(1);
@@ -166,7 +189,10 @@ describe('TeamConfigRepo.save', () => {
     await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`)
       .bind(pinnedToMac, JSON.stringify({ mode: 'pinned', runner: mac }))
       .run();
-    expect(await repo.save(write(pinnedToMac, 0, {}, 'subscription'))).toEqual({ kind: 'saved', revision: 1 });
+    expect(await repo.save(write(pinnedToMac, 0, {}, 'subscription'))).toEqual({
+      kind: 'saved',
+      revision: 1,
+    });
     await env.DB.prepare(`UPDATE runners SET revoked_at = ?1 WHERE hosted = 1`).bind(T0).run();
   });
 
@@ -190,12 +216,14 @@ describe('the 0032 triggers', () => {
   it('keep team_config_revisions append-only: UPDATE, DELETE and INSERT OR REPLACE fail', async () => {
     const slug = await project();
     await repo.save(write(slug, 0));
-    await expect(env.DB.prepare(`UPDATE team_config_revisions SET reason = 'x' WHERE project_slug = ?1`).bind(slug).run()).rejects.toThrow(
-      /append-only/,
-    );
-    await expect(env.DB.prepare(`DELETE FROM team_config_revisions WHERE project_slug = ?1`).bind(slug).run()).rejects.toThrow(
-      /append-only/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE team_config_revisions SET reason = 'x' WHERE project_slug = ?1`)
+        .bind(slug)
+        .run(),
+    ).rejects.toThrow(/append-only/);
+    await expect(
+      env.DB.prepare(`DELETE FROM team_config_revisions WHERE project_slug = ?1`).bind(slug).run(),
+    ).rejects.toThrow(/append-only/);
     await expect(
       env.DB.prepare(
         `INSERT OR REPLACE INTO team_config_revisions (id, project_slug, revision, config, diff, created_at, created_by)
@@ -218,9 +246,9 @@ describe('the 0032 triggers', () => {
         .bind(ulid('RV'), slug, T0)
         .run(),
     ).rejects.toThrow(/current team configuration/);
-    await expect(env.DB.prepare(`UPDATE team_configs SET revision = 5 WHERE project_slug = ?1`).bind(slug).run()).rejects.toThrow(
-      /one revision at a time/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE team_configs SET revision = 5 WHERE project_slug = ?1`).bind(slug).run(),
+    ).rejects.toThrow(/one revision at a time/);
     await expect(
       env.DB.prepare(
         `INSERT OR REPLACE INTO team_configs (project_slug, revision, config, updated_at, updated_by) VALUES (?1, 1, '{}', ?2, 'x')`,
@@ -233,13 +261,13 @@ describe('the 0032 triggers', () => {
 
   it('let projects.access_source take only the current document’s source', async () => {
     const slug = await project();
-    await expect(env.DB.prepare(`UPDATE projects SET access_source = 'api_key' WHERE slug = ?1`).bind(slug).run()).rejects.toThrow(
-      /follows the team configuration/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE projects SET access_source = 'api_key' WHERE slug = ?1`).bind(slug).run(),
+    ).rejects.toThrow(/follows the team configuration/);
     await repo.save(write(slug, 0, {}, 'api_key'));
-    await expect(env.DB.prepare(`UPDATE projects SET access_source = 'subscription' WHERE slug = ?1`).bind(slug).run()).rejects.toThrow(
-      /follows the team configuration/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE projects SET access_source = 'subscription' WHERE slug = ?1`).bind(slug).run(),
+    ).rejects.toThrow(/follows the team configuration/);
   });
 
   it('never queue an Actions or hosted job for a subscription project, and do for an API-key one', async () => {
@@ -263,35 +291,65 @@ describe('the 0032 triggers', () => {
 
 describe('placement writes and the access source (the reverse refusal)', () => {
   const accounts = new AccountsRepo(env.DB);
-  const policyAudit = (target: string): NewAuditEvent => ({ ...audit(target), kind: 'runner.policy-changed' });
+  const policyAudit = (target: string): NewAuditEvent => ({
+    ...audit(target),
+    kind: 'runner.policy-changed',
+  });
 
   it('refuses a project policy that would admit a hosted runner while the project is on a subscription', async () => {
     const slug = await project();
     const mac = await runner([slug]);
     const hosted = await runner([slug], { hosted: true });
-    await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(slug, JSON.stringify({ mode: 'pinned', runner: mac })).run();
-    expect(await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'pinned', runner: hosted }), policyAudit(slug))).toBe(
-      'access-source-hosted',
-    );
-    expect(await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'any' }), policyAudit(slug))).toBe('access-source-hosted');
-    expect(await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'pinned', runner: mac }), policyAudit(slug))).toBe('ok');
-    expect(await count(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.policy-changed' AND target = ?1`, slug)).toBe(1);
+    await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`)
+      .bind(slug, JSON.stringify({ mode: 'pinned', runner: mac }))
+      .run();
+    expect(
+      await accounts.setProjectRunnerPolicy(
+        slug,
+        JSON.stringify({ mode: 'pinned', runner: hosted }),
+        policyAudit(slug),
+      ),
+    ).toBe('access-source-hosted');
+    expect(
+      await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'any' }), policyAudit(slug)),
+    ).toBe('access-source-hosted');
+    expect(
+      await accounts.setProjectRunnerPolicy(
+        slug,
+        JSON.stringify({ mode: 'pinned', runner: mac }),
+        policyAudit(slug),
+      ),
+    ).toBe('ok');
+    expect(
+      await count(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.policy-changed' AND target = ?1`,
+        slug,
+      ),
+    ).toBe(1);
     await repo.save(write(slug, 0, {}, 'api_key'));
-    expect(await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'any' }), policyAudit(slug))).toBe('ok');
+    expect(
+      await accounts.setProjectRunnerPolicy(slug, JSON.stringify({ mode: 'any' }), policyAudit(slug)),
+    ).toBe('ok');
     await env.DB.prepare(`UPDATE runners SET revoked_at = ?1 WHERE id = ?2`).bind(T0, hosted).run();
   });
 
   it('refuses an account default that would reach a subscription project falling back to it', async () => {
     const slug = await project();
     const hosted = await runner([slug], { hosted: true });
-    expect(await accounts.setDefaultRunnerPolicy(ACCOUNT, JSON.stringify({ mode: 'any' }), policyAudit(ACCOUNT))).toBe(
-      'access-source-hosted',
-    );
-    expect(await accounts.setDefaultRunnerPolicy(ACCOUNT, JSON.stringify({ mode: 'pinned', runner: hosted }), policyAudit(ACCOUNT))).toBe(
-      'access-source-hosted',
-    );
+    expect(
+      await accounts.setDefaultRunnerPolicy(ACCOUNT, JSON.stringify({ mode: 'any' }), policyAudit(ACCOUNT)),
+    ).toBe('access-source-hosted');
+    expect(
+      await accounts.setDefaultRunnerPolicy(
+        ACCOUNT,
+        JSON.stringify({ mode: 'pinned', runner: hosted }),
+        policyAudit(ACCOUNT),
+      ),
+    ).toBe('access-source-hosted');
     await env.DB.prepare(`UPDATE runners SET revoked_at = ?1 WHERE id = ?2`).bind(T0, hosted).run();
-    expect(await accounts.setDefaultRunnerPolicy(ACCOUNT, JSON.stringify({ mode: 'any' }), policyAudit(ACCOUNT))).toBe('ok');
+    expect(
+      await accounts.setDefaultRunnerPolicy(ACCOUNT, JSON.stringify({ mode: 'any' }), policyAudit(ACCOUNT)),
+    ).toBe('ok');
     await accounts.setDefaultRunnerPolicy(ACCOUNT, null, policyAudit(ACCOUNT));
   });
 });
@@ -311,11 +369,28 @@ describe('the claim and the team configuration', () => {
     });
   };
 
-  async function enqueue(slug: string, role = 'orchestrator', kind: 'slot-dev' | 'review' | 'digest' = 'slot-dev'): Promise<string> {
+  async function enqueue(
+    slug: string,
+    role = 'orchestrator',
+    kind: 'slot-dev' | 'review' | 'digest' = 'slot-dev',
+  ): Promise<string> {
     const id = ulid('JB');
     expect(
       await jobs.enqueue(
-        { id, accountId: ACCOUNT, projectSlug: slug, kind, role, payload: {}, priority: 0, requestedBy: 'owner', dedupeKey: null, needsLocal: false, maxMinutes: 90, at: T0 },
+        {
+          id,
+          accountId: ACCOUNT,
+          projectSlug: slug,
+          kind,
+          role,
+          payload: {},
+          priority: 0,
+          requestedBy: 'owner',
+          dedupeKey: null,
+          needsLocal: false,
+          maxMinutes: 90,
+          at: T0,
+        },
         { ...audit(slug), kind: 'job.dispatched' },
       ),
     ).toBe('ok');
@@ -389,7 +464,9 @@ describe('the claim and the team configuration', () => {
     expect((await claimAs(mac))?.teamConfigRevision).toBeNull();
 
     const slug = await project();
-    await env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(mac, JSON.stringify([slug])).run();
+    await env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`)
+      .bind(mac, JSON.stringify([slug]))
+      .run();
     await repo.save(write(slug, 0));
     await enqueue(slug);
     await enqueue(slug);
@@ -414,13 +491,35 @@ describe('ProjectSpendRepo', () => {
   it('reads a month with no row as nothing spent, and a row as stored', async () => {
     const slug = await project();
     const spend = new ProjectSpendRepo(env.DB);
-    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 0, jobs: 0, waivedAt: null });
-    await env.DB.prepare(`INSERT INTO project_spend (project_slug, month, spent_usd, jobs) VALUES (?1, '2026-11', 12.5, 3)`).bind(slug).run();
-    expect(await spend.findMonth(slug, '2026-11')).toEqual({ projectSlug: slug, month: '2026-11', spentUsd: 12.5, jobs: 3, waivedAt: null });
-    await env.DB.prepare(`UPDATE project_spend SET waived_at = '2026-11-20T08:00:00.000Z' WHERE project_slug = ?1`).bind(slug).run();
+    expect(await spend.findMonth(slug, '2026-11')).toEqual({
+      projectSlug: slug,
+      month: '2026-11',
+      spentUsd: 0,
+      jobs: 0,
+      waivedAt: null,
+    });
+    await env.DB.prepare(
+      `INSERT INTO project_spend (project_slug, month, spent_usd, jobs) VALUES (?1, '2026-11', 12.5, 3)`,
+    )
+      .bind(slug)
+      .run();
+    expect(await spend.findMonth(slug, '2026-11')).toEqual({
+      projectSlug: slug,
+      month: '2026-11',
+      spentUsd: 12.5,
+      jobs: 3,
+      waivedAt: null,
+    });
+    await env.DB.prepare(
+      `UPDATE project_spend SET waived_at = '2026-11-20T08:00:00.000Z' WHERE project_slug = ?1`,
+    )
+      .bind(slug)
+      .run();
     expect((await spend.findMonth(slug, '2026-11')).waivedAt).toBe('2026-11-20T08:00:00.000Z');
     await expect(
-      env.DB.prepare(`INSERT INTO project_spend (project_slug, month, spent_usd) VALUES (?1, '2026-12', -1)`).bind(slug).run(),
+      env.DB.prepare(`INSERT INTO project_spend (project_slug, month, spent_usd) VALUES (?1, '2026-12', -1)`)
+        .bind(slug)
+        .run(),
     ).rejects.toThrow();
   });
 

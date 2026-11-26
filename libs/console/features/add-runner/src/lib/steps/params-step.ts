@@ -42,7 +42,9 @@ import type { RunnerPlatform } from '../add-runner.model';
         [(selected)]="selected"
       />
       @if (scope() === 'selected' && selected().length === 0 && projects().length > 0) {
-        <p class="step__meta" data-testid="wizard-no-projects">{{ 'runners.enrol.noProjects' | transloco }}</p>
+        <p class="step__meta" data-testid="wizard-no-projects">
+          {{ 'runners.enrol.noProjects' | transloco }}
+        </p>
       }
       <fieldset tc-choice-group [legend]="'runners.wizard.platform.legend' | transloco">
         <label tc-choice>
@@ -60,7 +62,8 @@ import type { RunnerPlatform } from '../add-runner.model';
           <small tc-choice-hint [id]="formId() + '-mac-hint'">
             {{ 'runners.wizard.platform.macHint' | transloco }}
             <span class="params__quiet">{{
-              'runners.wizard.platform.isolation' | transloco: { backend: ('runners.backend.user' | transloco) }
+              'runners.wizard.platform.isolation'
+                | transloco: { backend: ('runners.backend.user' | transloco) }
             }}</span>
           </small>
         </label>
@@ -79,12 +82,15 @@ import type { RunnerPlatform } from '../add-runner.model';
           <small tc-choice-hint [id]="formId() + '-linux-hint'">
             {{ 'runners.wizard.platform.linuxHint' | transloco }}
             <span class="params__quiet">{{
-              'runners.wizard.platform.isolation' | transloco: { backend: ('runners.backend.container' | transloco) }
+              'runners.wizard.platform.isolation'
+                | transloco: { backend: ('runners.backend.container' | transloco) }
             }}</span>
           </small>
         </label>
       </fieldset>
-      <p class="step__meta" data-testid="wizard-pkg-later">{{ 'runners.wizard.platform.pkgLater' | transloco }}</p>
+      <p class="step__meta" data-testid="wizard-pkg-later">
+        {{ 'runners.wizard.platform.pkgLater' | transloco }}
+      </p>
       <ng-content />
     </form>
   `,

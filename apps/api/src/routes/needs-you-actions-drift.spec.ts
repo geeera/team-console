@@ -25,7 +25,9 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await env.DB.prepare(`UPDATE projects SET archived_at = '2026-11-05T00:00:00Z' WHERE archived_at IS NULL`).run();
+  await env.DB.prepare(
+    `UPDATE projects SET archived_at = '2026-11-05T00:00:00Z' WHERE archived_at IS NULL`,
+  ).run();
 });
 
 interface Stored {
@@ -110,14 +112,21 @@ describe('GET /api/v1/needs-you: the Actions workflow drift (#874)', () => {
   it('leaves the drift out for a member, who cannot open the owner-only setup page', async () => {
     const owner = await seedSessionUser('owner');
     const member = await seedSessionUser('member');
-    await env.DB.prepare('INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)')
+    await env.DB.prepare(
+      'INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)',
+    )
       .bind(owner.account.id, member.userId, 'member', '2026-11-10T00:00:00.000Z')
       .run();
     const project = await seedAccountProject(owner.account, { tracker: 'console' });
     await store(project.slug, { status: 'modified' });
     const api = new ApiGitHub({ fetch: github.fetch });
     const read = async (user: typeof owner): Promise<NeedsYouProjectDto | undefined> =>
-      rowOf((await (await sendAsSession(user, 'GET', '/api/v1/needs-you', undefined, { github: api })).json()) as NeedsYouDto, project.slug);
+      rowOf(
+        (await (
+          await sendAsSession(user, 'GET', '/api/v1/needs-you', undefined, { github: api })
+        ).json()) as NeedsYouDto,
+        project.slug,
+      );
     expect((await read(owner))?.actionsDrift).toEqual({ drift: 'modified', checkedAt: CHECKED_AT });
     expect(Object.hasOwn((await read(member)) ?? {}, 'actionsDrift')).toBe(false);
   });

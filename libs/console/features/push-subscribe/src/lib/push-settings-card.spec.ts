@@ -19,7 +19,10 @@ describe('PushSettingsCard', () => {
   let root: HTMLElement;
   let card: PushSettingsCard;
 
-  async function render(platform: PlatformInfo = DESKTOP, before?: (world: PushWorld) => void): Promise<PushWorld> {
+  async function render(
+    platform: PlatformInfo = DESKTOP,
+    before?: (world: PushWorld) => void,
+  ): Promise<PushWorld> {
     const world = await configurePush(platform);
     before?.(world);
     const fixture = TestBed.createComponent(PushSettingsCard);
@@ -102,7 +105,9 @@ describe('PushSettingsCard', () => {
   });
 
   it('keeps the subscription when the server refuses, and Try again saves it without asking again', async () => {
-    const { device, api } = await render(DESKTOP, (world) => world.api.save.mockRejectedValueOnce(httpError(503)));
+    const { device, api } = await render(DESKTOP, (world) =>
+      world.api.save.mockRejectedValueOnce(httpError(503)),
+    );
 
     await click('push-enable');
     expect(byTestId('push-failure')?.textContent).toContain('Сервер не принял это устройство');
@@ -121,7 +126,14 @@ describe('PushSettingsCard', () => {
         device.granted = 'granted';
         device.held = fakeSubscription();
         api.devices.mockResolvedValue([
-          { id, service: 'web.push.apple.com', userAgent: null, createdAt: '2026-10-01T09:00:00Z', lastSuccessAt: null, failures: 0 },
+          {
+            id,
+            service: 'web.push.apple.com',
+            userAgent: null,
+            createdAt: '2026-10-01T09:00:00Z',
+            lastSuccessAt: null,
+            failures: 0,
+          },
         ]);
       });
     }

@@ -41,7 +41,9 @@ interface StoryArgs {
   selector: 'tc-story-date-picker',
   imports: [DatePicker, Field, FormsModule, TranslocoPipe],
   template: `
-    <div style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); max-width: var(--dialog-max-w)">
+    <div
+      style="display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-3); max-width: var(--dialog-max-w)"
+    >
       <tc-field
         [label]="'stories.datePicker.label' | transloco"
         [hint]="'stories.datePicker.hint' | transloco"

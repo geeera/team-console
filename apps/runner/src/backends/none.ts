@@ -159,7 +159,9 @@ export class NoneBackend implements IsolationBackend {
     if (sent === 'refused') {
       // Every member of the group refused the signal (#720): unlike a recycled, unrelated pid, this is the
       // job we spawned, still running and now unsignalable — report it instead of treating it as finished.
-      throw new BackendError(`job ${String(running.pid)}'s process group refused SIGTERM (EPERM); it may still be running`);
+      throw new BackendError(
+        `job ${String(running.pid)}'s process group refused SIGTERM (EPERM); it may still be running`,
+      );
     }
     const exited = await Promise.race([
       running.exited.then(() => true),

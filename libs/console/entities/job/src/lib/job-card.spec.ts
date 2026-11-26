@@ -93,9 +93,13 @@ describe('JobCard', () => {
   it('links a dispatch failure to the Actions setup page, and nothing else', () => {
     const failed = (reason: string, dispatch: JobDto['dispatch'] = 'actions'): HTMLElement =>
       render((host) =>
-        host.job.set(jobFixture({ dispatch, state: 'failed', result: { summary: 'x', metrics: { reason } } })),
+        host.job.set(
+          jobFixture({ dispatch, state: 'failed', result: { summary: 'x', metrics: { reason } } }),
+        ),
       );
-    const link = failed('dispatch-failed').querySelector<HTMLAnchorElement>('[data-testid="job-actions-setup"]');
+    const link = failed('dispatch-failed').querySelector<HTMLAnchorElement>(
+      '[data-testid="job-actions-setup"]',
+    );
     expect(link?.textContent).toContain('Проверить настройку GitHub Actions');
     expect(link?.getAttribute('href')).toBe('/settings/projects/storify/actions');
     TestBed.resetTestingModule();

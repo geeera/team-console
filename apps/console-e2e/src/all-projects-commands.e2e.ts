@@ -82,7 +82,9 @@ test('every card opens the same Commands panel; Pause from here writes the run l
   await expect(panel).toHaveAccessibleName(ru('commands.title', { name: tcName }));
   // The groups the space's panel has: Team, Run now, Sprint and Notifications.
   for (const group of ['team', 'run', 'sprint', 'notify']) {
-    await expect(panel.getByRole('heading', { name: ru(`commands.group.${group}`), exact: true })).toBeVisible();
+    await expect(
+      panel.getByRole('heading', { name: ru(`commands.group.${group}`), exact: true }),
+    ).toBeVisible();
   }
   if (isWide(page)) {
     await expect(open).toHaveAttribute('aria-expanded', 'true');

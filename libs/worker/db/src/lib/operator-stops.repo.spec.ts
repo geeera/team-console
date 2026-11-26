@@ -25,6 +25,10 @@ describe('OperatorStopsRepo', () => {
     ['an empty reason', ['actions-setup-write', '2026-11-18T10:00:00Z', '']],
     ['a reason longer than 200 characters', ['actions-setup-write', '2026-11-18T10:00:00Z', 'r'.repeat(201)]],
   ])('refuses %s', async (_case, values) => {
-    await expect(env.DB.prepare(STOP).bind(...values).run()).rejects.toThrow();
+    await expect(
+      env.DB.prepare(STOP)
+        .bind(...values)
+        .run(),
+    ).rejects.toThrow();
   });
 });

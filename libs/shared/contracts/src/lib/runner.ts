@@ -19,7 +19,11 @@ export const isRunnerIsolation = (value: unknown): value is RunnerIsolation =>
  * What an enrolment code can grant (#668): every backend but `actions-ephemeral`, which only a verified GitHub OIDC
  * exchange creates, for one job on a VM GitHub discards (threat model C11).
  */
-export const ENROLMENT_ISOLATIONS = ['container', 'user', 'none'] as const satisfies readonly RunnerIsolation[];
+export const ENROLMENT_ISOLATIONS = [
+  'container',
+  'user',
+  'none',
+] as const satisfies readonly RunnerIsolation[];
 export type EnrolmentIsolation = (typeof ENROLMENT_ISOLATIONS)[number];
 export const isEnrolmentIsolation = (value: unknown): value is EnrolmentIsolation =>
   (ENROLMENT_ISOLATIONS as readonly unknown[]).includes(value);
@@ -149,7 +153,12 @@ export interface RunnerCapabilitiesDto {
 
 /** The runner's declaration, as the claim body carries it: a subset of `ACCESS_SOURCES`, never empty. */
 export function accessSourcesOf(field: string, value: unknown): readonly AccessSource[] {
-  if (!Array.isArray(value) || value.length === 0 || value.length > ACCESS_SOURCES.length || !value.every(isAccessSource)) {
+  if (
+    !Array.isArray(value) ||
+    value.length === 0 ||
+    value.length > ACCESS_SOURCES.length ||
+    !value.every(isAccessSource)
+  ) {
     throw new InputError(field, `${field} must name one or more of ${ACCESS_SOURCES.join(', ')}`);
   }
   return [...new Set<AccessSource>(value as AccessSource[])];
@@ -357,7 +366,9 @@ export function projectScopeOf(fields: Record<string, unknown>, optional: boolea
   const scope = fields['projectScope'];
   const list = fields['allowedProjects'];
   const projectScope =
-    optional && scope === undefined ? DEFAULT_RUNNER_PROJECT_SCOPE : oneOf('projectScope', scope, isRunnerProjectScope);
+    optional && scope === undefined
+      ? DEFAULT_RUNNER_PROJECT_SCOPE
+      : oneOf('projectScope', scope, isRunnerProjectScope);
   const allowedProjects = optional && list === undefined ? [] : slugList('allowedProjects', list);
   if (projectScope === 'all' && allowedProjects.length > 0) {
     throw new InputError('allowedProjects', 'allowedProjects must be empty when projectScope is all');
@@ -387,7 +398,9 @@ export function capabilities(value: unknown): RunnerCapabilitiesDto {
   return {
     local: fields['local'],
     maxConcurrency: concurrency,
-    ...(declared === undefined ? {} : { accessSources: accessSourcesOf('capabilities.accessSources', declared) }),
+    ...(declared === undefined
+      ? {}
+      : { accessSources: accessSourcesOf('capabilities.accessSources', declared) }),
   };
 }
 
@@ -447,7 +460,11 @@ export function checkPauseRunnerInput(body: unknown, now: Date): InputCheck<Paus
     const until = fields['until'];
     const at = typeof until === 'string' && UTC_TIMESTAMP.test(until) ? Date.parse(until) : Number.NaN;
     // `Date.parse` rolls 31 February over into March; the date part must survive the round trip.
-    if (typeof until !== 'string' || !Number.isFinite(at) || new Date(at).toISOString().slice(0, 19) !== until.slice(0, 19)) {
+    if (
+      typeof until !== 'string' ||
+      !Number.isFinite(at) ||
+      new Date(at).toISOString().slice(0, 19) !== until.slice(0, 19)
+    ) {
       throw new InputError('until', 'until must be a UTC timestamp like 2026-11-13T15:00:00.000Z');
     }
     if (at <= now.getTime()) {
@@ -471,7 +488,8 @@ export function isEnrolmentId(value: unknown): value is string {
   return typeof value === 'string' && SHA256_HEX.test(value);
 }
 
-const SEMVER = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
+const SEMVER =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/;
 const NUMERIC_IDENTIFIER = /^[0-9]+$/;
 
 function comparePrerelease(a: string | undefined, b: string | undefined): number {
@@ -603,7 +621,10 @@ const isSlug = (value: unknown): value is string => typeof value === 'string' &&
 
 function isRunnerServedProjectDto(value: unknown): value is RunnerServedProjectDto {
   return (
-    isRecord(value) && isSlug(value['slug']) && isAccessSource(value['accessSource']) && typeof value['fit'] === 'boolean'
+    isRecord(value) &&
+    isSlug(value['slug']) &&
+    isAccessSource(value['accessSource']) &&
+    typeof value['fit'] === 'boolean'
   );
 }
 
@@ -632,7 +653,8 @@ export function isRunnerSelfDto(value: unknown): value is RunnerSelfDto {
     isNullable(runner['pausedUntil'], isTimestamp) &&
     isNullable(runner['lastSeenAt'], isTimestamp) &&
     value['projects'].every(
-      (project: unknown) => isRecord(project) && isSlug(project['slug']) && isAccessSource(project['accessSource']),
+      (project: unknown) =>
+        isRecord(project) && isSlug(project['slug']) && isAccessSource(project['accessSource']),
     )
   );
 }

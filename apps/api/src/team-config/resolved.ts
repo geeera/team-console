@@ -29,7 +29,10 @@ export async function resolvedViewOf(
 }
 
 /** The view of the project's current revision: what a job enqueued now is held to. */
-export async function currentResolvedViewOf(db: D1Database, projectSlug: string): Promise<ResolvedTeamConfigDto> {
+export async function currentResolvedViewOf(
+  db: D1Database,
+  projectSlug: string,
+): Promise<ResolvedTeamConfigDto> {
   const current = await new TeamConfigRepo(db).findCurrent(projectSlug);
   return resolvedViewOf(db, projectSlug, current?.revision ?? null);
 }

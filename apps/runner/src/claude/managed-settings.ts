@@ -43,7 +43,10 @@ export function jobSettingsOf(settings: JobSettings): Record<string, unknown> {
 
 export const managedSettingsPathOf = (home: string): string => join(home, MANAGED_SETTINGS_FILE);
 
-export async function writeManagedSettings(home: string, settings: JobSettings = DEFAULT_JOB_SETTINGS): Promise<string> {
+export async function writeManagedSettings(
+  home: string,
+  settings: JobSettings = DEFAULT_JOB_SETTINGS,
+): Promise<string> {
   const path = managedSettingsPathOf(home);
   await rm(path, { force: true });
   const handle = await open(

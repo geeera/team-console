@@ -63,10 +63,12 @@ describe('CountBadge', () => {
     expect(host().hidden).toBe(true);
   });
 
-  it('is not removed by the number\'s own roll ending', async () => {
+  it("is not removed by the number's own roll ending", async () => {
     const { pill, change, fixture } = setup(1);
     await change(0);
-    pill()?.querySelector('.tc-roll__in')?.dispatchEvent(new Event('animationend', { bubbles: true }));
+    pill()
+      ?.querySelector('.tc-roll__in')
+      ?.dispatchEvent(new Event('animationend', { bubbles: true }));
     fixture.detectChanges();
     expect(pill()).not.toBeNull();
   });

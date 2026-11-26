@@ -78,7 +78,9 @@ export class WorkflowStep {
   /** The operator's kill switch answered a click: the Copy path leads until a reload. */
   private readonly isPrPathRefused = signal(false);
   /** The check says the PR path is off, or a click met the kill switch. */
-  protected readonly isPrPathOff = computed(() => this.setup().workflowPr === 'disabled' || this.isPrPathRefused());
+  protected readonly isPrPathOff = computed(
+    () => this.setup().workflowPr === 'disabled' || this.isPrPathRefused(),
+  );
   protected readonly isFileOpen = signal(false);
 
   protected readonly view = computed(() => workflowStepOf(this.setup()));

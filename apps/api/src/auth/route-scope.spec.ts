@@ -244,7 +244,9 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       '%s is unreachable for a job and answers the service identity 404',
       async (route) => {
         const [method = '', pattern = ''] = route.split(' ');
-        const path = pattern.replace(':id', other.account.id).replace(/:[a-z]+/g, '01M6YSNJ0000000000000RUNR1');
+        const path = pattern
+          .replace(':id', other.account.id)
+          .replace(/:[a-z]+/g, '01M6YSNJ0000000000000RUNR1');
         const job = await send(method as 'GET', path, undefined, { job: jobActor('pm') });
         expect(job.status).toBe(403);
         const service = await sendAsService(method, path);
@@ -259,7 +261,12 @@ describe('account scope on every route (threat model C9, RR12)', () => {
         const [method = '', pattern = ''] = route.split(' ');
         const theirs = await enrolRunner(OWNER_ACCOUNT_ID);
         const body = method === 'GET' ? undefined : { allowedProjects: [] };
-        const foreign = await sendAsSession(other, method, pattern.replace(':id', other.account.id).replace(':runner', theirs.id), body);
+        const foreign = await sendAsSession(
+          other,
+          method,
+          pattern.replace(':id', other.account.id).replace(':runner', theirs.id),
+          body,
+        );
         const unknown = await sendAsSession(
           other,
           method,
@@ -302,18 +309,26 @@ describe('account scope on every route (threat model C9, RR12)', () => {
       ]);
     });
 
-    it.each(ofRule('enrolment'))('%s is open to the enrolment identity only, judged by the code', async (route) => {
-      const { method, path } = concrete(route, '');
-      // A session cookie or the owner's bypass grants nothing here: the body's code decides (422 without one).
-      const asOwner = await send(method as 'GET', path, {});
-      expect(asOwner.status).toBe(422);
-      const asSession = await sendAsSession(other, method, path, {}, {}, localEnv());
-      expect(asSession.status).toBe(422);
-    });
+    it.each(ofRule('enrolment'))(
+      '%s is open to the enrolment identity only, judged by the code',
+      async (route) => {
+        const { method, path } = concrete(route, '');
+        // A session cookie or the owner's bypass grants nothing here: the body's code decides (422 without one).
+        const asOwner = await send(method as 'GET', path, {});
+        expect(asOwner.status).toBe(422);
+        const asSession = await sendAsSession(other, method, path, {}, {}, localEnv());
+        expect(asSession.status).toBe(422);
+      },
+    );
 
     it('never lets a runner reach a project, listing, own-user or account route with its JWT', async () => {
       const runner = await enrolRunner(OWNER_ACCOUNT_ID);
-      for (const route of [...ofRule('project'), ...ofRule('projects'), ...ofRule('own-user'), ...ofRule('account')]) {
+      for (const route of [
+        ...ofRule('project'),
+        ...ofRule('projects'),
+        ...ofRule('own-user'),
+        ...ofRule('account'),
+      ]) {
         const [method = '', pattern = ''] = route.split(' ');
         const path = pattern
           .replace(':slug', 'zz-slug')

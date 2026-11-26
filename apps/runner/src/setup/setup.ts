@@ -24,7 +24,8 @@ import { ToolchainError, detectToolchain } from './toolchain';
 
 export const SETUP_STEPS = ['install', 'enrol', 'toolchain', 'credential', 'service', 'check'] as const;
 export type SetupStep = (typeof SETUP_STEPS)[number];
-export const isSetupStep = (value: string): value is SetupStep => (SETUP_STEPS as readonly string[]).includes(value);
+export const isSetupStep = (value: string): value is SetupStep =>
+  (SETUP_STEPS as readonly string[]).includes(value);
 
 /** What the `.pkg` postinstall runs: the files are in place, there is no terminal to enrol or sign in from. */
 const FROM_PKG_STEPS: readonly SetupStep[] = ['install', 'service'];
@@ -79,7 +80,9 @@ const LAUNCHCTL = '/bin/launchctl';
 function stepsOf(options: SetupOptions): readonly SetupStep[] {
   if (options.fromPkg) {
     if (options.enrolment !== undefined || options.release !== undefined || options.only !== undefined) {
-      throw new SetupError('--from-pkg takes no --enrolment, --release or --only: the package put the files in place');
+      throw new SetupError(
+        '--from-pkg takes no --enrolment, --release or --only: the package put the files in place',
+      );
     }
     return FROM_PKG_STEPS;
   }
@@ -112,7 +115,11 @@ export async function installRelease(
       if (!stats.isFile() || stats.size > TARBALL_MAX_BYTES) {
         throw new SetupError(`${release.tarball} is not a release tarball`);
       }
-      const target = await open(staged, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+      const target = await open(
+        staged,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
+        0o600,
+      );
       try {
         await target.writeFile(await source.readFile());
       } finally {
@@ -124,12 +131,16 @@ export async function installRelease(
     const copy = await open(staged, constants.O_RDONLY | constants.O_NOFOLLOW);
     let digest: string;
     try {
-      digest = createHash('sha256').update(await copy.readFile()).digest('hex');
+      digest = createHash('sha256')
+        .update(await copy.readFile())
+        .digest('hex');
     } finally {
       await copy.close();
     }
     if (digest !== release.sha256) {
-      throw new SetupError('the release tarball does not match the sum the console named; nothing was installed');
+      throw new SetupError(
+        'the release tarball does not match the sum the console named; nothing was installed',
+      );
     }
     await mkdir(prefix, { recursive: true, mode: 0o755 });
     await installTarball(staged, staging, prefix, RUNNER_VERSION, { exec: deps.host.exec });
@@ -148,11 +159,15 @@ async function enrolStep(options: SetupOptions, deps: SetupDeps, home: string): 
         `this runner is enrolled with ${report?.config?.apiUrl ?? 'another console'}, not ${url}: revoke it and remove ${home} (runbook) to enrol it again`,
       );
     }
-    deps.out(`enrol: already enrolled as «${report?.config?.name ?? '?'}»${options.enrolment === undefined ? '' : '; --enrolment is not used'}`);
+    deps.out(
+      `enrol: already enrolled as «${report?.config?.name ?? '?'}»${options.enrolment === undefined ? '' : '; --enrolment is not used'}`,
+    );
     return;
   }
   if (options.url === undefined || options.enrolment === undefined) {
-    throw new SetupError('enrol: a new runner needs --url <console origin> and --enrolment <request id> from Settings › Runners › Add runner');
+    throw new SetupError(
+      'enrol: a new runner needs --url <console origin> and --enrolment <request id> from Settings › Runners › Add runner',
+    );
   }
   const code = await deps.host.runAsRunner([
     'enrol',
@@ -166,7 +181,9 @@ async function enrolStep(options: SetupOptions, deps: SetupDeps, home: string): 
     options.enrolment,
   ]);
   if (code !== 0) {
-    throw new SetupError('enrol did not finish (its reason is above); run setup again with a new request from the console');
+    throw new SetupError(
+      'enrol did not finish (its reason is above); run setup again with a new request from the console',
+    );
   }
 }
 
@@ -205,7 +222,9 @@ async function credentialStep(options: SetupOptions, deps: SetupDeps, home: stri
           await deps.openForUser(line);
         } catch (error: unknown) {
           // The CLI printed the URL as well; the sign-in goes on in the operator's own browser.
-          deps.out(`credential: could not open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`);
+          deps.out(
+            `credential: could not open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`,
+          );
         }
       }
     }
@@ -227,7 +246,9 @@ async function credentialStep(options: SetupOptions, deps: SetupDeps, home: stri
       channel.path,
     ]);
     if (code !== 0) {
-      throw new SetupError('credential: nothing was written; run sudo team-console-runner setup --only credential again');
+      throw new SetupError(
+        'credential: nothing was written; run sudo team-console-runner setup --only credential again',
+      );
     }
   } finally {
     running = false;
@@ -238,7 +259,9 @@ async function credentialStep(options: SetupOptions, deps: SetupDeps, home: stri
 
 async function serviceStep(deps: SetupDeps): Promise<void> {
   const loaded = (await deps.host.exec(LAUNCHCTL, ['print', `system/${LAUNCH_LABEL}`])).code === 0;
-  const args = loaded ? ['kickstart', '-k', `system/${LAUNCH_LABEL}`] : ['bootstrap', 'system', LAUNCH_DAEMON_PATH];
+  const args = loaded
+    ? ['kickstart', '-k', `system/${LAUNCH_LABEL}`]
+    : ['bootstrap', 'system', LAUNCH_DAEMON_PATH];
   if ((await deps.host.exec(LAUNCHCTL, args)).code !== 0) {
     throw new SetupError(`service: launchctl ${args.join(' ')} failed`);
   }
@@ -253,7 +276,9 @@ export const installedPrefixOf = (options: Pick<SetupOptions, 'release' | 'prefi
 export async function runSetup(options: SetupOptions, deps: SetupDeps): Promise<boolean> {
   const { host } = deps;
   if (host.platform !== 'darwin') {
-    throw new SetupError('setup sets up the user backend on macOS; on Linux use the container backend (docs/runbooks/runner.md)');
+    throw new SetupError(
+      'setup sets up the user backend on macOS; on Linux use the container backend (docs/runbooks/runner.md)',
+    );
   }
   if (host.uid !== 0) {
     throw new SetupError(`setup creates ${RUNNER_USER} and a LaunchDaemon: run it with sudo`);
@@ -271,7 +296,9 @@ export async function runSetup(options: SetupOptions, deps: SetupDeps): Promise<
           await installRelease(options.release, deps, prefix);
         }
         try {
-          await runInstall({ backend: 'user', apply: true, prefix, node: options.node }, host, deps.out, { showNext: false });
+          await runInstall({ backend: 'user', apply: true, prefix, node: options.node }, host, deps.out, {
+            showNext: false,
+          });
         } catch (error: unknown) {
           throw error instanceof InstallError ? new SetupError(`install: ${error.message}`) : error;
         }

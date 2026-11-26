@@ -42,7 +42,9 @@ describe('platformOf', () => {
   });
 
   it('shows the Home Screen guide in iPhone Safari outside the installed app', () => {
-    const info = platformOf(signals({ userAgent: IPHONE_SAFARI_26, hasPushManager: false, navigatorStandalone: false }));
+    const info = platformOf(
+      signals({ userAgent: IPHONE_SAFARI_26, hasPushManager: false, navigatorStandalone: false }),
+    );
     expect(info).toMatchObject({ isIos: true, isStandalone: false, webPush: 'install', settingsHost: 'ios' });
   });
 
@@ -52,7 +54,9 @@ describe('platformOf', () => {
   });
 
   it('reads the display-mode query as installed too', () => {
-    expect(platformOf(signals({ userAgent: IPHONE_SAFARI_26, displayModeStandalone: true })).webPush).toBe('ok');
+    expect(platformOf(signals({ userAgent: IPHONE_SAFARI_26, displayModeStandalone: true })).webPush).toBe(
+      'ok',
+    );
   });
 
   it('refuses iOS before 16.4, installed or not', () => {
@@ -63,7 +67,9 @@ describe('platformOf', () => {
   });
 
   it('treats an installed app without the APIs as an iOS too old to push', () => {
-    const info = platformOf(signals({ userAgent: IPHONE_SAFARI_26, navigatorStandalone: true, hasPushManager: false }));
+    const info = platformOf(
+      signals({ userAgent: IPHONE_SAFARI_26, navigatorStandalone: true, hasPushManager: false }),
+    );
     expect(info.webPush).toBe('old-ios');
   });
 

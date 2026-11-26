@@ -1,5 +1,10 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import type { AccountMembershipDto, PendingEnrolmentDto, RunnerDto, RunnerReleaseDto } from '@shared/contracts';
+import type {
+  AccountMembershipDto,
+  PendingEnrolmentDto,
+  RunnerDto,
+  RunnerReleaseDto,
+} from '@shared/contracts';
 import { liveRunnersOf, managedAccountOf, runnersInDisplayOrder } from './runner.model';
 import type { RunnerFailure } from './runner-failure';
 import { RunnersApi } from './runners.api';
@@ -79,7 +84,10 @@ export class RunnersStore {
     this.otherAccountRunners.update((byAccount) => {
       const next = new Map(byAccount);
       for (const [accountId, runners] of byAccount) {
-        next.set(accountId, runners.map((row) => (row.id === runner.id ? runner : row)));
+        next.set(
+          accountId,
+          runners.map((row) => (row.id === runner.id ? runner : row)),
+        );
       }
       return next;
     });
@@ -108,7 +116,9 @@ export class RunnersStore {
       return;
     }
     this.account.set(managed.account);
-    const others = accounts.value.filter((account) => account.role === 'owner' && account.id !== managed.account.id);
+    const others = accounts.value.filter(
+      (account) => account.role === 'owner' && account.id !== managed.account.id,
+    );
     const [read, otherReads] = await Promise.all([
       this.api.list(managed.account.id),
       Promise.all(others.map(async (account) => [account.id, await this.api.list(account.id)] as const)),

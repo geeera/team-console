@@ -41,7 +41,17 @@ let nextCardId = 0;
  */
 @Component({
   selector: 'tc-job-card',
-  imports: [Chip, Icon, Ledger, LedgerRow, LocalDayPipe, LocalTimePipe, RouterLink, StatusCard, TranslocoPipe],
+  imports: [
+    Chip,
+    Icon,
+    Ledger,
+    LedgerRow,
+    LocalDayPipe,
+    LocalTimePipe,
+    RouterLink,
+    StatusCard,
+    TranslocoPipe,
+  ],
   template: `
     <article
       tc-status-card

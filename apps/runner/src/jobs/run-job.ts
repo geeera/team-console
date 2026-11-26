@@ -51,7 +51,10 @@ export interface JobConsole extends ProxyForwarder {
  * (#669) builds this from its env and the exchange, in memory only. `vcs` exists only here: config.json refuses it, so
  * a token never lands in a file.
  */
-export type JobRunConfig = Pick<RunnerConfig, 'apiUrl' | 'projectScope' | 'allowedProjects' | 'repositories' | 'toolchain' | 'env'> & {
+export type JobRunConfig = Pick<
+  RunnerConfig,
+  'apiUrl' | 'projectScope' | 'allowedProjects' | 'repositories' | 'toolchain' | 'env'
+> & {
   readonly backend: RunnerIsolation;
   readonly credential?: CredentialConfig | undefined;
   /** The mirror fetch's read token for the upstream (an Actions run's `github.token`); the job never sees it. */
@@ -185,10 +188,7 @@ export async function runJob(
       const id = setTimeout(fire, ms);
       return () => clearTimeout(id);
     });
-  const disarmDeadline = armDeadline(
-    () => stop('max-minutes'),
-    job.maxMinutes * (deps.minuteMs ?? 60_000),
-  );
+  const disarmDeadline = armDeadline(() => stop('max-minutes'), job.maxMinutes * (deps.minuteMs ?? 60_000));
 
   let sandbox: Sandbox | null = null;
   let socket: JobSocket | null = null;

@@ -86,7 +86,11 @@ export type WorkflowPrOutcome =
   | { readonly kind: 'console-misconfigured'; readonly reason: string }
   | { readonly kind: 'repository-unverified'; readonly detail: string }
   /** The installer has not accepted these permissions (or the app is not linked); `link` is where they do. */
-  | { readonly kind: 'permission-missing'; readonly permissions: readonly string[]; readonly link: string | null }
+  | {
+      readonly kind: 'permission-missing';
+      readonly permissions: readonly string[];
+      readonly link: string | null;
+    }
   | { readonly kind: 'already-current' }
   | { readonly kind: 'downgrade'; readonly pins: readonly RunnerWorkflowPin[] }
   | { readonly kind: 'pr-open'; readonly pr: ActionsSetupPrDto | null }
@@ -191,7 +195,11 @@ export async function openWorkflowPr(
   const connection = await deps.github.connect(env);
   const installation = await connection.auth.readInstallationPermissions(installationId);
   if (installation === null || installation.suspended) {
-    return { kind: 'permission-missing', permissions: WRITE_PERMISSIONS, link: installation?.htmlUrl ?? null };
+    return {
+      kind: 'permission-missing',
+      permissions: WRITE_PERMISSIONS,
+      link: installation?.htmlUrl ?? null,
+    };
   }
   const missing = WRITE_PERMISSIONS.filter(
     (name) => !installationGrants(installation, { [name]: WORKFLOW_PR_PERMISSIONS[name] ?? 'write' }),
@@ -206,7 +214,10 @@ export async function openWorkflowPr(
     return { kind: 'repository-unverified', detail: 'GitHub names another repository under this name' };
   }
   const repo = repository.current;
-  const planned = planWorkflowPr(await readRunnerWorkflowFile(client, repo, repository.defaultBranch), rendering);
+  const planned = planWorkflowPr(
+    await readRunnerWorkflowFile(client, repo, repository.defaultBranch),
+    rendering,
+  );
   if (planned.outcome === 'already-current') {
     return { kind: 'already-current' };
   }
@@ -230,7 +241,10 @@ export async function openWorkflowPr(
 
   const audits = new AuditRepo(env.DB);
   const facts = { kind: plan.kind, repositoryId, installationId, sha256: rendering.sha256 };
-  const failed = async (reason: FailureReason, more: Readonly<Record<string, unknown>> = {}): Promise<void> => {
+  const failed = async (
+    reason: FailureReason,
+    more: Readonly<Record<string, unknown>> = {},
+  ): Promise<void> => {
     await audits.append(deps.audit('project.actions-workflow-pr-failed', { ...facts, reason, ...more }));
   };
   const onMint = async (event: ScopedMintEvent): Promise<void> => {
@@ -299,7 +313,12 @@ export async function openWorkflowPr(
       throw githubUnexpectedError('GitHub returned a pull request without its github.com address');
     }
     await audits.append(
-      deps.audit('project.actions-workflow-pr-opened', { ...facts, prNumber: pull.number, branch, commit: commitSha }),
+      deps.audit('project.actions-workflow-pr-opened', {
+        ...facts,
+        prNumber: pull.number,
+        branch,
+        commit: commitSha,
+      }),
     );
     logger.info('actions workflow pr opened', { slug: row.slug, kind: plan.kind, number: pull.number });
     return { kind: 'opened', pr: { number: pull.number, url: pull.htmlUrl, kind: plan.kind } };

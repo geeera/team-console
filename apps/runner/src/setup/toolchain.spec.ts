@@ -54,7 +54,10 @@ function fakeHost(entries: Record<string, FakeEntry>, runnable: readonly string[
 }
 
 const file = (uid = 0, mode = 0o755): FakeEntry => ({ facts: { uid, mode, kind: 'file' } });
-const link = (target: string, uid = 0): FakeEntry => ({ facts: { uid, mode: 0o755, kind: 'symlink' }, target });
+const link = (target: string, uid = 0): FakeEntry => ({
+  facts: { uid, mode: 0o755, kind: 'symlink' },
+  target,
+});
 
 describe('toolchain detection (#634 PR 2, #772, R-ROOT-1/2)', () => {
   it('takes Homebrew’s claude and the system git, probing each as _tcjob with an empty environment', async () => {
@@ -63,7 +66,9 @@ describe('toolchain detection (#634 PR 2, #772, R-ROOT-1/2)', () => {
         '/opt/homebrew/bin/claude': link('/opt/homebrew/Caskroom/claude-code/2.0/claude', OWNER_UID),
         '/opt/homebrew/Caskroom': { facts: { uid: OWNER_UID, mode: 0o755, kind: 'directory' } },
         '/opt/homebrew/Caskroom/claude-code': { facts: { uid: OWNER_UID, mode: 0o755, kind: 'directory' } },
-        '/opt/homebrew/Caskroom/claude-code/2.0': { facts: { uid: OWNER_UID, mode: 0o755, kind: 'directory' } },
+        '/opt/homebrew/Caskroom/claude-code/2.0': {
+          facts: { uid: OWNER_UID, mode: 0o755, kind: 'directory' },
+        },
         '/opt/homebrew/Caskroom/claude-code/2.0/claude': file(OWNER_UID),
         '/usr/bin/git': file(),
         '/usr/local/bin/node': file(),
@@ -89,16 +94,18 @@ describe('toolchain detection (#634 PR 2, #772, R-ROOT-1/2)', () => {
       '--version',
     ]);
     // Homebrew belongs to the login user: kept, with the residual stated (R-ROOT-2).
-    expect(detected.warnings).toEqual([expect.stringContaining('claude /opt/homebrew/bin/claude belongs to uid 501, not root')]);
+    expect(detected.warnings).toEqual([
+      expect.stringContaining('claude /opt/homebrew/bin/claude belongs to uid 501, not root'),
+    ]);
     // Every probe is `sudo -u _tcjob`: nothing third-party runs as root.
     expect(probes.every((probe) => probe.slice(0, 4).join(' ') === '/usr/bin/sudo -n -u _tcjob')).toBe(true);
   });
 
   it('refuses claude under a user’s home with the system-wide fix, and fails when nothing else is found', async () => {
-    const { host } = fakeHost(
-      { '/Users/owner/.local/bin/claude': file(OWNER_UID), '/usr/bin/git': file() },
-      ['/Users/owner/.local/bin/claude', '/usr/bin/git'],
-    );
+    const { host } = fakeHost({ '/Users/owner/.local/bin/claude': file(OWNER_UID), '/usr/bin/git': file() }, [
+      '/Users/owner/.local/bin/claude',
+      '/usr/bin/git',
+    ]);
     await expect(detectToolchain(host, '/Users/owner/.local/bin:/usr/bin')).rejects.toThrow(
       /claude: \/Users\/owner\/\.local\/bin\/claude: under a user's home.*brew install --cask claude-code/,
     );
@@ -120,26 +127,36 @@ describe('toolchain detection (#634 PR 2, #772, R-ROOT-1/2)', () => {
   });
 
   it('refuses a world-writable file even in a root-owned directory', async () => {
-    const { host } = fakeHost(
-      { '/usr/local/bin/claude': file(0, 0o777), '/usr/bin/git': file() },
-      ['/usr/local/bin/claude', '/usr/bin/git'],
+    const { host } = fakeHost({ '/usr/local/bin/claude': file(0, 0o777), '/usr/bin/git': file() }, [
+      '/usr/local/bin/claude',
+      '/usr/bin/git',
+    ]);
+    await expect(detectToolchain(host, '')).rejects.toThrow(
+      /\/usr\/local\/bin\/claude is writable by group or others/,
     );
-    await expect(detectToolchain(host, '')).rejects.toThrow(/\/usr\/local\/bin\/claude is writable by group or others/);
   });
 
   it('refuses a candidate _tcjob cannot run (the Command Line Tools stub, a home it cannot traverse)', async () => {
-    const { host } = fakeHost({ '/usr/local/bin/claude': file(), '/usr/bin/git': file() }, ['/usr/local/bin/claude']);
+    const { host } = fakeHost({ '/usr/local/bin/claude': file(), '/usr/bin/git': file() }, [
+      '/usr/local/bin/claude',
+    ]);
     await expect(detectToolchain(host, '')).rejects.toThrow(/git: \/usr\/bin\/git: _tcjob cannot run it/);
   });
 
   it('looks in the release’s own node first, then Homebrew, then the system, then the given PATH', () => {
-    expect(candidatesOf('node', '/custom/bin:relative:/usr/local/bin/', '/usr/local/lib/team-console-runner')).toEqual([
+    expect(
+      candidatesOf('node', '/custom/bin:relative:/usr/local/bin/', '/usr/local/lib/team-console-runner'),
+    ).toEqual([
       '/usr/local/lib/team-console-runner/node',
       '/opt/homebrew/bin/node',
       '/usr/local/bin/node',
       '/custom/bin/node',
     ]);
-    expect(candidatesOf('git', '', undefined)).toEqual(['/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git']);
+    expect(candidatesOf('git', '', undefined)).toEqual([
+      '/opt/homebrew/bin/git',
+      '/usr/local/bin/git',
+      '/usr/bin/git',
+    ]);
   });
 
   it('builds the job PATH from the tools’ directories, each once, then the system’s', () => {

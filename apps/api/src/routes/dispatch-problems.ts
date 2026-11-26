@@ -12,7 +12,8 @@ export function actionsOnSubscription(c: Context): Response {
     type: 'access-source-hosted',
     title: 'Invalid request',
     status: 422,
-    detail: 'A project on a subscription never runs on GitHub Actions: switch its access source to an API key first',
+    detail:
+      'A project on a subscription never runs on GitHub Actions: switch its access source to an API key first',
     extensions,
   });
 }

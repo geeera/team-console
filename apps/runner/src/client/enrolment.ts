@@ -39,7 +39,12 @@ export function isEnrolRunnerResponse(value: unknown): value is EnrolRunnerRespo
   );
 }
 
-async function postDoor(apiUrl: string, path: string, body: unknown, fetchImpl: FetchLike): Promise<Response> {
+async function postDoor(
+  apiUrl: string,
+  path: string,
+  body: unknown,
+  fetchImpl: FetchLike,
+): Promise<Response> {
   return await fetchImpl(`${apiUrl}/api/v1/runner/${path}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

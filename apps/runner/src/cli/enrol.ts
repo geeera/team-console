@@ -88,7 +88,8 @@ export interface EnrolDeps {
   readonly now?: () => Date;
 }
 
-export type EnrolDoor = { readonly kind: 'code'; readonly code: string } | { readonly kind: 'intent'; readonly intentId: string };
+export type EnrolDoor =
+  { readonly kind: 'code'; readonly code: string } | { readonly kind: 'intent'; readonly intentId: string };
 
 export interface EnrolCheckedOptions {
   readonly apiUrl: string;
@@ -131,7 +132,9 @@ function checkCredential(options: EnrolOptions, backend: EnrolBackend): Credenti
 
 function doorOf(options: EnrolOptions): EnrolDoor {
   if ((options.code === undefined) === (options.enrolment === undefined)) {
-    throw new EnrolUsageError('enrol takes either the one-time code or --enrolment <request id>, not both or neither');
+    throw new EnrolUsageError(
+      'enrol takes either the one-time code or --enrolment <request id>, not both or neither',
+    );
   }
   if (options.enrolment !== undefined) {
     if (!isEnrolmentIntentId(options.enrolment)) {
@@ -260,7 +263,9 @@ function intentRefusalOf(error: unknown): never {
           'the console does not know this request any more (expired, rejected or already used): start again from Settings › Runners › Add runner',
         );
       case 'enrolment-isolation-mismatch':
-        throw new EnrolIntentError('this request was made in the console for another backend; start again with the right one');
+        throw new EnrolIntentError(
+          'this request was made in the console for another backend; start again with the right one',
+        );
     }
   }
   throw error;
@@ -288,13 +293,17 @@ async function enrolByIntent(
     );
   }
   out(`Request sent to account «${terminalText(start.accountName)}».`);
-  out(`Compare this code with the one in the console, then press «Подтвердить» (Approve) there: ${fingerprint}`);
+  out(
+    `Compare this code with the one in the console, then press «Подтвердить» (Approve) there: ${fingerprint}`,
+  );
   const deadline = Date.parse(start.expiresAt) + ENROLMENT_INTENT_COLLECT_SECONDS * 1000;
   let interval = start.intervalSeconds;
   for (;;) {
     await sleep(interval * 1000);
     if (now().getTime() > deadline) {
-      throw new EnrolIntentError('the request expired before it was approved: start again from Settings › Runners › Add runner');
+      throw new EnrolIntentError(
+        'the request expired before it was approved: start again from Settings › Runners › Add runner',
+      );
     }
     try {
       const outcome = await pollEnrolment(apiUrl, { intentId, pollToken: start.pollToken }, deps.fetch);

@@ -52,7 +52,9 @@ function isIssue(item: SprintListItem): item is SprintIssue {
           } @else if (kindOf(item) || !item.authorTrusted || isPending(item)) {
             <span tc-row-subtitle class="sprint-item__marks">
               @if (kindOf(item); as kind) {
-                <span class="sprint-item__kind" data-testid="kind">{{ 'board.kind.' + kind | transloco }}</span>
+                <span class="sprint-item__kind" data-testid="kind">{{
+                  'board.kind.' + kind | transloco
+                }}</span>
               }
               @if (isPending(item)) {
                 <!-- #219: the owner asked the PM about this issue; the PM has not answered yet. -->
@@ -118,7 +120,9 @@ export class SprintItemList {
   protected consoleLinkOf(item: SprintListItem): string[] | null {
     const slug = this.slug();
     // The task route as `itemRouteOf` (@console/entities/item) builds it; an entity cannot import another.
-    return slug !== null && item.url === null && isIssue(item) ? ['/p', slug, 't', String(item.number)] : null;
+    return slug !== null && item.url === null && isIssue(item)
+      ? ['/p', slug, 't', String(item.number)]
+      : null;
   }
 
   protected issueOf(item: SprintListItem): SprintIssue | null {

@@ -1,4 +1,8 @@
-import { isActionsDriftStatus, type ActionsSetupStatus, type NeedsYouActionsDriftDto } from '@shared/contracts';
+import {
+  isActionsDriftStatus,
+  type ActionsSetupStatus,
+  type NeedsYouActionsDriftDto,
+} from '@shared/contracts';
 
 /** A project's stored workflow judgement (#874, migration 0041), as the read gives it. */
 export interface StoredWorkflowJudgement {
@@ -22,7 +26,12 @@ export function actionsDriftOf(
   if (isActionsDriftStatus(stored.status)) {
     return { drift: stored.status, checkedAt };
   }
-  if (stored.status === 'ok' && renderingSha256 !== null && stored.sha256 !== null && stored.sha256 !== renderingSha256) {
+  if (
+    stored.status === 'ok' &&
+    renderingSha256 !== null &&
+    stored.sha256 !== null &&
+    stored.sha256 !== renderingSha256
+  ) {
     return { drift: 'release', checkedAt };
   }
   return null;

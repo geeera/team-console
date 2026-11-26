@@ -1,4 +1,10 @@
-import { OWNER_ACCOUNT_ID, isEnrolmentIntentCreatedDto, isEnrolmentIntentDto, isStartEnrolmentResponse, runnerKeyFingerprintOf } from '@shared/contracts';
+import {
+  OWNER_ACCOUNT_ID,
+  isEnrolmentIntentCreatedDto,
+  isEnrolmentIntentDto,
+  isStartEnrolmentResponse,
+  runnerKeyFingerprintOf,
+} from '@shared/contracts';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -32,7 +38,11 @@ describe('integration: an enrolment intent against the local stack', () => {
     const { origin } = stack;
     const intents = `${origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
     const door = (call: 'start' | 'poll', body: unknown): Promise<Response> =>
-      fetch(`${origin}/api/v1/runner/enrol/${call}`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+      fetch(`${origin}/api/v1/runner/enrol/${call}`, {
+        method: 'POST',
+        headers: json,
+        body: JSON.stringify(body),
+      });
 
     // 1. The owner's wizard: an intent for this account, every project, the `none` backend of fixture environments.
     const createdResponse = await fetch(intents, {
@@ -45,7 +55,9 @@ describe('integration: an enrolment intent against the local stack', () => {
     if (!isEnrolmentIntentCreatedDto(created)) {
       throw new Error('the answer is not an EnrolmentIntentCreatedDto');
     }
-    expect(created.command).toBe(`sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url ${origin} --enrolment ${created.intentId}`);
+    expect(created.command).toBe(
+      `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url ${origin} --enrolment ${created.intentId}`,
+    );
 
     // 2. The runner's half: its own key, bound to the intent; the fingerprint is computed on both sides.
     const key = generateRunnerKey();
@@ -68,7 +80,9 @@ describe('integration: an enrolment intent against the local stack', () => {
     // 3. A second machine on the same intent loses: first bind wins.
     const rival = await door('start', { ...startBody, publicKey: generateRunnerKey().publicJwk });
     expect(rival.status).toBe(409);
-    expect(await rival.json()).toMatchObject({ type: 'https://team-console/problems/enrolment-intent-bound' });
+    expect(await rival.json()).toMatchObject({
+      type: 'https://team-console/problems/enrolment-intent-bound',
+    });
 
     // 4. Not approved yet: 202, and a poll right behind it is told to slow down.
     expect((await door('poll', { intentId: created.intentId, pollToken: start.pollToken })).status).toBe(202);
@@ -81,7 +95,11 @@ describe('integration: an enrolment intent against the local stack', () => {
     if (!isEnrolmentIntentDto(shown)) {
       throw new Error('the answer is not an EnrolmentIntentDto');
     }
-    expect(shown).toMatchObject({ state: 'bound', fingerprint: start.fingerprint, host: { hostname: 'integration.local' } });
+    expect(shown).toMatchObject({
+      state: 'bound',
+      fingerprint: start.fingerprint,
+      host: { hostname: 'integration.local' },
+    });
     const wrong = await fetch(`${intents}/${created.intentId}/approve`, {
       method: 'POST',
       headers: owner,
@@ -99,8 +117,17 @@ describe('integration: an enrolment intent against the local stack', () => {
     await new Promise<void>((done) => setTimeout(done, start.intervalSeconds * 1000));
     const collected = await door('poll', { intentId: created.intentId, pollToken: start.pollToken });
     expect(collected.status).toBe(200);
-    const enrolment = (await collected.json()) as { runnerId: string; audience: string; name: string; projectScope: string };
-    expect(enrolment).toMatchObject({ name: 'Integration intent', audience: 'team-console:local', projectScope: 'all' });
+    const enrolment = (await collected.json()) as {
+      runnerId: string;
+      audience: string;
+      name: string;
+      projectScope: string;
+    };
+    expect(enrolment).toMatchObject({
+      name: 'Integration intent',
+      audience: 'team-console:local',
+      projectScope: 'all',
+    });
     await new Promise<void>((done) => setTimeout(done, start.intervalSeconds * 1000));
     expect((await door('poll', { intentId: created.intentId, pollToken: start.pollToken })).status).toBe(404);
 
@@ -112,7 +139,12 @@ describe('integration: an enrolment intent against the local stack', () => {
       privateKey: key.privateKey,
     });
     await expect(client.self()).resolves.toMatchObject({
-      runner: { id: enrolment.runnerId, name: 'Integration intent', accountId: OWNER_ACCOUNT_ID, projectScope: 'all' },
+      runner: {
+        id: enrolment.runnerId,
+        name: 'Integration intent',
+        accountId: OWNER_ACCOUNT_ID,
+        projectScope: 'all',
+      },
     });
     await expect(client.claim()).resolves.toMatchObject({ kind: 'idle' });
   }, 60_000);
@@ -121,7 +153,11 @@ describe('integration: an enrolment intent against the local stack', () => {
     const { origin } = stack;
     const intents = `${origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
     const created: unknown = await (
-      await fetch(intents, { method: 'POST', headers: owner, body: JSON.stringify({ name: 'Setup intent', isolation: 'none' }) })
+      await fetch(intents, {
+        method: 'POST',
+        headers: owner,
+        body: JSON.stringify({ name: 'Setup intent', isolation: 'none' }),
+      })
     ).json();
     if (!isEnrolmentIntentCreatedDto(created)) {
       throw new Error('the answer is not an EnrolmentIntentCreatedDto');
@@ -163,9 +199,15 @@ describe('integration: an enrolment intent against the local stack', () => {
         apiUrl: origin,
         runnerId: config.runnerId,
         audience: config.audience,
-        privateKey: await loadRunnerKey(home, { platform: 'linux', exec: () => Promise.reject(new Error('no exec')), env: {} }),
+        privateKey: await loadRunnerKey(home, {
+          platform: 'linux',
+          exec: () => Promise.reject(new Error('no exec')),
+          env: {},
+        }),
       });
-      await expect(client.self()).resolves.toMatchObject({ runner: { id: config.runnerId, name: 'Setup intent' } });
+      await expect(client.self()).resolves.toMatchObject({
+        runner: { id: config.runnerId, name: 'Setup intent' },
+      });
     } finally {
       await rm(join(home, '..'), { recursive: true, force: true });
     }

@@ -92,7 +92,12 @@ export class DesignManifests {
     if (existing !== undefined) {
       return existing;
     }
-    const entry: Entry = { state: signal<DesignManifestState>(LOADING), loadedAt: 0, pending: null, recoveredFor: null };
+    const entry: Entry = {
+      state: signal<DesignManifestState>(LOADING),
+      loadedAt: 0,
+      pending: null,
+      recoveredFor: null,
+    };
     this.entries.set(key, entry);
     return entry;
   }

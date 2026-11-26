@@ -12,7 +12,10 @@ interface Args {
 
 const meta: Meta<Args> = {
   title: 'Features/Team config/Access source',
-  decorators: [applicationConfig({ providers: [provideRouter([])] }), moduleMetadata({ imports: [AccessSource] })],
+  decorators: [
+    applicationConfig({ providers: [provideRouter([])] }),
+    moduleMetadata({ imports: [AccessSource] }),
+  ],
   render: (args) => ({
     props: args,
     template: `

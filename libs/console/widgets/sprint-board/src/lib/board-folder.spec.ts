@@ -20,20 +20,39 @@ import { arrivalsLast, BoardMoves } from './board-moves';
 
 function trackerSprint(number: number, dueOn: string | null, openCount = 0): TrackerSprintDto {
   const title = `Sprint ${String(number).padStart(2, '0')}`;
-  return { number, title, dueOn, state: 'open', description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null, openCount };
+  return {
+    number,
+    title,
+    dueOn,
+    state: 'open',
+    description: '',
+    createdAt: '2026-11-01T00:00:00Z',
+    closedAt: null,
+    openCount,
+  };
 }
 
 // itemFixture builds a full ItemDto (it carries `body`); rows on the board only read the ItemSummaryDto
 // subset, but the move handlers below need the full dto, so the fixture keeps its full type.
 const task = (number: number, overrides: Partial<ItemDto> = {}): ItemDto =>
-  itemFixture({ key: `TC-${String(number)}`, number, title: `Task ${String(number)}`, sprint: 5, ...overrides });
+  itemFixture({
+    key: `TC-${String(number)}`,
+    number,
+    title: `Task ${String(number)}`,
+    sprint: 5,
+    ...overrides,
+  });
 
 const NEXT: BoardFolderSpec = { kind: 'next', sprint: trackerSprint(5, '2026-12-11', 2), openCount: 2 };
 const BACKLOG: BoardFolderSpec = { kind: 'backlog', sprint: null, openCount: 0 };
 
 /** Item reads the test answers by hand, in any order, so a stale answer can arrive after a newer one. */
 class FakeItems {
-  readonly calls: { slug: string; query: ItemQuery; answer: (read: TrackerRead<ItemSummaryDto[]>) => void }[] = [];
+  readonly calls: {
+    slug: string;
+    query: ItemQuery;
+    answer: (read: TrackerRead<ItemSummaryDto[]>) => void;
+  }[] = [];
   sprintRead: TrackerRead<TrackerSprintListDto> = { ok: true, value: { sprints: [], backlogOpenCount: 0 } };
 
   items(slug: string, query: ItemQuery = {}): Promise<TrackerRead<ItemSummaryDto[]>> {
@@ -47,7 +66,8 @@ class FakeItems {
 
 // jsdom has no matchMedia; the rows' tier tooltips ask it whether the device can hover.
 beforeAll(() => {
-  window.matchMedia ??= ((media: string) => ({ matches: false, media }) as MediaQueryList) as typeof window.matchMedia;
+  window.matchMedia ??= ((media: string) =>
+    ({ matches: false, media }) as MediaQueryList) as typeof window.matchMedia;
 });
 
 const wide = { isMatched: () => false, observe: () => of({ matches: false, breakpoints: {} }) };
@@ -113,7 +133,9 @@ describe('BoardFolder (#557)', () => {
   it('shows its title, demo and open count collapsed, without reading its items', async () => {
     const { root, fake, toggle, body } = await setup(FolderHost);
 
-    expect(root.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Следующий спринт Sprint 05');
+    expect(root.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Следующий спринт Sprint 05',
+    );
     expect(root.querySelector('.folder__meta')?.textContent).toContain('Демо 11 декабря');
     expect(root.querySelector('[data-testid="folder-open-count"]')?.textContent).toBe('2 открытые');
     expect(toggle().getAttribute('aria-expanded')).toBe('false');
@@ -135,7 +157,10 @@ describe('BoardFolder (#557)', () => {
     expect(root.querySelector('[role="status"]')?.textContent).toBe('Загружаем: Sprint 05…');
     expect(toggle().getAttribute('aria-expanded')).toBe('true');
 
-    fake.calls[0]?.answer({ ok: true, value: [task(1, { status: 'blocked' }), task(2, { status: 'proposed', kind: 'bug' })] });
+    fake.calls[0]?.answer({
+      ok: true,
+      value: [task(1, { status: 'blocked' }), task(2, { status: 'proposed', kind: 'bug' })],
+    });
     await settle();
     const lanes = [...root.querySelectorAll('tc-lane')].map((lane) => lane.getAttribute('data-status'));
     expect(lanes).toEqual(['proposed', 'blocked']);
@@ -173,7 +198,9 @@ describe('BoardFolder (#557)', () => {
     expect(fake.calls[1]?.query).toEqual({ sprint: 'none', state: 'open' });
     fake.calls[1]?.answer({ ok: true, value: [] });
     await settle();
-    expect(root.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Бэклог Задачи без спринта');
+    expect(root.querySelector('h2')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+      'Бэклог Задачи без спринта',
+    );
     expect(root.querySelector('[data-testid="folder-empty"]')?.textContent).toContain('В бэклоге пусто');
   });
 
@@ -257,10 +284,16 @@ describe('BoardFolder (#557)', () => {
 describe('BoardFolders (#557)', () => {
   it('lists every open future sprint by demo date, then the backlog, with the API counts', () => {
     const list: TrackerSprintListDto = {
-      sprints: [trackerSprint(4, '2026-11-27', 9), trackerSprint(6, '2026-12-25', 1), trackerSprint(5, '2026-12-11', 3)],
+      sprints: [
+        trackerSprint(4, '2026-11-27', 9),
+        trackerSprint(6, '2026-12-25', 1),
+        trackerSprint(5, '2026-12-11', 3),
+      ],
       backlogOpenCount: 12,
     };
-    expect(boardFoldersOf(list).map((folder) => [folder.kind, folder.sprint?.number ?? null, folder.openCount])).toEqual([
+    expect(
+      boardFoldersOf(list).map((folder) => [folder.kind, folder.sprint?.number ?? null, folder.openCount]),
+    ).toEqual([
       ['next', 5, 3],
       ['later', 6, 1],
       ['backlog', null, 12],
@@ -272,11 +305,13 @@ describe('BoardFolders (#557)', () => {
     fake.sprintRead = { ok: true, value: { sprints: [trackerSprint(4, '2026-11-27')], backlogOpenCount: 2 } };
     const { root, settle } = await setup(FoldersHost, fake);
     await settle();
-    expect(root.querySelector('[data-testid="no-next"]')?.textContent).toContain('Следующего спринта пока нет.');
+    expect(root.querySelector('[data-testid="no-next"]')?.textContent).toContain(
+      'Следующего спринта пока нет.',
+    );
     expect(root.querySelector('[data-testid="folders-create-sprint"]')).not.toBeNull();
-    expect([...root.querySelectorAll('tc-board-folder')].map((folder) => folder.getAttribute('data-folder'))).toEqual([
-      'backlog',
-    ]);
+    expect(
+      [...root.querySelectorAll('tc-board-folder')].map((folder) => folder.getAttribute('data-folder')),
+    ).toEqual(['backlog']);
   });
 
   it('shows the project-empty state without sprints or open tasks', async () => {
@@ -293,7 +328,10 @@ describe('BoardFolders (#557)', () => {
     await settle();
     expect(root.querySelector('[data-testid="folders-error"]')?.getAttribute('role')).toBe('alert');
 
-    fake.sprintRead = { ok: true, value: { sprints: [trackerSprint(4, '2026-11-27'), trackerSprint(5, null)], backlogOpenCount: 0 } };
+    fake.sprintRead = {
+      ok: true,
+      value: { sprints: [trackerSprint(4, '2026-11-27'), trackerSprint(5, null)], backlogOpenCount: 0 },
+    };
     window.dispatchEvent(new Event('online'));
     await settle();
     expect(root.querySelector('[data-testid="folders-error"]')).toBeNull();
@@ -348,7 +386,11 @@ describe('BoardFolders, remembered folders and the ?section= deep link (#562)', 
     HTMLElement.prototype.scrollIntoView = scrollIntoView;
     const fake = new FakeItems();
     fake.sprintRead = { ok: true, value: list() };
-    const { root, fake: items, settle } = await setup(FoldersHost, fake, memoryPersistedStateStorage(), (host) =>
+    const {
+      root,
+      fake: items,
+      settle,
+    } = await setup(FoldersHost, fake, memoryPersistedStateStorage(), (host) =>
       host.initialSection.set('backlog'),
     );
     await settle();
@@ -383,7 +425,10 @@ describe('Moves on the board (#558)', () => {
   });
 
   it('moves one open count from the source folder to the target', () => {
-    const list: TrackerSprintListDto = { sprints: [trackerSprint(4, '2026-11-27', 2), trackerSprint(5, null, 1)], backlogOpenCount: 3 };
+    const list: TrackerSprintListDto = {
+      sprints: [trackerSprint(4, '2026-11-27', 2), trackerSprint(5, null, 1)],
+      backlogOpenCount: 3,
+    };
     const after = countsAfterMove(list, null, 5);
     expect(after.sprints.map((sprint) => sprint.openCount)).toEqual([2, 2]);
     expect(after.backlogOpenCount).toBe(2);
@@ -395,7 +440,8 @@ describe('Moves on the board (#558)', () => {
     await settle();
     fake.calls[0]?.answer({ ok: true, value: [task(2), task(3), task(4)] });
     await settle();
-    const button = (n: number) => root.querySelector(`[data-move="${String(n)}"]`) as HTMLButtonElement | null;
+    const button = (n: number) =>
+      root.querySelector(`[data-move="${String(n)}"]`) as HTMLButtonElement | null;
     expect(button(3)?.getAttribute('aria-label')).toBe('Переместить TC-3: Task 3');
     expect(button(3)?.getAttribute('aria-haspopup')).toBe('menu');
 

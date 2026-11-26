@@ -56,7 +56,12 @@ interface World {
   readonly designTreeTruncated?: boolean;
 }
 
-const DEFAULT_DESIGN_FILES = ['features/24-settings.html', 'features/board.js', 'src/gen.html', 'references.md'];
+const DEFAULT_DESIGN_FILES = [
+  'features/24-settings.html',
+  'features/board.js',
+  'src/gen.html',
+  'references.md',
+];
 
 const DESIGN_ISSUES = [
   issue(24, ['ux-spec', 'design:approved'], { updated_at: '2026-09-20T00:00:00Z', state: 'closed' }),

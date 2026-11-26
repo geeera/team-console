@@ -28,7 +28,10 @@ describe('isOverviewDto: the snooze of a read row (#222)', () => {
     ['missing', undefined],
     ['null', null],
     ['without allowsUrgent', { snoozed: true, until: null, since: '2026-10-01T09:00:00Z' }],
-    ['with an unreadable until', { snoozed: true, until: 'soon', allowsUrgent: true, since: '2026-10-01T09:00:00Z' }],
+    [
+      'with an unreadable until',
+      { snoozed: true, until: 'soon', allowsUrgent: true, since: '2026-10-01T09:00:00Z' },
+    ],
   ])('refuses a snooze %s', (_case, snooze) => {
     expect(isOverviewDto(bodyOf({ ...row, snooze }))).toBe(false);
   });

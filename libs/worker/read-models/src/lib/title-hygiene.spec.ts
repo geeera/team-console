@@ -174,7 +174,10 @@ describe('title hygiene (#287)', () => {
       team: 'running',
       inbox: buildInbox({ openIssues: [issue(1)], reviewerLogins: ['r'], repoFullName: 'o/r' }),
       // A sprint DTO handed over unstripped must still come out clean: the row strips on its own.
-      sprint: { ...sprint, milestone: { ...sprint.milestone, title: milestone.title, number: 3, dueOn: '', url: null } },
+      sprint: {
+        ...sprint,
+        milestone: { ...sprint.milestone, title: milestone.title, number: 3, dueOn: '', url: null },
+      },
       snooze: { snoozed: false },
     });
     expectCleanTitles(row, 1);

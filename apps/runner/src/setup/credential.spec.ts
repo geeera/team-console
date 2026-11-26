@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadRunnerConfig, saveRunnerConfig, type RunnerConfig } from '../config/config';
 import { ACCOUNT_ID, RUNNER_ID } from '../testing/fake-console';
-import { CredentialSetupError, hostSpawnClaude, setUpCredential, type CredentialSetupDeps } from './credential';
+import {
+  CredentialSetupError,
+  hostSpawnClaude,
+  setUpCredential,
+  type CredentialSetupDeps,
+} from './credential';
 
 const TOKEN = `sk-ant-oat01-${'Qw7_-'.repeat(20)}end`;
 const API_KEY = `sk-ant-api03-${'Qw7_-'.repeat(20)}`;
@@ -117,8 +122,16 @@ describe('setup-credential (#634 PR 2, R-TOK-1…3)', () => {
   });
 
   it.each<[string, string, RegExp]>([
-    ['a token wrapped across two lines', `printf '${TOKEN.slice(0, 50)}\\n${TOKEN.slice(50)}\\n'`, /across lines/],
-    ['a token on stderr next to another on stdout', `echo ${TOKEN}; echo sk-ant-oat01-${'x'.repeat(40)} >&2`, /two different/],
+    [
+      'a token wrapped across two lines',
+      `printf '${TOKEN.slice(0, 50)}\\n${TOKEN.slice(50)}\\n'`,
+      /across lines/,
+    ],
+    [
+      'a token on stderr next to another on stdout',
+      `echo ${TOKEN}; echo sk-ant-oat01-${'x'.repeat(40)} >&2`,
+      /two different/,
+    ],
     ['an API key', `echo ${API_KEY}`, /API key/],
     ['nothing at all', 'echo "Login cancelled"', /no token/],
     ['a non-zero exit after a token', `echo ${TOKEN}; exit 3`, /exited 3/],
@@ -149,7 +162,10 @@ describe('setup-credential (#634 PR 2, R-TOK-1…3)', () => {
   it('refuses to switch a configured api-key runner to a setup-token without --replace', async () => {
     const other = join(root, 'other');
     await mkdir(other, { mode: 0o700 });
-    const config = { ...enrolled, credential: { kind: 'api-key', file: 'credentials/anthropic.key' } } as const;
+    const config = {
+      ...enrolled,
+      credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
+    } as const;
     await saveRunnerConfig(other, config);
     await expect(
       setUpCredential(deps({ home: other, config }), {

@@ -28,7 +28,11 @@ let nextLimitsId = 0;
         <tc-field
           [label]="limit.label | transloco"
           [hint]="'teamConfig.limits.range' | transloco: { min: limit.bound.min, max: limit.bound.max }"
-          [error]="invalid().includes(limit.key) ? ('teamConfig.limits.range' | transloco: { min: limit.bound.min, max: limit.bound.max }) : ''"
+          [error]="
+            invalid().includes(limit.key)
+              ? ('teamConfig.limits.range' | transloco: { min: limit.bound.min, max: limit.bound.max })
+              : ''
+          "
         >
           <input
             tcInput
@@ -48,7 +52,9 @@ let nextLimitsId = 0;
       </button>
     </ng-template>
     <ng-template tcSheetFooter="secondary">
-      <button tc-button type="button" (click)="ref.close()">{{ 'teamConfig.common.cancel' | transloco }}</button>
+      <button tc-button type="button" (click)="ref.close()">
+        {{ 'teamConfig.common.cancel' | transloco }}
+      </button>
     </ng-template>
   `,
   styles: `
@@ -84,7 +90,10 @@ export class RoleLimitsSheet {
 
   protected done(event: Event): void {
     event.preventDefault();
-    const parsed = LIMITS.map((limit) => [limit.key, boundedIntegerOf(this.values()[limit.key], limit.bound.min, limit.bound.max)] as const);
+    const parsed = LIMITS.map(
+      (limit) =>
+        [limit.key, boundedIntegerOf(this.values()[limit.key], limit.bound.min, limit.bound.max)] as const,
+    );
     const invalid = parsed.filter(([, value]) => value === null).map(([key]) => key);
     this.invalid.set(invalid);
     const first = invalid[0];

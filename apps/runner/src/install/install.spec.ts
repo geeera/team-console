@@ -36,7 +36,11 @@ const IMAGE = `ghcr.io/geeera/team-console-runner:0.1.0@sha256:${'b'.repeat(64)}
 /** `path` as a root-owned file and every directory above it as root-owned, writable by root only. */
 const rootChain = (path: string): Record<string, PathFacts> => {
   const stats: Record<string, PathFacts> = { [path]: ROOT_FILE };
-  for (let dir = path.slice(0, path.lastIndexOf('/')) || '/'; ; dir = dir.slice(0, dir.lastIndexOf('/')) || '/') {
+  for (
+    let dir = path.slice(0, path.lastIndexOf('/')) || '/';
+    ;
+    dir = dir.slice(0, dir.lastIndexOf('/')) || '/'
+  ) {
     stats[dir] = ROOT_DIR;
     if (dir === '/') {
       return stats;
@@ -85,7 +89,13 @@ function fakeHost(
     queries.push(line);
     const path = args[1];
     if (command === '/bin/ls' && args[0] === '-lde' && path !== undefined) {
-      return { code: 0, stdout: [`drwxr-xr-x  2 root  wheel  64 Nov 22 00:00 ${path}`, ...(overrides.acls?.[path] ?? [])].join('\n') };
+      return {
+        code: 0,
+        stdout: [
+          `drwxr-xr-x  2 root  wheel  64 Nov 22 00:00 ${path}`,
+          ...(overrides.acls?.[path] ?? []),
+        ].join('\n'),
+      };
     }
     return answers[line] ?? { code: 1, stdout: '' };
   };
@@ -108,7 +118,10 @@ function fakeHost(
     stat: async (path) => stats[path] ?? null,
     realpath:
       overrides.realpath ??
-      (async (path) => (overrides.realpaths !== undefined && path in overrides.realpaths ? (overrides.realpaths[path] ?? null) : path)),
+      (async (path) =>
+        overrides.realpaths !== undefined && path in overrides.realpaths
+          ? (overrides.realpaths[path] ?? null)
+          : path),
     read: async (path) => overrides.files?.[path] ?? null,
     apply: async (step) => {
       if (applied.length + 1 === overrides.failOn) {
@@ -266,7 +279,9 @@ describe('install --backend user (macOS)', () => {
     expect(lines.join('\n')).toMatch(/claude setup-token/);
     // Hosts queries only: dscl lists, `ls -lde` for the release's ACLs (#894), and nothing that changes the machine.
     expect(
-      host.queries.every((query) => query.startsWith('/usr/bin/dscl . -list') || query.startsWith('/bin/ls -lde ')),
+      host.queries.every(
+        (query) => query.startsWith('/usr/bin/dscl . -list') || query.startsWith('/bin/ls -lde '),
+      ),
     ).toBe(true);
   });
 
@@ -379,16 +394,21 @@ describe('install --backend user: the node the daemon runs', () => {
     return write?.kind === 'write' ? write.content : '';
   };
 
-  it.each([OPT, '/usr/local/bin/node', NODE])('names <prefix>/node when install was started with %s', async (given) => {
-    const { steps, next } = await planInstall({ ...userOptions(), node: given }, fakeHost());
-    const plist = plistOf(steps);
-    expect(plist).toBe(launchDaemonPlist(DOCUMENTED_DEFAULTS));
-    expect(plist).toContain('<string>/usr/local/lib/team-console-runner/node</string>');
-    // No user-writable directory on the runner process's PATH: Homebrew's belongs to the login user.
-    expect(plist).toContain('<key>PATH</key><string>/usr/local/lib/team-console-runner:/usr/bin:/bin:/usr/sbin:/sbin</string>');
-    expect(plist).not.toContain('/opt/homebrew');
-    expect(next[0]).toContain(`${NODE} /usr/local/lib/team-console-runner/team-console-runner.mjs enrol`);
-  });
+  it.each([OPT, '/usr/local/bin/node', NODE])(
+    'names <prefix>/node when install was started with %s',
+    async (given) => {
+      const { steps, next } = await planInstall({ ...userOptions(), node: given }, fakeHost());
+      const plist = plistOf(steps);
+      expect(plist).toBe(launchDaemonPlist(DOCUMENTED_DEFAULTS));
+      expect(plist).toContain('<string>/usr/local/lib/team-console-runner/node</string>');
+      // No user-writable directory on the runner process's PATH: Homebrew's belongs to the login user.
+      expect(plist).toContain(
+        '<key>PATH</key><string>/usr/local/lib/team-console-runner:/usr/bin:/bin:/usr/sbin:/sbin</string>',
+      );
+      expect(plist).not.toContain('/opt/homebrew');
+      expect(next[0]).toContain(`${NODE} /usr/local/lib/team-console-runner/team-console-runner.mjs enrol`);
+    },
+  );
 
   it('refuses a prefix without node (a release older than the bundled node), before any step', async () => {
     const host = fakeHost({ stats: { [NODE]: null } });
@@ -423,9 +443,15 @@ describe('install --backend user: the node the daemon runs', () => {
     const target = '/opt/somewhere/node';
     const host = fakeHost({
       realpaths: { [NODE]: target },
-      stats: { [NODE]: { uid: 0, mode: 0o755, kind: 'symlink' }, [target]: targetFacts, '/opt/somewhere': dirFacts },
+      stats: {
+        [NODE]: { uid: 0, mode: 0o755, kind: 'symlink' },
+        [target]: targetFacts,
+        '/opt/somewhere': dirFacts,
+      },
     });
-    await expect(planInstall(userOptions(), host)).rejects.toThrow(/must exist, be root-owned and writable by root only/);
+    await expect(planInstall(userOptions(), host)).rejects.toThrow(
+      /must exist, be root-owned and writable by root only/,
+    );
   });
 });
 
@@ -466,11 +492,17 @@ describe('install --backend user: the layout update leaves', () => {
   const FIX = `it must be a root-owned link to a release directly in ${RELEASES}`;
 
   it.each([
-    ['a link owned by the login user', { uid: 501, mode: 0o755, kind: 'symlink' }, 'is a link owned by uid 501, not by root'],
+    [
+      'a link owned by the login user',
+      { uid: 501, mode: 0o755, kind: 'symlink' },
+      'is a link owned by uid 501, not by root',
+    ],
     ['a directory rather than a link', ROOT_DIR, 'is a directory, not a link'],
     ['a file rather than a link', ROOT_FILE, 'is a file, not a link'],
   ] as const)('refuses a current that is %s, saying so', async (_, facts, reason) => {
-    await expect(planInstall(userOptions(), layout({ [CURRENT]: facts }))).rejects.toThrow(`${CURRENT} ${reason}; ${FIX}`);
+    await expect(planInstall(userOptions(), layout({ [CURRENT]: facts }))).rejects.toThrow(
+      `${CURRENT} ${reason}; ${FIX}`,
+    );
   });
 
   it('refuses a current that leads nowhere, saying so', async () => {
@@ -490,7 +522,12 @@ describe('install --backend user: the layout update leaves', () => {
       messageOf(layout({ [CURRENT]: { uid: 501, mode: 0o755, kind: 'symlink' } })),
       messageOf(layout({ [RELEASES]: null })),
       messageOf(layout({}, { [CURRENT]: null })),
-      messageOf(layout({ '/opt/elsewhere/0.2.0': ROOT_DIR, '/opt/elsewhere': ROOT_DIR }, { [CURRENT]: '/opt/elsewhere/0.2.0' })),
+      messageOf(
+        layout(
+          { '/opt/elsewhere/0.2.0': ROOT_DIR, '/opt/elsewhere': ROOT_DIR },
+          { [CURRENT]: '/opt/elsewhere/0.2.0' },
+        ),
+      ),
       messageOf(layout({ [RELEASE]: { uid: 501, mode: 0o755, kind: 'directory' } })),
     ]);
     expect(messages).not.toContain('accepted');
@@ -516,7 +553,11 @@ describe('install --backend user: the layout update leaves', () => {
     ['a directory below a release', `${RELEASE}/bin`],
   ])('refuses a current that points into %s', async (_, target) => {
     const host = layout(
-      { [target]: ROOT_DIR, '/Users/kirill/releases': { uid: 501, mode: 0o755, kind: 'directory' }, '/opt/elsewhere': ROOT_DIR },
+      {
+        [target]: ROOT_DIR,
+        '/Users/kirill/releases': { uid: 501, mode: 0o755, kind: 'directory' },
+        '/opt/elsewhere': ROOT_DIR,
+      },
       { [CURRENT]: target },
     );
     await expect(planInstall(userOptions(), host)).rejects.toThrow(
@@ -532,10 +573,13 @@ describe('install --backend user: the layout update leaves', () => {
 
   it('compares physical paths, so a prefix under a link still has its release under releases/', async () => {
     const physical = `/private${RELEASES}`;
-    const host = layout({ ...rootChain(physical), [`${physical}/0.2.0`]: ROOT_DIR, [physical]: ROOT_DIR }, {
-      [CURRENT]: `${physical}/0.2.0`,
-      [RELEASES]: physical,
-    });
+    const host = layout(
+      { ...rootChain(physical), [`${physical}/0.2.0`]: ROOT_DIR, [physical]: ROOT_DIR },
+      {
+        [CURRENT]: `${physical}/0.2.0`,
+        [RELEASES]: physical,
+      },
+    );
     await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
   });
 });
@@ -548,7 +592,8 @@ describe('install --backend user: every directory above the release, up to /', (
   const LOGIN_DIR: PathFacts = { uid: 501, mode: 0o755, kind: 'directory' };
   const ROOT_LINK: PathFacts = { uid: 0, mode: 0o755, kind: 'symlink' };
   const HOSTILE_ACE = ' 0: user:kirill allow add_file,add_subdirectory,delete_child';
-  const REFUSED = 'must exist, be root-owned and writable by root only (on macOS, no ACL entry that lets anyone else write)';
+  const REFUSED =
+    'must exist, be root-owned and writable by root only (on macOS, no ACL entry that lets anyone else write)';
   /** A flat release at `prefix`, root's alone, with every directory above it. */
   const releaseAt = (prefix: string): Record<string, PathFacts> => ({
     ...rootChain(`${prefix}/node`),
@@ -587,7 +632,13 @@ describe('install --backend user: every directory above the release, up to /', (
 
   it('accepts ancestors whose entries only deny, only read, or grant root', async () => {
     const host = fakeHost({
-      acls: { '/usr/local': [' 0: group:everyone deny delete', ' 1: user:kirill allow list,search', ' 2: user:root allow add_file'] },
+      acls: {
+        '/usr/local': [
+          ' 0: group:everyone deny delete',
+          ' 1: user:kirill allow list,search',
+          ' 2: user:root allow add_file',
+        ],
+      },
     });
     await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
   });
@@ -598,7 +649,9 @@ describe('install --backend user: every directory above the release, up to /', (
     const failing: FakeHost = {
       ...host,
       exec: async (command, args, options) =>
-        command === '/bin/ls' && args[1] === '/usr/local' ? { code: 1, stdout: '' } : await listing(command, args, options),
+        command === '/bin/ls' && args[1] === '/usr/local'
+          ? { code: 1, stdout: '' }
+          : await listing(command, args, options),
     };
     await expect(planInstall(userOptions(), failing)).rejects.toThrow(`/usr/local ${REFUSED}`);
   });
@@ -625,11 +678,15 @@ describe('install --backend user: every directory above the release, up to /', (
     });
 
     it('refuses a node link whose target sits two levels below a directory the login user owns', async () => {
-      await expect(planInstall(userOptions(), linked({ stats: { '/opt/tc': LOGIN_DIR } }))).rejects.toThrow(`/opt/tc ${REFUSED}`);
+      await expect(planInstall(userOptions(), linked({ stats: { '/opt/tc': LOGIN_DIR } }))).rejects.toThrow(
+        `/opt/tc ${REFUSED}`,
+      );
     });
 
     it('refuses a node link whose target sits below a directory with a hostile ACL entry', async () => {
-      await expect(planInstall(userOptions(), linked({ acls: { '/opt': [HOSTILE_ACE] } }))).rejects.toThrow(`/opt ${REFUSED}`);
+      await expect(planInstall(userOptions(), linked({ acls: { '/opt': [HOSTILE_ACE] } }))).rejects.toThrow(
+        `/opt ${REFUSED}`,
+      );
     });
   });
 
@@ -651,15 +708,15 @@ describe('install --backend user: every directory above the release, up to /', (
       });
 
     it('refuses when a directory above the physical release is the login user’s', async () => {
-      await expect(planInstall(userOptions(), underLink({ stats: { '/private/usr': LOGIN_DIR } }))).rejects.toThrow(
-        `/private/usr ${REFUSED}`,
-      );
+      await expect(
+        planInstall(userOptions(), underLink({ stats: { '/private/usr': LOGIN_DIR } })),
+      ).rejects.toThrow(`/private/usr ${REFUSED}`);
     });
 
     it('refuses when a directory above the physical release carries a hostile ACL entry', async () => {
-      await expect(planInstall(userOptions(), underLink({ acls: { '/private': [HOSTILE_ACE] } }))).rejects.toThrow(
-        `/private ${REFUSED}`,
-      );
+      await expect(
+        planInstall(userOptions(), underLink({ acls: { '/private': [HOSTILE_ACE] } })),
+      ).rejects.toThrow(`/private ${REFUSED}`);
     });
   });
 
@@ -670,7 +727,13 @@ describe('install --backend user: every directory above the release, up to /', (
     const through = (target: string, extra: Record<string, PathFacts | null> = {}): FakeHost =>
       fakeHost({
         realpaths: { [VIA]: target },
-        stats: { ...releaseAt(LINKED_PREFIX), ...rootChain(`${target}/x`), [target]: ROOT_DIR, [VIA]: ROOT_LINK, ...extra },
+        stats: {
+          ...releaseAt(LINKED_PREFIX),
+          ...rootChain(`${target}/x`),
+          [target]: ROOT_DIR,
+          [VIA]: ROOT_LINK,
+          ...extra,
+        },
       });
 
     it('accepts a root-owned link to a directory with only root’s directories above it', async () => {
@@ -693,7 +756,10 @@ describe('install --backend user: every directory above the release, up to /', (
     });
 
     it('refuses a link that leads nowhere', async () => {
-      const host = fakeHost({ realpaths: { [VIA]: null }, stats: { ...releaseAt(LINKED_PREFIX), [VIA]: ROOT_LINK } });
+      const host = fakeHost({
+        realpaths: { [VIA]: null },
+        stats: { ...releaseAt(LINKED_PREFIX), [VIA]: ROOT_LINK },
+      });
       await expect(planInstall(options, host)).rejects.toThrow(`${VIA} ${REFUSED}`);
     });
 
@@ -706,10 +772,12 @@ describe('install --backend user: every directory above the release, up to /', (
 
 /** #900: the launcher's `acl_root_only` runs the same table in launcher.spec.ts; the two must agree on every line. */
 describe('hasForeignWriteAcl: the ACL policy the launcher shares', () => {
-  const listing = (aces: readonly string[]): Exec => async () => ({
-    code: 0,
-    stdout: ['-r-xr-xr-x+ 1 root  wheel  64 Nov 22 00:00 /p', ...aces].join('\n'),
-  });
+  const listing =
+    (aces: readonly string[]): Exec =>
+    async () => ({
+      code: 0,
+      stdout: ['-r-xr-xr-x+ 1 root  wheel  64 Nov 22 00:00 /p', ...aces].join('\n'),
+    });
 
   it.each(ACL_POLICY_CASES)('$name: $ace', async ({ ace, foreignWrite }) => {
     expect(await hasForeignWriteAcl(listing([ace]), '/p')).toBe(foreignWrite);
@@ -741,7 +809,11 @@ describe('install --backend user: macOS ACLs on the release', () => {
     const target = `${PREFIX}/releases/0.2.0/bin/job-exec`;
     const host = fakeHost({
       realpaths: { [JOB_EXEC]: target },
-      stats: { [JOB_EXEC]: { uid: 0, mode: 0o755, kind: 'symlink' }, [target]: ROOT_FILE, [`${PREFIX}/releases/0.2.0/bin`]: ROOT_DIR },
+      stats: {
+        [JOB_EXEC]: { uid: 0, mode: 0o755, kind: 'symlink' },
+        [target]: ROOT_FILE,
+        [`${PREFIX}/releases/0.2.0/bin`]: ROOT_DIR,
+      },
       acls: { [target]: [' 0: user:kirill allow write'] },
     });
     await expect(planInstall(userOptions(), host)).rejects.toThrow(`${target} must exist, be root-owned`);
@@ -750,7 +822,11 @@ describe('install --backend user: macOS ACLs on the release', () => {
   it('accepts entries that only deny, only read, or grant root', async () => {
     const host = fakeHost({
       acls: {
-        [JOB_EXEC]: [' 0: group:everyone deny write,delete', ' 1: user:kirill allow read,execute', ' 2: user:root allow write'],
+        [JOB_EXEC]: [
+          ' 0: group:everyone deny write,delete',
+          ' 1: user:kirill allow read,execute',
+          ' 2: user:root allow write',
+        ],
       },
     });
     await expect(planInstall(userOptions(), host)).resolves.toBeDefined();
@@ -763,9 +839,13 @@ describe('install --backend user: macOS ACLs on the release', () => {
     const failing: FakeHost = {
       ...host,
       exec: async (command, args, options) =>
-        command === '/bin/ls' && args[1] === JOB_EXEC ? { code: 1, stdout: '' } : await listing(command, args, options),
+        command === '/bin/ls' && args[1] === JOB_EXEC
+          ? { code: 1, stdout: '' }
+          : await listing(command, args, options),
     };
-    await expect(planInstall(userOptions(), failing)).rejects.toThrow(`${JOB_EXEC} must exist, be root-owned`);
+    await expect(planInstall(userOptions(), failing)).rejects.toThrow(
+      `${JOB_EXEC} must exist, be root-owned`,
+    );
   });
 });
 
@@ -774,7 +854,12 @@ describe('install --backend container: the node the service runs', () => {
   const CELLAR = '/home/linuxbrew/.linuxbrew/Cellar/node/26.0.0/bin/node';
   const OPT = '/home/linuxbrew/.linuxbrew/opt/node/bin/node';
   const linux = (overrides: Parameters<typeof fakeHost>[0] = {}): FakeHost =>
-    fakeHost({ platform: 'linux', uid: 1000, exec: { 'docker version': { code: 0, stdout: '' } }, ...overrides });
+    fakeHost({
+      platform: 'linux',
+      uid: 1000,
+      exec: { 'docker version': { code: 0, stdout: '' } },
+      ...overrides,
+    });
   const unitOf = (steps: readonly InstallStep[]): string => {
     const unit = steps.find((step) => step.kind === 'write');
     return unit?.kind === 'write' ? unit.content : '';
@@ -785,7 +870,9 @@ describe('install --backend container: the node the service runs', () => {
     ['Cellar path itself', CELLAR],
     ['versionless opt link', OPT],
   ])('writes the versionless opt link for the %s, never the Cellar path', async (_, given) => {
-    const host = linux({ realpaths: { '/home/linuxbrew/.linuxbrew/bin/node': CELLAR, [OPT]: CELLAR, [CELLAR]: CELLAR } });
+    const host = linux({
+      realpaths: { '/home/linuxbrew/.linuxbrew/bin/node': CELLAR, [OPT]: CELLAR, [CELLAR]: CELLAR },
+    });
     const unit = unitOf((await planInstall({ ...containerOptions(), node: given }, host)).steps);
     expect(unit).toContain(`ExecStart=${OPT} `);
     expect(unit).not.toContain('Cellar');
@@ -793,16 +880,16 @@ describe('install --backend container: the node the service runs', () => {
 
   it('keeps a node outside Homebrew as given, not its realpath', async () => {
     const host = linux({ realpaths: { '/usr/local/bin/node': '/usr/local/lib/nodejs/node-v22/bin/node' } });
-    expect(unitOf((await planInstall({ ...containerOptions(), node: '/usr/local/bin/node' }, host)).steps)).toContain(
-      'ExecStart=/usr/local/bin/node ',
-    );
+    expect(
+      unitOf((await planInstall({ ...containerOptions(), node: '/usr/local/bin/node' }, host)).steps),
+    ).toContain('ExecStart=/usr/local/bin/node ');
   });
 
   it('refuses a Cellar node when the versionless link is missing', async () => {
     const host = linux({ realpaths: { '/home/linuxbrew/.linuxbrew/bin/node': CELLAR, [OPT]: null } });
-    await expect(planInstall({ ...containerOptions(), node: '/home/linuxbrew/.linuxbrew/bin/node' }, host)).rejects.toThrow(
-      `${OPT} does not exist: run brew link node`,
-    );
+    await expect(
+      planInstall({ ...containerOptions(), node: '/home/linuxbrew/.linuxbrew/bin/node' }, host),
+    ).rejects.toThrow(`${OPT} does not exist: run brew link node`);
   });
 
   describe('a planted Homebrew layout on disk', () => {
@@ -823,11 +910,22 @@ describe('install --backend container: the node the service runs', () => {
     });
 
     const realHost = (): InstallHost['realpath'] =>
-      systemInstallHost({ platform: 'linux', uid: 1000, homeDir: '/nonexistent', exec: async () => ({ code: 1, stdout: '' }) })
-        .realpath;
+      systemInstallHost({
+        platform: 'linux',
+        uid: 1000,
+        homeDir: '/nonexistent',
+        exec: async () => ({ code: 1, stdout: '' }),
+      }).realpath;
 
     it('the unit names opt/node, which still resolves after brew upgrade swaps the keg', async () => {
-      const unit = unitOf((await planInstall({ ...containerOptions(), node: join(root, 'bin/node') }, linux({ realpath: realHost() }))).steps);
+      const unit = unitOf(
+        (
+          await planInstall(
+            { ...containerOptions(), node: join(root, 'bin/node') },
+            linux({ realpath: realHost() }),
+          )
+        ).steps,
+      );
       expect(unit).toContain(`ExecStart=${join(root, 'opt/node/bin/node')} `);
       expect(unit).not.toContain('Cellar');
 
@@ -837,7 +935,9 @@ describe('install --backend container: the node the service runs', () => {
       await rm(join(root, 'opt/node'));
       await symlink('../Cellar/node/26.1.0', join(root, 'opt/node'));
       await rm(join(root, 'Cellar/node/26.0.0'), { recursive: true });
-      expect(await realHost()(join(root, 'opt/node/bin/node'))).toBe(join(root, 'Cellar/node/26.1.0/bin/node'));
+      expect(await realHost()(join(root, 'opt/node/bin/node'))).toBe(
+        join(root, 'Cellar/node/26.1.0/bin/node'),
+      );
     });
 
     it('refuses when opt/node is missing', async () => {

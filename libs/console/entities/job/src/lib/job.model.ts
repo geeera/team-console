@@ -1,6 +1,13 @@
 import type { IconName } from '@console/shared/ui';
 import { withoutInvisibles } from '@shared/plain-text';
-import { ACTIONS_DISPATCH_FAILED, ACTIONS_NO_SHOW, type JobDto, type JobEventDto, type JobKind, type JobState } from '@shared/contracts';
+import {
+  ACTIONS_DISPATCH_FAILED,
+  ACTIONS_NO_SHOW,
+  type JobDto,
+  type JobEventDto,
+  type JobKind,
+  type JobState,
+} from '@shared/contracts';
 
 /**
  * The kinds Run now offers (#464, ADR 0008 row 2-E): the ones `POST …/jobs` runs from the kind alone. `review` needs
@@ -154,7 +161,8 @@ export function isActionsSetupFailure(job: JobDto): boolean {
 
 function failureReasonOf(job: JobDto): 'dispatch-failed' | 'actions-no-show' | 'other' {
   const metrics = job.result?.['metrics'];
-  const reason = typeof metrics === 'object' && metrics !== null ? (metrics as Record<string, unknown>)['reason'] : null;
+  const reason =
+    typeof metrics === 'object' && metrics !== null ? (metrics as Record<string, unknown>)['reason'] : null;
   return reason === ACTIONS_DISPATCH_FAILED || reason === ACTIONS_NO_SHOW ? reason : 'other';
 }
 

@@ -1,5 +1,12 @@
 import { isRecord } from '@shared/contracts';
-import { createRemoteJWKSet, customFetch, errors, jwtVerify, type JWTPayload, type JWTVerifyGetKey } from 'jose';
+import {
+  createRemoteJWKSet,
+  customFetch,
+  errors,
+  jwtVerify,
+  type JWTPayload,
+  type JWTVerifyGetKey,
+} from 'jose';
 import type { AccessConfig } from './access-config';
 import type { Identity } from './auth.types';
 

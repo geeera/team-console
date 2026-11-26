@@ -23,8 +23,22 @@ import {
   renderingFor,
   type SetupWorld,
 } from '../testing/actions-setup-kit';
-import { INSTALLATION_ID, TOKEN_SENTINEL, json, localEnv, stubGitHub, type GitHubCall, type StubGitHub } from '../testing/github-kit';
-import { seedMembership, seedSession, seedSessionUser, seedUser, sendAsSession } from '../testing/session-kit';
+import {
+  INSTALLATION_ID,
+  TOKEN_SENTINEL,
+  json,
+  localEnv,
+  stubGitHub,
+  type GitHubCall,
+  type StubGitHub,
+} from '../testing/github-kit';
+import {
+  seedMembership,
+  seedSession,
+  seedSessionUser,
+  seedUser,
+  sendAsSession,
+} from '../testing/session-kit';
 import { jobActor, seedTrackerProject } from '../testing/tracker-kit';
 import { localJobHeader } from '../testing/local-job-kit';
 import { WORKFLOW_PR_PER_PROJECT } from './actions-setup-problems';
@@ -89,7 +103,9 @@ async function seedProject(options: { installationId?: number } = {}): Promise<F
     throw new Error('seeded project missing');
   }
   const installationId = options.installationId ?? INSTALLATION_ID;
-  await env.DB.prepare(`UPDATE projects SET installation_id = ?2 WHERE slug = ?1`).bind(slug, installationId).run();
+  await env.DB.prepare(`UPDATE projects SET installation_id = ?2 WHERE slug = ?1`)
+    .bind(slug, installationId)
+    .run();
   const world = readyWorld(row.repo_id, rendering);
   world.installationId = installationId;
   world.workflow = null;
@@ -139,9 +155,13 @@ const revokes = (stub: StubGitHub): GitHubCall[] =>
 /** Everything that is neither a read nor the token's mint and revoke. */
 const writes = (stub: StubGitHub): GitHubCall[] =>
   stub.calls.filter(
-    (call) => call.method !== 'GET' && !call.url.pathname.endsWith('/access_tokens') && call.url.pathname !== '/installation/token',
+    (call) =>
+      call.method !== 'GET' &&
+      !call.url.pathname.endsWith('/access_tokens') &&
+      call.url.pathname !== '/installation/token',
   );
-const bodyOf = (call: GitHubCall | undefined): Record<string, unknown> => JSON.parse(call?.body ?? '{}') as Record<string, unknown>;
+const bodyOf = (call: GitHubCall | undefined): Record<string, unknown> =>
+  JSON.parse(call?.body ?? '{}') as Record<string, unknown>;
 
 /** The bearer GitHub minted for the write: `stubGitHub` numbers its tokens in the order of the mints. */
 function writeBearer(stub: StubGitHub): string {
@@ -200,7 +220,11 @@ describe('POST /api/v1/projects/:slug/actions-setup/workflow-pr: the setup pull 
     expect(bodyOf(mint)).toEqual({ repository_ids: [fixture.world.repoId], permissions: WRITE_PERMISSIONS });
     const bearer = writeBearer(fixture.stub);
     const withWriteToken = fixture.stub.calls.filter((call) => call.headers.get('authorization') === bearer);
-    expect(withWriteToken.map((call) => `${call.method} ${call.url.pathname.replace(`/repos/${fixture.repo}`, '')}`)).toEqual([
+    expect(
+      withWriteToken.map(
+        (call) => `${call.method} ${call.url.pathname.replace(`/repos/${fixture.repo}`, '')}`,
+      ),
+    ).toEqual([
       'GET /branches/main',
       'POST /git/refs',
       `GET /contents/${WORKFLOW}`,
@@ -276,8 +300,19 @@ describe('POST /api/v1/projects/:slug/actions-setup/workflow-pr: the setup pull 
       {
         method: 'POST',
         origin: SETUP_ORIGIN,
-        headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'X-Forwarded-Host': 'evil.example.com' },
-        body: JSON.stringify({ branch: 'main', repo: 'evil/evil', repositoryId: 1, installationId: 2, text: 'on: push', kind: 'bump' }),
+        headers: {
+          'Sec-Fetch-Site': 'same-origin',
+          'Content-Type': 'application/json',
+          'X-Forwarded-Host': 'evil.example.com',
+        },
+        body: JSON.stringify({
+          branch: 'main',
+          repo: 'evil/evil',
+          repositoryId: 1,
+          installationId: 2,
+          text: 'on: push',
+          kind: 'bump',
+        }),
         github: new ApiGitHub({ fetch: steered.stub.fetch }),
       },
     );
@@ -295,8 +330,16 @@ describe('POST /api/v1/projects/:slug/actions-setup/workflow-pr: the setup pull 
     const fixture = await seedProject();
     await open(fixture);
     const rows = await auditOf(fixture.slug);
-    expect(rows.map((row) => row.kind)).toEqual(['project.actions-workflow-pr-attempted', 'project.actions-workflow-pr-opened']);
-    const facts = { kind: 'setup', repositoryId: fixture.world.repoId, installationId: INSTALLATION_ID, sha256: rendering.sha256 };
+    expect(rows.map((row) => row.kind)).toEqual([
+      'project.actions-workflow-pr-attempted',
+      'project.actions-workflow-pr-opened',
+    ]);
+    const facts = {
+      kind: 'setup',
+      repositoryId: fixture.world.repoId,
+      installationId: INSTALLATION_ID,
+      sha256: rendering.sha256,
+    };
     expect(rows[0]?.details).toEqual(facts);
     expect(rows[1]?.details).toEqual({
       ...facts,
@@ -304,7 +347,9 @@ describe('POST /api/v1/projects/:slug/actions-setup/workflow-pr: the setup pull 
       branch: actionsSetupBranchOf(rendering.sha256),
       commit: COMMIT_SHA,
     });
-    expect(rows.every((row) => row.account_id === OWNER_ACCOUNT_ID && row.actor === 'local-owner')).toBe(true);
+    expect(rows.every((row) => row.account_id === OWNER_ACCOUNT_ID && row.actor === 'local-owner')).toBe(
+      true,
+    );
   });
 
   it('keeps the token out of the answer, the logs and the audit', async () => {
@@ -391,7 +436,9 @@ describe('a pull request or a branch that is already there', () => {
 
   it('says so when the open PR on its branch is someone else’s', async () => {
     const fixture = await seedProject();
-    fixture.world.pull = consolePull(fixture.world, fixture.repo, rendering, { user: { login: 'someone', type: 'User' } });
+    fixture.world.pull = consolePull(fixture.world, fixture.repo, rendering, {
+      user: { login: 'someone', type: 'User' },
+    });
     const response = await open(fixture);
     expect(response.status).toBe(409);
     expect(((await response.json()) as { provenance: string }).provenance).toBe('foreign');
@@ -403,11 +450,16 @@ describe('a pull request or a branch that is already there', () => {
     const response = await open(fixture);
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('actions-setup-branch-exists');
-    expect(((await response.json()) as { link: string }).link).toBe(`https://github.com/${fixture.repo}/branches`);
+    expect(((await response.json()) as { link: string }).link).toBe(
+      `https://github.com/${fixture.repo}/branches`,
+    );
     expect(writes(fixture.stub).map((call) => call.method)).toEqual(['POST']);
     expect(revokes(fixture.stub)).toHaveLength(1);
     const rows = await auditOf(fixture.slug);
-    expect(rows.map((row) => row.kind)).toEqual(['project.actions-workflow-pr-attempted', 'project.actions-workflow-pr-failed']);
+    expect(rows.map((row) => row.kind)).toEqual([
+      'project.actions-workflow-pr-attempted',
+      'project.actions-workflow-pr-failed',
+    ]);
     expect(rows[1]?.details['reason']).toBe('branch-exists');
   });
 
@@ -418,7 +470,9 @@ describe('a pull request or a branch that is already there', () => {
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('actions-setup-pr-tampered');
     const close = writes(fixture.stub).at(-1);
-    expect(`${close?.method ?? ''} ${close?.url.pathname ?? ''}`).toBe(`PATCH /repos/${fixture.repo}/pulls/${String(SETUP_PR_NUMBER)}`);
+    expect(`${close?.method ?? ''} ${close?.url.pathname ?? ''}`).toBe(
+      `PATCH /repos/${fixture.repo}/pulls/${String(SETUP_PR_NUMBER)}`,
+    );
     expect(bodyOf(close)).toEqual({ state: 'closed' });
     expect(revokes(fixture.stub)).toHaveLength(1);
     expect((await auditOf(fixture.slug)).at(-1)?.details['reason']).toBe('pr-tampered');
@@ -428,11 +482,19 @@ describe('a pull request or a branch that is already there', () => {
 describe('permissions the installer has not accepted', () => {
   it('names the missing permissions from the app’s own read (422), with no mint and the installation’s page', async () => {
     const fixture = await seedProject();
-    fixture.world.permissions = { metadata: 'read', contents: 'write', pull_requests: 'read', actions: 'write' };
+    fixture.world.permissions = {
+      metadata: 'read',
+      contents: 'write',
+      pull_requests: 'read',
+      actions: 'write',
+    };
     const response = await open(fixture);
     expect(response.status).toBe(422);
     expect(await slugOf(response)).toBe('actions-permission-missing');
-    expect(await response.json()).toMatchObject({ permissions: ['workflows', 'pull_requests'], link: fixture.world.htmlUrl });
+    expect(await response.json()).toMatchObject({
+      permissions: ['workflows', 'pull_requests'],
+      link: fixture.world.htmlUrl,
+    });
     expect(scopedMints(fixture.stub)).toEqual([]);
     expect(await auditOf(fixture.slug)).toEqual([]);
   });
@@ -445,8 +507,15 @@ describe('permissions the installer has not accepted', () => {
     expect(await slugOf(response)).toBe('actions-permission-missing');
     expect(writes(fixture.stub)).toEqual([]);
     const rows = await auditOf(fixture.slug);
-    expect(rows.map((row) => row.kind)).toEqual(['project.actions-workflow-pr-attempted', 'project.actions-workflow-pr-failed']);
-    expect(rows[1]?.details).toMatchObject({ reason: 'mint-failed', failure: 'permission-missing', githubStatus: 422 });
+    expect(rows.map((row) => row.kind)).toEqual([
+      'project.actions-workflow-pr-attempted',
+      'project.actions-workflow-pr-failed',
+    ]);
+    expect(rows[1]?.details).toMatchObject({
+      reason: 'mint-failed',
+      failure: 'permission-missing',
+      githubStatus: 422,
+    });
   });
 
   it('a suspended installation, or one linked to another account, is never minted through', async () => {
@@ -466,20 +535,27 @@ describe('the kill switch (SEC 4): the reviewed var and the operator’s stop', 
     ['false', 'false'],
     ['unset', undefined],
     ['TRUE (only the exact value counts)', 'TRUE'],
-  ])('answers 503 github-write-disabled with the var %s, before any GitHub call, count or audit row', async (_case, value) => {
-    const fixture = await seedProject();
-    const response = await open(fixture, { bindings: { ALLOW_ACTIONS_SETUP_WRITE: value } });
-    expect(response.status).toBe(503);
-    expect(await slugOf(response)).toBe('github-write-disabled');
-    expect(fixture.stub.calls).toEqual([]);
-    expect(await auditOf(fixture.slug)).toEqual([]);
-    const counted = await env.DB.prepare(`SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE '%actions-setup-pr'`).first<{ n: number }>();
-    expect(counted?.n).toBe(0);
-  });
+  ])(
+    'answers 503 github-write-disabled with the var %s, before any GitHub call, count or audit row',
+    async (_case, value) => {
+      const fixture = await seedProject();
+      const response = await open(fixture, { bindings: { ALLOW_ACTIONS_SETUP_WRITE: value } });
+      expect(response.status).toBe(503);
+      expect(await slugOf(response)).toBe('github-write-disabled');
+      expect(fixture.stub.calls).toEqual([]);
+      expect(await auditOf(fixture.slug)).toEqual([]);
+      const counted = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE '%actions-setup-pr'`,
+      ).first<{ n: number }>();
+      expect(counted?.n).toBe(0);
+    },
+  );
 
   it('answers the same 503 once the operator wrote a stop, on the next request and without a deploy', async () => {
     const fixture = await seedProject();
-    await env.DB.prepare(`INSERT INTO operator_stops (name, stopped_at, reason) VALUES ('actions-setup-write', '2026-11-18T10:00:00Z', 'incident drill')`).run();
+    await env.DB.prepare(
+      `INSERT INTO operator_stops (name, stopped_at, reason) VALUES ('actions-setup-write', '2026-11-18T10:00:00Z', 'incident drill')`,
+    ).run();
     const response = await open(fixture);
     expect(response.status).toBe(503);
     expect(await slugOf(response)).toBe('github-write-disabled');
@@ -493,7 +569,9 @@ describe('the kill switch (SEC 4): the reviewed var and the operator’s stop', 
     const fixture = await seedProject();
     const response = await open(fixture, { bindings: { ALLOW_ACTIONS_SETUP_WRITE: 'false' } });
     expect(await slugOf(response)).toBe('github-write-disabled');
-    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM operator_stops`).first<{ n: number }>())?.n).toBe(0);
+    expect((await env.DB.prepare(`SELECT COUNT(*) AS n FROM operator_stops`).first<{ n: number }>())?.n).toBe(
+      0,
+    );
   });
 });
 
@@ -505,14 +583,28 @@ describe('who may open it (security note row "Cross-tenant or member trigger")',
     const path = `/api/v1/projects/${fixture.slug}/actions-setup/workflow-pr`;
 
     const ownerOfB = await seedSessionUser('owner');
-    const foreign = await sendAsSession(ownerOfB, 'POST', path, undefined, { github, origin: SETUP_ORIGIN }, bindings);
+    const foreign = await sendAsSession(
+      ownerOfB,
+      'POST',
+      path,
+      undefined,
+      { github, origin: SETUP_ORIGIN },
+      bindings,
+    );
     expect(foreign.status).toBe(404);
     expect(await slugOf(foreign)).toBe('project-not-found');
 
     const memberId = await seedUser('member');
     await seedMembership(OWNER_ACCOUNT_ID, memberId, 'member');
     const member = { cookie: await seedSession(memberId) };
-    const refused = await sendAsSession(member, 'POST', path, undefined, { github, origin: SETUP_ORIGIN }, bindings);
+    const refused = await sendAsSession(
+      member,
+      'POST',
+      path,
+      undefined,
+      { github, origin: SETUP_ORIGIN },
+      bindings,
+    );
     expect(refused.status).toBe(403);
     expect(await slugOf(refused)).toBe('owner-only');
 
@@ -524,7 +616,9 @@ describe('who may open it (security note row "Cross-tenant or member trigger")',
     const fixture = await seedProject();
     const path = `/api/v1/projects/${fixture.slug}/actions-setup/workflow-pr`;
     for (const role of JOB_ROLES) {
-      const response = await open(fixture, { headers: { Authorization: localJobHeader(jobActor(role), path) } });
+      const response = await open(fixture, {
+        headers: { Authorization: localJobHeader(jobActor(role), path) },
+      });
       expect(response.status, role).toBe(403);
     }
     expect(fixture.stub.calls).toEqual([]);
@@ -556,26 +650,36 @@ describe('refusals and failures', () => {
   });
 
   it('logs the volume line at error level once the attempts of all accounts pass the threshold, and refuses nothing', async () => {
-    await env.DB.prepare(`INSERT INTO rate_limits (key, window_start, count) VALUES ('all:actions-setup-pr', ?1, 30)`)
+    await env.DB.prepare(
+      `INSERT INTO rate_limits (key, window_start, count) VALUES ('all:actions-setup-pr', ?1, 30)`,
+    )
       .bind(String(Math.floor(Date.now() / 3_600_000) * 3600))
       .run();
     const fixture = await seedProject();
     const logs: string[] = [];
     expect((await open(fixture, { logs })).status).toBe(201);
-    const line = logs.map((entry) => JSON.parse(entry) as Record<string, unknown>).find((entry) => entry['message'] === 'actions setup write volume');
+    const line = logs
+      .map((entry) => JSON.parse(entry) as Record<string, unknown>)
+      .find((entry) => entry['message'] === 'actions setup write volume');
     expect(line).toMatchObject({ level: 'error', count: 31, threshold: 30 });
   });
 
-  it.each(['refs', 'contents', 'pulls'] as const)('a GitHub 5xx on %s answers 502, audits the failure and still revokes the token', async (failing) => {
-    const fixture = await seedProject();
-    fixture.world.write.failing = failing;
-    const response = await open(fixture);
-    expect(response.status).toBe(502);
-    expect(await slugOf(response)).toBe('github-unavailable');
-    expect(revokes(fixture.stub)).toHaveLength(1);
-    const rows = await auditOf(fixture.slug);
-    expect(rows.at(-1)).toMatchObject({ kind: 'project.actions-workflow-pr-failed', details: { reason: 'github-error', githubStatus: 503 } });
-  });
+  it.each(['refs', 'contents', 'pulls'] as const)(
+    'a GitHub 5xx on %s answers 502, audits the failure and still revokes the token',
+    async (failing) => {
+      const fixture = await seedProject();
+      fixture.world.write.failing = failing;
+      const response = await open(fixture);
+      expect(response.status).toBe(502);
+      expect(await slugOf(response)).toBe('github-unavailable');
+      expect(revokes(fixture.stub)).toHaveLength(1);
+      const rows = await auditOf(fixture.slug);
+      expect(rows.at(-1)).toMatchObject({
+        kind: 'project.actions-workflow-pr-failed',
+        details: { reason: 'github-error', githubStatus: 503 },
+      });
+    },
+  );
 
   it('answers 503 console-origin-misconfigured on another origin, before any GitHub call', async () => {
     const fixture = await seedProject();
@@ -596,7 +700,10 @@ describe('refusals and failures', () => {
 
   it('refuses a body larger than a small write', async () => {
     const fixture = await seedProject();
-    const response = await open(fixture, { body: 'x'.repeat(5 * 1024), headers: { 'Content-Type': 'application/json' } });
+    const response = await open(fixture, {
+      body: 'x'.repeat(5 * 1024),
+      headers: { 'Content-Type': 'application/json' },
+    });
     expect(response.status).toBe(413);
     expect(fixture.stub.calls).toEqual([]);
   });

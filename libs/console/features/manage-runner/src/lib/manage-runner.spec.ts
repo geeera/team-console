@@ -58,8 +58,12 @@ describe('ManageRunner.revoke (#464)', () => {
   });
 
   it('keeps the dialog with the reason on a refusal and reports nothing revoked', async () => {
-    const { manage, failures } = setup([{ ok: false, failure: { kind: 'offline', slug: null, field: null } }]);
-    expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({ kind: 'cancelled' });
+    const { manage, failures } = setup([
+      { ok: false, failure: { kind: 'offline', slug: null, field: null } },
+    ]);
+    expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({
+      kind: 'cancelled',
+    });
     expect(failures[0]).toContain('Нет сети');
   });
 
@@ -67,7 +71,9 @@ describe('ManageRunner.revoke (#464)', () => {
     for (const kind of ['revoked', 'not-found'] as const) {
       TestBed.resetTestingModule();
       const { manage, failures } = setup([{ ok: false, failure: { kind, slug: null, field: null } }]);
-      expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({ kind: 'stale' });
+      expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({
+        kind: 'stale',
+      });
       expect(failures).toHaveLength(1);
     }
   });
@@ -75,7 +81,9 @@ describe('ManageRunner.revoke (#464)', () => {
   it('does nothing when the owner cancels', async () => {
     const { manage, revoke } = setup([]);
     (TestBed.inject(Sheet).confirm as ReturnType<typeof vi.fn>).mockResolvedValueOnce(false);
-    expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({ kind: 'cancelled' });
+    expect(await manage.revoke({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() })).toEqual({
+      kind: 'cancelled',
+    });
     expect(revoke).not.toHaveBeenCalled();
   });
 });
@@ -112,7 +120,11 @@ describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
       }),
     };
     TestBed.configureTestingModule({
-      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }, { provide: RunnersApi, useValue: api }],
+      providers: [
+        provideConsoleI18n(),
+        { provide: Sheet, useValue: sheet },
+        { provide: RunnersApi, useValue: api },
+      ],
     });
     return { manage: TestBed.inject(ManageRunner), options, failures };
   }
@@ -136,7 +148,9 @@ describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
       const { manage, failures } = setup({
         clearSuspect: async () => ({ ok: false as const, failure: { kind, slug: null, field: null } }),
       });
-      expect(await manage.clearSuspect({ accountId: OWNER_ACCOUNT_ID, runner: SUSPECT })).toEqual({ kind: 'stale' });
+      expect(await manage.clearSuspect({ accountId: OWNER_ACCOUNT_ID, runner: SUSPECT })).toEqual({
+        kind: 'stale',
+      });
       expect(failures).toHaveLength(1);
     }
   });
@@ -161,7 +175,10 @@ describe('ManageRunner.clearSuspect and withdrawEnrolment', () => {
 
     TestBed.resetTestingModule();
     const offline = setup({
-      withdrawEnrolment: async () => ({ ok: false as const, failure: { kind: 'offline' as const, slug: null, field: null } }),
+      withdrawEnrolment: async () => ({
+        ok: false as const,
+        failure: { kind: 'offline' as const, slug: null, field: null },
+      }),
     });
     expect(await offline.manage.withdrawEnrolment(OWNER_ACCOUNT_ID, PENDING)).toEqual({ kind: 'cancelled' });
   });
@@ -192,7 +209,11 @@ describe('ManageRunner.claimEnroller', () => {
     };
     const api = { claimEnroller: vi.fn(claimEnroller) };
     TestBed.configureTestingModule({
-      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }, { provide: RunnersApi, useValue: api }],
+      providers: [
+        provideConsoleI18n(),
+        { provide: Sheet, useValue: sheet },
+        { provide: RunnersApi, useValue: api },
+      ],
     });
     return { manage: TestBed.inject(ManageRunner), api, options, failures };
   }
@@ -218,7 +239,9 @@ describe('ManageRunner.claimEnroller', () => {
     ] as const) {
       TestBed.resetTestingModule();
       const { manage, failures } = setup(async () => ({ ok: false, failure: { kind, slug, field: null } }));
-      expect(await manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({ kind: 'stale' });
+      expect(await manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({
+        kind: 'stale',
+      });
       expect(failures).toHaveLength(1);
     }
     TestBed.resetTestingModule();
@@ -227,7 +250,9 @@ describe('ManageRunner.claimEnroller', () => {
       failure: { kind: 'forbidden', slug: 'runner-enroller-not-sole-owner', field: null },
     }));
     await second.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY });
-    expect(second.failures[0]).toBe('Закрепить раннер может только единственный владелец аккаунта. Подключите раннер заново.');
+    expect(second.failures[0]).toBe(
+      'Закрепить раннер может только единственный владелец аккаунта. Подключите раннер заново.',
+    );
 
     // #899: the Access owner before the GitHub link is told what is missing, not the generic refusal.
     TestBed.resetTestingModule();
@@ -242,7 +267,9 @@ describe('ManageRunner.claimEnroller', () => {
 
     TestBed.resetTestingModule();
     const offline = setup(async () => ({ ok: false, failure: { kind: 'offline', slug: null, field: null } }));
-    expect(await offline.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({ kind: 'cancelled' });
+    expect(await offline.manage.claimEnroller({ accountId: OWNER_ACCOUNT_ID, runner: LEGACY })).toEqual({
+      kind: 'cancelled',
+    });
   });
 });
 
@@ -251,7 +278,11 @@ describe('ManageRunner.editProjects', () => {
     const updated = runnerFixture({ allowedProjects: [] });
     const sheet = { open: vi.fn(() => ({ closed: of(updated) })) };
     TestBed.configureTestingModule({
-      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }, { provide: RunnersApi, useValue: {} }],
+      providers: [
+        provideConsoleI18n(),
+        { provide: Sheet, useValue: sheet },
+        { provide: RunnersApi, useValue: {} },
+      ],
     });
     const projects = [{ slug: 'team-console', displayName: 'Team Console' }];
     const result = await TestBed.inject(ManageRunner).editProjects({
@@ -262,7 +293,10 @@ describe('ManageRunner.editProjects', () => {
     expect(result).toEqual(updated);
     expect(sheet.open).toHaveBeenCalledWith(
       RunnerProjectsDialog,
-      expect.objectContaining({ title: 'Проекты раннера', data: { accountId: OWNER_ACCOUNT_ID, runner: runnerFixture(), projects } }),
+      expect.objectContaining({
+        title: 'Проекты раннера',
+        data: { accountId: OWNER_ACCOUNT_ID, runner: runnerFixture(), projects },
+      }),
     );
   });
 });
@@ -270,7 +304,10 @@ describe('ManageRunner.editProjects', () => {
 describe('RunnerProjectsDialog', () => {
   async function render(
     runner: RunnerDto,
-    answer: () => RunnerResult<RunnerDto> = () => ({ ok: true, value: runnerFixture({ allowedProjects: ['storify'] }) }),
+    answer: () => RunnerResult<RunnerDto> = () => ({
+      ok: true,
+      value: runnerFixture({ allowedProjects: ['storify'] }),
+    }),
   ) {
     const calls: unknown[][] = [];
     const close = vi.fn();
@@ -320,7 +357,9 @@ describe('RunnerProjectsDialog', () => {
       await fixture.whenStable();
     };
     const submit = async (): Promise<void> => {
-      (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { cancelable: true }),
+      );
       await settle();
     };
     return { root, tick, pick, submit, calls, close };
@@ -328,7 +367,9 @@ describe('RunnerProjectsDialog', () => {
 
   it('opens with the runner’s scope and projects ticked, warns on narrowing and saves the new list', async () => {
     const { root, tick, submit, calls, close } = await render(runnerFixture());
-    expect((root.querySelector('[data-testid="runner-scope-selected"]') as HTMLInputElement).checked).toBe(true);
+    expect((root.querySelector('[data-testid="runner-scope-selected"]') as HTMLInputElement).checked).toBe(
+      true,
+    );
     const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
     expect(boxes.map((box) => box.checked)).toEqual([true, false]);
     await tick('team-console');
@@ -337,7 +378,9 @@ describe('RunnerProjectsDialog', () => {
       'Текущие задания раннера в проектах team-console будут отменены.',
     );
     await submit();
-    expect(calls).toEqual([[OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'selected', allowedProjects: ['storify'] }]]);
+    expect(calls).toEqual([
+      [OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'selected', allowedProjects: ['storify'] }],
+    ]);
     expect(close).toHaveBeenCalledWith(runnerFixture({ allowedProjects: ['storify'] }));
   });
 
@@ -356,12 +399,16 @@ describe('RunnerProjectsDialog', () => {
     expect(widened.root.querySelector('[data-slug="team-console"]')).toBeNull();
     expect(widened.root.querySelector('[data-testid="runner-projects-narrowing"]')).toBeNull();
     await widened.submit();
-    expect(widened.calls).toEqual([[OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'all', allowedProjects: ['team-console'] }]]);
+    expect(widened.calls).toEqual([
+      [OWNER_ACCOUNT_ID, runnerFixture().id, { projectScope: 'all', allowedProjects: ['team-console'] }],
+    ]);
     expect(widened.close).toHaveBeenCalledWith(all);
     TestBed.resetTestingModule();
 
     const narrowed = await render(all);
-    expect((narrowed.root.querySelector('[data-testid="runner-scope-all"]') as HTMLInputElement).checked).toBe(true);
+    expect(
+      (narrowed.root.querySelector('[data-testid="runner-scope-all"]') as HTMLInputElement).checked,
+    ).toBe(true);
     await narrowed.pick('selected');
     expect(narrowed.root.querySelector('[data-testid="runner-projects-narrowing"]')?.textContent).toContain(
       'Текущие задания раннера в проектах team-console, storify будут отменены.',

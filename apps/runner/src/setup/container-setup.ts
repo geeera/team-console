@@ -1,6 +1,13 @@
 import { join } from 'node:path';
 import { ENROLMENT_INTENT_ENV, LINUX_RUNNER_UNIT } from '@shared/contracts';
-import { PINNED_IMAGE, apiOriginOf, configPathOf, loadRunnerConfig, updateRunnerConfig, type RunnerConfig } from '../config/config';
+import {
+  PINNED_IMAGE,
+  apiOriginOf,
+  configPathOf,
+  loadRunnerConfig,
+  updateRunnerConfig,
+  type RunnerConfig,
+} from '../config/config';
 import { pathExists } from '../config/private-files';
 import type { EnrolOptions } from '../cli/enrol';
 import { CREDENTIAL_FILE_OF } from './credential';
@@ -35,7 +42,10 @@ export interface ContainerSetupDeps {
 }
 
 /** The request id as the console's command passes it; an empty variable counts as none. */
-export function enrolmentOf(flag: string | undefined, env: Readonly<Record<string, string | undefined>>): string | undefined {
+export function enrolmentOf(
+  flag: string | undefined,
+  env: Readonly<Record<string, string | undefined>>,
+): string | undefined {
   const fromEnv = env[ENROLMENT_INTENT_ENV];
   return flag ?? (fromEnv === undefined || fromEnv === '' ? undefined : fromEnv);
 }
@@ -50,9 +60,13 @@ async function enrolStep(options: ContainerSetupOptions, deps: ContainerSetupDep
       );
     }
     if (config.backend !== 'container') {
-      throw new SetupError(`${deps.home} holds a ${config.backend} runner; the Linux setup enrols the container backend only`);
+      throw new SetupError(
+        `${deps.home} holds a ${config.backend} runner; the Linux setup enrols the container backend only`,
+      );
     }
-    deps.out(`enrol: already enrolled as «${config.name}»${options.enrolment === undefined ? '' : `; ${ENROLMENT_INTENT_ENV} is not used`}`);
+    deps.out(
+      `enrol: already enrolled as «${config.name}»${options.enrolment === undefined ? '' : `; ${ENROLMENT_INTENT_ENV} is not used`}`,
+    );
     return config;
   }
   if (options.url === undefined || options.enrolment === undefined) {
@@ -70,15 +84,22 @@ async function enrolStep(options: ContainerSetupOptions, deps: ContainerSetupDep
 }
 
 /** Runs enrol, the API key and the console check in order; stops at the first that fails with the line to act on. */
-export async function runContainerSetup(options: ContainerSetupOptions, deps: ContainerSetupDeps): Promise<boolean> {
+export async function runContainerSetup(
+  options: ContainerSetupOptions,
+  deps: ContainerSetupDeps,
+): Promise<boolean> {
   if (deps.uid === 0) {
-    throw new SetupError('the Linux setup runs as the runner’s own user in its container (tcrunner), never as root');
+    throw new SetupError(
+      'the Linux setup runs as the runner’s own user in its container (tcrunner), never as root',
+    );
   }
   if (options.url !== undefined && apiOriginOf(options.url) === null) {
     throw new SetupError('--url must be the console origin, https://… (http only for a loopback host)');
   }
   if (options.image === undefined || !PINNED_IMAGE.test(options.image)) {
-    throw new SetupError('--image must be the runner image the console named, pinned by digest (<name>@sha256:…)');
+    throw new SetupError(
+      '--image must be the runner image the console named, pinned by digest (<name>@sha256:…)',
+    );
   }
   const image = options.image;
   const enrolled = await enrolStep(options, deps);
@@ -90,7 +111,10 @@ export async function runContainerSetup(options: ContainerSetupOptions, deps: Co
   const config =
     enrolled.container?.image === image && enrolled.container.runtime === 'podman'
       ? enrolled
-      : await updateRunnerConfig(deps.home, (current) => ({ ...current, container: { ...current.container, image, runtime: 'podman' } }));
+      : await updateRunnerConfig(deps.home, (current) => ({
+          ...current,
+          container: { ...current.container, image, runtime: 'podman' },
+        }));
 
   const file = CREDENTIAL_FILE_OF['api-key'];
   if (!options.replaceCredential && (await pathExists(join(deps.home, file)))) {
@@ -105,9 +129,13 @@ export async function runContainerSetup(options: ContainerSetupOptions, deps: Co
     return false;
   }
   if (report.self?.belowMinimum === true) {
-    deps.out('check: this image is below the console’s minimum version; take the new command from Settings › Runners');
+    deps.out(
+      'check: this image is below the console’s minimum version; take the new command from Settings › Runners',
+    );
     return false;
   }
-  deps.out(`Готово: раннер «${config.name}» принят консолью; ${LINUX_RUNNER_UNIT} запускается следующей командой.`);
+  deps.out(
+    `Готово: раннер «${config.name}» принят консолью; ${LINUX_RUNNER_UNIT} запускается следующей командой.`,
+  );
   return true;
 }

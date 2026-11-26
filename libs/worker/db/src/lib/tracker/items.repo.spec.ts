@@ -256,9 +256,15 @@ describe('ItemsRepo', () => {
       const closed = await create(slug, { status: 'done' });
       expect(await rankOf(slug, a)).toBe(40 * RANK_GAP);
       expect(await rankOf(slug, b)).toBe(41 * RANK_GAP);
-      await expect(items().findByNumber(slug, a)).resolves.toMatchObject({ queue: { position: 1, total: 2 } });
-      await expect(items().findByNumber(slug, b)).resolves.toMatchObject({ queue: { position: 2, total: 2 } });
-      await expect(items().findByNumber(slug, other)).resolves.toMatchObject({ queue: { position: 1, total: 1 } });
+      await expect(items().findByNumber(slug, a)).resolves.toMatchObject({
+        queue: { position: 1, total: 2 },
+      });
+      await expect(items().findByNumber(slug, b)).resolves.toMatchObject({
+        queue: { position: 2, total: 2 },
+      });
+      await expect(items().findByNumber(slug, other)).resolves.toMatchObject({
+        queue: { position: 1, total: 1 },
+      });
       await expect(items().findByNumber(slug, closed)).resolves.toMatchObject({ queue: null });
     });
 
@@ -294,12 +300,17 @@ describe('ItemsRepo', () => {
         if (plan === null || plan.kind !== 'move') throw new Error(`no move: ${JSON.stringify(plan)}`);
         return items().reorder(item.id, item.version, await rankOf(slug, number), plan, OWNER_ACTOR, LATER);
       };
-      const order = async () => (await items().list(slug, { state: 'open' }, 0, 100)).items.map((i) => i.number);
+      const order = async () =>
+        (await items().list(slug, { state: 'open' }, 0, 100)).items.map((i) => i.number);
 
       expect(await move(c, 'first')).toBe('ok');
       expect(await order()).toEqual([c, a, b]);
-      expect(await rankOf(slug, c)).toBe(await rankOf(slug, a) - RANK_GAP);
-      await expect(read(c)).resolves.toMatchObject({ version: 2, updatedAt: LATER, queue: { position: 1, total: 3 } });
+      expect(await rankOf(slug, c)).toBe((await rankOf(slug, a)) - RANK_GAP);
+      await expect(read(c)).resolves.toMatchObject({
+        version: 2,
+        updatedAt: LATER,
+        queue: { position: 1, total: 3 },
+      });
       await expect(read(a)).resolves.toMatchObject({ version: 1 });
 
       expect(await move(b, 'up')).toBe('ok');
@@ -340,12 +351,30 @@ describe('ItemsRepo', () => {
       };
       const before = await countRows('item_events');
       expect(await items().reorder(item?.id ?? 0, 7, 2 * RANK_GAP, up, OWNER_ACTOR, LATER)).toBe('stale');
-      const gone: QueuePlan = { ...up, neighbour: { id: neighbour?.id ?? 0, rankRead: 999, rank: 2 * RANK_GAP } };
-      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, gone, OWNER_ACTOR, LATER)).toBe('lost-race');
+      const gone: QueuePlan = {
+        ...up,
+        neighbour: { id: neighbour?.id ?? 0, rankRead: 999, rank: 2 * RANK_GAP },
+      };
+      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, gone, OWNER_ACTOR, LATER)).toBe(
+        'lost-race',
+      );
       // A neighbour that left the lane since the read is a lost race too.
-      await items().update(neighbour?.id ?? 0, 1, { status: 'qa' }, { add: [], remove: [] }, OWNER_ACTOR, [], LATER);
-      const moved: QueuePlan = { ...up, neighbour: { id: neighbour?.id ?? 0, rankRead: RANK_GAP, rank: 2 * RANK_GAP } };
-      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, moved, OWNER_ACTOR, LATER)).toBe('lost-race');
+      await items().update(
+        neighbour?.id ?? 0,
+        1,
+        { status: 'qa' },
+        { add: [], remove: [] },
+        OWNER_ACTOR,
+        [],
+        LATER,
+      );
+      const moved: QueuePlan = {
+        ...up,
+        neighbour: { id: neighbour?.id ?? 0, rankRead: RANK_GAP, rank: 2 * RANK_GAP },
+      };
+      expect(await items().reorder(item?.id ?? 0, 1, 2 * RANK_GAP, moved, OWNER_ACTOR, LATER)).toBe(
+        'lost-race',
+      );
       expect(await rankOf(slug, a)).toBe(RANK_GAP);
       expect(await rankOf(slug, b)).toBe(2 * RANK_GAP);
       await expect(items().findByNumber(slug, b)).resolves.toMatchObject({ version: 1 });
@@ -358,8 +387,12 @@ describe('ItemsRepo', () => {
       const b = await create(slug, { status: 'qa' });
       const c = await create(slug, approved);
       // Ranks a gap-exhausted midpoint would leave behind: c has to go between a and b with no room.
-      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3').bind(slug, 5, a).run();
-      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3').bind(slug, 6, b).run();
+      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3')
+        .bind(slug, 5, a)
+        .run();
+      await env.DB.prepare('UPDATE items SET rank = ?2 WHERE project_slug = ?1 AND number = ?3')
+        .bind(slug, 6, b)
+        .run();
       const item = await items().findByNumber(slug, c);
       // After the rebalance a = 1024, b = 2048, c = 3072: c goes between a and b at their midpoint.
       const plan: QueuePlan = { kind: 'move', rank: 1536, neighbour: null, rebalance: true };
@@ -544,13 +577,17 @@ describe('ItemsRepo', () => {
     for (const id of [await idOf(slug, linked), await idOf(slug, done), await idOf(other.slug, foreign)]) {
       expect(await events().linkPr(id, link, JOB_ACTOR, AT)).toBe(true);
     }
-    expect(await events().linkPr(await idOf(slug, linked), { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(true);
+    expect(await events().linkPr(await idOf(slug, linked), { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(
+      true,
+    );
     expect(await events().linkPr(await idOf(slug, unlinked), { ...link, number: 58 }, JOB_ACTOR, AT)).toBe(
       true,
     );
 
     const numbersOf = async (pullRequest: number, after = 0, limit = 100) =>
-      (await items().list(slug, { state: 'all', pullRequest }, after, limit)).items.map((item) => item.number);
+      (await items().list(slug, { state: 'all', pullRequest }, after, limit)).items.map(
+        (item) => item.number,
+      );
     await expect(numbersOf(57)).resolves.toEqual([linked, done]);
     await expect(numbersOf(58)).resolves.toEqual([linked, unlinked]);
     await expect(numbersOf(59)).resolves.toEqual([]);

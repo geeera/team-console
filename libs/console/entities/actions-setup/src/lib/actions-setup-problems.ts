@@ -67,7 +67,11 @@ export type WorkflowPrRefusal =
   /** 409: the console's branch is left from an earlier attempt (#844); the customer deletes it on GitHub. */
   | { readonly kind: 'branch-exists'; readonly link: string | null }
   | { readonly kind: 'tampered' }
-  | { readonly kind: 'permission-missing'; readonly permissions: readonly string[]; readonly link: string | null }
+  | {
+      readonly kind: 'permission-missing';
+      readonly permissions: readonly string[];
+      readonly link: string | null;
+    }
   | { readonly kind: 'ready' }
   | { readonly kind: 'downgrade'; readonly pins: readonly string[] }
   /** 503 `github-write-disabled`: the operator's kill switch; the Copy path stays. */

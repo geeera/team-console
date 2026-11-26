@@ -115,7 +115,8 @@ export interface BytesOptions {
   readonly maxBytes: number;
 }
 
-export type BytesResult = { readonly kind: 'bytes'; readonly bytes: Uint8Array } | { readonly kind: 'too-large' };
+export type BytesResult =
+  { readonly kind: 'bytes'; readonly bytes: Uint8Array } | { readonly kind: 'too-large' };
 
 /** Reads at most `maxBytes` of the body; one byte more cancels the stream and reports `too-large`. */
 async function readBytesUpTo(response: Response, maxBytes: number): Promise<BytesResult> {
@@ -342,7 +343,11 @@ export class GitHubClient {
     await discardBody(await this.write('DELETE', path, undefined));
   }
 
-  private async write(method: 'POST' | 'PATCH' | 'DELETE', path: GitHubPath, body: unknown): Promise<Response> {
+  private async write(
+    method: 'POST' | 'PATCH' | 'DELETE',
+    path: GitHubPath,
+    body: unknown,
+  ): Promise<Response> {
     assertRequestSource(this.tokens);
     const request = (bearer: string) =>
       githubRequest(this.fetcher, { method, path, bearer, ...(body === undefined ? {} : { body }) });

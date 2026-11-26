@@ -37,7 +37,9 @@ describe('ActionsEphemeralBackend', () => {
     for (const dir of [sandbox.home, sandbox.tmp]) {
       expect((await stat(dir)).mode & 0o777).toBe(0o700);
     }
-    await expect(backend.prepare({ jobId: JOB_ID, projectSlug: 'team-console' })).rejects.toThrow(/already exists/);
+    await expect(backend.prepare({ jobId: JOB_ID, projectSlug: 'team-console' })).rejects.toThrow(
+      /already exists/,
+    );
     await backend.cleanup(sandbox);
     expect(await readdir(join(home, 'jobs'))).toEqual([]);
     // The sweep looks for a job process left in the sandbox, as `none` does.
@@ -60,7 +62,9 @@ describe('ActionsEphemeralBackend', () => {
     running.stdout.on('data', (chunk: Buffer) => chunks.push(chunk));
     expect(await running.exited).toEqual({ exitCode: 0, signal: null });
     // macOS may add `__CF_USER_TEXT_ENCODING` for the process; nothing of the runner's env reaches it.
-    const names = (JSON.parse(Buffer.concat(chunks).toString()) as string[]).filter((name) => !name.startsWith('__CF'));
+    const names = (JSON.parse(Buffer.concat(chunks).toString()) as string[]).filter(
+      (name) => !name.startsWith('__CF'),
+    );
     expect(names).toEqual(['ONLY']);
     await backend.cleanup(sandbox);
   });

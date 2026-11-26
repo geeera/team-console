@@ -84,11 +84,11 @@ const FIXED_AT = '2026-11-12T10:00:00.000Z';
  * `projectSlug`: the project the job belongs to; `pathProject`: the project the request path names instead;
  * `jobId`: the job the request is sent as (a claimed job the setup seeded, #612's lineage rule).
  */
-type Setup = (
-  project: SeededProject,
-) => Promise<
-  { readonly projectSlug?: string; readonly pathProject?: SeededProject; readonly jobId?: string } | void
->;
+type Setup = (project: SeededProject) => Promise<{
+  readonly projectSlug?: string;
+  readonly pathProject?: SeededProject;
+  readonly jobId?: string;
+} | void>;
 
 /** Pull request 57 open at a fixed head, and a claimed `slot-qa` job (the orchestrator) to request its reviews. */
 const seedReviewable: Setup = async (project) => {
@@ -160,7 +160,10 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
   'items.transition-role': [
     itemsTransitionRole,
     async (project) => {
-      await send('POST', `/api/v1/projects/${project.slug}/labels`, { name: 'workflow-change', color: 'b60205' });
+      await send('POST', `/api/v1/projects/${project.slug}/labels`, {
+        name: 'workflow-change',
+        color: 'b60205',
+      });
       await seedFeature(project, 'Export to CSV');
     },
   ],
@@ -171,7 +174,11 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
     async (project) => {
       const { path } = await seedItem(project, { title: 'Export to CSV' });
       await send('POST', `${path}/decisions`, { command: 'reject', text: 'Not now', via: 'web' });
-      const second = await send('POST', `${path}/decisions`, { command: 'reject', text: 'Still no', via: 'web' });
+      const second = await send('POST', `${path}/decisions`, {
+        command: 'reject',
+        text: 'Still no',
+        via: 'web',
+      });
       if (second.status !== 201) {
         throw new Error(`seeding a decision answered ${String(second.status)}`);
       }

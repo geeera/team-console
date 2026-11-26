@@ -70,79 +70,81 @@ function accountDtoOf(account: AccountRecord): AccountDto {
  * from `createWorkerApp`.
  */
 export function createAccountRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
-  return new Hono<WorkerHonoEnv<ApiEnv>>()
-    // The caller's own memberships, so Settings can address `/accounts/:id/*` (#464): read from the identity, never
-    // from a query, so no other account is ever named. The service identity and a job are members of nothing.
-    .get('/', async (c) => {
-      const repo = new AccountsRepo(c.env.DB);
-      const accounts: AccountMembershipDto[] = [];
-      for (const membership of membershipsOf(c.get('identity'), c.env)) {
-        const account = await repo.findById(membership.accountId);
-        if (account !== null) {
-          accounts.push({ id: account.id, slug: account.slug, name: account.name, role: membership.role });
+  return (
+    new Hono<WorkerHonoEnv<ApiEnv>>()
+      // The caller's own memberships, so Settings can address `/accounts/:id/*` (#464): read from the identity, never
+      // from a query, so no other account is ever named. The service identity and a job are members of nothing.
+      .get('/', async (c) => {
+        const repo = new AccountsRepo(c.env.DB);
+        const accounts: AccountMembershipDto[] = [];
+        for (const membership of membershipsOf(c.get('identity'), c.env)) {
+          const account = await repo.findById(membership.accountId);
+          if (account !== null) {
+            accounts.push({ id: account.id, slug: account.slug, name: account.name, role: membership.role });
+          }
         }
-      }
-      const body: AccountMembershipListDto = { accounts };
-      return c.json(body);
-    })
+        const body: AccountMembershipListDto = { accounts };
+        return c.json(body);
+      })
 
-    .get('/:id/settings', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      return c.json(accountDtoOf(account));
-    })
+      .get('/:id/settings', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        return c.json(accountDtoOf(account));
+      })
 
-    .get('/:id/members', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const members: AccountMemberDto[] = (await new AccountsRepo(c.env.DB).membersOf(account.id)).map(
-        (member) => ({
-          userId: member.userId,
-          login: member.login,
-          avatarUrl: member.avatarUrl,
-          role: member.role,
-          joinedAt: member.joinedAt,
-        }),
-      );
-      return c.json({ members });
-    })
+      .get('/:id/members', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const members: AccountMemberDto[] = (await new AccountsRepo(c.env.DB).membersOf(account.id)).map(
+          (member) => ({
+            userId: member.userId,
+            login: member.login,
+            avatarUrl: member.avatarUrl,
+            role: member.role,
+            joinedAt: member.joinedAt,
+          }),
+        );
+        return c.json({ members });
+      })
 
-    .get('/:id/audit', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const before = c.req.query('before');
-      const limit = c.req.query('limit') ?? String(PAGE_DEFAULT);
-      if ((before !== undefined && !CURSOR.test(before)) || !/^[1-9][0-9]{0,2}$/.test(limit)) {
-        return problem(c, {
-          type: 'query-invalid',
-          title: 'Invalid request',
-          status: 400,
-          detail: `before is the cursor of the previous page; limit is 1 to ${String(AUDIT_PAGE_MAX)}`,
-        });
-      }
-      const page = await new AuditRepo(c.env.DB).listForAccount(
-        account.id,
-        before === undefined ? null : Number(before),
-        Number(limit),
-      );
-      const body: AuditEventListDto = {
-        events: page.events.map((event) => ({
-          id: event.id,
-          at: event.at,
-          actorKind: event.actorKind,
-          actor: event.actor,
-          kind: event.kind,
-          target: event.target,
-          details: event.details,
-        })),
-        nextCursor: page.nextCursor,
-      };
-      return c.json(body);
-    });
+      .get('/:id/audit', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const before = c.req.query('before');
+        const limit = c.req.query('limit') ?? String(PAGE_DEFAULT);
+        if ((before !== undefined && !CURSOR.test(before)) || !/^[1-9][0-9]{0,2}$/.test(limit)) {
+          return problem(c, {
+            type: 'query-invalid',
+            title: 'Invalid request',
+            status: 400,
+            detail: `before is the cursor of the previous page; limit is 1 to ${String(AUDIT_PAGE_MAX)}`,
+          });
+        }
+        const page = await new AuditRepo(c.env.DB).listForAccount(
+          account.id,
+          before === undefined ? null : Number(before),
+          Number(limit),
+        );
+        const body: AuditEventListDto = {
+          events: page.events.map((event) => ({
+            id: event.id,
+            at: event.at,
+            actorKind: event.actorKind,
+            actor: event.actor,
+            kind: event.kind,
+            target: event.target,
+            details: event.details,
+          })),
+          nextCursor: page.nextCursor,
+        };
+        return c.json(body);
+      })
+  );
 }

@@ -36,9 +36,12 @@ let remoteJwks: JWTVerifyGetKey | undefined;
 let localJwks: { readonly json: string; readonly keys: JWTVerifyGetKey } | undefined;
 
 /** Where the keys come from: GitHub's JWKS, or — on `ENVIRONMENT = local` only — the test JWKS of `ACTIONS_OIDC_JWKS`. */
-export type ActionsJwksSource = { readonly kind: 'remote' } | { readonly kind: 'local'; readonly json: string };
+export type ActionsJwksSource =
+  { readonly kind: 'remote' } | { readonly kind: 'local'; readonly json: string };
 
-export function actionsJwksSourceOf(env: Pick<ApiEnv, 'ENVIRONMENT' | 'ACTIONS_OIDC_JWKS'>): ActionsJwksSource {
+export function actionsJwksSourceOf(
+  env: Pick<ApiEnv, 'ENVIRONMENT' | 'ACTIONS_OIDC_JWKS'>,
+): ActionsJwksSource {
   const json = env.ACTIONS_OIDC_JWKS?.trim() ?? '';
   return env.ENVIRONMENT === 'local' && json !== '' ? { kind: 'local', json } : { kind: 'remote' };
 }
@@ -96,7 +99,11 @@ export async function verifyActionsOidcToken(
     keys = jwksOf(actionsJwksSourceOf(env));
   } catch (error: unknown) {
     // Only the local override can fail here (its JSON); a broken stand-in is the stack's fault, not the token's.
-    if (error instanceof SyntaxError || error instanceof joseErrors.JOSEError || error instanceof InvalidJwksError) {
+    if (
+      error instanceof SyntaxError ||
+      error instanceof joseErrors.JOSEError ||
+      error instanceof InvalidJwksError
+    ) {
       return { ok: false, claim: null };
     }
     throw error;
@@ -107,7 +114,9 @@ export async function verifyActionsOidcToken(
       return await keys(header, input);
     } catch (error: unknown) {
       // A `kid` the set does not hold is the token's fault; anything else is the issuer's (timeout, bad answer).
-      if (!(error instanceof joseErrors.JWKSNoMatchingKey || error instanceof joseErrors.JWKSMultipleMatchingKeys)) {
+      if (!(
+        error instanceof joseErrors.JWKSNoMatchingKey || error instanceof joseErrors.JWKSMultipleMatchingKeys
+      )) {
         issuerUnavailable = true;
       }
       throw error;
@@ -135,7 +144,10 @@ export async function verifyActionsOidcToken(
     }
     if (error instanceof joseErrors.JWTClaimValidationFailed) {
       const claim = error.claim;
-      return { ok: false, claim: claim === 'iss' || claim === 'aud' || claim === 'exp' || claim === 'iat' ? claim : 'token' };
+      return {
+        ok: false,
+        claim: claim === 'iss' || claim === 'aud' || claim === 'exp' || claim === 'iat' ? claim : 'token',
+      };
     }
     if (error instanceof joseErrors.JOSEError || error instanceof TypeError) {
       return { ok: false, claim: 'token' };
@@ -163,7 +175,11 @@ function isRunnerWorkflowRef(value: unknown, target: ActionsTarget, ref: string)
   }
   const at = value.indexOf(WORKFLOW_PATH);
   // GitHub keeps the repository's casing, the registry the owner's: names are case-insensitive, the path and ref not.
-  return at > 0 && value.slice(0, at).toLowerCase() === target.repo.toLowerCase() && value.slice(at + WORKFLOW_PATH.length) === ref;
+  return (
+    at > 0 &&
+    value.slice(0, at).toLowerCase() === target.repo.toLowerCase() &&
+    value.slice(at + WORKFLOW_PATH.length) === ref
+  );
 }
 
 /**

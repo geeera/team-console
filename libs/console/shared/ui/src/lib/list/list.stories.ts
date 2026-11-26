@@ -174,7 +174,9 @@ const gridStory = (maxWidth: string) =>
     render: () => ({
       template: gridCards,
       props: { maxWidth },
-      styles: ['.story-thumb { display: block; width: 100%; min-width: var(--thumb-size); aspect-ratio: var(--thumb-ratio); background: var(--bg-sunken); }'],
+      styles: [
+        '.story-thumb { display: block; width: 100%; min-width: var(--thumb-size); aspect-ratio: var(--thumb-ratio); background: var(--bg-sunken); }',
+      ],
     }),
   }) satisfies Partial<StoryObj<List>>;
 

@@ -146,7 +146,13 @@ describe('mirror, clone and the vendored plugin', () => {
 
     it('refuses a mirror whose origin is redirected by url.*.insteadOf', async () => {
       await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
-      fixtureGit(['--git-dir', mirror(), 'config', `url.${await tamperedUpstream()}.insteadOf`, fixture.repo]);
+      fixtureGit([
+        '--git-dir',
+        mirror(),
+        'config',
+        `url.${await tamperedUpstream()}.insteadOf`,
+        fixture.repo,
+      ]);
       await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).rejects.toMatchObject({
         reason: 'git-config-refused',
       });

@@ -98,7 +98,14 @@ describe('PushStore', () => {
       device.granted = 'granted';
       device.held = fakeSubscription();
       api.devices.mockResolvedValue([
-        { id: await deviceIdOf(ENDPOINT), service: 'fcm.googleapis.com', userAgent: null, createdAt: '2026-10-01T09:00:00Z', lastSuccessAt: null, failures: 0 },
+        {
+          id: await deviceIdOf(ENDPOINT),
+          service: 'fcm.googleapis.com',
+          userAgent: null,
+          createdAt: '2026-10-01T09:00:00Z',
+          lastSuccessAt: null,
+          failures: 0,
+        },
       ]);
 
       await store.refresh();

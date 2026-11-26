@@ -82,7 +82,11 @@ describe('enrol --url --code --backend', () => {
     });
     expect(isEd25519PublicJwk(body['publicKey'])).toBe(true);
     // No credential kind or value is described to the console (ADR 0008 decision 5): the sources enum alone.
-    expect(Object.keys(body['capabilities'] as object).sort()).toEqual(['accessSources', 'local', 'maxConcurrency']);
+    expect(Object.keys(body['capabilities'] as object).sort()).toEqual([
+      'accessSources',
+      'local',
+      'maxConcurrency',
+    ]);
     expect(JSON.stringify(body)).not.toMatch(/api-key|setup-token|claude-config-dir/u);
 
     expect((await stat(home)).mode & 0o777).toBe(0o700);

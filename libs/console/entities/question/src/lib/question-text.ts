@@ -21,8 +21,7 @@ const SPACES = /\s+/gu;
 const READABLE = /[\p{L}\p{N}]/u;
 // The plugin's own placeholder words for the reject/no-go side ("owner.py", decision-policy.md): with nothing of
 // the team's own reasoning added, an option like this reads as a bare prompt, not a consequence (#291).
-const GENERIC_PROMPT =
-  /^(?:почему|что поменять|причина,? если что-то не подходит|why|what to change)$/iu;
+const GENERIC_PROMPT = /^(?:почему|что поменять|причина,? если что-то не подходит|why|what to change)$/iu;
 
 interface AskOption {
   readonly command: string;
@@ -99,7 +98,6 @@ export function plainAskOf(ask: string | null): PlainAsk | null {
   }
   return isAnswerCommand(recommended.command) ? { kind: 'command', command: recommended.command } : null;
 }
-
 
 /** What each answer leads to, for a card whose body has no `## Если одобрить` / `## Если отклонить` (#276). */
 export interface AskOutcomes {

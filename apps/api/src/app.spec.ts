@@ -95,7 +95,9 @@ describe('security headers (#126)', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
@@ -104,7 +106,9 @@ describe('security headers (#126)', () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
 
@@ -114,7 +118,9 @@ describe('security headers (#126)', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('text/html');
     // apps/console/public/_headers (#118) sets its own CSP, wider than the Worker's deny-all default.
-    expect(response.headers.get('content-security-policy')).not.toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).not.toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
     expect(response.headers.get('content-security-policy')).toContain("'self'");
   });
 });

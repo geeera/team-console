@@ -38,7 +38,14 @@ describe('mirror refs and HEAD stay the upstream’s (#721)', { timeout: 30_000 
   it('refuses a mirror whose fetch refspec maps another branch onto the default one, before fetching', async () => {
     await syncMirror(fixture.home, 'team-console', fixture.repo, envs);
     const before = fixtureGit(['--git-dir', mirror(), 'rev-parse', 'refs/heads/main']);
-    fixtureGit(['--git-dir', mirror(), 'config', '--replace-all', 'remote.origin.fetch', '+refs/heads/evil:refs/heads/main']);
+    fixtureGit([
+      '--git-dir',
+      mirror(),
+      'config',
+      '--replace-all',
+      'remote.origin.fetch',
+      '+refs/heads/evil:refs/heads/main',
+    ]);
 
     await expect(syncMirror(fixture.home, 'team-console', fixture.repo, envs)).rejects.toMatchObject({
       reason: 'git-config-refused',

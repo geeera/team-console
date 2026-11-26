@@ -82,7 +82,9 @@ export class DesignPreview {
 
   protected readonly manifestState = computed(() => {
     const given = this.manifest();
-    return given === null ? this.manifests.stateOf(this.slug(), this.issue())() : { kind: 'ready' as const, manifest: given };
+    return given === null
+      ? this.manifests.stateOf(this.slug(), this.issue())()
+      : { kind: 'ready' as const, manifest: given };
   });
   protected readonly src = computed(() => {
     const state = this.manifestState();
@@ -93,18 +95,26 @@ export class DesignPreview {
     const screen =
       path === null
         ? thumbnailOf(state.manifest)
-        : (state.manifest.screens.find((candidate) => candidate.path === path && !candidate.tooLarge) ?? null);
+        : (state.manifest.screens.find((candidate) => candidate.path === path && !candidate.tooLarge) ??
+          null);
     return screen === null ? null : screenSrcOf(this.slug(), state.manifest, screen);
   });
   protected placeholderKey(reason: 'none' | 'html' | 'failed'): string {
     if (this.worded()) {
       return `designs.tile.${reason}`;
     }
-    return { none: 'designs.row.thumbNone', html: 'designs.row.thumbHtml', failed: 'designs.row.thumbFailed' }[reason];
+    return {
+      none: 'designs.row.thumbNone',
+      html: 'designs.row.thumbHtml',
+      failed: 'designs.row.thumbFailed',
+    }[reason];
   }
 
   /** The image did not load; reset when the source changes. */
-  protected readonly failed = linkedSignal<string | null, boolean>({ source: this.src, computation: () => false });
+  protected readonly failed = linkedSignal<string | null, boolean>({
+    source: this.src,
+    computation: () => false,
+  });
 
   /**
    * The thumbnail did not arrive — usually because the design moved to another commit and the Worker answers 404

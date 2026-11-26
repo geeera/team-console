@@ -14,12 +14,21 @@ describe('questionPushUrl (threat model on #11, row 6)', () => {
     expect(questionPushUrl('storify', 42)).toBe('/p/storify/questions#42');
   });
 
-  it.each(['a/b', 'evil.example:443', '//evil', 'https:', 'Storify', '', '-x', 'x-', '..', 'a b', 'needs-you/..'])(
-    'refuses the slug %j',
-    (slug) => {
-      expect(() => questionPushUrl(slug, 1)).toThrow(InvalidPushTargetError);
-    },
-  );
+  it.each([
+    'a/b',
+    'evil.example:443',
+    '//evil',
+    'https:',
+    'Storify',
+    '',
+    '-x',
+    'x-',
+    '..',
+    'a b',
+    'needs-you/..',
+  ])('refuses the slug %j', (slug) => {
+    expect(() => questionPushUrl(slug, 1)).toThrow(InvalidPushTargetError);
+  });
 
   it.each([0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
     'refuses the number %s',

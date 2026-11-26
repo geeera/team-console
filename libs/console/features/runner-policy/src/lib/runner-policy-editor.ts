@@ -58,7 +58,19 @@ let nextEditorId = 0;
  */
 @Component({
   selector: 'tc-runner-policy-editor',
-  imports: [Banner, Button, Choice, ChoiceGroup, Field, FieldControl, Icon, IconButton, RouterLink, StateBlock, TranslocoPipe],
+  imports: [
+    Banner,
+    Button,
+    Choice,
+    ChoiceGroup,
+    Field,
+    FieldControl,
+    Icon,
+    IconButton,
+    RouterLink,
+    StateBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './runner-policy-editor.html',
   styleUrl: './runner-policy-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -190,7 +202,9 @@ export class RunnerPolicyEditor {
     if (runner === undefined) {
       return this.t('runners.policy.unknownRunner');
     }
-    return runner.revokedAt === null ? runner.name : this.t('runners.policy.revokedRunner', { name: runner.name });
+    return runner.revokedAt === null
+      ? runner.name
+      : this.t('runners.policy.revokedRunner', { name: runner.name });
   }
 
   protected errorOf(field: PolicyFormError): string {

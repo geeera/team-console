@@ -55,7 +55,10 @@ export function compareVersions(left: string, right: string): number {
  * The pins a bump would lower: those the current file names with a higher version than the console's rendering.
  * A pin the current file does not name (`null`) cannot be compared and is not listed.
  */
-export function loweredPinsOf(current: ReadRunnerWorkflowPins, next: RunnerWorkflowPins): RunnerWorkflowPin[] {
+export function loweredPinsOf(
+  current: ReadRunnerWorkflowPins,
+  next: RunnerWorkflowPins,
+): RunnerWorkflowPin[] {
   return RUNNER_WORKFLOW_PINS.filter((pin) => {
     const now = current[pin];
     return now !== null && compareVersions(next[pin], now) < 0;
@@ -86,7 +89,10 @@ function withoutReleaseValues(text: string): string | null {
       return null;
     }
     // A callback, not a replacement string: `$` in a pattern-built replacement would be interpreted.
-    blanked = blanked.replace(pattern, (_match, head: string, _quote: string, tail: string) => `${head}<${line.name}>${tail}`);
+    blanked = blanked.replace(
+      pattern,
+      (_match, head: string, _quote: string, tail: string) => `${head}<${line.name}>${tail}`,
+    );
   }
   return blanked;
 }

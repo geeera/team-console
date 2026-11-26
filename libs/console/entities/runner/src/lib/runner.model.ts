@@ -1,4 +1,9 @@
-import { runnerScopeCovers, type AccountMembershipDto, type RunnerDto, type RunnerPauseDto } from '@shared/contracts';
+import {
+  runnerScopeCovers,
+  type AccountMembershipDto,
+  type RunnerDto,
+  type RunnerPauseDto,
+} from '@shared/contracts';
 
 /**
  * What the runner's row says first (#464): `revoked` is final; a `suspect` runner (threat model C4: a new country or
@@ -59,7 +64,8 @@ export function d3RunnerOf(runners: readonly RunnerDto[], slug: string): RunnerD
       runner.projectScope === 'all' &&
       !runner.hosted &&
       runner.isolation !== 'actions-ephemeral' &&
-      (runner.capabilities.accessSources === undefined || runner.capabilities.accessSources.includes('subscription')) &&
+      (runner.capabilities.accessSources === undefined ||
+        runner.capabilities.accessSources.includes('subscription')) &&
       !runner.servedProjects.some((project) => project.slug === slug),
   );
   return held.find((runner) => runner.enrolledByYou) ?? held[0] ?? null;

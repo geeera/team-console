@@ -345,7 +345,9 @@ function coversOnlyId(repositories: unknown, repositoryId: number): boolean {
     return false;
   }
   const [entry] = repositories as unknown[];
-  return typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>)['id'] === repositoryId;
+  return (
+    typeof entry === 'object' && entry !== null && (entry as Record<string, unknown>)['id'] === repositoryId
+  );
 }
 
 type MintVerdict =

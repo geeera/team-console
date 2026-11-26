@@ -4,9 +4,5 @@
   "sourceRoot": "libs/console/entities/actions-setup/src",
   "prefix": "tc",
   "projectType": "library",
-  "tags": [
-    "type:lib",
-    "scope:console",
-    "layer:entities"
-  ]
+  "tags": ["type:lib", "scope:console", "layer:entities"]
 }

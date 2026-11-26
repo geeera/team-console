@@ -36,17 +36,26 @@ describe('EnrolmentWatch', () => {
     vi.restoreAllMocks();
   });
 
-  function setup(
-    intents: RunnerResult<EnrolmentIntentDto>[],
-    lists: RunnerResult<RunnerListDto>[] = [],
-  ) {
+  function setup(intents: RunnerResult<EnrolmentIntentDto>[], lists: RunnerResult<RunnerListDto>[] = []) {
     const api = {
-      enrolmentIntent: vi.fn(async () => intents.shift() ?? { ok: true as const, value: pendingIntentFixture() }),
-      list: vi.fn(async () => lists.shift() ?? { ok: false as const, failure: { kind: 'error' as const, slug: null, field: null } }),
+      enrolmentIntent: vi.fn(
+        async () => intents.shift() ?? { ok: true as const, value: pendingIntentFixture() },
+      ),
+      list: vi.fn(
+        async () =>
+          lists.shift() ?? {
+            ok: false as const,
+            failure: { kind: 'error' as const, slug: null, field: null },
+          },
+      ),
     };
     const errors = { handleError: vi.fn() };
     TestBed.configureTestingModule({
-      providers: [EnrolmentWatch, { provide: RunnersApi, useValue: api }, { provide: ErrorHandler, useValue: errors }],
+      providers: [
+        EnrolmentWatch,
+        { provide: RunnersApi, useValue: api },
+        { provide: ErrorHandler, useValue: errors },
+      ],
     });
     return { watch: TestBed.inject(EnrolmentWatch), api, errors };
   }
@@ -97,7 +106,9 @@ describe('EnrolmentWatch', () => {
 
   it('confirms a local expiry with one read, and the server state wins', async () => {
     const soon = new Date(NOW + 1000).toISOString();
-    const { watch, api } = setup([{ ok: true, value: pendingIntentFixture({ state: 'expired', expiresAt: soon }) }]);
+    const { watch, api } = setup([
+      { ok: true, value: pendingIntentFixture({ state: 'expired', expiresAt: soon }) },
+    ]);
     watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, soon);
     await vi.advanceTimersByTimeAsync(1600);
     expect(api.enrolmentIntent).toHaveBeenCalledTimes(1);
@@ -137,7 +148,11 @@ describe('EnrolmentWatch', () => {
   it('watches the new runner every 5 s until it is online, with the release minimum', async () => {
     const list = (online: boolean): RunnerResult<RunnerListDto> => ({
       ok: true,
-      value: { runners: [runnerFixture({ online, lastSeenAt: null })], pendingEnrolments: [], release: RELEASE },
+      value: {
+        runners: [runnerFixture({ online, lastSeenAt: null })],
+        pendingEnrolments: [],
+        release: RELEASE,
+      },
     });
     const { watch, api } = setup([], [list(false), list(true)]);
     watch.watchRunner(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
@@ -153,7 +168,11 @@ describe('EnrolmentWatch', () => {
   it('stops polling the runner after the limit and reads only on a re-check (#878)', async () => {
     const offline: RunnerResult<RunnerListDto> = {
       ok: true,
-      value: { runners: [runnerFixture({ online: false, lastSeenAt: null })], pendingEnrolments: [], release: RELEASE },
+      value: {
+        runners: [runnerFixture({ online: false, lastSeenAt: null })],
+        pendingEnrolments: [],
+        release: RELEASE,
+      },
     };
     const { watch, api } = setup([]);
     api.list.mockImplementation(async () => offline);
@@ -225,7 +244,9 @@ describe('EnrolmentWatch', () => {
   });
 
   it('waits a minute on a 429 without Retry-After', async () => {
-    const { watch, api } = setup([{ ok: false, failure: { kind: 'rate-limited', slug: null, field: null, retryAfterSeconds: null } }]);
+    const { watch, api } = setup([
+      { ok: false, failure: { kind: 'rate-limited', slug: null, field: null, retryAfterSeconds: null } },
+    ]);
     watch.watchIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, EXPIRES);
     await vi.advanceTimersByTimeAsync(INTENT_POLL_VISIBLE_MS);
     expect(watch.rateLimitedFor()).toBe(60);

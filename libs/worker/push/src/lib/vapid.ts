@@ -46,5 +46,7 @@ export function checkVapidConfig(input: VapidInput): VapidCheck {
   if (!isHttpsUrl(subject)) {
     invalid.push('subject');
   }
-  return invalid.length === 0 ? { ok: true, config: { publicKey, privateKey, subject } } : { ok: false, invalid };
+  return invalid.length === 0
+    ? { ok: true, config: { publicKey, privateKey, subject } }
+    : { ok: false, invalid };
 }

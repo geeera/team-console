@@ -3,7 +3,11 @@ import { pushTargetOf, questionNumberOf } from './push-target';
 describe('pushTargetOf', () => {
   it('accepts the two targets the Worker builds', () => {
     expect(pushTargetOf('/needs-you')).toEqual({ kind: 'needs-you' });
-    expect(pushTargetOf('/p/storify/questions#42')).toEqual({ kind: 'question', slug: 'storify', number: 42 });
+    expect(pushTargetOf('/p/storify/questions#42')).toEqual({
+      kind: 'question',
+      slug: 'storify',
+      number: 42,
+    });
     expect(pushTargetOf('/p/team-console/questions#7')).toEqual({
       kind: 'question',
       slug: 'team-console',

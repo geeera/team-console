@@ -651,13 +651,18 @@ describe('PATCH /projects/:slug/items/:key', () => {
 // #456: First / Up / Down within the item's lane, with If-Match and an idempotency key.
 describe('POST /projects/:slug/items/:key/queue', () => {
   const approved = { status: 'approved' };
-  const queuePath = (project: SeededProject, item: ItemDto): string => `${itemsPath(project.slug)}/${item.key}/queue`;
-  const move = (project: SeededProject, item: ItemDto, move: string, options: Parameters<typeof send>[3] = {}) =>
-    send('POST', queuePath(project, item), { move }, { ifMatch: `"${String(item.version)}"`, ...options });
+  const queuePath = (project: SeededProject, item: ItemDto): string =>
+    `${itemsPath(project.slug)}/${item.key}/queue`;
+  const move = (
+    project: SeededProject,
+    item: ItemDto,
+    move: string,
+    options: Parameters<typeof send>[3] = {},
+  ) => send('POST', queuePath(project, item), { move }, { ifMatch: `"${String(item.version)}"`, ...options });
   const order = async (project: SeededProject): Promise<number[]> =>
-    ((await (await send('GET', `${itemsPath(project.slug)}?status=approved`)).json()) as ItemListDto).items.map(
-      (item) => item.number,
-    );
+    (
+      (await (await send('GET', `${itemsPath(project.slug)}?status=approved`)).json()) as ItemListDto
+    ).items.map((item) => item.number);
   const current = async (project: SeededProject, item: ItemDto): Promise<ItemDto> =>
     (await (await send('GET', `${itemsPath(project.slug)}/${item.key}`)).json()) as ItemDto;
 

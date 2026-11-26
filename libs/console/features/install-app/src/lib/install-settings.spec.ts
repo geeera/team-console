@@ -128,7 +128,11 @@ describe('InstallSettings', () => {
   it.each([
     ['macOS Safari 17+', MAC_SAFARI, 'В Safari выберите Файл → «Добавить в Dock…».'],
     ['macOS Safari 16', MAC_SAFARI_16, 'Добавить в Dock можно в Safari 17 и новее (macOS Sonoma).'],
-    ['Firefox', MAC_FIREFOX, 'Этот браузер не устанавливает веб‑приложения. Откройте консоль в Chrome, Edge или Safari.'],
+    [
+      'Firefox',
+      MAC_FIREFOX,
+      'Этот браузер не устанавливает веб‑приложения. Откройте консоль в Chrome, Edge или Safari.',
+    ],
   ])('gives %s its hint and no action', async (_name, agent, text) => {
     await render(agent, { maxTouchPoints: 0 });
 

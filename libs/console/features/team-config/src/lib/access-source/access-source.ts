@@ -37,7 +37,9 @@ const ID = controlIdOf('access.source');
             (change)="choose.emit('api_key')"
           />
           {{ 'teamConfig.access.apiKey' | transloco }}
-          <small tc-choice-hint [id]="id + '-api-hint'">{{ 'teamConfig.access.apiKeyHint' | transloco }}</small>
+          <small tc-choice-hint [id]="id + '-api-hint'">{{
+            'teamConfig.access.apiKeyHint' | transloco
+          }}</small>
         </label>
         <label tc-choice [off]="blocked() && source() !== 'subscription'">
           <input

@@ -34,7 +34,9 @@ const audit = (kind: NewAuditEvent['kind'], target: string, accountId = ACCOUNT_
 });
 
 const auditRows = (kind: NewAuditEvent['kind'], target: string): Promise<number | null> =>
-  env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`).bind(kind, target).first<number>('n');
+  env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`)
+    .bind(kind, target)
+    .first<number>('n');
 
 const bindOf = (overrides: Partial<EnrolmentIntentBind> = {}): EnrolmentIntentBind => ({
   publicKeyX: 'x'.repeat(43),
@@ -50,11 +52,17 @@ const bindOf = (overrides: Partial<EnrolmentIntentBind> = {}): EnrolmentIntentBi
 
 beforeAll(async () => {
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'ej-a', 'A', ?2)`).bind(ACCOUNT_A, T0),
-    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'ej-b', 'B', ?2)`).bind(ACCOUNT_B, T0),
-    env.DB
-      .prepare(`INSERT INTO accounts (id, slug, name, created_at, suspended_at) VALUES (?1, 'ej-s', 'S', ?2, ?2)`)
-      .bind(SUSPENDED, T0),
+    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'ej-a', 'A', ?2)`).bind(
+      ACCOUNT_A,
+      T0,
+    ),
+    env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'ej-b', 'B', ?2)`).bind(
+      ACCOUNT_B,
+      T0,
+    ),
+    env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, created_at, suspended_at) VALUES (?1, 'ej-s', 'S', ?2, ?2)`,
+    ).bind(SUSPENDED, T0),
   ]);
 });
 
@@ -79,13 +87,20 @@ describe('EnrolmentIntentsRepo', () => {
       expiresAt: at(600),
       ...overrides,
     };
-    expect(await repo.create(intent, CAPS, audit('enrolment-intent.created', intent.id, intent.accountId))).toBe('ok');
+    expect(
+      await repo.create(intent, CAPS, audit('enrolment-intent.created', intent.id, intent.accountId)),
+    ).toBe('ok');
     return intent;
   }
 
-  async function bound(overrides: Partial<NewEnrolmentIntent> = {}, bind = bindOf()): Promise<NewEnrolmentIntent> {
+  async function bound(
+    overrides: Partial<NewEnrolmentIntent> = {},
+    bind = bindOf(),
+  ): Promise<NewEnrolmentIntent> {
     const intent = await created(overrides);
-    expect(await repo.bind(intent.id, intent.isolation, bind, audit('enrolment-intent.bound', intent.id))).toBe(true);
+    expect(
+      await repo.bind(intent.id, intent.isolation, bind, audit('enrolment-intent.bound', intent.id)),
+    ).toBe(true);
     return intent;
   }
 
@@ -122,7 +137,14 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await auditRows('enrolment-intent.created', over.id)).toBe(0);
 
       // A withdrawn intent and one past its time are not open.
-      expect(await repo.withdraw(ALICE, (first as NewEnrolmentIntent).id, at(5), audit('enrolment-intent.withdrawn', 'x'))).toBe(true);
+      expect(
+        await repo.withdraw(
+          ALICE,
+          (first as NewEnrolmentIntent).id,
+          at(5),
+          audit('enrolment-intent.withdrawn', 'x'),
+        ),
+      ).toBe(true);
       await created();
       const later: NewEnrolmentIntent = { ...over, id: ulid(), at: at(601), expiresAt: at(1201) };
       expect(await repo.create(later, CAPS, audit('enrolment-intent.created', later.id))).toBe('ok');
@@ -133,7 +155,9 @@ describe('EnrolmentIntentsRepo', () => {
       await created();
       const second = await created({ at: at(10), expiresAt: at(610) });
       const third: NewEnrolmentIntent = { ...second, id: ulid(), at: at(20), expiresAt: at(620) };
-      expect(await repo.create(third, caps, audit('enrolment-intent.created', third.id))).toBe('hourly-limit');
+      expect(await repo.create(third, caps, audit('enrolment-intent.created', third.id))).toBe(
+        'hourly-limit',
+      );
       const nextHour = { ...third, id: ulid(), at: at(3700), expiresAt: at(4300) };
       expect(await repo.create(nextHour, caps, audit('enrolment-intent.created', nextHour.id))).toBe('ok');
     });
@@ -165,8 +189,14 @@ describe('EnrolmentIntentsRepo', () => {
 
     it('lets the first bind win and leaves the second nothing, the audit row included', async () => {
       const intent = await bound();
-      const second = bindOf({ publicKeyX: 'y'.repeat(43), fingerprint: 'ZZZZ-ZZZZ', pollTokenHash: 'b'.repeat(64) });
-      expect(await repo.bind(intent.id, 'user', second, audit('enrolment-intent.bound', intent.id))).toBe(false);
+      const second = bindOf({
+        publicKeyX: 'y'.repeat(43),
+        fingerprint: 'ZZZZ-ZZZZ',
+        pollTokenHash: 'b'.repeat(64),
+      });
+      expect(await repo.bind(intent.id, 'user', second, audit('enrolment-intent.bound', intent.id))).toBe(
+        false,
+      );
       expect((await repo.findById(intent.id))?.bind).toEqual(bindOf());
       expect(await auditRows('enrolment-intent.bound', intent.id)).toBe(1);
     });
@@ -177,15 +207,26 @@ describe('EnrolmentIntentsRepo', () => {
       ['an intent of a suspended account', { accountId: SUSPENDED }, 'user', {}],
     ] as const)('refuses %s', async (_, overrides, isolation, bind) => {
       const intent = await created(overrides);
-      expect(await repo.bind(intent.id, isolation, bindOf(bind), audit('enrolment-intent.bound', intent.id, intent.accountId))).toBe(false);
+      expect(
+        await repo.bind(
+          intent.id,
+          isolation,
+          bindOf(bind),
+          audit('enrolment-intent.bound', intent.id, intent.accountId),
+        ),
+      ).toBe(false);
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'pending', bind: null });
       expect(await auditRows('enrolment-intent.bound', intent.id)).toBe(0);
     });
 
     it('refuses a withdrawn intent and an unknown one', async () => {
       const intent = await created();
-      expect(await repo.withdraw(ALICE, intent.id, at(1), audit('enrolment-intent.withdrawn', intent.id))).toBe(true);
-      expect(await repo.bind(intent.id, 'user', bindOf({ at: at(2) }), audit('enrolment-intent.bound', intent.id))).toBe(false);
+      expect(
+        await repo.withdraw(ALICE, intent.id, at(1), audit('enrolment-intent.withdrawn', intent.id)),
+      ).toBe(true);
+      expect(
+        await repo.bind(intent.id, 'user', bindOf({ at: at(2) }), audit('enrolment-intent.bound', intent.id)),
+      ).toBe(false);
       expect(await repo.bind(ulid(), 'user', bindOf(), audit('enrolment-intent.bound', 'none'))).toBe(false);
     });
   });
@@ -193,10 +234,28 @@ describe('EnrolmentIntentsRepo', () => {
   describe('withdraw', () => {
     it('withdraws a pending or bound intent once, for its creator in its account alone', async () => {
       const intent = await bound();
-      expect(await repo.withdraw({ accountId: ACCOUNT_A, createdBy: 'bob' }, intent.id, at(3), audit('enrolment-intent.withdrawn', intent.id))).toBe(false);
-      expect(await repo.withdraw({ accountId: ACCOUNT_B, createdBy: 'alice' }, intent.id, at(3), audit('enrolment-intent.withdrawn', intent.id))).toBe(false);
-      expect(await repo.withdraw(ALICE, intent.id, at(3), audit('enrolment-intent.withdrawn', intent.id))).toBe(true);
-      expect(await repo.withdraw(ALICE, intent.id, at(4), audit('enrolment-intent.withdrawn', intent.id))).toBe(false);
+      expect(
+        await repo.withdraw(
+          { accountId: ACCOUNT_A, createdBy: 'bob' },
+          intent.id,
+          at(3),
+          audit('enrolment-intent.withdrawn', intent.id),
+        ),
+      ).toBe(false);
+      expect(
+        await repo.withdraw(
+          { accountId: ACCOUNT_B, createdBy: 'alice' },
+          intent.id,
+          at(3),
+          audit('enrolment-intent.withdrawn', intent.id),
+        ),
+      ).toBe(false);
+      expect(
+        await repo.withdraw(ALICE, intent.id, at(3), audit('enrolment-intent.withdrawn', intent.id)),
+      ).toBe(true);
+      expect(
+        await repo.withdraw(ALICE, intent.id, at(4), audit('enrolment-intent.withdrawn', intent.id)),
+      ).toBe(false);
       expect(await auditRows('enrolment-intent.withdrawn', intent.id)).toBe(1);
       // What asked stays on the row.
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'withdrawn', bind: bindOf() });
@@ -204,19 +263,30 @@ describe('EnrolmentIntentsRepo', () => {
 
     it('leaves an expired and an approved intent as they are', async () => {
       const expired = await created();
-      expect(await repo.withdraw(ALICE, expired.id, at(600), audit('enrolment-intent.withdrawn', expired.id))).toBe(false);
+      expect(
+        await repo.withdraw(ALICE, expired.id, at(600), audit('enrolment-intent.withdrawn', expired.id)),
+      ).toBe(false);
       const approved = await bound();
       expect((await approveOf(approved.id)).intent?.state).toBe('approved');
-      expect(await repo.withdraw(ALICE, approved.id, at(5), audit('enrolment-intent.withdrawn', approved.id))).toBe(false);
+      expect(
+        await repo.withdraw(ALICE, approved.id, at(5), audit('enrolment-intent.withdrawn', approved.id)),
+      ).toBe(false);
     });
   });
 
   describe('approve', () => {
     it('writes the runner from the intent row alone, with the creator as the enroller, and audits it', async () => {
-      const intent = await bound({ name: 'Studio', projectScope: 'all', allowedProjects: [], isolation: 'container' });
+      const intent = await bound({
+        name: 'Studio',
+        projectScope: 'all',
+        allowedProjects: [],
+        isolation: 'container',
+      });
       const { intent: approved, runnerId } = await approveOf(intent.id);
       expect(approved).toMatchObject({ state: 'approved', runnerId, approvedAt: at(2) });
-      const runner = await env.DB.prepare(`SELECT * FROM runners WHERE id = ?1`).bind(runnerId).first<Record<string, unknown>>();
+      const runner = await env.DB.prepare(`SELECT * FROM runners WHERE id = ?1`)
+        .bind(runnerId)
+        .first<Record<string, unknown>>();
       expect(runner).toMatchObject({
         account_id: ACCOUNT_A,
         name: 'Studio',
@@ -228,7 +298,11 @@ describe('EnrolmentIntentsRepo', () => {
         enrolled_by: 'alice',
         enrolled_at: at(2),
       });
-      expect(JSON.parse(String(runner?.['public_key_jwk']))).toEqual({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) });
+      expect(JSON.parse(String(runner?.['public_key_jwk']))).toEqual({
+        kty: 'OKP',
+        crv: 'Ed25519',
+        x: 'x'.repeat(43),
+      });
       expect(JSON.parse(String(runner?.['capabilities']))).toEqual(bindOf().capabilities);
       expect(await auditRows('runner.enrolled', runnerId)).toBe(1);
     });
@@ -252,19 +326,33 @@ describe('EnrolmentIntentsRepo', () => {
       expect((await approveOf(pending.id)).intent).toBeNull();
 
       const suspended = await created({ accountId: ACCOUNT_B });
-      expect(await repo.bind(suspended.id, 'user', bindOf(), audit('enrolment-intent.bound', suspended.id, ACCOUNT_B))).toBe(true);
+      expect(
+        await repo.bind(
+          suspended.id,
+          'user',
+          bindOf(),
+          audit('enrolment-intent.bound', suspended.id, ACCOUNT_B),
+        ),
+      ).toBe(true);
       await env.DB.prepare(`UPDATE accounts SET suspended_at = ?2 WHERE id = ?1`).bind(ACCOUNT_B, T0).run();
-      const refused = await approveOf(suspended.id, 'ABCD-EFGH', at(2), { accountId: ACCOUNT_B, createdBy: 'alice' });
+      const refused = await approveOf(suspended.id, 'ABCD-EFGH', at(2), {
+        accountId: ACCOUNT_B,
+        createdBy: 'alice',
+      });
       await env.DB.prepare(`UPDATE accounts SET suspended_at = NULL WHERE id = ?1`).bind(ACCOUNT_B).run();
       expect(refused.intent).toBeNull();
-      expect(await env.DB.prepare(`SELECT id FROM runners WHERE id = ?1`).bind(refused.runnerId).first()).toBeNull();
+      expect(
+        await env.DB.prepare(`SELECT id FROM runners WHERE id = ?1`).bind(refused.runnerId).first(),
+      ).toBeNull();
 
       const intent = await bound();
       const first = await approveOf(intent.id);
       const second = await approveOf(intent.id);
       expect(first.intent?.runnerId).toBe(first.runnerId);
       expect(second.intent).toBeNull();
-      expect(await env.DB.prepare(`SELECT id FROM runners WHERE id = ?1`).bind(second.runnerId).first()).toBeNull();
+      expect(
+        await env.DB.prepare(`SELECT id FROM runners WHERE id = ?1`).bind(second.runnerId).first(),
+      ).toBeNull();
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'approved', runnerId: first.runnerId });
     });
   });

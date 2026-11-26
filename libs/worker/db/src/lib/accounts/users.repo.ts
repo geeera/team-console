@@ -115,7 +115,11 @@ export class UsersRepo {
    * The profile name of the user the provider id names, cleaned by `displayNameOf`, written at sign-in and on every
    * later one (#775). Creates no user: a provider id with no row changes nothing. Whether a row changed.
    */
-  async refreshDisplayName(provider: IdentityProvider, providerUserId: string, rawName: unknown): Promise<boolean> {
+  async refreshDisplayName(
+    provider: IdentityProvider,
+    providerUserId: string,
+    rawName: unknown,
+  ): Promise<boolean> {
     const result = await this.db
       .prepare(
         `UPDATE users SET display_name = ?3

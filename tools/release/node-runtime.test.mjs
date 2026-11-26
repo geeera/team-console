@@ -56,8 +56,14 @@ test('refuses a pin below 22.14, a missing or extra platform, a bad sum or an ex
   const { 'linux-arm64': _dropped, ...three } = sums;
   void _dropped;
   assert.throws(() => parsePin(pinText({ sha256: three })), /one sha256 for each/);
-  assert.throws(() => parsePin(pinText({ sha256: { ...sums, 'win-x64': 'e'.repeat(64) } })), /one sha256 for each/);
-  assert.throws(() => parsePin(pinText({ sha256: { ...sums, 'linux-x64': 'C'.repeat(64) } })), /64 lowercase hex/);
+  assert.throws(
+    () => parsePin(pinText({ sha256: { ...sums, 'win-x64': 'e'.repeat(64) } })),
+    /one sha256 for each/,
+  );
+  assert.throws(
+    () => parsePin(pinText({ sha256: { ...sums, 'linux-x64': 'C'.repeat(64) } })),
+    /64 lowercase hex/,
+  );
   assert.throws(() => parsePin(pinText({ url: 'https://example.com' })), /exactly version and sha256/);
 });
 
@@ -94,7 +100,8 @@ test('accepts the keyring only when it holds exactly the pinned keys', () => {
 test('refuses a keyring with no armored key and a corrupted packet', () => {
   assert.throws(() => keyringFingerprints('nothing here'), /no armored public key block/);
   assert.throws(
-    () => keyringFingerprints('-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nAAAA\n-----END PGP PUBLIC KEY BLOCK-----'),
+    () =>
+      keyringFingerprints('-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nAAAA\n-----END PGP PUBLIC KEY BLOCK-----'),
     /not an OpenPGP packet/,
   );
 });
@@ -108,7 +115,8 @@ test('the binary keyring for gpgv starts with a public key packet', () => {
 // --- gpgv's verdict --------------------------------------------------------------------------------------------
 const validsig = (primary, signing = primary) =>
   `[GNUPG:] VALIDSIG ${signing} 2026-11-11 1762819200 0 4 0 1 10 01 ${primary}`;
-const status = (...lines) => ['[GNUPG:] NEWSIG', '[GNUPG:] GOODSIG 20B1A390B168D356 releaser', ...lines, ''].join('\n');
+const status = (...lines) =>
+  ['[GNUPG:] NEWSIG', '[GNUPG:] GOODSIG 20B1A390B168D356 releaser', ...lines, ''].join('\n');
 
 test('names the pinned primary key of one good signature, a signing subkey included', () => {
   assert.strictEqual(signerOf(status(validsig(SIGNER)), PINNED), SIGNER);
@@ -122,7 +130,16 @@ test('refuses a signature by a key that is not pinned, even one gpgv accepted', 
 test('refuses no signature, two signatures, and every bad, expired, revoked or unverifiable one', () => {
   assert.throws(() => signerOf('', PINNED), /exactly one good signature \(found 0\)/);
   assert.throws(() => signerOf(status(validsig(SIGNER), validsig(OTHER)), PINNED), /found 2/);
-  for (const bad of ['BADSIG', 'ERRSIG', 'EXPSIG', 'EXPKEYSIG', 'REVKEYSIG', 'NO_PUBKEY', 'NODATA', 'FAILURE']) {
+  for (const bad of [
+    'BADSIG',
+    'ERRSIG',
+    'EXPSIG',
+    'EXPKEYSIG',
+    'REVKEYSIG',
+    'NO_PUBKEY',
+    'NODATA',
+    'FAILURE',
+  ]) {
     assert.throws(() => signerOf(status(validsig(SIGNER), `[GNUPG:] ${bad} x`), PINNED), new RegExp(bad));
   }
 });

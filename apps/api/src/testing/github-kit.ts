@@ -121,7 +121,9 @@ export function localEnv(
 export async function resetProjects(): Promise<void> {
   await env.DB.batch([
     env.DB.prepare('DELETE FROM projects'),
-    env.DB.prepare(`UPDATE installations SET unlinked_at = '2026-11-10T00:00:00.000Z' WHERE unlinked_at IS NULL`),
+    env.DB.prepare(
+      `UPDATE installations SET unlinked_at = '2026-11-10T00:00:00.000Z' WHERE unlinked_at IS NULL`,
+    ),
   ]);
 }
 

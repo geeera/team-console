@@ -36,7 +36,10 @@ const MANIFEST: DesignManifestDto = {
     screen('phone-02-grid.png'),
     screen('phone-03-huge.png', { tooLarge: true, size: 12_582_912 }),
   ],
-  interactive: { path: 'docs/design/277-viewer/wireframe.html', url: `${PAGES}/team-console/277-viewer/wireframe.html` },
+  interactive: {
+    path: 'docs/design/277-viewer/wireframe.html',
+    url: `${PAGES}/team-console/277-viewer/wireframe.html`,
+  },
   partial: false,
 };
 
@@ -45,8 +48,10 @@ class Host {}
 
 const overlay = (): HTMLElement => document.querySelector('.cdk-overlay-container') as HTMLElement;
 const dialog = (): HTMLElement => overlay().querySelector('tc-sheet-container') as HTMLElement;
-const byTestId = <T extends Element>(testId: string): T | null => dialog().querySelector<T>(`[data-testid="${testId}"]`);
-const allByTestId = (testId: string): Element[] => Array.from(dialog().querySelectorAll(`[data-testid="${testId}"]`));
+const byTestId = <T extends Element>(testId: string): T | null =>
+  dialog().querySelector<T>(`[data-testid="${testId}"]`);
+const allByTestId = (testId: string): Element[] =>
+  Array.from(dialog().querySelectorAll(`[data-testid="${testId}"]`));
 const text = (testId: string): string => byTestId(testId)?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
 async function settle(): Promise<void> {
@@ -119,7 +124,9 @@ describe('DesignViewer', () => {
     const phone = allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone');
     expect(phone?.getAttribute('aria-pressed')).toBe('true');
     expect(text('viewer-position')).toBe('2 из 3 · grid');
-    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('data-path')).toContain('phone-02-grid.png');
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('data-path')).toContain(
+      'phone-02-grid.png',
+    );
 
     // The start is applied once: from there the owner moves on.
     byTestId<HTMLButtonElement>('viewer-next')?.click();
@@ -141,7 +148,9 @@ describe('DesignViewer', () => {
 
   it('moves through the phone screens with the buttons and the arrow keys, announcing the position', async () => {
     await open();
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(text('viewer-position')).toBe('1 из 3 · list');
     expect(byTestId('viewer-prev')?.getAttribute('aria-disabled')).toBe('true');
@@ -150,7 +159,9 @@ describe('DesignViewer', () => {
     byTestId<HTMLButtonElement>('viewer-next')?.click();
     await settle();
     expect(text('viewer-position')).toBe('2 из 3 · grid');
-    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('data-path')).toContain('phone-02-grid.png');
+    expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('data-path')).toContain(
+      'phone-02-grid.png',
+    );
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     await settle();
@@ -158,7 +169,9 @@ describe('DesignViewer', () => {
     expect(byTestId('viewer-next')?.getAttribute('aria-disabled')).toBe('true');
     // The last one is too large: a note with the GitHub link instead of an image.
     expect(byTestId('viewer-too-large')?.textContent).toContain('12 МБ');
-    expect(byTestId('viewer-too-large')?.querySelector('a')?.getAttribute('href')).toBe(MANIFEST.screens[3]?.url);
+    expect(byTestId('viewer-too-large')?.querySelector('a')?.getAttribute('href')).toBe(
+      MANIFEST.screens[3]?.url,
+    );
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true }));
     await settle();
@@ -174,7 +187,9 @@ describe('DesignViewer', () => {
   it('marks how the screen arrived so it can turn like a page: device, next, prev', async () => {
     await open();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
     byTestId<HTMLButtonElement>('viewer-next')?.click();
@@ -187,7 +202,9 @@ describe('DesignViewer', () => {
 
   it('resets the mark once the turn animation ends, so a device switch plays once per switch (#944)', async () => {
     await open();
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
 
@@ -197,21 +214,29 @@ describe('DesignViewer', () => {
 
     // A round trip through «Все экраны» recreates this element (the @for re-key); the earlier device switch must
     // not replay just because it is drawn again.
-    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'grid')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'grid')
+      ?.dispatchEvent(new Event('click'));
     await settle();
-    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'images')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'images')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('none');
 
     // A later, genuine device switch still turns the page.
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'mac')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'mac')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
   });
 
-  it('does not reset the mark on a child\'s animationend bubbling up, only its own (#953)', async () => {
+  it("does not reset the mark on a child's animationend bubbling up, only its own (#953)", async () => {
     await open();
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-page')?.getAttribute('data-move')).toBe('device');
 
@@ -228,12 +253,18 @@ describe('DesignViewer', () => {
 
   it('turns the page on a touch swipe, not on a short or vertical move', async () => {
     await open();
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     const stage = byTestId<HTMLElement>('viewer-stage') as HTMLElement;
     const swipe = (dx: number, dy: number): void => {
-      stage.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'touch', clientX: 200, clientY: 300 }));
-      stage.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'touch', clientX: 200 + dx, clientY: 300 + dy }));
+      stage.dispatchEvent(
+        new PointerEvent('pointerdown', { pointerType: 'touch', clientX: 200, clientY: 300 }),
+      );
+      stage.dispatchEvent(
+        new PointerEvent('pointerup', { pointerType: 'touch', clientX: 200 + dx, clientY: 300 + dy }),
+      );
     };
     swipe(-120, 10);
     await settle();
@@ -248,8 +279,12 @@ describe('DesignViewer', () => {
 
     // A tap on the screen itself zooms it; one beside it does nothing.
     const img = byTestId<HTMLImageElement>('viewer-screen') as HTMLImageElement;
-    img.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10, bubbles: true }));
-    img.dispatchEvent(new PointerEvent('pointerup', { pointerType: 'mouse', clientX: 12, clientY: 11, bubbles: true }));
+    img.dispatchEvent(
+      new PointerEvent('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10, bubbles: true }),
+    );
+    img.dispatchEvent(
+      new PointerEvent('pointerup', { pointerType: 'mouse', clientX: 12, clientY: 11, bubbles: true }),
+    );
     await settle();
     expect(byTestId('viewer-zoom')?.getAttribute('aria-pressed')).toBe('true');
     stage.dispatchEvent(new PointerEvent('pointerdown', { pointerType: 'mouse', clientX: 10, clientY: 10 }));
@@ -272,7 +307,9 @@ describe('DesignViewer', () => {
     expect(stage?.getAttribute('tabindex')).toBe('0');
     expect(stage?.getAttribute('role')).toBe('region');
 
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     expect(byTestId('viewer-zoom')?.getAttribute('aria-pressed')).toBe('false');
     expect(byTestId('viewer-stage')?.getAttribute('tabindex')).toBeNull();
@@ -280,9 +317,13 @@ describe('DesignViewer', () => {
 
   it('shows the grid of every screen of the device with aria-current, and a cell opens it in images', async () => {
     await open();
-    allByTestId('viewer-device').find((b) => b.getAttribute('data-device') === 'phone')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-device')
+      .find((b) => b.getAttribute('data-device') === 'phone')
+      ?.dispatchEvent(new Event('click'));
     await settle();
-    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'grid')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'grid')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     const cells = allByTestId('viewer-grid-item');
     expect(cells).toHaveLength(3);
@@ -293,16 +334,24 @@ describe('DesignViewer', () => {
     (cells[1] as HTMLButtonElement).click();
     await settle();
     await settle();
-    expect(allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'images')?.getAttribute('aria-pressed')).toBe('true');
+    expect(
+      allByTestId('viewer-mode')
+        .find((b) => b.getAttribute('data-mode') === 'images')
+        ?.getAttribute('aria-pressed'),
+    ).toBe('true');
     expect(text('viewer-position')).toBe('2 из 3 · grid');
     expect(document.activeElement).toBe(byTestId('viewer-next'));
   });
 
   it('frames the interactive version only from an allowed origin, in the strict profile, else says it cannot', async () => {
     await open();
-    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'interactive')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'interactive')
+      ?.dispatchEvent(new Event('click'));
     await settle();
-    http.expectOne('/api/v1/projects/tc/embed-origins').flush({ embedOrigins: ['https://team-console-storybook.pages.dev'] });
+    http
+      .expectOne('/api/v1/projects/tc/embed-origins')
+      .flush({ embedOrigins: ['https://team-console-storybook.pages.dev'] });
     await settle();
     await settle();
     expect(byTestId('viewer-frame')).toBeNull();
@@ -320,7 +369,9 @@ describe('DesignViewer', () => {
 
   it('frames the wireframe with sandbox="allow-scripts" exactly when GitHub Pages is an embed origin', async () => {
     await open();
-    allByTestId('viewer-mode').find((b) => b.getAttribute('data-mode') === 'interactive')?.dispatchEvent(new Event('click'));
+    allByTestId('viewer-mode')
+      .find((b) => b.getAttribute('data-mode') === 'interactive')
+      ?.dispatchEvent(new Event('click'));
     await settle();
     http.expectOne('/api/v1/projects/tc/embed-origins').flush({ embedOrigins: [PAGES] });
     await settle();
@@ -337,7 +388,9 @@ describe('DesignViewer', () => {
   it('says there are no images, offering the interactive version, and shows the no-access state', async () => {
     const first = await open({ ...MANIFEST, screens: [] });
     expect(byTestId('viewer-no-images')?.textContent).toContain('В этом дизайне нет картинок');
-    expect(byTestId('viewer-no-images')?.querySelector('button')?.textContent?.trim()).toBe('Открыть интерактивную версию');
+    expect(byTestId('viewer-no-images')?.querySelector('button')?.textContent?.trim()).toBe(
+      'Открыть интерактивную версию',
+    );
     expect(byTestId('viewer-position')).toBeNull();
     first.ref.close();
     await settle();
@@ -388,7 +441,7 @@ describe('DesignViewer', () => {
     expect(byTestId<HTMLImageElement>('viewer-screen')?.getAttribute('src')).not.toContain('attempt');
   });
 
-  it('opening the viewer reads the list again, keeping the rows\' copy on screen meanwhile', async () => {
+  it("opening the viewer reads the list again, keeping the rows' copy on screen meanwhile", async () => {
     // A row loaded the list earlier.
     const store = TestBed.inject(DesignManifests);
     const state = store.stateOf('tc', 277);

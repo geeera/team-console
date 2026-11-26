@@ -20,7 +20,10 @@ describe('SprintCiChip painting', () => {
     key: string | null = null,
     seen: readonly [string, SprintCiState][] = [],
   ) {
-    await TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     for (const [seenKey, seenState] of seen) {
       TestBed.inject(SprintCiMemory).remember(seenKey, seenState);

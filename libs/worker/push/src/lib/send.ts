@@ -64,7 +64,9 @@ export class PushSender {
 
   async sendToAll(store: PushSubscriptionStore, message: PushNotification): Promise<PushSendResult> {
     const started = this.now();
-    const plaintext = new TextEncoder().encode(JSON.stringify(forEnvironment(message, this.options.environment)));
+    const plaintext = new TextEncoder().encode(
+      JSON.stringify(forEnvironment(message, this.options.environment)),
+    );
     const subscriptions = await store.list();
     let sent = 0;
     let pruned = 0;

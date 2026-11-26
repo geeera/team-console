@@ -1,6 +1,13 @@
 import { env } from 'cloudflare:test';
 import type { ReviewRequestDto } from '@shared/contracts';
-import { cancelJob, commitDuringAuthentication, narrowRunner, revokeRunner, seedClaimedJob, sendAsJob } from '../testing/runner-kit';
+import {
+  cancelJob,
+  commitDuringAuthentication,
+  narrowRunner,
+  revokeRunner,
+  seedClaimedJob,
+  sendAsJob,
+} from '../testing/runner-kit';
 import {
   countRows,
   jobActor,
@@ -115,7 +122,10 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
 
     const forged = await request({ roles: ['qa'], headSha: 'd'.repeat(40) });
     expect(forged.status).toBe(422);
-    expect(await forged.json()).toMatchObject({ type: expect.stringContaining('review-request-invalid') as unknown, field: 'body' });
+    expect(await forged.json()).toMatchObject({
+      type: expect.stringContaining('review-request-invalid') as unknown,
+      field: 'body',
+    });
   });
 
   it('refuses a job of another role with 403 review-request-role, writing nothing', async () => {
@@ -123,9 +133,15 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
     await seedPullRequest(project.slug, 5, { headSha: HEAD });
     // `chat` runs as the PM: a real token, the wrong role.
     const pm = await seedClaimedJob(project.slug, 'chat');
-    const response = await sendAsJob(pm.runner, pm.jobToken, 'POST', `/api/v1/projects/${project.slug}/prs/5/reviews`, {
-      roles: ['qa'],
-    });
+    const response = await sendAsJob(
+      pm.runner,
+      pm.jobToken,
+      'POST',
+      `/api/v1/projects/${project.slug}/prs/5/reviews`,
+      {
+        roles: ['qa'],
+      },
+    );
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('review-request-role');
     expect(await response.json()).toMatchObject({ reason: 'pm' });
@@ -153,23 +169,26 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
     ],
     // A PM job of the project, claimed and running: the stand-in names it with the orchestrator role.
     ['a job of another role', async (slug) => (await seedClaimedJob(slug, 'chat')).jobId],
-  ])('refuses an orchestrator naming %s as its parent: 403 review-lineage, writing nothing', async (_, parentOf) => {
-    const project = await seedTrackerProject();
-    await seedPullRequest(project.slug, 5, { headSha: HEAD });
-    const parent = await parentOf(project.slug);
-    const jobs = await countRows('jobs', project.slug);
-    const response = await send(
-      'POST',
-      `/api/v1/projects/${project.slug}/prs/5/reviews`,
-      { roles: ['qa'] },
-      { job: jobActor('orchestrator', parent) },
-    );
-    expect(response.status).toBe(403);
-    expect(await slugOf(response)).toBe('review-lineage');
-    expect(await response.json()).toMatchObject({ reason: 'parent-not-live' });
-    expect(await reviewRows(project.slug)).toHaveLength(0);
-    expect(await countRows('jobs', project.slug)).toBe(jobs);
-  });
+  ])(
+    'refuses an orchestrator naming %s as its parent: 403 review-lineage, writing nothing',
+    async (_, parentOf) => {
+      const project = await seedTrackerProject();
+      await seedPullRequest(project.slug, 5, { headSha: HEAD });
+      const parent = await parentOf(project.slug);
+      const jobs = await countRows('jobs', project.slug);
+      const response = await send(
+        'POST',
+        `/api/v1/projects/${project.slug}/prs/5/reviews`,
+        { roles: ['qa'] },
+        { job: jobActor('orchestrator', parent) },
+      );
+      expect(response.status).toBe(403);
+      expect(await slugOf(response)).toBe('review-lineage');
+      expect(await response.json()).toMatchObject({ reason: 'parent-not-live' });
+      expect(await reviewRows(project.slug)).toHaveLength(0);
+      expect(await countRows('jobs', project.slug)).toBe(jobs);
+    },
+  );
 
   it.each([
     ['a pull request the console does not hold', 6, 404, 'pull-request-not-found'],
@@ -179,9 +198,15 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
     const { project, runner, jobToken } = await seeded();
     await seedPullRequest(project.slug, 7, { state: 'closed' });
     await seedPullRequest(project.slug, 8, { state: 'merged' });
-    const response = await sendAsJob(runner, jobToken, 'POST', `/api/v1/projects/${project.slug}/prs/${String(number)}/reviews`, {
-      roles: ['qa'],
-    });
+    const response = await sendAsJob(
+      runner,
+      jobToken,
+      'POST',
+      `/api/v1/projects/${project.slug}/prs/${String(number)}/reviews`,
+      {
+        roles: ['qa'],
+      },
+    );
     expect(response.status).toBe(status);
     expect(await slugOf(response)).toBe(slug);
     expect(await reviewRows(project.slug)).toHaveLength(0);
@@ -189,9 +214,15 @@ describe('POST /api/v1/projects/:slug/prs/:number/reviews', () => {
 
   it('answers 400 to a path that names no pull request number', async () => {
     const { project, runner, jobToken } = await seeded();
-    const response = await sendAsJob(runner, jobToken, 'POST', `/api/v1/projects/${project.slug}/prs/0x5/reviews`, {
-      roles: ['qa'],
-    });
+    const response = await sendAsJob(
+      runner,
+      jobToken,
+      'POST',
+      `/api/v1/projects/${project.slug}/prs/0x5/reviews`,
+      {
+        roles: ['qa'],
+      },
+    );
     expect(response.status).toBe(400);
     expect(await slugOf(response)).toBe('pull-request-number');
   });
@@ -249,26 +280,41 @@ describe('POST …/prs/:number/reviews judges the requesting job inside the writ
   });
 
   async function dispatchedCount(): Promise<number> {
-    const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.dispatched'`).first<{ n: number }>();
+    const row = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.dispatched'`,
+    ).first<{ n: number }>();
     return row?.n ?? 0;
   }
 
   const changes = [
-    ['a narrowing', 403, 'job-runner-mismatch', (s: { runner: { id: string } }) => narrowRunner(s.runner.id, [])],
+    [
+      'a narrowing',
+      403,
+      'job-runner-mismatch',
+      (s: { runner: { id: string } }) => narrowRunner(s.runner.id, []),
+    ],
     ['a revoke', 401, 'runner-revoked', (s: { runner: { id: string } }) => revokeRunner(s.runner.id)],
-    ['a cancel (the lineage read already sees it)', 403, 'review-lineage', (s: { jobId: string }) => cancelJob(s.jobId)],
+    [
+      'a cancel (the lineage read already sees it)',
+      403,
+      'review-lineage',
+      (s: { jobId: string }) => cancelJob(s.jobId),
+    ],
   ] as const;
 
-  it.each(changes)('refuses when %s commits between authentication and the write', async (_name, status, type, change) => {
-    const seed = await seeded();
-    const before = await dispatchedCount();
-    commitDuringAuthentication(change(seed));
-    const response = await seed.request({ roles: ['qa', 'security'] });
-    expect(response.status).toBe(status);
-    expect(await slugOf(response)).toBe(type);
-    expect(await reviewRows(seed.project.slug)).toHaveLength(0);
-    expect(await dispatchedCount()).toBe(before);
-  });
+  it.each(changes)(
+    'refuses when %s commits between authentication and the write',
+    async (_name, status, type, change) => {
+      const seed = await seeded();
+      const before = await dispatchedCount();
+      commitDuringAuthentication(change(seed));
+      const response = await seed.request({ roles: ['qa', 'security'] });
+      expect(response.status).toBe(status);
+      expect(await slugOf(response)).toBe(type);
+      expect(await reviewRows(seed.project.slug)).toHaveLength(0);
+      expect(await dispatchedCount()).toBe(before);
+    },
+  );
 
   it('still enqueues when the change keeps the job holding', async () => {
     const seed = await seeded();

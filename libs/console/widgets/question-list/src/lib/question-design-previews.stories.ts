@@ -7,7 +7,9 @@ import { QuestionDesignPreviews } from './question-design-previews';
 
 // The kit Storybook's toolbar globals (`.storybook/stories.ts`); repeated here rather than imported across projects.
 const darkTheme = { globals: { theme: 'dark' } } satisfies Partial<StoryObj>;
-const phoneViewport = { globals: { viewport: { value: 'iphone', isRotated: false } } } satisfies Partial<StoryObj>;
+const phoneViewport = {
+  globals: { viewport: { value: 'iphone', isRotated: false } },
+} satisfies Partial<StoryObj>;
 
 // The Storybook static dir answers this one file route with a real render (`.storybook/public/api/...`).
 const SHA = 'a'.repeat(40);
@@ -15,7 +17,10 @@ const SHA = 'a'.repeat(40);
 const screen = (file: string): DesignManifestDto['screens'][number] => ({
   path: `docs/design/277-design-viewer/${file}`,
   file,
-  caption: file.replace(/^(?:phone|mac)-\d+-/, '').replace(/\.\w+$/, '').replace(/-/g, ' '),
+  caption: file
+    .replace(/^(?:phone|mac)-\d+-/, '')
+    .replace(/\.\w+$/, '')
+    .replace(/-/g, ' '),
   device: file.startsWith('phone-') ? 'phone' : 'mac',
   type: 'png',
   size: 1206,

@@ -91,15 +91,26 @@ describe('mintScoped (#759 named kinds)', () => {
     ['actions-dispatch', { actions: 'write' }],
     ['environment-read', { actions: 'read', environments: 'read' }],
     ['workflow-pr', { contents: 'write', workflows: 'write', pull_requests: 'write' }],
-  ] as const)('mints a %s token for one repository by id with exactly its permissions', async (kind, permissions) => {
-    const token = await authWith({ setupWrite: 'enabled' }).mintScoped(kind, TEAM_CONSOLE, recordingAudit().audit);
-    expect(mintBodies()).toEqual([{ repository_ids: [TEAM_CONSOLE.repositoryId], permissions }]);
-    expect(token.kind).toBe(kind);
-    expect(token.repositoryId).toBe(TEAM_CONSOLE.repositoryId);
-  });
+  ] as const)(
+    'mints a %s token for one repository by id with exactly its permissions',
+    async (kind, permissions) => {
+      const token = await authWith({ setupWrite: 'enabled' }).mintScoped(
+        kind,
+        TEAM_CONSOLE,
+        recordingAudit().audit,
+      );
+      expect(mintBodies()).toEqual([{ repository_ids: [TEAM_CONSOLE.repositoryId], permissions }]);
+      expect(token.kind).toBe(kind);
+      expect(token.repositoryId).toBe(TEAM_CONSOLE.repositoryId);
+    },
+  );
 
   it('holds workflows: write in the workflow-pr set alone', () => {
-    expect(WORKFLOW_PR_PERMISSIONS).toEqual({ contents: 'write', workflows: 'write', pull_requests: 'write' });
+    expect(WORKFLOW_PR_PERMISSIONS).toEqual({
+      contents: 'write',
+      workflows: 'write',
+      pull_requests: 'write',
+    });
     expect(ENVIRONMENT_READ_PERMISSIONS).not.toHaveProperty('workflows');
     expect(Object.isFrozen(WORKFLOW_PR_PERMISSIONS)).toBe(true);
     expect(SCOPED_MINT_KINDS).toEqual(['actions-dispatch', 'environment-read', 'workflow-pr']);
@@ -139,18 +150,28 @@ describe('mintScoped (#759 named kinds)', () => {
       expect(calls).toEqual([]);
       expect(events).toEqual([
         { kind: 'workflow-pr', ...TEAM_CONSOLE, outcome: 'attempted' },
-        { kind: 'workflow-pr', ...TEAM_CONSOLE, outcome: 'failed', failure: 'write-disabled', githubStatus: null },
+        {
+          kind: 'workflow-pr',
+          ...TEAM_CONSOLE,
+          outcome: 'failed',
+          failure: 'write-disabled',
+          githubStatus: null,
+        },
       ]);
     });
 
     it('refuses it with the switch explicitly disabled too', async () => {
-      const error = await rejection(authWith({ setupWrite: 'disabled' }).mintScoped('workflow-pr', TEAM_CONSOLE, recordingAudit().audit));
+      const error = await rejection(
+        authWith({ setupWrite: 'disabled' }).mintScoped('workflow-pr', TEAM_CONSOLE, recordingAudit().audit),
+      );
       expect((error as GitHubError).problem.type).toBe('github-write-disabled');
       expect(calls).toEqual([]);
     });
 
     it.each(['actions-dispatch', 'environment-read'] as const)('leaves %s alone', async (kind) => {
-      await expect(authWith().mintScoped(kind, TEAM_CONSOLE, recordingAudit().audit)).resolves.toMatchObject({ kind });
+      await expect(authWith().mintScoped(kind, TEAM_CONSOLE, recordingAudit().audit)).resolves.toMatchObject({
+        kind,
+      });
     });
   });
 
@@ -158,7 +179,9 @@ describe('mintScoped (#759 named kinds)', () => {
     'audits a %s mint the installation was not granted as permission-missing (GitHub 422)',
     async (kind: ScopedMintKind) => {
       const { events, audit } = recordingAudit();
-      const error = await rejection(authWith({ setupWrite: 'enabled' }).mintScoped(kind, PRIVATE_PRODUCT, audit));
+      const error = await rejection(
+        authWith({ setupWrite: 'enabled' }).mintScoped(kind, PRIVATE_PRODUCT, audit),
+      );
       expect((error as GitHubError).githubStatus).toBe(422);
       expect(events.at(-1)).toEqual({
         kind,
@@ -204,7 +227,11 @@ describe('mintScoped (#759 named kinds)', () => {
     'refuses the cast kind %j with a TypeError before the audit hook or GitHub hears anything (SEC 2)',
     async (kind) => {
       const { events, audit } = recordingAudit();
-      const minting = authWith({ setupWrite: 'enabled' }).mintScoped(kind as unknown as ScopedMintKind, TEAM_CONSOLE, audit);
+      const minting = authWith({ setupWrite: 'enabled' }).mintScoped(
+        kind as unknown as ScopedMintKind,
+        TEAM_CONSOLE,
+        audit,
+      );
       await expect(minting).rejects.toThrow(TypeError);
       expect(events).toEqual([]);
       expect(calls).toEqual([]);
@@ -215,7 +242,9 @@ describe('mintScoped (#759 named kinds)', () => {
     const failing: ScopedMintAudit = async () => {
       throw new Error('audit store down');
     };
-    await expect(authWith().mintScoped('environment-read', TEAM_CONSOLE, failing)).rejects.toThrow('audit store down');
+    await expect(authWith().mintScoped('environment-read', TEAM_CONSOLE, failing)).rejects.toThrow(
+      'audit store down',
+    );
     expect(calls).toEqual([]);
   });
 
@@ -225,7 +254,9 @@ describe('mintScoped (#759 named kinds)', () => {
         throw new Error('audit store down');
       }
     };
-    await expect(authWith().mintScoped('environment-read', TEAM_CONSOLE, audit)).rejects.toThrow('audit store down');
+    await expect(authWith().mintScoped('environment-read', TEAM_CONSOLE, audit)).rejects.toThrow(
+      'audit store down',
+    );
     expect(calls.map((call) => `${call.method} ${call.path}`)).toEqual([
       'POST /app/installations/1001/access_tokens',
       'DELETE /installation/token',

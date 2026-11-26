@@ -59,7 +59,9 @@ async function ephemeralRunnersOf(project: ActionsProject): Promise<number> {
 }
 
 async function stateOf(jobId: string): Promise<string | undefined> {
-  const row = await env.DB.prepare(`SELECT state FROM jobs WHERE id = ?1`).bind(jobId).first<{ state: string }>();
+  const row = await env.DB.prepare(`SELECT state FROM jobs WHERE id = ?1`)
+    .bind(jobId)
+    .first<{ state: string }>();
   return row?.state;
 }
 
@@ -69,7 +71,9 @@ async function saveRoles(project: ActionsProject, roles: Record<string, unknown>
   const outcome = await new TeamConfigRepo(env.DB).save({
     projectSlug: project.slug,
     expectedRevision: 1,
-    config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, roles } as Parameters<TeamConfigRepo['save']>[0]['config'],
+    config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, roles } as Parameters<
+      TeamConfigRepo['save']
+    >[0]['config'],
     diff: [{ path: 'roles', to: roles }],
     reason: null,
     id: newUlid(),
@@ -119,7 +123,11 @@ describe('#695 item 2: a needs_local job never runs on a GitHub VM', () => {
   it('refuses the exchange for a needs_local job and leaves it queued', async () => {
     const project = await seedActionsProject();
     const local = await seedActionsJob(project, 'actions', { needsLocal: true });
-    expect(await claimOf(await exchange(project, local))).toEqual({ status: 409, slug: 'oidc-exchange-refused', claim: 'job_id' });
+    expect(await claimOf(await exchange(project, local))).toEqual({
+      status: 409,
+      slug: 'oidc-exchange-refused',
+      claim: 'job_id',
+    });
     expect(await stateOf(local)).toBe('queued');
   });
 });
@@ -166,7 +174,7 @@ describe('#723 item 2: the exchange takes a job only for the run its dispatch st
     expect(await ephemeralRunnersOf(project)).toBe(0);
   });
 
-  it("refuses the run dispatched for one job when it names another job of the project", async () => {
+  it('refuses the run dispatched for one job when it names another job of the project', async () => {
     const project = await seedActionsProject();
     const mine = await seedActionsJob(project);
     const other = await seedActionsJob(project);
@@ -181,7 +189,14 @@ describe('#723 item 2: the exchange takes a job only for the run its dispatch st
     const key = await generateRunnerKey();
     const at = new Date().toISOString();
     const runId = nextRunId();
-    const audit = { accountId: project.accountId, at, actorKind: 'runner' as const, actor: 'x', kind: 'job.claimed' as const, target: jobId };
+    const audit = {
+      accountId: project.accountId,
+      at,
+      actorKind: 'runner' as const,
+      actor: 'x',
+      kind: 'job.claimed' as const,
+      target: jobId,
+    };
     const outcome = await new JobsRepo(env.DB).exchangeForActions({
       jobId,
       runId,
@@ -209,7 +224,11 @@ describe('#706: the role admission inside the exchange', () => {
     const project = await seedActionsProject();
     await saveRoles(project, { architect: { enabled: false } });
     const jobId = await seedActionsJob(project, 'actions', { role: 'architect' });
-    expect(await claimOf(await exchange(project, jobId))).toEqual({ status: 409, slug: 'oidc-exchange-refused', claim: 'job_id' });
+    expect(await claimOf(await exchange(project, jobId))).toEqual({
+      status: 409,
+      slug: 'oidc-exchange-refused',
+      claim: 'job_id',
+    });
     expect(await stateOf(jobId)).toBe('queued');
     const runners = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = json_array(?1)`,
@@ -245,7 +264,9 @@ describe('#706: the role admission inside the exchange', () => {
     expect((await exchange(project, first)).status).toBe(200);
     expect((await exchange(project, second)).status).toBe(409);
 
-    await env.DB.prepare(`UPDATE jobs SET state = 'finished', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`)
+    await env.DB.prepare(
+      `UPDATE jobs SET state = 'finished', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
+    )
       .bind(first, new Date().toISOString())
       .run();
     expect((await exchange(project, second)).status).toBe(200);

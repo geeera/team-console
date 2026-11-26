@@ -27,10 +27,7 @@
         "gates": {
           "qa": "always",
           "reviewer": "code",
-          "code_paths": [
-            "apps/**",
-            "libs/**"
-          ],
+          "code_paths": ["apps/**", "libs/**"],
           "max_rework_rounds": 1
         },
         "budget": {
@@ -60,10 +57,7 @@
         "gates": {
           "qa": "always",
           "reviewer": "code",
-          "code_paths": [
-            "apps/**",
-            "libs/**"
-          ],
+          "code_paths": ["apps/**", "libs/**"],
           "max_rework_rounds": 1
         },
         "budget": {
@@ -198,10 +192,7 @@
         "gates": {
           "qa": "always",
           "reviewer": "code",
-          "code_paths": [
-            "apps/**",
-            "libs/**"
-          ],
+          "code_paths": ["apps/**", "libs/**"],
           "max_rework_rounds": 1
         },
         "caps": {

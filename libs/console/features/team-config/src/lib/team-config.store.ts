@@ -1,7 +1,15 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import type { TeamConfigDto, TeamStatusDto } from '@shared/contracts';
 import { TeamConfigClient, type TeamConfigSaveResult } from './team-config.client';
-import { changesOf, documentOf, draftOf, mergeOnTop, withLeaf, type DraftChange, type TeamDraft } from './team-draft';
+import {
+  changesOf,
+  documentOf,
+  draftOf,
+  mergeOnTop,
+  withLeaf,
+  type DraftChange,
+  type TeamDraft,
+} from './team-draft';
 
 export type TeamConfigStatus = 'loading' | 'ready' | 'error' | 'not-found';
 

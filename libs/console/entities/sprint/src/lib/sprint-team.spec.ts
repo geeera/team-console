@@ -43,7 +43,12 @@ describe('SprintRunList strip', () => {
 
   it('draws one stamp per run, in the order of the rows, each by its state', async () => {
     const { stamps } = await render([run('running'), run('finished'), run('failed'), run('unknown')]);
-    expect(stamps().map((stamp) => stamp.dataset['state'])).toEqual(['running', 'finished', 'failed', 'unknown']);
+    expect(stamps().map((stamp) => stamp.dataset['state'])).toEqual([
+      'running',
+      'finished',
+      'failed',
+      'unknown',
+    ]);
   });
 
   it('shows at most the five latest runs as stamps', async () => {

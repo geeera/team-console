@@ -83,9 +83,13 @@ export class NumberField {
   readonly typedInvalid = output<boolean>();
 
   private readonly typed = signal<string | null>(null);
-  protected readonly text = computed(() => this.typed() ?? (this.value() === null ? '' : String(this.value())));
+  protected readonly text = computed(
+    () => this.typed() ?? (this.value() === null ? '' : String(this.value())),
+  );
   protected readonly isRangeError = signal(false);
-  protected readonly errorText = computed(() => (this.isRangeError() ? this.rangeText() : (this.error() ?? '')));
+  protected readonly errorText = computed(() =>
+    this.isRangeError() ? this.rangeText() : (this.error() ?? ''),
+  );
   protected readonly shown = computed(() => {
     const value = this.value();
     return value === null ? this.emptyText() : String(value);
@@ -107,7 +111,8 @@ export class NumberField {
       return;
     }
     const text = target.value;
-    const parsed = text.trim() === '' && this.allowEmpty() ? null : boundedIntegerOf(text, this.min(), this.max());
+    const parsed =
+      text.trim() === '' && this.allowEmpty() ? null : boundedIntegerOf(text, this.min(), this.max());
     const isValid = parsed !== null || (text.trim() === '' && this.allowEmpty());
     this.isRangeError.set(!isValid);
     this.typedInvalid.emit(!isValid);

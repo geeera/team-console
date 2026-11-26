@@ -101,7 +101,9 @@ describe('enrolCommandOf', () => {
     expect(enrolCommandOf({ apiUrl: 'https://console.example.dev', code })).toBe(
       `TC_ENROL_CODE=${code} team-console-runner enrol --url https://console.example.dev`,
     );
-    expect(enrolCommandOf({ apiUrl: 'http://localhost:8787', code })).toMatch(/ --url http:\/\/localhost:8787$/);
+    expect(enrolCommandOf({ apiUrl: 'http://localhost:8787', code })).toMatch(
+      / --url http:\/\/localhost:8787$/,
+    );
     expect(enrolCommandOf({ apiUrl: 'https://console.example.dev', code })).not.toContain('--code');
   });
 
@@ -128,7 +130,9 @@ describe('runner guards', () => {
         revokedAt: '2026-11-10T00:02:00.000Z',
       }),
     ).toBe(true);
-    expect(isRunnerDto({ ...RUNNER, pause: { reason: 'usage-limit', until: '2026-11-10T05:00:00.000Z' } })).toBe(true);
+    expect(
+      isRunnerDto({ ...RUNNER, pause: { reason: 'usage-limit', until: '2026-11-10T05:00:00.000Z' } }),
+    ).toBe(true);
     for (const enroller of ['unrecorded', 'claimable', 'not-applicable']) {
       expect(isRunnerDto({ ...RUNNER, enroller })).toBe(true);
     }
@@ -159,7 +163,11 @@ describe('runner guards', () => {
     expect(isRunnerListDto({ runners: [RUNNER], release })).toBe(false);
     expect(isRunnerListDto({ runners: [RUNNER], pendingEnrolments: [] })).toBe(false);
     expect(
-      isRunnerListDto({ runners: [RUNNER], pendingEnrolments: [], release: { version: 'not ok!', minimumVersion: null } }),
+      isRunnerListDto({
+        runners: [RUNNER],
+        pendingEnrolments: [],
+        release: { version: 'not ok!', minimumVersion: null },
+      }),
     ).toBe(false);
   });
 
@@ -176,7 +184,13 @@ describe('runner guards', () => {
 
     it('narrows a pending code', () => {
       expect(isPendingEnrolmentDto(PENDING)).toBe(true);
-      expect(isRunnerListDto({ runners: [], pendingEnrolments: [PENDING], release: { version: null, minimumVersion: null } })).toBe(true);
+      expect(
+        isRunnerListDto({
+          runners: [],
+          pendingEnrolments: [PENDING],
+          release: { version: null, minimumVersion: null },
+        }),
+      ).toBe(true);
     });
 
     it.each([
@@ -228,7 +242,10 @@ describe('runner policy guards', () => {
 
   it.each([
     ['a failover without its threshold', { mode: 'failover', preferred: RUNNER_ID, fallback: [OTHER_ID] }],
-    ['a failover without fallbacks', { mode: 'failover', preferred: RUNNER_ID, fallback: [], offline_after_seconds: 300 }],
+    [
+      'a failover without fallbacks',
+      { mode: 'failover', preferred: RUNNER_ID, fallback: [], offline_after_seconds: 300 },
+    ],
     ['a pinned policy naming no runner', { mode: 'pinned' }],
     ['an unknown mode', { mode: 'round-robin' }],
     ['an extra member', { mode: 'any', runner: RUNNER_ID }],
@@ -245,12 +262,15 @@ describe('runner policy guards', () => {
 describe('checkPauseRunnerInput', () => {
   const now = new Date('2026-11-13T12:00:00.000Z');
 
-  it.each(['usage-limit', 'rate-limit', 'manual'])('accepts %s with an until inside 24 hours, normalised', (reason) => {
-    expect(checkPauseRunnerInput({ reason, until: '2026-11-13T13:00:00Z' }, now)).toEqual({
-      ok: true,
-      value: { reason, until: '2026-11-13T13:00:00.000Z' },
-    });
-  });
+  it.each(['usage-limit', 'rate-limit', 'manual'])(
+    'accepts %s with an until inside 24 hours, normalised',
+    (reason) => {
+      expect(checkPauseRunnerInput({ reason, until: '2026-11-13T13:00:00Z' }, now)).toEqual({
+        ok: true,
+        value: { reason, until: '2026-11-13T13:00:00.000Z' },
+      });
+    },
+  );
 
   it('accepts until exactly 24 hours ahead', () => {
     const until = new Date(now.getTime() + RUNNER_PAUSE_MAX_SECONDS * 1000).toISOString();

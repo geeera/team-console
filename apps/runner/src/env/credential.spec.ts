@@ -24,8 +24,12 @@ describe('accessSourcesOf', () => {
   it('derives api_key for an API key, subscription for a Claude login or no credential at all', () => {
     expect(accessSourcesOf({ kind: 'api-key', file: 'credentials/anthropic.key' })).toEqual(['api_key']);
     expect(accessSourcesOf({ kind: 'api-key', env: 'TC_INFERENCE_API_KEY' })).toEqual(['api_key']);
-    expect(accessSourcesOf({ kind: 'setup-token', file: 'credentials/claude-setup-token' })).toEqual(['subscription']);
-    expect(accessSourcesOf({ kind: 'claude-config-dir', path: '/Users/me/.claude' })).toEqual(['subscription']);
+    expect(accessSourcesOf({ kind: 'setup-token', file: 'credentials/claude-setup-token' })).toEqual([
+      'subscription',
+    ]);
+    expect(accessSourcesOf({ kind: 'claude-config-dir', path: '/Users/me/.claude' })).toEqual([
+      'subscription',
+    ]);
     expect(accessSourcesOf(undefined)).toEqual(['subscription']);
   });
 });

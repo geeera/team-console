@@ -117,7 +117,9 @@ describe('TaskScreen', () => {
       'Статус: Одобрено',
     );
     expect(root.querySelector('[data-testid="pick-kind"]')?.getAttribute('aria-label')).toBe('Тип: Ошибка');
-    expect(root.querySelector('[data-testid="pick-sprint"]')?.getAttribute('aria-label')).toBe('Спринт: Sprint 03 — текущий');
+    expect(root.querySelector('[data-testid="pick-sprint"]')?.getAttribute('aria-label')).toBe(
+      'Спринт: Sprint 03 — текущий',
+    );
     expect(root.querySelector('[data-testid="task-queue"]')?.textContent).toContain('2-я из 3 в «Одобрено»');
     expect(
       root.querySelector('a[href="https://github.com/geeera/team-console/issues/7"]')?.textContent,

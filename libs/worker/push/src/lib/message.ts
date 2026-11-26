@@ -55,7 +55,12 @@ export function cleanPushText(text: string): string {
     .join('');
   const flat = spaced.replace(/\s+/g, ' ').trim();
   const chars = [...flat];
-  return chars.length <= PUSH_TEXT_MAX_LENGTH ? flat : `${chars.slice(0, PUSH_TEXT_MAX_LENGTH - 1).join('').trimEnd()}…`;
+  return chars.length <= PUSH_TEXT_MAX_LENGTH
+    ? flat
+    : `${chars
+        .slice(0, PUSH_TEXT_MAX_LENGTH - 1)
+        .join('')
+        .trimEnd()}…`;
 }
 
 function assertTarget(slug: string, number: number): void {

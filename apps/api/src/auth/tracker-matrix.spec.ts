@@ -102,7 +102,12 @@ async function job(project: SeededProject): Promise<string> {
 
 /** Revision 1 of the project's team configuration, saved by the owner (#687). */
 async function teamConfigRevision(project: SeededProject): Promise<string> {
-  const response = await send('PUT', `${P}/${project.slug}/team-config`, { config: { schema: 'team-config/v1' } }, { ifMatch: '"0"' });
+  const response = await send(
+    'PUT',
+    `${P}/${project.slug}/team-config`,
+    { config: { schema: 'team-config/v1' } },
+    { ifMatch: '"0"' },
+  );
   if (response.status !== 200) {
     throw new Error(`seeding a team configuration answered ${String(response.status)}`);
   }
@@ -119,9 +124,15 @@ const accountReads = (route: TrackerRoute, path: (project: SeededProject) => Pro
 const ROWS: readonly Row[] = [
   // #687 (ADR 0009 d.9): the account reads the document and its history, a job only its resolved view; the owner writes.
   accountReads(`GET ${P}/:slug/team-config`, async (project) => `${P}/${project.slug}/team-config`),
-  accountReads(`GET ${P}/:slug/team-config/revisions`, async (project) => `${P}/${project.slug}/team-config/revisions`),
+  accountReads(
+    `GET ${P}/:slug/team-config/revisions`,
+    async (project) => `${P}/${project.slug}/team-config/revisions`,
+  ),
   accountReads(`GET ${P}/:slug/team-config/revisions/:n`, teamConfigRevision),
-  reads(`GET ${P}/:slug/team-config/resolved`, async (project) => `${P}/${project.slug}/team-config/resolved`),
+  reads(
+    `GET ${P}/:slug/team-config/resolved`,
+    async (project) => `${P}/${project.slug}/team-config/resolved`,
+  ),
   {
     route: `PUT ${P}/:slug/team-config`,
     setup: async (project) => ({
@@ -178,7 +189,11 @@ const ROWS: readonly Row[] = [
   accountReads(`GET ${P}/:slug/dispatch`, async (project) => `${P}/${project.slug}/dispatch`),
   {
     route: `PUT ${P}/:slug/dispatch`,
-    setup: async (project) => ({ method: 'PUT', path: `${P}/${project.slug}/dispatch`, body: { dispatch: 'pull' } }),
+    setup: async (project) => ({
+      method: 'PUT',
+      path: `${P}/${project.slug}/dispatch`,
+      body: { dispatch: 'pull' },
+    }),
     expect: (who) => (who === 'owner' ? ok(200) : refused('owner-only')),
   },
   // #759: the account reads the rendered workflow. This stack is served on http://api.test, not on the configured
@@ -265,7 +280,13 @@ const ROWS: readonly Row[] = [
     route: `POST ${P}/:slug/items/:key/queue`,
     setup: async (project) => {
       const { path, number } = await item(project, { kind: 'feature', status: 'approved' });
-      return { method: 'POST', path: `${path}/queue`, body: { move: 'first' }, ifMatch: '"1"', items: [number] };
+      return {
+        method: 'POST',
+        path: `${path}/queue`,
+        body: { move: 'first' },
+        ifMatch: '"1"',
+        items: [number],
+      };
     },
     expect: (who) => (who === 'owner' || who === 'pm' ? ok(200) : refused('queue-role')),
   },
@@ -555,7 +576,9 @@ describe('the member actor is decided on every row', () => {
   it.each(routes)('%s', (route) => {
     const rule = TRACKER_MATRIX[route];
     const isRead = route.startsWith('GET ') && !ownerOnlyReads.has(route);
-    expect(rule.member, 'a member reads everything but the owner-only reads, and writes nothing yet').toBe(isRead);
+    expect(rule.member, 'a member reads everything but the owner-only reads, and writes nothing yet').toBe(
+      isRead,
+    );
     expect(matrixRefusal(rule, member)).toBe(isRead ? null : rule.refusal);
   });
 
@@ -659,7 +682,8 @@ describe.each(ROWS.map((row) => [label(row), row] as const))('%s', (_, row) => {
     const project = await seedTrackerProject();
     const scenario = await row.setup(project);
     const before = await snapshot(project.slug);
-    const job = who === 'owner' ? undefined : jobActor(who, scenario.jobId ?? `job-${who}`, scenario.items ?? []);
+    const job =
+      who === 'owner' ? undefined : jobActor(who, scenario.jobId ?? `job-${who}`, scenario.items ?? []);
     const expected = row.expect(who);
     await expectOutcome(await sendAs(scenario, job), expected, `${who} on ${label(row)}`);
     if (expected.status >= 400) {

@@ -23,7 +23,8 @@ export const JOB_KINDS = [
   'digest',
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
-export const isJobKind = (value: unknown): value is JobKind => (JOB_KINDS as readonly unknown[]).includes(value);
+export const isJobKind = (value: unknown): value is JobKind =>
+  (JOB_KINDS as readonly unknown[]).includes(value);
 
 /**
  * The kinds a project still on GitHub Issues may enqueue (#775, SECURITY Q8): the ones that act on GitHub through the
@@ -42,14 +43,32 @@ export const JOB_KINDS_BEFORE_CUTOVER: readonly JobKind[] = [
 ];
 export const isJobKindBeforeCutover = (kind: JobKind): boolean => JOB_KINDS_BEFORE_CUTOVER.includes(kind);
 
-export const JOB_STATES = ['queued', 'claimed', 'running', 'finished', 'failed', 'lost', 'cancelled'] as const;
+export const JOB_STATES = [
+  'queued',
+  'claimed',
+  'running',
+  'finished',
+  'failed',
+  'lost',
+  'cancelled',
+] as const;
 export type JobState = (typeof JOB_STATES)[number];
-export const isJobState = (value: unknown): value is JobState => (JOB_STATES as readonly unknown[]).includes(value);
+export const isJobState = (value: unknown): value is JobState =>
+  (JOB_STATES as readonly unknown[]).includes(value);
 
 export const JOB_DISPATCHES = ['pull', 'actions', 'hosted'] as const;
 export type JobDispatch = (typeof JOB_DISPATCHES)[number];
 
-export const JOB_EVENT_KINDS = ['started', 'log', 'notice', 'acted', 'metric', 'paused', 'finished', 'failed'] as const;
+export const JOB_EVENT_KINDS = [
+  'started',
+  'log',
+  'notice',
+  'acted',
+  'metric',
+  'paused',
+  'finished',
+  'failed',
+] as const;
 export type JobEventKind = (typeof JOB_EVENT_KINDS)[number];
 export const isJobEventKind = (value: unknown): value is JobEventKind =>
   (JOB_EVENT_KINDS as readonly unknown[]).includes(value);
@@ -232,7 +251,13 @@ export function checkCreateJobInput(body: unknown): InputCheck<CreateJobInput> {
   return checked(() => {
     const fields = record(body, ['kind', 'items', 'needsLocal', 'maxMinutes', 'role']);
     const maxMinutes = fields['maxMinutes'] ?? null;
-    if (maxMinutes !== null && (typeof maxMinutes !== 'number' || !Number.isInteger(maxMinutes) || maxMinutes < 1 || maxMinutes > JOB_MAX_MINUTES_MAX)) {
+    if (
+      maxMinutes !== null &&
+      (typeof maxMinutes !== 'number' ||
+        !Number.isInteger(maxMinutes) ||
+        maxMinutes < 1 ||
+        maxMinutes > JOB_MAX_MINUTES_MAX)
+    ) {
       throw new InputError('maxMinutes', `maxMinutes must be 1 to ${String(JOB_MAX_MINUTES_MAX)}`);
     }
     const needsLocal = fields['needsLocal'] ?? false;
@@ -338,7 +363,11 @@ export const isRunnerAvailability = (value: unknown): value is RunnerAvailabilit
  * holds back a subscription runner under `all` from another owner's project; `no-runner` neither. A member or a job
  * never gets the key, so it never learns that a runner signs in with a subscription or whose it is.
  */
-export const RUNNER_UNAVAILABLE_REASONS = ['no-runner', 'access-mismatch', 'other-owner-subscription'] as const;
+export const RUNNER_UNAVAILABLE_REASONS = [
+  'no-runner',
+  'access-mismatch',
+  'other-owner-subscription',
+] as const;
 export type RunnerUnavailableReason = (typeof RUNNER_UNAVAILABLE_REASONS)[number];
 export const isRunnerUnavailableReason = (value: unknown): value is RunnerUnavailableReason =>
   (RUNNER_UNAVAILABLE_REASONS as readonly unknown[]).includes(value);
@@ -381,8 +410,10 @@ export interface JobEventListDto {
   readonly nextCursor: number | null;
 }
 
-const isJobDispatch = (value: unknown): value is JobDispatch => (JOB_DISPATCHES as readonly unknown[]).includes(value);
-const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+const isJobDispatch = (value: unknown): value is JobDispatch =>
+  (JOB_DISPATCHES as readonly unknown[]).includes(value);
+const isCount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
 /** Narrows a job as the Worker answers it (#464); the console renders none it did not check. */
 export function isJobDto(value: unknown): value is JobDto {
@@ -420,11 +451,13 @@ export function isJobListDto(value: unknown): value is JobListDto {
     isRunnerAvailability(value['runnerAvailability']) &&
     typeof value['canRunNow'] === 'boolean' &&
     (value['runnerUnavailableReason'] === undefined ||
-      (value['runnerAvailability'] === 'none' && isRunnerUnavailableReason(value['runnerUnavailableReason']))) &&
+      (value['runnerAvailability'] === 'none' &&
+        isRunnerUnavailableReason(value['runnerUnavailableReason']))) &&
     (value['accountOwnerNames'] === undefined ||
       (Array.isArray(value['accountOwnerNames']) && value['accountOwnerNames'].every(isDisplayName))) &&
     (value['projectCreatorName'] === undefined ||
-      (value['runnerUnavailableReason'] === 'other-owner-subscription' && isDisplayName(value['projectCreatorName'])))
+      (value['runnerUnavailableReason'] === 'other-owner-subscription' &&
+        isDisplayName(value['projectCreatorName'])))
   );
 }
 

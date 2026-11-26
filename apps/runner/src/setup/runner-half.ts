@@ -45,7 +45,12 @@ export async function runnerHalfReport(home: string, deps: RunnerHalfDeps): Prom
   try {
     config = await loadRunnerConfig(home);
   } catch (error: unknown) {
-    return { version: RUNNER_VERSION, failure: { stage: 'config', message: messageOf(error) }, config: null, self: null };
+    return {
+      version: RUNNER_VERSION,
+      failure: { stage: 'config', message: messageOf(error) },
+      config: null,
+      self: null,
+    };
   }
   const part = configPart(config);
   let client: RunnerClient;
@@ -58,7 +63,12 @@ export async function runnerHalfReport(home: string, deps: RunnerHalfDeps): Prom
       fetch: deps.fetch,
     });
   } catch (error: unknown) {
-    return { version: RUNNER_VERSION, failure: { stage: 'key', message: messageOf(error) }, config: part, self: null };
+    return {
+      version: RUNNER_VERSION,
+      failure: { stage: 'key', message: messageOf(error) },
+      config: part,
+      self: null,
+    };
   }
   try {
     const self = await client.self();
@@ -66,9 +76,18 @@ export async function runnerHalfReport(home: string, deps: RunnerHalfDeps): Prom
       version: RUNNER_VERSION,
       failure: null,
       config: part,
-      self: { belowMinimum: self.runner.belowMinimum, pausedUntil: self.runner.pausedUntil, projects: self.projects },
+      self: {
+        belowMinimum: self.runner.belowMinimum,
+        pausedUntil: self.runner.pausedUntil,
+        projects: self.projects,
+      },
     };
   } catch (error: unknown) {
-    return { version: RUNNER_VERSION, failure: { stage: 'identity', message: messageOf(error) }, config: part, self: null };
+    return {
+      version: RUNNER_VERSION,
+      failure: { stage: 'identity', message: messageOf(error) },
+      config: part,
+      self: null,
+    };
   }
 }

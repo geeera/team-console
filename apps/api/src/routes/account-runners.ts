@@ -69,7 +69,11 @@ function newEnrolmentCode(): string {
  * The slugs that are not active projects of the account (ADR 0008 security re-review: an `allowed_projects` write
  * rejects another account's slugs — and an archived or unknown one — before anything is stored).
  */
-export async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: readonly string[]): Promise<string[]> {
+export async function foreignSlugsOf(
+  c: Context,
+  account: AccountRecord,
+  slugs: readonly string[],
+): Promise<string[]> {
   const own = new Set((await new ProjectsRepo(c.env.DB).listActive([account.id])).map((row) => row.slug));
   return slugs.filter((slug) => !own.has(slug));
 }
@@ -78,7 +82,10 @@ export async function foreignSlugsOf(c: Context, account: AccountRecord, slugs: 
  * The projects the runner serves now with the fit of its declared `accessSources` (#775): a runner that declares
  * nothing fits everything (nothing to compare); one that declares a source fits the projects on that source.
  */
-export function servedProjectsDtoOf(runner: RunnerRecord, served: readonly ServedProjectRecord[]): RunnerServedProjectDto[] {
+export function servedProjectsDtoOf(
+  runner: RunnerRecord,
+  served: readonly ServedProjectRecord[],
+): RunnerServedProjectDto[] {
   const declared = runner.capabilities.accessSources;
   return served
     .filter((project) => project.runnerId === runner.id)
@@ -137,7 +144,11 @@ function enrollerClaimerOf(c: Context): EnrollerClaimer {
 }
 
 /** The runners the caller may claim now; none for an unlinked caller, whose claim the route refuses. */
-async function claimableIdsOf(c: Context, runners: RunnersRepo, accountId: string): Promise<readonly string[]> {
+async function claimableIdsOf(
+  c: Context,
+  runners: RunnersRepo,
+  accountId: string,
+): Promise<readonly string[]> {
   const claimer = enrollerClaimerOf(c);
   return claimer === 'unlinked' ? [] : runners.enrollerClaimableIdsOf(accountId, claimer.userId);
 }
@@ -245,340 +256,406 @@ async function currentRunnerDtoOf(
  * the account's own active projects only. Every change is an `audit_events` row in the change's batch.
  */
 export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
-  return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .post('/:id/runners/enrolment-code', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const input = checkCreateEnrolmentCodeInput(await jsonBody(c));
-      if (!input.ok) {
-        return invalid(c, 'enrolment-code-invalid-input', input.field, input.detail);
-      }
-      const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
-      if (foreign.length > 0) {
-        return invalid(
-          c,
-          'allowed-projects-invalid',
-          'allowedProjects',
-          'allowedProjects must name active projects of this account',
-        );
-      }
-      const now = new Date();
-      const at = now.toISOString();
-      const expiresAt = new Date(now.getTime() + ENROLMENT_CODE_TTL_SECONDS * 1000).toISOString();
-      const code = newEnrolmentCode();
-      const scope: RunnerProjectScopeDto = {
-        projectScope: input.value.projectScope,
-        allowedProjects: input.value.allowedProjects,
-      };
-      await new RunnersRepo(c.env.DB).createEnrolment(
-        {
-          codeHash: await sha256Hex(code),
-          accountId: account.id,
-          name: input.value.name,
-          ...scope,
-          createdBy: auditActorOf(c.get('identity')).actor,
-          at,
-          expiresAt,
-        },
-        auditOf(c, account, at, 'enrolment-code.created', 'enrolment-code', {
-          name: input.value.name,
-          ...scope,
-          expiresAt,
-        }),
-      );
-      c.get('logger').info('enrolment code created', { accountId: account.id, projectScope: scope.projectScope });
-      const body: EnrolmentCodeDto = {
-        code,
-        expiresAt,
-        apiUrl: new URL(c.req.url).origin,
-        audience: runnerAudienceOf(c.env.ENVIRONMENT),
-        name: input.value.name,
-        ...scope,
-      };
-      return c.json(body, 201);
-    })
-
-    // Placement (ADR 0008 decision 12): the account default a project without its own policy falls back to.
-    .get('/:id/runner-policy', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const body: RunnerPolicyDto = {
-        policy: account.defaultRunnerPolicy === null ? null : effectivePolicyOf(account.defaultRunnerPolicy, null),
-        effective: effectivePolicyOf(account.defaultRunnerPolicy, null),
-      };
-      return c.json(body);
-    })
-
-    .put('/:id/runner-policy', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const body = await jsonBody(c);
-      const policy = body === null ? null : checkRunnerPolicy(body);
-      if (policy !== null && !policy.ok) {
-        return invalid(c, 'runner-policy-invalid', policy.field, policy.detail);
-      }
-      const value = policy === null ? null : policy.value;
-      if (value !== null) {
-        const live = await new RunnersRepo(c.env.DB).liveIdsOf(account.id);
-        if (!runnerIdsOfPolicy(value).every((id) => live.includes(id))) {
-          return invalid(c, 'runner-policy-invalid', 'runner', 'The policy must name unrevoked runners of this account');
+  return (
+    new Hono<WorkerHonoEnv<ApiEnv>>()
+      .post('/:id/runners/enrolment-code', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
         }
-      }
-      const json = value === null ? null : JSON.stringify(value);
-      const written = await new AccountsRepo(c.env.DB).setDefaultRunnerPolicy(
-        account.id,
-        json,
-        auditOf(c, account, new Date().toISOString(), 'runner.policy-changed', account.id, { scope: 'account', policy: value }),
-      );
-      // #687 (ADR 0009 d.3): a default that would reach a subscription project's hosted runner is refused in the write.
-      if (written === 'access-source-hosted') {
-        return accessSourceHosted(c);
-      }
-      const dto: RunnerPolicyDto = { policy: value, effective: effectivePolicyOf(json, null) };
-      return c.json(dto);
-    })
-
-    .get('/:id/runners', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const now = new Date();
-      const release = runnerReleaseOf(c.env);
-      const runners = new RunnersRepo(c.env.DB);
-      // One read for every runner's effective projects (#775), the claim's own term.
-      const served = await runners.servedProjectsOf(account.id);
-      const claimable = await claimableIdsOf(c, runners, account.id);
-      const reader = await runnerReaderOf(c, account);
-      const body: RunnerListDto = {
-        // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
-        // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
-        runners: (await runners.listForAccount(account.id))
-          .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-          .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, reader, served, claimable)),
-        pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
-          pendingEnrolmentDtoOf,
-        ),
-        release,
-      };
-      return c.json(body);
-    })
-
-    // #492: the owner withdraws a code before its ten minutes are up (shown on a screen, pasted in the wrong place).
-    .post('/:id/runners/enrolment-codes/:enrolment/withdraw', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const enrolmentId = c.req.param('enrolment');
-      const at = new Date().toISOString();
-      // One 404 for a malformed id, another account's code, a used, an expired or an already withdrawn one.
-      const withdrawn =
-        isEnrolmentId(enrolmentId) &&
-        (await new RunnersRepo(c.env.DB).withdrawEnrolment(
-          account.id,
-          enrolmentId,
-          at,
-          auditOf(c, account, at, 'enrolment-code.withdrawn', 'enrolment-code', {}),
-        ));
-      if (!withdrawn) {
-        return problem(c, { type: 'enrolment-not-found', title: 'Enrolment code not found', status: 404 });
-      }
-      c.get('logger').info('enrolment code withdrawn', { accountId: account.id });
-      return c.body(null, 204);
-    })
-
-    .post('/:id/runners/:runner/clear-suspect', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const runnerId = c.req.param('runner');
-      const runners = new RunnersRepo(c.env.DB);
-      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
-      if (runner === null) {
-        return runnerNotFound(c);
-      }
-      if (runner.revokedAt !== null) {
-        return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409, detail: 'The runner is revoked' });
-      }
-      const now = new Date();
-      // The read above words the refusal; the conditional write decides, so a concurrent clear audits once.
-      const cleared =
-        runner.suspectAt !== null &&
-        (await runners.clearSuspect(
-          account.id,
-          runner.id,
-          auditOf(c, account, now.toISOString(), 'runner.suspect-cleared', runner.id, {
-            reason: runner.suspectReason,
-            suspectAt: runner.suspectAt,
+        const input = checkCreateEnrolmentCodeInput(await jsonBody(c));
+        if (!input.ok) {
+          return invalid(c, 'enrolment-code-invalid-input', input.field, input.detail);
+        }
+        const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
+        if (foreign.length > 0) {
+          return invalid(
+            c,
+            'allowed-projects-invalid',
+            'allowedProjects',
+            'allowedProjects must name active projects of this account',
+          );
+        }
+        const now = new Date();
+        const at = now.toISOString();
+        const expiresAt = new Date(now.getTime() + ENROLMENT_CODE_TTL_SECONDS * 1000).toISOString();
+        const code = newEnrolmentCode();
+        const scope: RunnerProjectScopeDto = {
+          projectScope: input.value.projectScope,
+          allowedProjects: input.value.allowedProjects,
+        };
+        await new RunnersRepo(c.env.DB).createEnrolment(
+          {
+            codeHash: await sha256Hex(code),
+            accountId: account.id,
+            name: input.value.name,
+            ...scope,
+            createdBy: auditActorOf(c.get('identity')).actor,
+            at,
+            expiresAt,
+          },
+          auditOf(c, account, at, 'enrolment-code.created', 'enrolment-code', {
+            name: input.value.name,
+            ...scope,
+            expiresAt,
           }),
-        ));
-      if (!cleared) {
-        return problem(c, { type: 'runner-not-suspect', title: 'Conflict', status: 409, detail: 'The runner is not marked suspect' });
-      }
-      return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
-    })
-
-    // #775: the runner's scope — every project of the account, present and future, or a list — changeable without
-    // re-enrolling: the claim and every job-token write read the stored row, and the runner takes the scope from each
-    // claim and `GET /runner/self`.
-    .patch('/:id/runners/:runner', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const runnerId = c.req.param('runner');
-      const runners = new RunnersRepo(c.env.DB);
-      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
-      if (runner === null) {
-        return runnerNotFound(c);
-      }
-      const input = checkUpdateRunnerInput(await jsonBody(c));
-      if (!input.ok) {
-        return invalid(c, 'runner-invalid', input.field, input.detail);
-      }
-      // R-SCOPE-4 (C12 row 6): a hosted or Actions identity serves exactly what the server gave it; its scope is not
-      // the owner's to widen, nor to touch at all.
-      if (runner.hosted || runner.isolation === 'actions-ephemeral') {
-        return invalid(c, 'runner-scope-fixed', 'projectScope', 'A hosted or GitHub Actions runner keeps the scope the console gave it');
-      }
-      const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
-      if (foreign.length > 0) {
-        return invalid(
-          c,
-          'allowed-projects-invalid',
-          'allowedProjects',
-          'allowedProjects must name active projects of this account',
         );
-      }
-      const now = new Date();
-      const before: RunnerProjectScopeDto = { projectScope: runner.projectScope, allowedProjects: runner.allowedProjects };
-      // The runner's live jobs in projects the new scope no longer serves are cancelled in the same batch (#490 review,
-      // R-SCOPE-5, #794) — judged by the claim's own term, so `selected`→`all` under D3 cancels what it drops too. A
-      // no-op writes, audits and cancels nothing.
-      const written = await runners.setScope(
-        account.id,
-        runner.id,
-        input.value,
-        auditActorOf(c.get('identity')).actor,
-        auditOf(c, account, now.toISOString(), 'runner.scope-changed', runner.id, { from: before, to: input.value }),
-        new JobsRepo(c.env.DB).cancelUnservedStatements(runner.id, now.toISOString()),
-      );
-      // #795: a subscription runner is the enrolling owner's to widen; another owner may only narrow it.
-      if (written === 'enroller-only') {
-        c.get('logger').warn('runner scope refused', { reason: 'runner-scope-enroller-only', runnerId: runner.id });
-        return problem(c, {
-          type: 'runner-scope-enroller-only',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'Only the owner who enrolled this runner can add projects to it: its sign-in may be their subscription',
+        c.get('logger').info('enrolment code created', {
+          accountId: account.id,
+          projectScope: scope.projectScope,
         });
-      }
-      return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
-    })
+        const body: EnrolmentCodeDto = {
+          code,
+          expiresAt,
+          apiUrl: new URL(c.req.url).origin,
+          audience: runnerAudienceOf(c.env.ENVIRONMENT),
+          name: input.value.name,
+          ...scope,
+        };
+        return c.json(body, 201);
+      })
 
-    // #827 (owner decision (a)): a runner from before `enrolled_by` is nobody's to widen once a second owner joins
-    // (D3, #795). While the account has one owner, that owner records themselves as its enroller, audited.
-    .post('/:id/runners/:runner/claim-enroller', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const runnerId = c.req.param('runner');
-      const runners = new RunnersRepo(c.env.DB);
-      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
-      if (runner === null) {
-        return runnerNotFound(c);
-      }
-      const claimer = enrollerClaimerOf(c);
-      if (claimer === 'unlinked') {
-        c.get('logger').warn('runner enroller claim refused', { reason: 'runner-enroller-unlinked', runnerId: runner.id });
-        return problem(c, {
-          type: 'runner-enroller-unlinked',
-          title: 'Forbidden',
-          status: 403,
-          detail: 'Link your GitHub account to the console before you claim a runner as yours',
-        });
-      }
-      const now = new Date();
-      // Every other rule is judged inside the write; the outcome only picks the answer.
-      const claim = await runners.claimEnroller(
-        account.id,
-        runner.id,
-        auditActorOf(c.get('identity')).actor,
-        claimer.userId,
-        auditOf(c, account, now.toISOString(), 'runner.enroller-claimed', runner.id, { basis: 'sole-owner' }),
-      );
-      switch (claim) {
-        case 'claimed':
-          c.get('logger').info('runner enroller claimed', { runnerId: runner.id });
-          return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
-        case 'not-found':
+      // Placement (ADR 0008 decision 12): the account default a project without its own policy falls back to.
+      .get('/:id/runner-policy', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const body: RunnerPolicyDto = {
+          policy:
+            account.defaultRunnerPolicy === null
+              ? null
+              : effectivePolicyOf(account.defaultRunnerPolicy, null),
+          effective: effectivePolicyOf(account.defaultRunnerPolicy, null),
+        };
+        return c.json(body);
+      })
+
+      .put('/:id/runner-policy', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const body = await jsonBody(c);
+        const policy = body === null ? null : checkRunnerPolicy(body);
+        if (policy !== null && !policy.ok) {
+          return invalid(c, 'runner-policy-invalid', policy.field, policy.detail);
+        }
+        const value = policy === null ? null : policy.value;
+        if (value !== null) {
+          const live = await new RunnersRepo(c.env.DB).liveIdsOf(account.id);
+          if (!runnerIdsOfPolicy(value).every((id) => live.includes(id))) {
+            return invalid(
+              c,
+              'runner-policy-invalid',
+              'runner',
+              'The policy must name unrevoked runners of this account',
+            );
+          }
+        }
+        const json = value === null ? null : JSON.stringify(value);
+        const written = await new AccountsRepo(c.env.DB).setDefaultRunnerPolicy(
+          account.id,
+          json,
+          auditOf(c, account, new Date().toISOString(), 'runner.policy-changed', account.id, {
+            scope: 'account',
+            policy: value,
+          }),
+        );
+        // #687 (ADR 0009 d.3): a default that would reach a subscription project's hosted runner is refused in the write.
+        if (written === 'access-source-hosted') {
+          return accessSourceHosted(c);
+        }
+        const dto: RunnerPolicyDto = { policy: value, effective: effectivePolicyOf(json, null) };
+        return c.json(dto);
+      })
+
+      .get('/:id/runners', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const now = new Date();
+        const release = runnerReleaseOf(c.env);
+        const runners = new RunnersRepo(c.env.DB);
+        // One read for every runner's effective projects (#775), the claim's own term.
+        const served = await runners.servedProjectsOf(account.id);
+        const claimable = await claimableIdsOf(c, runners, account.id);
+        const reader = await runnerReaderOf(c, account);
+        const body: RunnerListDto = {
+          // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
+          // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
+          runners: (await runners.listForAccount(account.id))
+            .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
+            .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, reader, served, claimable)),
+          pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
+            pendingEnrolmentDtoOf,
+          ),
+          release,
+        };
+        return c.json(body);
+      })
+
+      // #492: the owner withdraws a code before its ten minutes are up (shown on a screen, pasted in the wrong place).
+      .post('/:id/runners/enrolment-codes/:enrolment/withdraw', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const enrolmentId = c.req.param('enrolment');
+        const at = new Date().toISOString();
+        // One 404 for a malformed id, another account's code, a used, an expired or an already withdrawn one.
+        const withdrawn =
+          isEnrolmentId(enrolmentId) &&
+          (await new RunnersRepo(c.env.DB).withdrawEnrolment(
+            account.id,
+            enrolmentId,
+            at,
+            auditOf(c, account, at, 'enrolment-code.withdrawn', 'enrolment-code', {}),
+          ));
+        if (!withdrawn) {
+          return problem(c, { type: 'enrolment-not-found', title: 'Enrolment code not found', status: 404 });
+        }
+        c.get('logger').info('enrolment code withdrawn', { accountId: account.id });
+        return c.body(null, 204);
+      })
+
+      .post('/:id/runners/:runner/clear-suspect', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const runnerId = c.req.param('runner');
+        const runners = new RunnersRepo(c.env.DB);
+        const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+        if (runner === null) {
           return runnerNotFound(c);
-        case 'already-set':
+        }
+        if (runner.revokedAt !== null) {
           return problem(c, {
-            type: 'runner-enroller-set',
+            type: 'runner-revoked',
             title: 'Conflict',
             status: 409,
-            detail: 'The console already knows who enrolled this runner',
+            detail: 'The runner is revoked',
           });
-        case 'revoked':
-          return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409, detail: 'The runner is revoked' });
-        case 'fixed':
-          return invalid(c, 'runner-enroller-fixed', 'runner', 'A hosted or GitHub Actions runner has no enroller to claim');
-        case 'not-sole-owner':
-          c.get('logger').warn('runner enroller claim refused', { reason: 'runner-enroller-not-sole-owner', runnerId: runner.id });
+        }
+        const now = new Date();
+        // The read above words the refusal; the conditional write decides, so a concurrent clear audits once.
+        const cleared =
+          runner.suspectAt !== null &&
+          (await runners.clearSuspect(
+            account.id,
+            runner.id,
+            auditOf(c, account, now.toISOString(), 'runner.suspect-cleared', runner.id, {
+              reason: runner.suspectReason,
+              suspectAt: runner.suspectAt,
+            }),
+          ));
+        if (!cleared) {
           return problem(c, {
-            type: 'runner-enroller-not-sole-owner',
+            type: 'runner-not-suspect',
+            title: 'Conflict',
+            status: 409,
+            detail: 'The runner is not marked suspect',
+          });
+        }
+        return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
+      })
+
+      // #775: the runner's scope — every project of the account, present and future, or a list — changeable without
+      // re-enrolling: the claim and every job-token write read the stored row, and the runner takes the scope from each
+      // claim and `GET /runner/self`.
+      .patch('/:id/runners/:runner', writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const runnerId = c.req.param('runner');
+        const runners = new RunnersRepo(c.env.DB);
+        const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+        if (runner === null) {
+          return runnerNotFound(c);
+        }
+        const input = checkUpdateRunnerInput(await jsonBody(c));
+        if (!input.ok) {
+          return invalid(c, 'runner-invalid', input.field, input.detail);
+        }
+        // R-SCOPE-4 (C12 row 6): a hosted or Actions identity serves exactly what the server gave it; its scope is not
+        // the owner's to widen, nor to touch at all.
+        if (runner.hosted || runner.isolation === 'actions-ephemeral') {
+          return invalid(
+            c,
+            'runner-scope-fixed',
+            'projectScope',
+            'A hosted or GitHub Actions runner keeps the scope the console gave it',
+          );
+        }
+        const foreign = await foreignSlugsOf(c, account, input.value.allowedProjects);
+        if (foreign.length > 0) {
+          return invalid(
+            c,
+            'allowed-projects-invalid',
+            'allowedProjects',
+            'allowedProjects must name active projects of this account',
+          );
+        }
+        const now = new Date();
+        const before: RunnerProjectScopeDto = {
+          projectScope: runner.projectScope,
+          allowedProjects: runner.allowedProjects,
+        };
+        // The runner's live jobs in projects the new scope no longer serves are cancelled in the same batch (#490 review,
+        // R-SCOPE-5, #794) — judged by the claim's own term, so `selected`→`all` under D3 cancels what it drops too. A
+        // no-op writes, audits and cancels nothing.
+        const written = await runners.setScope(
+          account.id,
+          runner.id,
+          input.value,
+          auditActorOf(c.get('identity')).actor,
+          auditOf(c, account, now.toISOString(), 'runner.scope-changed', runner.id, {
+            from: before,
+            to: input.value,
+          }),
+          new JobsRepo(c.env.DB).cancelUnservedStatements(runner.id, now.toISOString()),
+        );
+        // #795: a subscription runner is the enrolling owner's to widen; another owner may only narrow it.
+        if (written === 'enroller-only') {
+          c.get('logger').warn('runner scope refused', {
+            reason: 'runner-scope-enroller-only',
+            runnerId: runner.id,
+          });
+          return problem(c, {
+            type: 'runner-scope-enroller-only',
             title: 'Forbidden',
             status: 403,
-            detail: 'Only the sole owner of the account can claim a runner as theirs; re-enrol it instead',
+            detail:
+              'Only the owner who enrolled this runner can add projects to it: its sign-in may be their subscription',
           });
-      }
-    })
+        }
+        return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
+      })
 
-    .post('/:id/runners/:runner/revoke', async (c) => {
-      const account = await ownedAccountOf(c);
-      if (account instanceof Response) {
-        return account;
-      }
-      const runnerId = c.req.param('runner');
-      const runners = new RunnersRepo(c.env.DB);
-      const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
-      if (runner === null) {
-        return runnerNotFound(c);
-      }
-      if (runner.revokedAt !== null) {
-        return problem(c, {
-          type: 'runner-revoked',
-          title: 'Conflict',
-          status: 409,
-          detail: 'The runner is already revoked',
-        });
-      }
-      const now = new Date();
-      const at = now.toISOString();
-      // ADR 0006: revoking a runner cancels the jobs it holds, in the same batch (their tokens die with it).
-      const revoked = await runners.revoke(
-        account.id,
-        runner.id,
-        at,
-        auditOf(c, account, at, 'runner.revoked', runner.id, { name: runner.name }),
-        new JobsRepo(c.env.DB).cancelForRunnerStatements(runner.id, at),
-      );
-      if (!revoked) {
-        return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409 });
-      }
-      c.get('logger').info('runner revoked', { runnerId: runner.id });
-      const updated = await runners.findInAccount(account.id, runner.id);
-      // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
-      return c.json(runnerDtoOf(updated ?? runner, now, runnerReleaseOf(c.env).minimumVersion, await runnerReaderOf(c, account)));
-    });
+      // #827 (owner decision (a)): a runner from before `enrolled_by` is nobody's to widen once a second owner joins
+      // (D3, #795). While the account has one owner, that owner records themselves as its enroller, audited.
+      .post('/:id/runners/:runner/claim-enroller', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const runnerId = c.req.param('runner');
+        const runners = new RunnersRepo(c.env.DB);
+        const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+        if (runner === null) {
+          return runnerNotFound(c);
+        }
+        const claimer = enrollerClaimerOf(c);
+        if (claimer === 'unlinked') {
+          c.get('logger').warn('runner enroller claim refused', {
+            reason: 'runner-enroller-unlinked',
+            runnerId: runner.id,
+          });
+          return problem(c, {
+            type: 'runner-enroller-unlinked',
+            title: 'Forbidden',
+            status: 403,
+            detail: 'Link your GitHub account to the console before you claim a runner as yours',
+          });
+        }
+        const now = new Date();
+        // Every other rule is judged inside the write; the outcome only picks the answer.
+        const claim = await runners.claimEnroller(
+          account.id,
+          runner.id,
+          auditActorOf(c.get('identity')).actor,
+          claimer.userId,
+          auditOf(c, account, now.toISOString(), 'runner.enroller-claimed', runner.id, {
+            basis: 'sole-owner',
+          }),
+        );
+        switch (claim) {
+          case 'claimed':
+            c.get('logger').info('runner enroller claimed', { runnerId: runner.id });
+            return c.json(await currentRunnerDtoOf(c, runners, account, runner, now));
+          case 'not-found':
+            return runnerNotFound(c);
+          case 'already-set':
+            return problem(c, {
+              type: 'runner-enroller-set',
+              title: 'Conflict',
+              status: 409,
+              detail: 'The console already knows who enrolled this runner',
+            });
+          case 'revoked':
+            return problem(c, {
+              type: 'runner-revoked',
+              title: 'Conflict',
+              status: 409,
+              detail: 'The runner is revoked',
+            });
+          case 'fixed':
+            return invalid(
+              c,
+              'runner-enroller-fixed',
+              'runner',
+              'A hosted or GitHub Actions runner has no enroller to claim',
+            );
+          case 'not-sole-owner':
+            c.get('logger').warn('runner enroller claim refused', {
+              reason: 'runner-enroller-not-sole-owner',
+              runnerId: runner.id,
+            });
+            return problem(c, {
+              type: 'runner-enroller-not-sole-owner',
+              title: 'Forbidden',
+              status: 403,
+              detail: 'Only the sole owner of the account can claim a runner as theirs; re-enrol it instead',
+            });
+        }
+      })
+
+      .post('/:id/runners/:runner/revoke', async (c) => {
+        const account = await ownedAccountOf(c);
+        if (account instanceof Response) {
+          return account;
+        }
+        const runnerId = c.req.param('runner');
+        const runners = new RunnersRepo(c.env.DB);
+        const runner = isRunnerId(runnerId) ? await runners.findInAccount(account.id, runnerId) : null;
+        if (runner === null) {
+          return runnerNotFound(c);
+        }
+        if (runner.revokedAt !== null) {
+          return problem(c, {
+            type: 'runner-revoked',
+            title: 'Conflict',
+            status: 409,
+            detail: 'The runner is already revoked',
+          });
+        }
+        const now = new Date();
+        const at = now.toISOString();
+        // ADR 0006: revoking a runner cancels the jobs it holds, in the same batch (their tokens die with it).
+        const revoked = await runners.revoke(
+          account.id,
+          runner.id,
+          at,
+          auditOf(c, account, at, 'runner.revoked', runner.id, { name: runner.name }),
+          new JobsRepo(c.env.DB).cancelForRunnerStatements(runner.id, at),
+        );
+        if (!revoked) {
+          return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409 });
+        }
+        c.get('logger').info('runner revoked', { runnerId: runner.id });
+        const updated = await runners.findInAccount(account.id, runner.id);
+        // A revoked runner serves nothing; `servedProjectsOf` lists none for it.
+        return c.json(
+          runnerDtoOf(
+            updated ?? runner,
+            now,
+            runnerReleaseOf(c.env).minimumVersion,
+            await runnerReaderOf(c, account),
+          ),
+        );
+      })
+  );
 }

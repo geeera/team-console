@@ -41,8 +41,9 @@ const TAIL_MAX_CHARS = 64 * 1024;
 const ESCAPE_MAX_CHARS = 4096;
 
 /** CSI (`ESC [ … final`), OSC (`ESC ] … BEL | ESC \`), charset (`ESC ( x`) and two-byte escapes. */
-// eslint-disable-next-line no-control-regex -- matching terminal control sequences is this filter's job
-const COMPLETE_ESCAPE = /^\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[()#][0-9A-Za-z]|[@-Z\\-_])/;
+const COMPLETE_ESCAPE =
+  // eslint-disable-next-line no-control-regex -- matching terminal control sequences is this filter's job
+  /^\x1b(?:\[[0-?]*[ -/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)|[()#][0-9A-Za-z]|[@-Z\\-_])/;
 /** An escape that may still complete with more input. */
 // eslint-disable-next-line no-control-regex -- as above
 const PARTIAL_ESCAPE = /^\x1b(?:\[[0-?]*[ -/]*|\][^\x07\x1b]*\x1b?|[()#])?$/;

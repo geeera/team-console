@@ -66,7 +66,16 @@ let nextFolderId = 0;
  */
 @Component({
   selector: 'tc-board-folder',
-  imports: [BoardMoveButton, Button, Lane, Lanes, SprintItemList, StateBlock, TrackerFailureBlock, TranslocoPipe],
+  imports: [
+    BoardMoveButton,
+    Button,
+    Lane,
+    Lanes,
+    SprintItemList,
+    StateBlock,
+    TrackerFailureBlock,
+    TranslocoPipe,
+  ],
   templateUrl: './board-folder.html',
   styleUrl: './board-folder.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -118,7 +127,9 @@ export class BoardFolder {
   protected readonly openLine = computed(() => {
     const lang = this.lang();
     const n = this.folder().openCount;
-    return this.transloco.translate(pluralKeyOf('board.sections.open', lang, n), { n: localNumberOf(n, lang) });
+    return this.transloco.translate(pluralKeyOf('board.sections.open', lang, n), {
+      n: localNumberOf(n, lang),
+    });
   });
   protected readonly lanes = computed(() => {
     const state = this.state();
@@ -310,6 +321,9 @@ export class BoardFolder {
       return;
     }
     this.arrivals.set([]);
-    this.state.set({ kind: 'loaded', items: read.value.filter((item) => item.sprint === (sprint?.number ?? null)) });
+    this.state.set({
+      kind: 'loaded',
+      items: read.value.filter((item) => item.sprint === (sprint?.number ?? null)),
+    });
   }
 }

@@ -11,9 +11,9 @@ describe('readFirstLine', () => {
   });
 
   it('joins a line split across chunks', async () => {
-    expect(await readFirstLine(Readable.from([Buffer.from('tce_'), Buffer.from(`${'C'.repeat(43)}\n`)]))).toBe(
-      CODE,
-    );
+    expect(
+      await readFirstLine(Readable.from([Buffer.from('tce_'), Buffer.from(`${'C'.repeat(43)}\n`)])),
+    ).toBe(CODE);
   });
 
   it('takes a last line without a newline, and empty input as empty', async () => {

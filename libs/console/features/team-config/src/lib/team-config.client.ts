@@ -98,7 +98,9 @@ export function isTeamConfigRevision(value: unknown): value is TeamConfigRevisio
 
 function isImportNote(value: unknown): value is TeamConfigImportNote {
   return (
-    isRecord(value) && isText(value['path']) && (TEAM_CONFIG_IMPORT_NOTES as readonly unknown[]).includes(value['code'])
+    isRecord(value) &&
+    isText(value['path']) &&
+    (TEAM_CONFIG_IMPORT_NOTES as readonly unknown[]).includes(value['code'])
   );
 }
 
@@ -118,10 +120,15 @@ export function isTeamConfigImport(value: unknown): value is TeamConfigImportDto
 
 /** The history newest first, or why it is not there: the page around it stays as it is (UX spec §4 "Partial"). */
 export type TeamHistoryResult =
-  | { readonly ok: true; readonly revisions: readonly TeamConfigRevisionSummaryDto[]; readonly isCut: boolean }
+  | {
+      readonly ok: true;
+      readonly revisions: readonly TeamConfigRevisionSummaryDto[];
+      readonly isCut: boolean;
+    }
   | { readonly ok: false };
 
-export type TeamRevisionResult = { readonly ok: true; readonly revision: TeamConfigRevisionDto } | { readonly ok: false };
+export type TeamRevisionResult =
+  { readonly ok: true; readonly revision: TeamConfigRevisionDto } | { readonly ok: false };
 
 /** Why an import gave no draft: the file is missing or not a document we read, the limit, or no answer. */
 export type TeamImportFailure = 'unreadable' | 'rate-limited' | 'forbidden' | 'failed';
@@ -188,7 +195,11 @@ export class TeamConfigClient {
             params: { after: String(after), limit: String(HISTORY_PAGE_SIZE) },
           }),
         );
-        if (!isRecord(body) || !Array.isArray(body['revisions']) || !body['revisions'].every(isRevisionSummary)) {
+        if (
+          !isRecord(body) ||
+          !Array.isArray(body['revisions']) ||
+          !body['revisions'].every(isRevisionSummary)
+        ) {
           return { ok: false };
         }
         revisions.push(...body['revisions']);
@@ -207,7 +218,11 @@ export class TeamConfigClient {
       return { ok: false };
     }
     const kept = revisions.slice(-HISTORY_WINDOW);
-    return { ok: true, revisions: kept.reverse(), isCut: start > 0 || kept.length < revisions.length || !isComplete };
+    return {
+      ok: true,
+      revisions: kept.reverse(),
+      isCut: start > 0 || kept.length < revisions.length || !isComplete,
+    };
   }
 
   async revision(slug: string, revision: number): Promise<TeamRevisionResult> {
@@ -230,7 +245,13 @@ export class TeamConfigClient {
     } catch (error: unknown) {
       const { status } = httpProblemOf(error);
       const failure: TeamImportFailure =
-        status === 422 ? 'unreadable' : status === 429 ? 'rate-limited' : status === 403 ? 'forbidden' : 'failed';
+        status === 422
+          ? 'unreadable'
+          : status === 429
+            ? 'rate-limited'
+            : status === 403
+              ? 'forbidden'
+              : 'failed';
       return { ok: false, failure };
     }
   }
@@ -246,7 +267,12 @@ export class TeamConfigClient {
     }
   }
 
-  async save(slug: string, revision: number, config: TeamConfig, reason: string): Promise<TeamConfigSaveResult> {
+  async save(
+    slug: string,
+    revision: number,
+    config: TeamConfig,
+    reason: string,
+  ): Promise<TeamConfigSaveResult> {
     const text = reason.trim();
     try {
       const body: unknown = await firstValueFrom(

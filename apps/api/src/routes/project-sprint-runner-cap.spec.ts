@@ -1,4 +1,9 @@
-import { OWNER_ACCOUNT_ID, isProblemDetails, PROBLEM_TYPE_PREFIX, type ClaimResponse } from '@shared/contracts';
+import {
+  OWNER_ACCOUNT_ID,
+  isProblemDetails,
+  PROBLEM_TYPE_PREFIX,
+  type ClaimResponse,
+} from '@shared/contracts';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import { localEnv, stubGitHub, type StubGitHub } from '../testing/github-kit';

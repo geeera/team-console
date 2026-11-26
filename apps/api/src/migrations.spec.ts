@@ -168,7 +168,9 @@ describe('migrations on a fresh D1', () => {
       return id;
     }
     const bind = (id: string, key = 'x'.repeat(43)) =>
-      env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, key, 'a'.repeat(64)).run();
+      env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`)
+        .bind(id, key, 'a'.repeat(64))
+        .run();
     const approve = (id: string) =>
       env.DB.prepare(
         `UPDATE runner_enrolment_requests SET state = 'approved', approved_at = ?2, approved_by = 'owner', runner_id = ?3 WHERE id = ?1`,
@@ -178,13 +180,14 @@ describe('migrations on a fresh D1', () => {
 
     beforeAll(async () => {
       await env.DB.batch([
-        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm037', 'M', ?2)`).bind(account, T0),
-        env.DB
-          .prepare(
-            `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm037', 'M', ?2)`).bind(
+          account,
+          T0,
+        ),
+        env.DB.prepare(
+          `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
              VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`,
-          )
-          .bind(runner, account, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0),
+        ).bind(runner, account, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), T0),
       ]);
     });
 
@@ -210,29 +213,41 @@ describe('migrations on a fresh D1', () => {
       const id = await pending();
       await bind(id);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`).bind(id, 'y'.repeat(43)).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`)
+          .bind(id, 'y'.repeat(43))
+          .run(),
       ).rejects.toThrow(/bound once/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET poll_token_hash = ?2 WHERE id = ?1`).bind(id, 'b'.repeat(64)).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET poll_token_hash = ?2 WHERE id = ?1`)
+          .bind(id, 'b'.repeat(64))
+          .run(),
       ).rejects.toThrow(/bound once/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET host = '{"hostname":"x"}' WHERE id = ?1`).bind(id).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET host = '{"hostname":"x"}' WHERE id = ?1`)
+          .bind(id)
+          .run(),
       ).rejects.toThrow(/bound once/);
     });
 
     it('holds the bind whole, a key only from the bind on, and a token hash of 64 hex', async () => {
       const id = await pending();
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`).bind(id, 'x'.repeat(43)).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET public_key = ?2 WHERE id = ?1`)
+          .bind(id, 'x'.repeat(43))
+          .run(),
       ).rejects.toThrow(/CHECK/);
       await expect(
         env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'bound' WHERE id = ?1`).bind(id).run(),
       ).rejects.toThrow(/CHECK/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, 'x'.repeat(43), 'not-a-hash').run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`)
+          .bind(id, 'x'.repeat(43), 'not-a-hash')
+          .run(),
       ).rejects.toThrow(/CHECK/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`).bind(id, '{"d":"private"}', 'a'.repeat(64)).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET ${BIND} WHERE id = ?1`)
+          .bind(id, '{"d":"private"}', 'a'.repeat(64))
+          .run(),
       ).rejects.toThrow(/CHECK/);
     });
 
@@ -240,14 +255,20 @@ describe('migrations on a fresh D1', () => {
       const id = await pending();
       await bind(id);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'approved' WHERE id = ?1`).bind(id).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'approved' WHERE id = ?1`)
+          .bind(id)
+          .run(),
       ).rejects.toThrow(/CHECK/);
       await approve(id);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET runner_id = ?2 WHERE id = ?1`).bind(id, runner).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET runner_id = ?2 WHERE id = ?1`)
+          .bind(id, runner)
+          .run(),
       ).rejects.toThrow(/approved once/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET approved_by = 'someone-else' WHERE id = ?1`).bind(id).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET approved_by = 'someone-else' WHERE id = ?1`)
+          .bind(id)
+          .run(),
       ).rejects.toThrow(/approved once/);
     });
 
@@ -255,19 +276,37 @@ describe('migrations on a fresh D1', () => {
       const used = await pending();
       await bind(used);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'pending' WHERE id = ?1`).bind(used).run(),
+        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'pending' WHERE id = ?1`)
+          .bind(used)
+          .run(),
       ).rejects.toThrow(/moves forward/);
       await approve(used);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`).bind(used, T0).run(),
+        env.DB.prepare(
+          `UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`,
+        )
+          .bind(used, T0)
+          .run(),
       ).rejects.toThrow(/moves forward/);
-      await env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'used', collected_at = ?2 WHERE id = ?1`).bind(used, T0).run();
+      await env.DB.prepare(
+        `UPDATE runner_enrolment_requests SET state = 'used', collected_at = ?2 WHERE id = ?1`,
+      )
+        .bind(used, T0)
+        .run();
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'approved', collected_at = NULL WHERE id = ?1`).bind(used).run(),
+        env.DB.prepare(
+          `UPDATE runner_enrolment_requests SET state = 'approved', collected_at = NULL WHERE id = ?1`,
+        )
+          .bind(used)
+          .run(),
       ).rejects.toThrow(/moves forward/);
 
       const withdrawn = await pending();
-      await env.DB.prepare(`UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`).bind(withdrawn, T0).run();
+      await env.DB.prepare(
+        `UPDATE runner_enrolment_requests SET state = 'withdrawn', withdrawn_at = ?2 WHERE id = ?1`,
+      )
+        .bind(withdrawn, T0)
+        .run();
       await expect(bind(withdrawn)).rejects.toThrow(/moves forward/);
     });
 
@@ -314,45 +353,61 @@ describe('migrations on a fresh D1', () => {
     const account = '01M6YSNJ0000000000000M036A';
 
     beforeAll(async () => {
-      await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm036', 'M', '2026-11-17T00:00:00.000Z')`)
+      await env.DB.prepare(
+        `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm036', 'M', '2026-11-17T00:00:00.000Z')`,
+      )
         .bind(account)
         .run();
     });
 
     it('leaves a runner and an unused code written without a scope as selected with their list', async () => {
       await env.DB.batch([
-        env.DB
-          .prepare(
-            `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, allowed_projects, version, enrolled_at)
+        env.DB.prepare(
+          `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, allowed_projects, version, enrolled_at)
              VALUES ('01M6YSNJ0000000000000M036R', ?1, 'old', ?2, 'user', '["p1"]', '0.1.0', '2026-11-17T00:00:00.000Z')`,
-          )
-          .bind(account, key),
-        env.DB
-          .prepare(
-            `INSERT INTO runner_enrolments (code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at)
+        ).bind(account, key),
+        env.DB.prepare(
+          `INSERT INTO runner_enrolments (code_hash, account_id, name, allowed_projects, created_by, created_at, expires_at)
              VALUES (?2, ?1, 'old', '["p1"]', 'owner', '2026-11-17T00:00:00.000Z', '2026-11-17T00:10:00.000Z')`,
-          )
-          .bind(account, 'c'.repeat(64)),
+        ).bind(account, 'c'.repeat(64)),
       ]);
-      const runner = await env.DB.prepare(`SELECT project_scope, allowed_projects, enrolled_by FROM runners WHERE id = '01M6YSNJ0000000000000M036R'`).first<{ project_scope: string; allowed_projects: string; enrolled_by: string | null }>();
+      const runner = await env.DB.prepare(
+        `SELECT project_scope, allowed_projects, enrolled_by FROM runners WHERE id = '01M6YSNJ0000000000000M036R'`,
+      ).first<{ project_scope: string; allowed_projects: string; enrolled_by: string | null }>();
       expect(runner).toEqual({ project_scope: 'selected', allowed_projects: '["p1"]', enrolled_by: null });
-      const code = await env.DB.prepare(`SELECT project_scope, allowed_projects FROM runner_enrolments WHERE code_hash = ?1`).bind('c'.repeat(64)).first<{ project_scope: string; allowed_projects: string }>();
+      const code = await env.DB.prepare(
+        `SELECT project_scope, allowed_projects FROM runner_enrolments WHERE code_hash = ?1`,
+      )
+        .bind('c'.repeat(64))
+        .first<{ project_scope: string; allowed_projects: string }>();
       expect(code).toEqual({ project_scope: 'selected', allowed_projects: '["p1"]' });
     });
 
     it('refuses all beside a list, an unknown scope, and a rewritten enrolled_by or code scope', async () => {
       await expect(
-        env.DB.prepare(`UPDATE runners SET project_scope = 'all' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+        env.DB.prepare(
+          `UPDATE runners SET project_scope = 'all' WHERE id = '01M6YSNJ0000000000000M036R'`,
+        ).run(),
       ).rejects.toThrow(/CHECK/);
       await expect(
-        env.DB.prepare(`UPDATE runners SET project_scope = 'everything', allowed_projects = '[]' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+        env.DB.prepare(
+          `UPDATE runners SET project_scope = 'everything', allowed_projects = '[]' WHERE id = '01M6YSNJ0000000000000M036R'`,
+        ).run(),
       ).rejects.toThrow(/CHECK/);
-      await env.DB.prepare(`UPDATE runners SET project_scope = 'all', allowed_projects = '[]', enrolled_by = 'owner' WHERE id = '01M6YSNJ0000000000000M036R'`).run();
+      await env.DB.prepare(
+        `UPDATE runners SET project_scope = 'all', allowed_projects = '[]', enrolled_by = 'owner' WHERE id = '01M6YSNJ0000000000000M036R'`,
+      ).run();
       await expect(
-        env.DB.prepare(`UPDATE runners SET enrolled_by = 'someone-else' WHERE id = '01M6YSNJ0000000000000M036R'`).run(),
+        env.DB.prepare(
+          `UPDATE runners SET enrolled_by = 'someone-else' WHERE id = '01M6YSNJ0000000000000M036R'`,
+        ).run(),
       ).rejects.toThrow(/keep their identity/);
       await expect(
-        env.DB.prepare(`UPDATE runner_enrolments SET project_scope = 'all', allowed_projects = '[]' WHERE code_hash = ?1`).bind('c'.repeat(64)).run(),
+        env.DB.prepare(
+          `UPDATE runner_enrolments SET project_scope = 'all', allowed_projects = '[]' WHERE code_hash = ?1`,
+        )
+          .bind('c'.repeat(64))
+          .run(),
       ).rejects.toThrow(/never rewritten/);
     });
   });
@@ -1088,7 +1143,9 @@ describe('the 0031 Actions dispatch', () => {
       env.TEST_MIGRATIONS.filter((migration) => migration.name < '0031'),
     );
     await db
-      .prepare(`INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m31', 'acme/m31', 'm31', 0, ?1)`)
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m31', 'acme/m31', 'm31', 0, ?1)`,
+      )
       .bind(T0)
       .run();
     const insertJob = (id: string) =>
@@ -1118,7 +1175,9 @@ describe('the 0031 Actions dispatch', () => {
 
     const setDispatchedAt = (value: string | null) =>
       db.prepare(`UPDATE jobs SET dispatched_at = ?2 WHERE id = ?1`).bind(JOB, value).run();
-    expect(await db.prepare(`SELECT dispatched_at FROM jobs WHERE id = ?1`).bind(JOB).first()).toEqual({ dispatched_at: null });
+    expect(await db.prepare(`SELECT dispatched_at FROM jobs WHERE id = ?1`).bind(JOB).first()).toEqual({
+      dispatched_at: null,
+    });
     await setDispatchedAt(T0);
     await expect(setDispatchedAt('2026-11-01 00:00:00')).rejects.toThrow(/CHECK constraint failed/);
 
@@ -1126,7 +1185,9 @@ describe('the 0031 Actions dispatch', () => {
       db.prepare(`UPDATE jobs SET actions_run_id = ?2 WHERE id = ?1`).bind(id, run).run();
     await setRun(JOB, '7100000001');
     await insertJob(OTHER);
-    await expect(setRun(OTHER, '7100000001')).rejects.toThrow(/UNIQUE constraint failed: jobs.actions_run_id/);
+    await expect(setRun(OTHER, '7100000001')).rejects.toThrow(
+      /UNIQUE constraint failed: jobs.actions_run_id/,
+    );
     await setRun(OTHER, '7100000002');
     await expect(setRun(JOB, '7100000003')).rejects.toThrow(/a job keeps its Actions run/);
     await expect(setRun(JOB, null)).rejects.toThrow(/a job keeps its Actions run/);

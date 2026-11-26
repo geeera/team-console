@@ -84,7 +84,9 @@ describe('BudgetStop', () => {
     const title = region.querySelector('h2') as HTMLElement;
     expect(title.textContent?.trim()).toBe('Бюджет исчерпан — Acme');
     expect(region.getAttribute('aria-labelledby')).toBe(title.id);
-    expect(host().querySelector('[data-testid="budget-stop-body"]')?.textContent?.trim().replace(/\s/g, ' ')).toBe(
+    expect(
+      host().querySelector('[data-testid="budget-stop-body"]')?.textContent?.trim().replace(/\s/g, ' '),
+    ).toBe(
       'Команда остановилась: потрачено 201,50 $ из 200 $ за ноябрь (оценка Claude Code). Идущие задачи завершены, новые не начнутся.',
     );
     expect(button('budget-resume').textContent?.trim()).toBe('Возобновить на этот месяц');

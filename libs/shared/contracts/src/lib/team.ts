@@ -40,7 +40,12 @@ export interface RunRequest {
  */
 export type TeamState = 'running' | 'paused-by-owner' | 'paused-by-team' | 'paused-by-budget';
 
-export const TEAM_STATES: readonly TeamState[] = ['running', 'paused-by-owner', 'paused-by-team', 'paused-by-budget'];
+export const TEAM_STATES: readonly TeamState[] = [
+  'running',
+  'paused-by-owner',
+  'paused-by-team',
+  'paused-by-budget',
+];
 
 export function isTeamState(value: unknown): value is TeamState {
   return TEAM_STATES.some((state) => state === value);

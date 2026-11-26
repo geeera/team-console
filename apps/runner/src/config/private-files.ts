@@ -121,7 +121,11 @@ export async function writePrivateFile(path: string, content: string): Promise<v
  * reader sees the old file or the new one, never half of either, and a planted link at `path` is replaced, never
  * followed. The directory must pass `assertPrivateDir` first.
  */
-export async function replacePrivateFile(path: string, content: string, options: { replace: boolean }): Promise<void> {
+export async function replacePrivateFile(
+  path: string,
+  content: string,
+  options: { replace: boolean },
+): Promise<void> {
   const dir = dirname(path);
   await assertPrivateDir(dir);
   const existing = await lstatOrNull(path);

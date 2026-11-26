@@ -11,7 +11,9 @@ import {
 /** A `GET …/team-config` view as the Worker builds it, for specs and stories (never shipped through the barrel). */
 export function teamConfigViewOf(
   config: TeamConfig | null,
-  extras: Partial<Pick<TeamConfigDto, 'revision' | 'canManage' | 'subscriptionBlocked' | 'updatedByName' | 'reason'>> = {},
+  extras: Partial<
+    Pick<TeamConfigDto, 'revision' | 'canManage' | 'subscriptionBlocked' | 'updatedByName' | 'reason'>
+  > = {},
 ): TeamConfigDto {
   const revision = extras.revision ?? (config === null ? 0 : 1);
   return {

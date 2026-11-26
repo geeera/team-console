@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf, type IssueRequestDto, type RequestIssuesDto } from '@shared/contracts';
+import {
+  isProblemDetails,
+  problemSlugOf,
+  type IssueRequestDto,
+  type RequestIssuesDto,
+} from '@shared/contracts';
 import { commandLines, handledMarker, requestComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth, FakeMilestoneSeed } from '@worker/github/testing';
 import { ApiGitHub } from '../github';
@@ -689,7 +694,10 @@ describe('GET …/issues/:number/request', () => {
     expect(body.title).toBe('Board sretlif for everyone');
     expect(body.milestone).toBe('Sprint 04');
 
-    const picker = await fetchApi('/api/v1/projects/tc/requests', localEnv(), { method: 'GET', github: h.github });
+    const picker = await fetchApi('/api/v1/projects/tc/requests', localEnv(), {
+      method: 'GET',
+      github: h.github,
+    });
     const items = ((await picker.json()) as RequestIssuesDto).items;
     expect(items.find((item) => item.number === 12)?.title).toBe('Board sretlif for everyone');
     for (const item of items) {

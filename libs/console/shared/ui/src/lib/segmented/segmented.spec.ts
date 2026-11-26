@@ -43,10 +43,14 @@ describe('SegmentedRadio', () => {
   it('marks a group that stacks on the phone, and only that one', async () => {
     const stacked = TestBed.createComponent(StackedHost);
     await stacked.whenStable();
-    expect((stacked.nativeElement as HTMLElement).querySelector('fieldset')?.classList).toContain('tc-segmented--stack-phone');
+    expect((stacked.nativeElement as HTMLElement).querySelector('fieldset')?.classList).toContain(
+      'tc-segmented--stack-phone',
+    );
     const plain = TestBed.createComponent(Host);
     await plain.whenStable();
-    expect((plain.nativeElement as HTMLElement).querySelector('fieldset')?.classList).not.toContain('tc-segmented--stack-phone');
+    expect((plain.nativeElement as HTMLElement).querySelector('fieldset')?.classList).not.toContain(
+      'tc-segmented--stack-phone',
+    );
   });
 
   async function render(): Promise<HTMLElement> {

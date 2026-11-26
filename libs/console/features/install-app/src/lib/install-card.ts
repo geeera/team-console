@@ -15,7 +15,15 @@ import {
 } from '@angular/core';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { InstallPrompt } from '@console/shared/platform';
-import { AppTile, Button, HomeScreenGuide, Icon, IconButton, isPhoneSignal, Toaster } from '@console/shared/ui';
+import {
+  AppTile,
+  Button,
+  HomeScreenGuide,
+  Icon,
+  IconButton,
+  isPhoneSignal,
+  Toaster,
+} from '@console/shared/ui';
 import { injectAppName } from './app-name';
 import { InstallOffer } from './install-offer';
 

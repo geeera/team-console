@@ -180,14 +180,20 @@ describe('CommandsPanel', () => {
           next: { number: 5, title: 'Sprint 05', due: '2026-10-28' },
         },
         progress: { done: 3, total: 8 },
-        calendar: { today: today < '2026-10-12' ? today : '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 06' },
+        calendar: {
+          today: today < '2026-10-12' ? today : '2026-10-05',
+          freezeDays: 2,
+          nextTitle: 'Sprint 06',
+        },
       }),
     );
     expect(text(root.querySelector('[data-testid="status-sprint"]'))).toMatch(
       /^Sprint 04 · демо 14 октября заморозка 12\s?–\s?14 октября$/,
     );
     expect(text(root.querySelector('[data-testid="status-progress"]'))).toBe('3 из 8');
-    expect(text(root.querySelector('[data-sprint="next"] .cmd__line'))).toBe('Sprint 05 уже создан: демо 28 октября');
+    expect(text(root.querySelector('[data-sprint="next"] .cmd__line'))).toBe(
+      'Sprint 05 уже создан: демо 28 октября',
+    );
     expect(root.querySelector('[data-testid="sprint-next"]')).toBeNull();
     const move = root.querySelector('[data-testid="sprint-demo"]') as HTMLButtonElement;
     expect(move.getAttribute('aria-label')).toBe('Перенести демо Sprint 04');
@@ -198,7 +204,10 @@ describe('CommandsPanel', () => {
 
   it('#218: without the GitHub connection the sprint commands say why and do nothing', async () => {
     const { root } = await render(
-      status({ ownerConnected: false, calendar: { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 01' } }),
+      status({
+        ownerConnected: false,
+        calendar: { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 01' },
+      }),
     );
     expect(text(root.querySelector('[data-testid="status-sprint"]'))).toBe('Текущего спринта нет');
     const next = root.querySelector('[data-testid="sprint-next"]') as HTMLButtonElement;
@@ -342,7 +351,9 @@ describe('CommandsPanel', () => {
       'Team Console: бюджет месяца исчерпан. Новые задачи не начнутся. Чтобы продолжить в этом месяце, выберите «Возобновить на этот месяц» в «Ждут вас» или увеличьте бюджет.',
     );
     expect(banner.querySelector('a')).toBeNull();
-    expect(text(root.querySelector('[data-testid="team-state"]'))).toBe('Остановилась: бюджет месяца исчерпан');
+    expect(text(root.querySelector('[data-testid="team-state"]'))).toBe(
+      'Остановилась: бюджет месяца исчерпан',
+    );
     expect(text(root.querySelector('[data-slot="pm"] .cmd__why'))).toBe('Сначала возобновите разработку');
     (root.querySelector('[data-testid="team-command"]') as HTMLButtonElement).click();
     await fixture.whenStable();
@@ -396,13 +407,20 @@ describe('CommandsPanel', () => {
     button.click();
     await fixture.whenStable();
     expect(snoozing.snooze).toHaveBeenCalledWith({ slug: 'tc', name: 'Team Console' });
-    expect(text(root.querySelector('.cp-result'))).toContain('Уведомления Team Console отложены до завтра 09:00');
+    expect(text(root.querySelector('.cp-result'))).toContain(
+      'Уведомления Team Console отложены до завтра 09:00',
+    );
   });
 
   it('snoozed: the struck bell with the words, and one tap turns them back on', async () => {
     const { fixture, root } = await render(
       status({
-        snooze: { snoozed: true, until: new Date(Date.now() + 3_600_000).toISOString(), allowsUrgent: true, since: new Date().toISOString() },
+        snooze: {
+          snoozed: true,
+          until: new Date(Date.now() + 3_600_000).toISOString(),
+          allowsUrgent: true,
+          since: new Date().toISOString(),
+        },
       }),
     );
     expect(text(root.querySelector('[data-testid="snooze-line"]'))).toBe(
@@ -422,7 +440,9 @@ describe('CommandsPanel', () => {
 
   it('snoozed until turned back on with urgent ones muted says both', async () => {
     const { root } = await render(
-      status({ snooze: { snoozed: true, until: null, allowsUrgent: false, since: new Date().toISOString() } }),
+      status({
+        snooze: { snoozed: true, until: null, allowsUrgent: false, since: new Date().toISOString() },
+      }),
     );
     expect(text(root.querySelector('[data-testid="snooze-line"]'))).toBe(
       'Отложены, пока не включите. Срочное тоже отложено.',
@@ -432,7 +452,12 @@ describe('CommandsPanel', () => {
   it('an expired snooze is not shown, with no other read', async () => {
     const { root } = await render(
       status({
-        snooze: { snoozed: true, until: new Date(Date.now() - 1000).toISOString(), allowsUrgent: true, since: new Date(Date.now() - 3_600_000).toISOString() },
+        snooze: {
+          snoozed: true,
+          until: new Date(Date.now() - 1000).toISOString(),
+          allowsUrgent: true,
+          since: new Date(Date.now() - 3_600_000).toISOString(),
+        },
       }),
     );
     expect(root.querySelector('[data-testid="snooze-line"]')).toBeNull();
@@ -455,7 +480,12 @@ describe('CommandsPanel', () => {
     button.click();
     expect(snoozing.snooze).not.toHaveBeenCalled();
 
-    store.applySnooze('tc', { snoozed: true, until: null, allowsUrgent: true, since: new Date().toISOString() });
+    store.applySnooze('tc', {
+      snoozed: true,
+      until: null,
+      allowsUrgent: true,
+      since: new Date().toISOString(),
+    });
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="snooze-command"]')?.getAttribute('aria-disabled')).toBeNull();
     expect(root.querySelector('[data-testid="snooze-why"]')).toBeNull();

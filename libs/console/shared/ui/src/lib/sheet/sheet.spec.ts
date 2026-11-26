@@ -580,7 +580,10 @@ describe('Sheet', () => {
 
     describe('#352: the pinned footer casts its shadow only while text is hidden under it', () => {
       /** jsdom has no layout: the body's measurements are set by hand, then a scroll is dispatched. */
-      function scrollTo(body: HTMLElement, { scrollHeight, clientHeight, scrollTop }: Record<string, number>): void {
+      function scrollTo(
+        body: HTMLElement,
+        { scrollHeight, clientHeight, scrollTop }: Record<string, number>,
+      ): void {
         Object.defineProperty(body, 'scrollHeight', { configurable: true, value: scrollHeight });
         Object.defineProperty(body, 'clientHeight', { configurable: true, value: clientHeight });
         Object.defineProperty(body, 'scrollTop', { configurable: true, value: scrollTop });

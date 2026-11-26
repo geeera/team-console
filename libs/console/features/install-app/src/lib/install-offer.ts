@@ -132,7 +132,9 @@ export class InstallOffer {
   }
 
   private isOfferable(): boolean {
-    return this.memory.canOffer() && !this.session.expired() && INSTALL_CARD_PATHS.includes(this.prompt.path());
+    return (
+      this.memory.canOffer() && !this.session.expired() && INSTALL_CARD_PATHS.includes(this.prompt.path())
+    );
   }
 
   private show(screen: string): void {

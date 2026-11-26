@@ -27,7 +27,16 @@ function auditOf(
   details: Readonly<Record<string, unknown>>,
 ): NewAuditEvent {
   const country = c.req.header('CF-IPCountry') ?? null;
-  return { accountId: runner.accountId, at, actorKind: 'runner', actor: runner.runnerId, kind, target: runner.runnerId, details, ipCountry: country };
+  return {
+    accountId: runner.accountId,
+    at,
+    actorKind: 'runner',
+    actor: runner.runnerId,
+    kind,
+    target: runner.runnerId,
+    details,
+    ipCountry: country,
+  };
 }
 
 /** Reads the runner back after a write; a runner revoked since authentication answers as the runner door does. */
@@ -56,7 +65,13 @@ export function createRunnerPauseRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const input = checkPauseRunnerInput(await jsonBody(c), now);
       if (!input.ok) {
         const extensions: Record<string, ProblemExtensionValue> = { field: input.field };
-        return problem(c, { type: 'runner-pause-invalid', title: 'Invalid request', status: 422, detail: input.detail, extensions });
+        return problem(c, {
+          type: 'runner-pause-invalid',
+          title: 'Invalid request',
+          status: 422,
+          detail: input.detail,
+          extensions,
+        });
       }
       const at = now.toISOString();
       const changed = await new RunnersRepo(c.env.DB).pause(
@@ -66,7 +81,11 @@ export function createRunnerPauseRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         auditOf(c, runner, at, 'runner.paused', { reason: input.value.reason }),
       );
       if (changed) {
-        c.get('logger').info('runner paused', { runnerId: runner.runnerId, reason: input.value.reason, until: input.value.until });
+        c.get('logger').info('runner paused', {
+          runnerId: runner.runnerId,
+          reason: input.value.reason,
+          until: input.value.until,
+        });
       }
       return answerOf(c, runner, now);
     })

@@ -201,7 +201,14 @@ let nextWizardId = 0;
           <p tc-banner-text>
             {{ message }}
             @if (offerCode()) {
-              <button tc-button size="sm" type="button" variant="quiet" data-testid="wizard-to-code" (click)="toCode()">
+              <button
+                tc-button
+                size="sm"
+                type="button"
+                variant="quiet"
+                data-testid="wizard-to-code"
+                (click)="toCode()"
+              >
                 {{ 'runners.wizard.err.toCode' | transloco }}
               </button>
             }
@@ -232,7 +239,12 @@ let nextWizardId = 0;
           </button>
         </ng-template>
         <ng-template tcSheetFooter="secondary">
-          <button tc-button type="button" [attr.aria-disabled]="busy() !== null ? 'true' : null" (click)="requestClose()">
+          <button
+            tc-button
+            type="button"
+            [attr.aria-disabled]="busy() !== null ? 'true' : null"
+            (click)="requestClose()"
+          >
             {{ 'ui.confirm.cancel' | transloco }}
           </button>
         </ng-template>
@@ -277,7 +289,9 @@ let nextWizardId = 0;
               variant="primary"
               data-testid="wizard-approve"
               [loading]="busy() === 'approving'"
-              [attr.aria-disabled]="busy() !== null || !online() || suspended() || !approveArmed() ? 'true' : null"
+              [attr.aria-disabled]="
+                busy() !== null || !online() || suspended() || !approveArmed() ? 'true' : null
+              "
               [attr.aria-describedby]="online() ? null : wizardId + '-offline'"
               (click)="approve()"
             >
@@ -292,7 +306,13 @@ let nextWizardId = 0;
       }
       @case ('approved') {
         <ng-template tcSheetFooter="primary">
-          <button tc-button type="button" variant="primary" data-testid="wizard-done" (click)="requestClose()">
+          <button
+            tc-button
+            type="button"
+            variant="primary"
+            data-testid="wizard-done"
+            (click)="requestClose()"
+          >
             @if (watch.runner()?.online) {
               {{ 'runners.wizard.done' | transloco }}
             } @else {
@@ -445,9 +465,12 @@ export class AddRunnerWizard {
     this.touched.set(true);
     if (this.runnerName() === '') {
       // The field marks itself invalid on the next render.
-      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="wizard-name"]')?.focus(), {
-        injector: this.injector,
-      });
+      afterNextRender(
+        () => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="wizard-name"]')?.focus(),
+        {
+          injector: this.injector,
+        },
+      );
       return;
     }
     await this.create();
@@ -487,9 +510,12 @@ export class AddRunnerWizard {
     this.failure.set(null);
     this.phase.set('params');
     this.announce('runners.wizard.withdrawn.self');
-    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="wizard-name"]')?.focus(), {
-      injector: this.injector,
-    });
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('[data-testid="wizard-name"]')?.focus(),
+      {
+        injector: this.injector,
+      },
+    );
   }
 
   protected async approve(): Promise<void> {
@@ -507,7 +533,11 @@ export class AddRunnerWizard {
     }
     this.busy.set('approving');
     this.failure.set(null);
-    const result = await this.api.approveEnrolmentIntent(this.data.accountId, created.intentId, shown.fingerprint);
+    const result = await this.api.approveEnrolmentIntent(
+      this.data.accountId,
+      created.intentId,
+      shown.fingerprint,
+    );
     this.busy.set(null);
     if (result.ok) {
       this.follow(result.value);
@@ -624,7 +654,13 @@ export class AddRunnerWizard {
       this.createRefused(null);
       return;
     }
-    this.created.set({ intentId, expiresAt, setupCommand: command, install: installCommands, linux: linuxInstall });
+    this.created.set({
+      intentId,
+      expiresAt,
+      setupCommand: command,
+      install: installCommands,
+      linux: linuxInstall,
+    });
     this.shown.set(null);
     this.phase.set('command');
     this.watch.watchIntent(this.data.accountId, intentId, expiresAt);
@@ -699,7 +735,10 @@ export class AddRunnerWizard {
           this.phase.set('confirm');
           this.announce('runners.wizard.live.bound', {
             host: intent.host?.hostname ?? '',
-            fingerprint: fingerprintSpokenOf(intent.fingerprint ?? '', this.t('runners.wizard.fingerprintDash')),
+            fingerprint: fingerprintSpokenOf(
+              intent.fingerprint ?? '',
+              this.t('runners.wizard.fingerprintDash'),
+            ),
           });
           this.focusHeading();
         }
@@ -759,14 +798,18 @@ export class AddRunnerWizard {
     this.withdrawnId = intentId;
     const result = await this.api.withdrawEnrolmentIntent(this.data.accountId, intentId);
     if (!result.ok && result.failure.kind !== 'not-found') {
-      console.warn(`add-runner: could not withdraw the unused Linux request (${result.failure.kind}); it expires on its own`);
+      console.warn(
+        `add-runner: could not withdraw the unused Linux request (${result.failure.kind}); it expires on its own`,
+      );
     }
   }
 
   private async sendWithdrawLeftBehind(intentId: string): Promise<void> {
     const result = await this.api.withdrawEnrolmentIntent(this.data.accountId, intentId, { keepalive: true });
     if (!result.ok && result.failure.kind !== 'not-found') {
-      console.warn(`add-runner: could not withdraw a request left open (${result.failure.kind}); it expires on its own`);
+      console.warn(
+        `add-runner: could not withdraw a request left open (${result.failure.kind}); it expires on its own`,
+      );
     }
   }
 
@@ -859,9 +902,12 @@ export class AddRunnerWizard {
 
   /** The old step's content is gone after every flip, polling ones included, so focus goes to the new heading. */
   private focusHeading(): void {
-    afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('[data-step-heading]')?.focus(), {
-      injector: this.injector,
-    });
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('[data-step-heading]')?.focus(),
+      {
+        injector: this.injector,
+      },
+    );
   }
 
   private announce(key: string, params?: Record<string, unknown>): void {

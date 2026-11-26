@@ -92,9 +92,7 @@ describe('job model', () => {
       jobEventTextOf(jobEventFixture(1, { payload: { line: 'from line', message: 'from message' } })),
     ).toBe('from line');
     expect(
-      jobEventTextOf(
-        jobEventFixture(2, { payload: { message: 'from message', summary: 'from summary' } }),
-      ),
+      jobEventTextOf(jobEventFixture(2, { payload: { message: 'from message', summary: 'from summary' } })),
     ).toBe('from message');
     expect(
       jobEventTextOf(jobEventFixture(3, { payload: { reason: 'from reason', skill: 'from skill' } })),
@@ -135,23 +133,48 @@ describe('job model', () => {
       expect(isActionsSetupFailure(failedWith('dispatch-failed'))).toBe(true);
       expect(isActionsSetupFailure(failedWith('actions-no-show'))).toBe(true);
       expect(isActionsSetupFailure(failedWith('agent-error'))).toBe(false);
-      expect(isActionsSetupFailure(jobFixture({ dispatch: 'pull', state: 'failed', result: { metrics: { reason: 'dispatch-failed' } } }))).toBe(false);
+      expect(
+        isActionsSetupFailure(
+          jobFixture({
+            dispatch: 'pull',
+            state: 'failed',
+            result: { metrics: { reason: 'dispatch-failed' } },
+          }),
+        ),
+      ).toBe(false);
       expect(isActionsSetupFailure(jobFixture({ dispatch: 'actions', state: 'running' }))).toBe(false);
     });
 
     it('waits while no Actions job has ended, ignoring pull jobs', () => {
       expect(actionsFirstJobOf([])).toEqual({ kind: 'waiting' });
-      expect(actionsFirstJobOf([jobFixture({ dispatch: 'pull', state: 'finished', finishedAt: '2026-11-11T10:00:00.000Z' })])).toEqual({ kind: 'waiting' });
-      expect(actionsFirstJobOf([jobFixture({ dispatch: 'actions', state: 'running' })])).toEqual({ kind: 'waiting' });
+      expect(
+        actionsFirstJobOf([
+          jobFixture({ dispatch: 'pull', state: 'finished', finishedAt: '2026-11-11T10:00:00.000Z' }),
+        ]),
+      ).toEqual({ kind: 'waiting' });
+      expect(actionsFirstJobOf([jobFixture({ dispatch: 'actions', state: 'running' })])).toEqual({
+        kind: 'waiting',
+      });
     });
 
     it('is done once any Actions job finished, even after a failed one', () => {
-      const finished = jobFixture({ id: second, dispatch: 'actions', state: 'finished', finishedAt: '2026-11-11T10:00:00.000Z' });
-      expect(actionsFirstJobOf([finished, failedWith('dispatch-failed')])).toEqual({ kind: 'done', at: '2026-11-11T10:00:00.000Z' });
+      const finished = jobFixture({
+        id: second,
+        dispatch: 'actions',
+        state: 'finished',
+        finishedAt: '2026-11-11T10:00:00.000Z',
+      });
+      expect(actionsFirstJobOf([finished, failedWith('dispatch-failed')])).toEqual({
+        kind: 'done',
+        at: '2026-11-11T10:00:00.000Z',
+      });
     });
 
     it('names why the newest failed one failed', () => {
-      expect(actionsFirstJobOf([failedWith('actions-no-show')])).toEqual({ kind: 'failed', reason: 'actions-no-show' });
+      expect(actionsFirstJobOf([failedWith('actions-no-show')])).toEqual({
+        kind: 'failed',
+        reason: 'actions-no-show',
+      });
       expect(actionsFirstJobOf([failedWith('agent-error')])).toEqual({ kind: 'failed', reason: 'other' });
     });
   });

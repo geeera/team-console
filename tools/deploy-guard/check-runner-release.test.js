@@ -28,8 +28,7 @@ const SUMS = [
   '',
 ].join('\n');
 
-const config = (vars) =>
-  `// comment\n{ "env": { "dev": { "vars": ${JSON.stringify(vars)}, }, }, }`;
+const config = (vars) => `// comment\n{ "env": { "dev": { "vars": ${JSON.stringify(vars)}, }, }, }`;
 
 let failures = 0;
 function test(name, body) {
@@ -44,20 +43,31 @@ function test(name, body) {
 
 test('reads the three vars from the env block, and refuses a config without them', () => {
   const vars = releaseVarsOf(
-    config({ RUNNER_RELEASE_VERSION: VERSION, RUNNER_RELEASE_SHA256SUMS: SUMS, RUNNER_RELEASE_IMAGE_DIGEST: DIGEST }),
+    config({
+      RUNNER_RELEASE_VERSION: VERSION,
+      RUNNER_RELEASE_SHA256SUMS: SUMS,
+      RUNNER_RELEASE_IMAGE_DIGEST: DIGEST,
+    }),
     'dev',
   );
   assert.deepStrictEqual(vars, { version: VERSION, sums: SUMS, imageDigest: DIGEST });
-  const missing = /must set RUNNER_RELEASE_VERSION, RUNNER_RELEASE_SHA256SUMS and RUNNER_RELEASE_IMAGE_DIGEST/;
+  const missing =
+    /must set RUNNER_RELEASE_VERSION, RUNNER_RELEASE_SHA256SUMS and RUNNER_RELEASE_IMAGE_DIGEST/;
   assert.throws(() => releaseVarsOf(config({ RUNNER_RELEASE_VERSION: '' }), 'dev'), missing);
-  assert.throws(() => releaseVarsOf(config({ RUNNER_RELEASE_VERSION: '', RUNNER_RELEASE_SHA256SUMS: '' }), 'dev'), missing);
+  assert.throws(
+    () => releaseVarsOf(config({ RUNNER_RELEASE_VERSION: '', RUNNER_RELEASE_SHA256SUMS: '' }), 'dev'),
+    missing,
+  );
   assert.throws(() => releaseVarsOf(config({}), 'stage'), /'env\.stage\.vars' is missing/);
 });
 
 test('takes an image digest only as sha256:<64 hex> and only with a named release (#634 PR 7)', () => {
   assert.strictEqual(namedRelease({ version: VERSION, sums: SUMS, imageDigest: DIGEST }), VERSION);
   assert.strictEqual(namedRelease({ version: VERSION, sums: SUMS, imageDigest: '' }), VERSION);
-  assert.throws(() => namedRelease({ version: '', sums: '', imageDigest: DIGEST }), /RUNNER_RELEASE_VERSION is empty/);
+  assert.throws(
+    () => namedRelease({ version: '', sums: '', imageDigest: DIGEST }),
+    /RUNNER_RELEASE_VERSION is empty/,
+  );
   for (const imageDigest of [
     '9'.repeat(64),
     `sha256:${'9'.repeat(63)}`,
@@ -67,18 +77,27 @@ test('takes an image digest only as sha256:<64 hex> and only with a named releas
     'ghcr.io/geeera/team-console-runner:0.2.0',
     `sha512:${'9'.repeat(128)}`,
   ]) {
-    assert.throws(() => namedRelease({ version: VERSION, sums: SUMS, imageDigest }), /must be sha256:<64 lower-case hex>/, imageDigest);
+    assert.throws(
+      () => namedRelease({ version: VERSION, sums: SUMS, imageDigest }),
+      /must be sha256:<64 lower-case hex>/,
+      imageDigest,
+    );
   }
 });
 
 test('verifies the image digest’s attestation by digest with the pinned identity', () => {
   const { gh, calls } = fakeGh(SUMS);
   verifyImage(VERSION, DIGEST, gh);
-  assert.deepStrictEqual(calls, [['gh', ...attestationArgs(`oci://ghcr.io/geeera/team-console-runner@${DIGEST}`, VERSION)]]);
+  assert.deepStrictEqual(calls, [
+    ['gh', ...attestationArgs(`oci://ghcr.io/geeera/team-console-runner@${DIGEST}`, VERSION)],
+  ]);
   assert.strictEqual(imageSubjectOf(DIGEST), `oci://ghcr.io/geeera/team-console-runner@${DIGEST}`);
   assert.ok(calls[0].includes('refs/tags/v0.2.0'));
   assert.ok(calls[0].includes('--deny-self-hosted-runners'));
-  assert.throws(() => verifyImage(VERSION, DIGEST, fakeGh(SUMS, 'attestation').gh), /gh attestation exited 1/);
+  assert.throws(
+    () => verifyImage(VERSION, DIGEST, fakeGh(SUMS, 'attestation').gh),
+    /gh attestation exited 1/,
+  );
 });
 
 test('names no release when both are empty', () => {
@@ -140,12 +159,18 @@ test('downloads SHA256SUMS of the named tag, verifies its attestation with the p
 
 test('refuses a var that differs from the attested file by one byte', () => {
   const { gh } = fakeGh(SUMS.replace('a', 'f'));
-  assert.throws(() => verifyAgainstRelease(VERSION, SUMS, gh), /differs from the attested SHA256SUMS of v0\.2\.0/);
+  assert.throws(
+    () => verifyAgainstRelease(VERSION, SUMS, gh),
+    /differs from the attested SHA256SUMS of v0\.2\.0/,
+  );
 });
 
 test('refuses when the download or the attestation check fails', () => {
   assert.throws(() => verifyAgainstRelease(VERSION, SUMS, fakeGh(SUMS, 'release').gh), /gh release exited 1/);
-  assert.throws(() => verifyAgainstRelease(VERSION, SUMS, fakeGh(SUMS, 'attestation').gh), /gh attestation exited 1/);
+  assert.throws(
+    () => verifyAgainstRelease(VERSION, SUMS, fakeGh(SUMS, 'attestation').gh),
+    /gh attestation exited 1/,
+  );
 });
 
 test('the committed wrangler.jsonc is well formed for every environment', () => {

@@ -153,7 +153,10 @@ test('a working team shows a breathing dot and the last five runs as stamps', as
   // A finished run is filled, the one in progress hollow, the failed one reddish.
   await expect(stamps.nth(0)).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
   await expect(stamps.nth(1)).not.toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
-  await expect(stamps.nth(4)).not.toHaveCSS('background-color', await stamps.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor));
+  await expect(stamps.nth(4)).not.toHaveCSS(
+    'background-color',
+    await stamps.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor),
+  );
 
   await strip.scrollIntoViewIfNeeded();
   await expectAccessible(page, 'Run strip with the breathing dot and stamps');

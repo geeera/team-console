@@ -31,14 +31,17 @@ export interface ReleaseIdentity {
   tarballNameOf(version: string, platform: string): string;
 }
 
-const load = async <T>(path: string): Promise<T> => (await import(pathToFileURL(join(workspaceRoot, path)).href)) as T;
+const load = async <T>(path: string): Promise<T> =>
+  (await import(pathToFileURL(join(workspaceRoot, path)).href)) as T;
 
 export const loadDeployGuard = (): Promise<DeployGuard> => load('tools/deploy-guard/check-runner-release.js');
 export const loadNodeRuntime = (): Promise<NodeRuntime> => load('tools/release/node-runtime.mjs');
-export const loadReleaseIdentity = (): Promise<ReleaseIdentity> => load('libs/shared/contracts/src/lib/runner-release.ts');
+export const loadReleaseIdentity = (): Promise<ReleaseIdentity> =>
+  load('libs/shared/contracts/src/lib/runner-release.ts');
 
 export interface LinuxLayout {
   readonly RUNNER_IMAGE: string;
 }
 
-export const loadLinuxLayout = (): Promise<LinuxLayout> => load('libs/shared/contracts/src/lib/runner-linux.ts');
+export const loadLinuxLayout = (): Promise<LinuxLayout> =>
+  load('libs/shared/contracts/src/lib/runner-linux.ts');

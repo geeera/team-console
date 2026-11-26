@@ -13,19 +13,47 @@ const preflightOnly = { preflight: async () => undefined } as unknown as Isolati
 
 describe('the runner scope', () => {
   it('reads the enrol-time copy as selected, and lists nothing under all until the console answers', () => {
-    expect(scopeOfConfig({ allowedProjects: ['team-console'] })).toEqual({ source: 'config', projectScope: 'selected', projects: ['team-console'] });
-    expect(scopeOfConfig({ projectScope: 'selected', allowedProjects: ['a', 'b'] })).toEqual({ source: 'config', projectScope: 'selected', projects: ['a', 'b'] });
-    expect(scopeOfConfig({ projectScope: 'all', allowedProjects: [] })).toEqual({ source: 'config', projectScope: 'all', projects: [] });
+    expect(scopeOfConfig({ allowedProjects: ['team-console'] })).toEqual({
+      source: 'config',
+      projectScope: 'selected',
+      projects: ['team-console'],
+    });
+    expect(scopeOfConfig({ projectScope: 'selected', allowedProjects: ['a', 'b'] })).toEqual({
+      source: 'config',
+      projectScope: 'selected',
+      projects: ['a', 'b'],
+    });
+    expect(scopeOfConfig({ projectScope: 'all', allowedProjects: [] })).toEqual({
+      source: 'config',
+      projectScope: 'all',
+      projects: [],
+    });
   });
 
   it('takes the effective project list from the console’s self and claim answers', () => {
     expect(
       scopeOfSelf({
-        runner: { id: 'x', name: 'n', accountId: 'a', projectScope: 'all', allowedProjects: [], isolation: 'user', version: '1', belowMinimum: false, pausedUntil: null, lastSeenAt: null },
-        projects: [{ slug: 'team-console', accessSource: 'subscription' }, { slug: 'storify', accessSource: 'api_key' }],
+        runner: {
+          id: 'x',
+          name: 'n',
+          accountId: 'a',
+          projectScope: 'all',
+          allowedProjects: [],
+          isolation: 'user',
+          version: '1',
+          belowMinimum: false,
+          pausedUntil: null,
+          lastSeenAt: null,
+        },
+        projects: [
+          { slug: 'team-console', accessSource: 'subscription' },
+          { slug: 'storify', accessSource: 'api_key' },
+        ],
       }),
     ).toEqual({ source: 'self', projectScope: 'all', projects: ['team-console', 'storify'] });
-    expect(scopeOfClaim({ projectScope: 'selected', allowedProjects: ['storify'], projects: ['storify'] })).toEqual({
+    expect(
+      scopeOfClaim({ projectScope: 'selected', allowedProjects: ['storify'], projects: ['storify'] }),
+    ).toEqual({
       source: 'claim',
       projectScope: 'selected',
       projects: ['storify'],
@@ -69,7 +97,18 @@ describe('the loop refreshes the scope from the console', () => {
     const claims: unknown[] = [];
     const client = Object.assign(recordingConsole(), {
       self: async () => ({
-        runner: { id: 'x', name: 'n', accountId: 'a', projectScope: 'all' as const, allowedProjects: [], isolation: 'none' as const, version: '0.1.0', belowMinimum: false, pausedUntil: null, lastSeenAt: null },
+        runner: {
+          id: 'x',
+          name: 'n',
+          accountId: 'a',
+          projectScope: 'all' as const,
+          allowedProjects: [],
+          isolation: 'none' as const,
+          version: '0.1.0',
+          belowMinimum: false,
+          pausedUntil: null,
+          lastSeenAt: null,
+        },
         projects: [{ slug: 'team-console', accessSource: 'subscription' as const }],
       }),
       claim: async (input: unknown) => {
@@ -87,7 +126,11 @@ describe('the loop refreshes the scope from the console', () => {
 
   it('refuses a job of a project the console’s latest scope no longer covers, without a restart', async () => {
     // The enrol-time copy says team-console; the console has since narrowed the runner to another project.
-    const narrowed = { projectScope: 'selected' as const, allowedProjects: ['storify'], projects: ['storify'] };
+    const narrowed = {
+      projectScope: 'selected' as const,
+      allowedProjects: ['storify'],
+      projects: ['storify'],
+    };
     let claimed = 0;
     const client = Object.assign(recordingConsole(), {
       self: async () => {
@@ -99,14 +142,25 @@ describe('the loop refreshes the scope from the console', () => {
           shutdown.abort();
           return { kind: 'idle' as const, retryAfterSeconds: 60 };
         }
-        return { kind: 'job' as const, job: jobFixture(), jobToken: sentinels.jobToken, leaseSeconds: 300, scope: narrowed };
+        return {
+          kind: 'job' as const,
+          job: jobFixture(),
+          jobToken: sentinels.jobToken,
+          leaseSeconds: 300,
+          scope: narrowed,
+        };
       },
     });
     const { shutdown, run } = loopWith(client);
     expect(await run()).toBe('shutdown');
     expect(logs).toContainEqual(expect.stringContaining('could not read the scope from the console'));
-    expect(client.finished[0]).toMatchObject({ result: 'failed', metrics: { reason: 'project-not-allowed' } });
-    expect(client.finished[0]?.summary).toContain('team-console is not among the projects this runner serves (claim: selected)');
+    expect(client.finished[0]).toMatchObject({
+      result: 'failed',
+      metrics: { reason: 'project-not-allowed' },
+    });
+    expect(client.finished[0]?.summary).toContain(
+      'team-console is not among the projects this runner serves (claim: selected)',
+    );
   });
 
   it('runs a job of a project the console’s scope covers even when the enrol-time copy does not', async () => {
@@ -120,10 +174,23 @@ describe('the loop refreshes the scope from the console', () => {
           shutdown.abort();
           return { kind: 'idle' as const, retryAfterSeconds: 60 };
         }
-        return { kind: 'job' as const, job: jobFixture(), jobToken: sentinels.jobToken, leaseSeconds: 300, scope: all };
+        return {
+          kind: 'job' as const,
+          job: jobFixture(),
+          jobToken: sentinels.jobToken,
+          leaseSeconds: 300,
+          scope: all,
+        };
       },
     });
-    const { shutdown, run } = loopWith(client, runnerConfigFor(fixture.repo, { projectScope: 'all', allowedProjects: [], toolchain: { path: '/usr/bin:/bin', claude: '/usr/bin/false' } }));
+    const { shutdown, run } = loopWith(
+      client,
+      runnerConfigFor(fixture.repo, {
+        projectScope: 'all',
+        allowedProjects: [],
+        toolchain: { path: '/usr/bin:/bin', claude: '/usr/bin/false' },
+      }),
+    );
     expect(await run()).toBe('shutdown');
     // The launch got past the scope check: whatever `claude` did next, the refusal is not the scope's.
     expect(client.finished[0]?.summary ?? '').not.toContain('project-not-allowed');

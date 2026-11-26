@@ -36,7 +36,13 @@ class Host {
 
 @Component({
   imports: [Switch, FormsModule],
-  template: `<button tc-switch type="button" aria-label="Standalone" [ngModel]="checked()" (ngModelChange)="checked.set($event)"></button>`,
+  template: `<button
+    tc-switch
+    type="button"
+    aria-label="Standalone"
+    [ngModel]="checked()"
+    (ngModelChange)="checked.set($event)"
+  ></button>`,
 })
 class StandaloneHost {
   readonly checked = signal(false);
@@ -47,7 +53,9 @@ describe('Switch', () => {
     await TestBed.configureTestingModule({ imports: [Host] }).compileComponents();
     const fixture = TestBed.createComponent(Host);
     await fixture.whenStable();
-    const buttons = fixture.nativeElement.querySelectorAll('button[tc-switch]') as NodeListOf<HTMLButtonElement>;
+    const buttons = fixture.nativeElement.querySelectorAll(
+      'button[tc-switch]',
+    ) as NodeListOf<HTMLButtonElement>;
     return {
       fixture,
       host: fixture.componentInstance,

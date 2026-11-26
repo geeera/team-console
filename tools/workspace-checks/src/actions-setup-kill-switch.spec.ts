@@ -38,7 +38,9 @@ const read = (file: string): string => readFileSync(join(workspaceRoot, file), '
 const DEPLOY_SURFACE = [
   ...filesUnder('.github'),
   ...filesUnder('tools').filter((file) => file !== THIS_SPEC && !file.endsWith('worker-config.spec.ts')),
-  ...filesUnder('apps').filter((file) => /(?:^|\/)(?:project\.json|package\.json|.*\.sh|.*\.ya?ml)$/.test(file)),
+  ...filesUnder('apps').filter((file) =>
+    /(?:^|\/)(?:project\.json|package\.json|.*\.sh|.*\.ya?ml)$/.test(file),
+  ),
   ...filesUnder('docs/runbooks'),
   'package.json',
 ];
@@ -52,7 +54,9 @@ describe('ALLOW_ACTIONS_SETUP_WRITE is set by the reviewed wrangler.jsonc alone 
   });
 
   it('is never passed as --var: a deploy cannot override the committed value', () => {
-    const overriding = DEPLOY_SURFACE.filter((file) => new RegExp(`--var[\\s=]+["']?${SWITCH}\\b`).test(read(file)));
+    const overriding = DEPLOY_SURFACE.filter((file) =>
+      new RegExp(`--var[\\s=]+["']?${SWITCH}\\b`).test(read(file)),
+    );
     expect(overriding).toEqual([]);
   });
 
@@ -62,7 +66,9 @@ describe('ALLOW_ACTIONS_SETUP_WRITE is set by the reviewed wrangler.jsonc alone 
     );
     expect(asSecret).toEqual([]);
     // No workflow or owner script names it at all: it has no value outside wrangler.jsonc.
-    const named = [...filesUnder('.github'), ...filesUnder('tools/owner-setup')].filter((file) => read(file).includes(SWITCH));
+    const named = [...filesUnder('.github'), ...filesUnder('tools/owner-setup')].filter((file) =>
+      read(file).includes(SWITCH),
+    );
     expect(named).toEqual([]);
   });
 
@@ -78,16 +84,21 @@ describe('ALLOW_ACTIONS_SETUP_WRITE is set by the reviewed wrangler.jsonc alone 
     expect(entry).not.toMatch(/kind: secret|wrangler-secret|github-secret|github-variable/);
   });
 
-  it.each(DEPLOY_ENVIRONMENTS)('is the literal true or false in apps/api/wrangler.jsonc for %s, and absent on hooks', (env) => {
-    expect(['true', 'false']).toContain(readWorkerConfig('api', env).vars[SWITCH]);
-    expect(readWorkerConfig('hooks', env).vars).not.toHaveProperty(SWITCH);
-  });
+  it.each(DEPLOY_ENVIRONMENTS)(
+    'is the literal true or false in apps/api/wrangler.jsonc for %s, and absent on hooks',
+    (env) => {
+      expect(['true', 'false']).toContain(readWorkerConfig('api', env).vars[SWITCH]);
+      expect(readWorkerConfig('hooks', env).vars).not.toHaveProperty(SWITCH);
+    },
+  );
 
   it('is read by one function of the api Worker, and only its exact `true` switches the path on', () => {
     const sources = [...filesUnder('apps'), ...filesUnder('libs')].filter(
       (file) => file.endsWith('.ts') && !/\.(spec|test)\.ts$/.test(file) && !file.includes('/testing/'),
     );
-    const readers = sources.filter((file) => new RegExp(`\\.${SWITCH}\\b|\\[['"]${SWITCH}['"]\\]`).test(read(file)));
+    const readers = sources.filter((file) =>
+      new RegExp(`\\.${SWITCH}\\b|\\[['"]${SWITCH}['"]\\]`).test(read(file)),
+    );
     expect(readers).toEqual(['apps/api/src/github.ts']);
     expect(read('apps/api/src/github.ts')).toContain(`env.${SWITCH} === 'true' ? 'enabled' : 'disabled'`);
   });
@@ -115,7 +126,9 @@ describe('the operator’s stop is written by the operator alone (#759 SEC 4)', 
     const flow = read('apps/api/src/actions/workflow-pr.ts');
     // The stop is judged before the mint, in the function that mints.
     expect(flow.indexOf('await isSetupWriteAllowed(env)')).toBeGreaterThan(-1);
-    expect(flow.indexOf('await isSetupWriteAllowed(env)')).toBeLessThan(flow.indexOf(".mintScoped('workflow-pr'"));
+    expect(flow.indexOf('await isSetupWriteAllowed(env)')).toBeLessThan(
+      flow.indexOf(".mintScoped('workflow-pr'"),
+    );
   });
 
   it('is documented as an incident step that needs no deploy', () => {

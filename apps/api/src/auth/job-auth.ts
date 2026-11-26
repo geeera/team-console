@@ -3,7 +3,13 @@ import { JobsRepo, RunnersRepo, type HeldJobRecord, type JobTokenHold } from '@w
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
 import { isJobRole } from './job-roles';
-import { RUNNER_JWT_HEADER, recordSighting, runnerJwtOf, runnerRefusal, verifyRunnerJwt } from './runner-auth';
+import {
+  RUNNER_JWT_HEADER,
+  recordSighting,
+  runnerJwtOf,
+  runnerRefusal,
+  verifyRunnerJwt,
+} from './runner-auth';
 
 type JobIdentity = Extract<Identity, { kind: 'job' }>;
 
@@ -148,7 +154,8 @@ export async function lostJobHoldRefusal(
     logger.warn('runner rejected', { reason: 'runner-revoked' });
     return problem(c, { type: 'runner-revoked', title: 'Unauthorized', status: 401 });
   }
-  const sameJob = job !== null && job.id === identity.jobId && job.accountId === runner.accountId ? job : null;
+  const sameJob =
+    job !== null && job.id === identity.jobId && job.accountId === runner.accountId ? job : null;
   const refusal = judgeJob(sameJob, runner.id, new Date());
   return refusal === null ? null : refusalResponse(c, logger, refusal);
 }

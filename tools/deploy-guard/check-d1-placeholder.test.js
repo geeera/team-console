@@ -56,10 +56,20 @@ const commentOnlyConfig = `
     }
   }
 `;
-assertOk(commentOnlyConfig, 'dev', PLACEHOLDER, 'placeholder mentioned only in a comment must not fail the guard');
+assertOk(
+  commentOnlyConfig,
+  'dev',
+  PLACEHOLDER,
+  'placeholder mentioned only in a comment must not fail the guard',
+);
 
 // --- True positives. ---
-assertFails(configWith(PLACEHOLDER), 'dev', PLACEHOLDER, 'placeholder as the real database_id must fail the guard');
+assertFails(
+  configWith(PLACEHOLDER),
+  'dev',
+  PLACEHOLDER,
+  'placeholder as the real database_id must fail the guard',
+);
 assertOk(configWith(REAL_ID), 'dev', PLACEHOLDER, 'a real database_id must not fail the guard');
 
 // A placeholder in a *second* d1_databases entry must also be caught, not just index 0.
@@ -75,7 +85,12 @@ const secondEntryConfig = `
     }
   }
 `;
-assertFails(secondEntryConfig, 'dev', PLACEHOLDER, 'placeholder in a second d1_databases entry must fail the guard');
+assertFails(
+  secondEntryConfig,
+  'dev',
+  PLACEHOLDER,
+  'placeholder in a second d1_databases entry must fail the guard',
+);
 
 // The placeholder comparison is case-insensitive.
 assertFails(
@@ -121,7 +136,12 @@ assertFails(
 
 // `Object.hasOwn` is used (not `in`/optional chaining alone) so a prototype property can never be mistaken
 // for a real env block, even though ENV_NAME is allowlisted upstream and this is not reachable today.
-assertFails('{ "env": {} }', 'toString', PLACEHOLDER, 'an inherited Object.prototype member must not count as an env block');
+assertFails(
+  '{ "env": {} }',
+  'toString',
+  PLACEHOLDER,
+  'an inherited Object.prototype member must not count as an env block',
+);
 
 // --- Crafted strings that must not be mistaken for a comment or a trailing comma. ---
 const craftedStringsConfig = `
@@ -136,7 +156,12 @@ const craftedStringsConfig = `
     }
   }
 `;
-assertOk(craftedStringsConfig, 'dev', PLACEHOLDER, '// and /* inside string values must not be treated as comments');
+assertOk(
+  craftedStringsConfig,
+  'dev',
+  PLACEHOLDER,
+  '// and /* inside string values must not be treated as comments',
+);
 
 const escapedQuoteConfig = `
   {
@@ -172,4 +197,6 @@ const multiEnvConfig = `
 `;
 assertOk(multiEnvConfig, 'dev', PLACEHOLDER, 'a placeholder for another env must not fail this env');
 
-process.stdout.write('ok: check-d1-placeholder fails closed and distinguishes comments from the real database_id\n');
+process.stdout.write(
+  'ok: check-d1-placeholder fails closed and distinguishes comments from the real database_id\n',
+);

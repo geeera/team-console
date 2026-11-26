@@ -45,7 +45,11 @@ class SegmentedStory {
   selector: 'tc-story-segmented-disabled',
   imports: [Segment, SegmentedRadio, TranslocoPipe],
   template: `
-    <fieldset tc-segmented style="max-width: var(--dialog-max-w)" [legend]="'stories.segmented.kind' | transloco">
+    <fieldset
+      tc-segmented
+      style="max-width: var(--dialog-max-w)"
+      [legend]="'stories.segmented.kind' | transloco"
+    >
       <label tc-segment>
         <input type="radio" name="story-kind-disabled" value="feature" checked />
         {{ 'stories.segmented.feature' | transloco }}

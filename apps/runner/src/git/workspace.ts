@@ -64,7 +64,11 @@ async function localOriginUrls(mirror: string, env: Readonly<Record<string, stri
  * config table; the runner's own global file is the operator's, out of a job's reach on the `user` backend. URLs
  * never reach the message: one may carry a credential.
  */
-async function assertMirrorOrigin(mirror: string, url: string, env: Readonly<Record<string, string>>): Promise<void> {
+async function assertMirrorOrigin(
+  mirror: string,
+  url: string,
+  env: Readonly<Record<string, string>>,
+): Promise<void> {
   const origins = await localOriginUrls(mirror, env);
   if (origins.length !== 1 || origins[0] !== url) {
     throw new LaunchRefusal(

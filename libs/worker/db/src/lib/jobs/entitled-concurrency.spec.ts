@@ -26,7 +26,11 @@ const ulid = (tag: string): string => {
   return `01M6YSNJ00000000000${tag}${String(counter).padStart(5, '0')}`.slice(0, 26);
 };
 
-const auditOf = (accountId: string, kind: NewAuditEvent['kind'], target: string | null = null): NewAuditEvent => ({
+const auditOf = (
+  accountId: string,
+  kind: NewAuditEvent['kind'],
+  target: string | null = null,
+): NewAuditEvent => ({
   accountId,
   at: T0,
   actorKind: 'system',
@@ -38,7 +42,9 @@ const auditOf = (accountId: string, kind: NewAuditEvent['kind'], target: string 
 /** An account on `plan` with the operator's override `entitlements` (the raw JSON the column holds). */
 async function account(plan: 'free' | 'team' = 'free', entitlements = '{}'): Promise<string> {
   const id = ulid('EC');
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, plan, entitlements, created_at) VALUES (?1, ?2, 'E', ?3, ?4, ?5)`)
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, slug, name, plan, entitlements, created_at) VALUES (?1, ?2, 'E', ?3, ?4, ?5)`,
+  )
     .bind(id, `ec-${String(counter)}`, plan, entitlements, T0)
     .run();
   return id;
@@ -78,7 +84,13 @@ async function runner(accountId: string, allowed: readonly string[]): Promise<st
     `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, allowed_projects, version, enrolled_at)
      VALUES (?1, ?2, 'r', ?3, '{"local":true,"maxConcurrency":8}', 'user', ?4, '0.1.0', ?5)`,
   )
-    .bind(id, accountId, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }), JSON.stringify(allowed), T0)
+    .bind(
+      id,
+      accountId,
+      JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) }),
+      JSON.stringify(allowed),
+      T0,
+    )
     .run();
   return id;
 }
@@ -121,9 +133,15 @@ const claimAs = (accountId: string, runnerId: string): Promise<JobRecord | null>
 
 async function finish(accountId: string, job: JobRecord | null, runnerId: string): Promise<void> {
   expect(
-    await jobs.finish(job?.id ?? '', runnerId, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, {
-      ...auditOf(accountId, 'job.finished', job?.id ?? null),
-    }),
+    await jobs.finish(
+      job?.id ?? '',
+      runnerId,
+      { result: 'finished', summary: 's', metrics: {}, acted: false },
+      T1,
+      {
+        ...auditOf(accountId, 'job.finished', job?.id ?? null),
+      },
+    ),
   ).toBe(true);
 }
 
@@ -169,7 +187,9 @@ describe('the pull claim holds the account to its entitled concurrency (#746)', 
     await enqueue(acct, slug);
     await enqueue(acct, slug);
     const first = await claimAs(acct, mac);
-    expect(await jobs.appendEvents(first?.id ?? '', mac, [{ level: 'info', kind: 'started', payload: {} }], T1)).toMatchObject({
+    expect(
+      await jobs.appendEvents(first?.id ?? '', mac, [{ level: 'info', kind: 'started', payload: {} }], T1),
+    ).toMatchObject({
       held: true,
     });
     expect((await jobs.findById(first?.id ?? ''))?.state).toBe('running');
@@ -319,7 +339,9 @@ describe('the entitled limit and its account-row guard (#746)', () => {
     const acct = await account('team');
     const slug = await project(acct);
     const id = await enqueue(acct, slug);
-    const admitted = async (entitled: ReturnType<typeof entitledConcurrencyOf>): Promise<number | undefined> =>
+    const admitted = async (
+      entitled: ReturnType<typeof entitledConcurrencyOf>,
+    ): Promise<number | undefined> =>
       (
         await env.DB.prepare(
           `SELECT COUNT(*) AS n FROM jobs j JOIN accounts a ON a.id = j.account_id
@@ -331,9 +353,13 @@ describe('the entitled limit and its account-row guard (#746)', () => {
     const before = entitledConcurrencyOf({ plan: 'team', entitlements: '{}' });
     expect(await admitted(before)).toBe(1);
     // The operator's change commits between the read and the write: the stale limit of 3 no longer holds.
-    await env.DB.prepare(`UPDATE accounts SET entitlements = '{"max_concurrency":0}' WHERE id = ?1`).bind(acct).run();
+    await env.DB.prepare(`UPDATE accounts SET entitlements = '{"max_concurrency":0}' WHERE id = ?1`)
+      .bind(acct)
+      .run();
     expect(await admitted(before)).toBe(0);
-    expect(await admitted(entitledConcurrencyOf({ plan: 'team', entitlements: '{"max_concurrency":0}' }))).toBe(0);
+    expect(
+      await admitted(entitledConcurrencyOf({ plan: 'team', entitlements: '{"max_concurrency":0}' })),
+    ).toBe(0);
   });
 });
 
@@ -347,7 +373,9 @@ describe('JobsRepo.concurrencyStopsOf (#746): the Needs-you row of max_concurren
     await enqueue(stopped, waiting);
     await enqueue(stopped, waiting);
     await enqueue(running, fine);
-    expect(await jobs.concurrencyStopsOf([waiting, idle, fine])).toEqual([{ projectSlug: waiting, queuedJobs: 2 }]);
+    expect(await jobs.concurrencyStopsOf([waiting, idle, fine])).toEqual([
+      { projectSlug: waiting, queuedJobs: 2 },
+    ]);
     expect(await jobs.concurrencyStopsOf([])).toEqual([]);
   });
 });

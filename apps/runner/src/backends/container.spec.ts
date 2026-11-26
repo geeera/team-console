@@ -125,7 +125,12 @@ describe('container backend', () => {
     const podman = backend({ settings: { image: IMAGE, runtime: 'podman' } });
     const sandbox = await podman.prepare({ jobId: JOB_ID, projectSlug: 'team-console' });
     const args = podman.runArgs(sandbox, spec(sandbox));
-    expect(args.slice(args.indexOf('--user'), args.indexOf('--read-only'))).toEqual(['--user', '1001:1001', '--userns', 'keep-id']);
+    expect(args.slice(args.indexOf('--user'), args.indexOf('--read-only'))).toEqual([
+      '--user',
+      '1001:1001',
+      '--userns',
+      'keep-id',
+    ]);
     expect(backend().runArgs(sandbox, spec(sandbox))).not.toContain('--userns');
   });
 

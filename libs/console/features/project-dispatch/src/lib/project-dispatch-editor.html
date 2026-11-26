@@ -1,110 +1,112 @@
-@switch (status()) {
-  @case ('loading') {
-    <tc-state-block kind="loading" compact [title]="'runners.dispatch.loading' | transloco" />
+@switch (status()) { @case ('loading') {
+<tc-state-block kind="loading" compact [title]="'runners.dispatch.loading' | transloco" />
+} @case ('error') {
+<tc-state-block kind="error" compact [title]="loadFailureText()" data-testid="project-dispatch-load-error">
+  <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
+    {{ 'ui.error.retry' | transloco }}
+  </button>
+</tc-state-block>
+} @default {
+<form class="dispatch" novalidate [id]="id" (submit)="save($event)" data-testid="project-dispatch-form">
+  <fieldset tc-choice-group [legend]="'runners.dispatch.mode' | transloco">
+    <label tc-choice>
+      <input
+        type="radio"
+        value="pull"
+        data-testid="dispatch-mode-pull"
+        [name]="id + '-mode'"
+        [checked]="choice() === 'pull'"
+        [disabled]="saving()"
+        [attr.aria-describedby]="id + '-pull'"
+        (change)="choose('pull')"
+      />
+      {{ 'runners.dispatch.pull' | transloco }}
+      <small tc-choice-hint [id]="id + '-pull'">{{ 'runners.dispatch.pullHint' | transloco }}</small>
+    </label>
+    <label tc-choice>
+      <input
+        type="radio"
+        value="actions"
+        data-testid="dispatch-mode-actions"
+        [name]="id + '-mode'"
+        [checked]="choice() === 'actions'"
+        [disabled]="saving()"
+        [attr.aria-describedby]="id + '-actions ' + id + '-minutes'"
+        (change)="choose('actions')"
+      />
+      {{ 'runners.dispatch.actions' | transloco }}
+      <small tc-choice-hint [id]="id + '-actions'">{{ 'runners.dispatch.actionsHint' | transloco }}</small>
+    </label>
+  </fieldset>
+  @if (readinessLine(); as line) {
+  <p
+    class="dispatch__ready"
+    role="status"
+    data-testid="project-dispatch-readiness"
+    [id]="id + '-ready'"
+    [attr.data-state]="line.kind"
+  >
+    @switch (line.kind) { @case ('ok') {
+    <tc-icon name="check" size="sm" />{{ 'runners.dispatch.ready.ok' | transloco }} } @case ('missing') {
+    <tc-icon name="alert" size="sm" />{{ 'runners.dispatch.ready.missing' | translocoPlural: line.n }} } @case
+    ('failed') { {{ 'runners.dispatch.ready.failed' | transloco }} } @default { {{
+    'runners.dispatch.ready.checking' | transloco }} } } @if (line.kind !== 'ok' && line.kind !== 'checking')
+    {
+    <a
+      #prepareLink
+      class="dispatch__prepare"
+      data-testid="project-dispatch-prepare"
+      [routerLink]="actionsRoute()"
+      [queryParams]="{ from: 'runners' }"
+    >
+      {{ 'runners.dispatch.ready.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
+    </a>
+    }
+  </p>
   }
-  @case ('error') {
-    <tc-state-block kind="error" compact [title]="loadFailureText()" data-testid="project-dispatch-load-error">
-      <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
-        {{ 'ui.error.retry' | transloco }}
-      </button>
-    </tc-state-block>
-  }
-  @default {
-    <form class="dispatch" novalidate [id]="id" (submit)="save($event)" data-testid="project-dispatch-form">
-      <fieldset tc-choice-group [legend]="'runners.dispatch.mode' | transloco">
-        <label tc-choice>
-          <input
-            type="radio"
-            value="pull"
-            data-testid="dispatch-mode-pull"
-            [name]="id + '-mode'"
-            [checked]="choice() === 'pull'"
-            [disabled]="saving()"
-            [attr.aria-describedby]="id + '-pull'"
-            (change)="choose('pull')"
-          />
-          {{ 'runners.dispatch.pull' | transloco }}
-          <small tc-choice-hint [id]="id + '-pull'">{{ 'runners.dispatch.pullHint' | transloco }}</small>
-        </label>
-        <label tc-choice>
-          <input
-            type="radio"
-            value="actions"
-            data-testid="dispatch-mode-actions"
-            [name]="id + '-mode'"
-            [checked]="choice() === 'actions'"
-            [disabled]="saving()"
-            [attr.aria-describedby]="id + '-actions ' + id + '-minutes'"
-            (change)="choose('actions')"
-          />
-          {{ 'runners.dispatch.actions' | transloco }}
-          <small tc-choice-hint [id]="id + '-actions'">{{ 'runners.dispatch.actionsHint' | transloco }}</small>
-        </label>
-      </fieldset>
-      @if (readinessLine(); as line) {
-        <p class="dispatch__ready" role="status" data-testid="project-dispatch-readiness" [id]="id + '-ready'" [attr.data-state]="line.kind">
-          @switch (line.kind) {
-            @case ('ok') {
-              <tc-icon name="check" size="sm" />{{ 'runners.dispatch.ready.ok' | transloco }}
-            }
-            @case ('missing') {
-              <tc-icon name="alert" size="sm" />{{ 'runners.dispatch.ready.missing' | translocoPlural: line.n }}
-            }
-            @case ('failed') {
-              {{ 'runners.dispatch.ready.failed' | transloco }}
-            }
-            @default {
-              {{ 'runners.dispatch.ready.checking' | transloco }}
-            }
-          }
-          @if (line.kind !== 'ok' && line.kind !== 'checking') {
-            <a #prepareLink class="dispatch__prepare" data-testid="project-dispatch-prepare" [routerLink]="actionsRoute()" [queryParams]="{ from: 'runners' }">
-              {{ 'runners.dispatch.ready.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
-            </a>
-          }
-        </p>
-      }
-      <p class="dispatch__note" [id]="id + '-minutes'" data-testid="project-dispatch-minutes">
-        {{ 'runners.dispatch.minutes' | transloco }}
-      </p>
-      @if (stored()?.defaultBranch; as branch) {
-        <p class="dispatch__note" data-testid="project-dispatch-branch">
-          {{ 'runners.dispatch.branch' | transloco: { branch: branch } }}
-        </p>
-      }
-
-      @if (saveFailure(); as message) {
-        <div tc-banner tone="danger" role="alert" data-testid="project-dispatch-error">
-          <tc-icon tc-banner-icon name="alert" size="sm" />
-          <p tc-banner-text>{{ message }}</p>
-        </div>
-        @if (isNotReadyRefusal()) {
-          <a tc-button size="sm" data-testid="project-dispatch-prepare-refusal" [routerLink]="actionsRoute()" [queryParams]="{ from: 'runners' }">
-            {{ 'runners.dispatch.ready.link' | transloco }}
-          </a>
-        }
-        @if (isAccessSourceRefusal() && teamUrl(); as url) {
-          <a tc-button size="sm" data-testid="project-dispatch-team" [routerLink]="url">{{ 'runners.err.openTeam' | transloco }}</a>
-        }
-      }
-      <div class="dispatch__actions">
-        <button
-          tc-button
-          type="submit"
-          variant="primary"
-          data-testid="project-dispatch-save"
-          [loading]="saving()"
-          [attr.aria-disabled]="saving() || (choice() === 'actions' && isSaveBlocked()) ? 'true' : null"
-          [attr.aria-describedby]="choice() === 'actions' && isSaveBlocked() ? id + '-ready' : null"
-        >
-          {{ (saving() ? 'runners.dispatch.busy' : 'runners.dispatch.save') | transloco }}
-        </button>
-        <p class="dispatch__saved" role="status" data-testid="project-dispatch-saved">
-          @if (isSaved()) {
-            <tc-icon name="check" size="sm" />{{ 'runners.dispatch.saved' | transloco }}
-          }
-        </p>
-      </div>
-    </form>
-  }
-}
+  <p class="dispatch__note" [id]="id + '-minutes'" data-testid="project-dispatch-minutes">
+    {{ 'runners.dispatch.minutes' | transloco }}
+  </p>
+  @if (stored()?.defaultBranch; as branch) {
+  <p class="dispatch__note" data-testid="project-dispatch-branch">
+    {{ 'runners.dispatch.branch' | transloco: { branch: branch } }}
+  </p>
+  } @if (saveFailure(); as message) {
+  <div tc-banner tone="danger" role="alert" data-testid="project-dispatch-error">
+    <tc-icon tc-banner-icon name="alert" size="sm" />
+    <p tc-banner-text>{{ message }}</p>
+  </div>
+  @if (isNotReadyRefusal()) {
+  <a
+    tc-button
+    size="sm"
+    data-testid="project-dispatch-prepare-refusal"
+    [routerLink]="actionsRoute()"
+    [queryParams]="{ from: 'runners' }"
+  >
+    {{ 'runners.dispatch.ready.link' | transloco }}
+  </a>
+  } @if (isAccessSourceRefusal() && teamUrl(); as url) {
+  <a tc-button size="sm" data-testid="project-dispatch-team" [routerLink]="url"
+    >{{ 'runners.err.openTeam' | transloco }}</a
+  >
+  } }
+  <div class="dispatch__actions">
+    <button
+      tc-button
+      type="submit"
+      variant="primary"
+      data-testid="project-dispatch-save"
+      [loading]="saving()"
+      [attr.aria-disabled]="saving() || (choice() === 'actions' && isSaveBlocked()) ? 'true' : null"
+      [attr.aria-describedby]="choice() === 'actions' && isSaveBlocked() ? id + '-ready' : null"
+    >
+      {{ (saving() ? 'runners.dispatch.busy' : 'runners.dispatch.save') | transloco }}
+    </button>
+    <p class="dispatch__saved" role="status" data-testid="project-dispatch-saved">
+      @if (isSaved()) {
+      <tc-icon name="check" size="sm" />{{ 'runners.dispatch.saved' | transloco }} }
+    </p>
+  </div>
+</form>
+} }

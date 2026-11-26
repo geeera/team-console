@@ -41,7 +41,10 @@ const local: ApiEnv = { ...env, ...LOCAL };
 
 describe('ownerOnlyMiddleware', () => {
   it("lets the owner's Access login through", async () => {
-    const response = await probe({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, deployed);
+    const response = await probe(
+      { kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS },
+      deployed,
+    );
     expect(response.status).toBe(200);
   });
 
@@ -91,7 +94,12 @@ describe('ownerOnlyMiddleware', () => {
 
 describe('isOwnerIdentity', () => {
   it('is an allowlist of the owner login and the local bypass', () => {
-    expect(isOwnerIdentity({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, { ENVIRONMENT: 'production' })).toBe(true);
+    expect(
+      isOwnerIdentity(
+        { kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS },
+        { ENVIRONMENT: 'production' },
+      ),
+    ).toBe(true);
     expect(
       isOwnerIdentity(
         { kind: 'user', door: 'session', userId: 'u', memberships: ACCESS_OWNER_MEMBERSHIPS },

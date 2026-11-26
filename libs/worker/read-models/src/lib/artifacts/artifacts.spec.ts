@@ -251,7 +251,9 @@ describe('design and demo issues', () => {
       issuesBaseUrl: 'https://github.com/o/r/issues/',
     });
     expect(
-      designs.filter((item) => item.source === 'issue').map((item) => [item.number, item.title, item.url, item.state]),
+      designs
+        .filter((item) => item.source === 'issue')
+        .map((item) => [item.number, item.title, item.url, item.state]),
     ).toEqual([
       [1, 'T', 'https://github.com/o/r/issues/1', 'open'],
       [688, 'agent picker', 'https://github.com/o/r/issues/688', null],
@@ -266,7 +268,11 @@ describe('design and demo issues', () => {
       kind: 'file' as const,
       htmlUrl: `https://github.com/o/r/blob/sha/${path}`,
     });
-    const rowsOf = (paths: string[], issues = issuesOf([]), issuesBaseUrl = 'https://github.com/o/r/issues/') =>
+    const rowsOf = (
+      paths: string[],
+      issues = issuesOf([]),
+      issuesBaseUrl = 'https://github.com/o/r/issues/',
+    ) =>
       designArtifactsOf({ issues, files: paths.map(file), storybookUrl: null, issuesBaseUrl })
         .filter((item) => item.source === 'issue')
         .map((item) => item.number);
@@ -277,7 +283,11 @@ describe('design and demo issues', () => {
 
     it('skips a year-like or over-long number', () => {
       expect(
-        rowsOf(['docs/design/2024-roadmap/a.html', 'docs/design/20240101-export/a.html', 'docs/design/12-ok/a.html']),
+        rowsOf([
+          'docs/design/2024-roadmap/a.html',
+          'docs/design/20240101-export/a.html',
+          'docs/design/12-ok/a.html',
+        ]),
       ).toEqual([12]);
     });
 
@@ -294,7 +304,9 @@ describe('design and demo issues', () => {
 
     it('gives a folder of assets only no row', () => {
       expect(rowsOf(['docs/design/55-assets/phone.png', 'docs/design/55-assets/screens.json'])).toEqual([]);
-      expect(rowsOf(['docs/design/55-assets/phone.png', 'docs/design/55-assets/wireframe.html'])).toEqual([55]);
+      expect(rowsOf(['docs/design/55-assets/phone.png', 'docs/design/55-assets/wireframe.html'])).toEqual([
+        55,
+      ]);
     });
 
     it('builds the row link from the given base, however it looks', () => {

@@ -30,7 +30,9 @@ function notInstalled(route: Route): Promise<void> {
 /** The first element after `text` in document order that Tab would stop at. */
 async function nextTabStopAfter(text: Locator): Promise<string | null> {
   return text.evaluate((from) => {
-    const candidates = [...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]')]
+    const candidates = [
+      ...document.querySelectorAll<HTMLElement>('a[href], button, input, select, textarea, [tabindex]'),
+    ]
       .filter((el) => el.tabIndex >= 0 && !el.hasAttribute('disabled') && el.getClientRects().length > 0)
       .filter((el) => (from.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0);
     return candidates[0]?.textContent?.trim() ?? null;
@@ -50,7 +52,9 @@ test.describe('error recovery (#366)', () => {
     await seed(stack, [`geeera/${SLUG}`]);
   });
 
-  test('a 409 github-app-not-installed on a question card opens the project setup in one tap', async ({ page }) => {
+  test('a 409 github-app-not-installed on a question card opens the project setup in one tap', async ({
+    page,
+  }) => {
     await page.route(`**/api/v1/projects/${SLUG}/issues/${ISSUE}/answer`, notInstalled);
     await page.goto(`/p/${SLUG}/questions`);
     const card = page.locator(`li[data-number="${ISSUE}"]`);
@@ -71,7 +75,12 @@ test.describe('error recovery (#366)', () => {
   });
 
   for (const surface of [
-    { name: 'board', path: `/p/${SLUG}/board`, api: `**/api/v1/projects/${SLUG}/sprint`, testId: 'load-error' },
+    {
+      name: 'board',
+      path: `/p/${SLUG}/board`,
+      api: `**/api/v1/projects/${SLUG}/sprint`,
+      testId: 'load-error',
+    },
     {
       name: 'Artifacts',
       path: `/p/${SLUG}/artifacts`,

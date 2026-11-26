@@ -2,537 +2,561 @@
   <h1 #heading class="tc-page__title team__title" tabindex="-1" data-testid="team-title">
     {{ 'teamConfig.title' | transloco }}
   </h1>
-  @if (store.status() === 'ready' && view(); as view) {
-    @if (view.revision > 0) {
-      <p class="team__revision" data-testid="team-revision">
-        {{ 'teamConfig.revision' | transloco: { n: view.revision, who: author(), date: (view.updatedAt | localDay) } }}
-        @if (view.reason; as reason) {
-          · <q class="team__reason" data-testid="team-revision-reason">{{ reason }}</q>
-        }
-      </p>
-    } @else {
-      <p class="team__revision" data-testid="team-not-customised">{{ 'teamConfig.notCustomised' | transloco }}</p>
+  @if (store.status() === 'ready' && view(); as view) { @if (view.revision > 0) {
+  <p class="team__revision" data-testid="team-revision">
+    {{ 'teamConfig.revision' | transloco: { n: view.revision, who: author(), date: (view.updatedAt | localDay)
+    } }} @if (view.reason; as reason) { ·
+    <q class="team__reason" data-testid="team-revision-reason">{{ reason }}</q>
     }
-    <div class="team__head-actions">
-      @if (!readOnly()) {
-        <button tc-button type="button" data-testid="team-import" (click)="openImport()">
-          <tc-icon name="copy" size="sm" />{{ 'teamConfig.import.title' | transloco }}
-        </button>
-      }
-      <button tc-button type="button" data-testid="team-history" (click)="openHistory()">
-        <tc-icon name="clock" size="sm" />{{ 'teamConfig.history.open' | transloco }}
-      </button>
-    </div>
+  </p>
+  } @else {
+  <p class="team__revision" data-testid="team-not-customised">{{ 'teamConfig.notCustomised' | transloco }}</p>
+  }
+  <div class="team__head-actions">
+    @if (!readOnly()) {
+    <button tc-button type="button" data-testid="team-import" (click)="openImport()">
+      <tc-icon name="copy" size="sm" />{{ 'teamConfig.import.title' | transloco }}
+    </button>
+    }
+    <button tc-button type="button" data-testid="team-history" (click)="openHistory()">
+      <tc-icon name="clock" size="sm" />{{ 'teamConfig.history.open' | transloco }}
+    </button>
+  </div>
   }
 </header>
 
-@switch (store.status()) {
-  @case ('loading') {
-    <div class="team__loading" aria-busy="true" data-testid="team-loading">
-      <tc-state-block kind="loading" [title]="'teamConfig.load.title' | transloco" />
-      @if (store.isSlow()) {
-        <p class="team__slow" data-testid="team-slow">{{ 'teamConfig.load.slow' | transloco }}</p>
+@switch (store.status()) { @case ('loading') {
+<div class="team__loading" aria-busy="true" data-testid="team-loading">
+  <tc-state-block kind="loading" [title]="'teamConfig.load.title' | transloco" />
+  @if (store.isSlow()) {
+  <p class="team__slow" data-testid="team-slow">{{ 'teamConfig.load.slow' | transloco }}</p>
+  }
+</div>
+} @case ('error') {
+<tc-state-block
+  kind="error"
+  data-testid="team-error"
+  [title]="'teamConfig.load.failTitle' | transloco"
+  [description]="'teamConfig.load.fail' | transloco"
+>
+  <button tc-button tc-state-action type="button" data-testid="team-retry" (click)="reload()">
+    {{ 'teamConfig.common.retry' | transloco }}
+  </button>
+</tc-state-block>
+} @case ('not-found') {
+<tc-state-block kind="empty" data-testid="team-not-found" [title]="'teamConfig.load.notFound' | transloco" />
+} @case ('ready') { @if (draft(); as draft) {
+<div class="team__banners">
+  @if (!view()?.canManage) {
+  <p tc-callout class="team__note" data-testid="team-read-only">{{ 'teamConfig.readOnly' | transloco }}</p>
+  } @if (store.banner(); as banner) { @switch (banner.kind) { @case ('forbidden') {
+  <section
+    tc-callout
+    tone="danger"
+    role="alert"
+    data-testid="team-forbidden"
+    aria-labelledby="tc-team-banner"
+  >
+    <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
+      {{ 'teamConfig.notOwnerNow' | transloco }}
+    </h2>
+  </section>
+  } @case ('conflict') {
+  <section
+    tc-callout
+    tone="warning"
+    role="alert"
+    data-testid="team-conflict"
+    aria-labelledby="tc-team-banner"
+  >
+    <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
+      {{ 'teamConfig.conflict.title' | transloco: { who: bannerAuthor(), n: bannerRevision() } }}
+    </h2>
+    <p class="team__banner-text">{{ 'teamConfig.conflict.sub' | transloco }}</p>
+    <div class="team__banner-actions">
+      <button
+        tc-button
+        type="button"
+        data-testid="conflict-show"
+        [attr.aria-expanded]="showTheirs() ? 'true' : 'false'"
+        aria-controls="tc-team-their-changes"
+        (click)="showTheirs.set(!showTheirs())"
+      >
+        {{ 'teamConfig.conflict.show' | transloco }}
+      </button>
+      <button tc-button variant="primary" type="button" data-testid="conflict-keep" (click)="keepMine()">
+        {{ 'teamConfig.conflict.keep' | transloco }}
+      </button>
+      <button tc-button type="button" data-testid="conflict-discard" (click)="discardMine()">
+        {{ 'teamConfig.conflict.discard' | transloco }}
+      </button>
+    </div>
+    <div id="tc-team-their-changes" [hidden]="!showTheirs()">
+      @if (theirChangeRows().length > 0) {
+      <tc-changes-table
+        [rows]="theirChangeRows()"
+        [caption]="'teamConfig.conflict.theirs' | transloco: { n: bannerRevision() }"
+      />
+      } @else {
+      <p class="team__banner-text">{{ 'teamConfig.conflict.noChanges' | transloco }}</p>
       }
     </div>
-  }
-  @case ('error') {
-    <tc-state-block
-      kind="error"
-      data-testid="team-error"
-      [title]="'teamConfig.load.failTitle' | transloco"
-      [description]="'teamConfig.load.fail' | transloco"
-    >
-      <button tc-button tc-state-action type="button" data-testid="team-retry" (click)="reload()">
-        {{ 'teamConfig.common.retry' | transloco }}
-      </button>
-    </tc-state-block>
-  }
-  @case ('not-found') {
-    <tc-state-block kind="empty" data-testid="team-not-found" [title]="'teamConfig.load.notFound' | transloco" />
-  }
-  @case ('ready') {
-    @if (draft(); as draft) {
-      <div class="team__banners">
-        @if (!view()?.canManage) {
-          <p tc-callout class="team__note" data-testid="team-read-only">{{ 'teamConfig.readOnly' | transloco }}</p>
-        }
-        @if (store.banner(); as banner) {
-          @switch (banner.kind) {
-            @case ('forbidden') {
-              <section tc-callout tone="danger" role="alert" data-testid="team-forbidden" aria-labelledby="tc-team-banner">
-                <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
-                  {{ 'teamConfig.notOwnerNow' | transloco }}
-                </h2>
-              </section>
-            }
-            @case ('conflict') {
-              <section tc-callout tone="warning" role="alert" data-testid="team-conflict" aria-labelledby="tc-team-banner">
-                <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
-                  {{ 'teamConfig.conflict.title' | transloco: { who: bannerAuthor(), n: bannerRevision() } }}
-                </h2>
-                <p class="team__banner-text">{{ 'teamConfig.conflict.sub' | transloco }}</p>
-                <div class="team__banner-actions">
-                  <button
-                    tc-button
-                    type="button"
-                    data-testid="conflict-show"
-                    [attr.aria-expanded]="showTheirs() ? 'true' : 'false'"
-                    aria-controls="tc-team-their-changes"
-                    (click)="showTheirs.set(!showTheirs())"
-                  >
-                    {{ 'teamConfig.conflict.show' | transloco }}
-                  </button>
-                  <button tc-button variant="primary" type="button" data-testid="conflict-keep" (click)="keepMine()">
-                    {{ 'teamConfig.conflict.keep' | transloco }}
-                  </button>
-                  <button tc-button type="button" data-testid="conflict-discard" (click)="discardMine()">
-                    {{ 'teamConfig.conflict.discard' | transloco }}
-                  </button>
-                </div>
-                <div id="tc-team-their-changes" [hidden]="!showTheirs()">
-                  @if (theirChangeRows().length > 0) {
-                    <tc-changes-table
-                      [rows]="theirChangeRows()"
-                      [caption]="'teamConfig.conflict.theirs' | transloco: { n: bannerRevision() }"
-                    />
-                  } @else {
-                    <p class="team__banner-text">{{ 'teamConfig.conflict.noChanges' | transloco }}</p>
-                  }
-                </div>
-              </section>
-            }
-            @case ('merged') {
-              <section tc-callout tone="warning" data-testid="team-merged" aria-labelledby="tc-team-banner">
-                <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
-                  {{ 'teamConfig.conflict.mergedTitle' | transloco: { n: bannerRevision() } }}
-                </h2>
-                <p class="team__banner-text">
-                  {{ 'teamConfig.conflict.mergedSub' | translocoPlural: banner.conflicts.length : { who: bannerAuthor() } }}
-                </p>
-                <ul class="team__conflicts">
-                  @for (change of banner.conflicts; track change.path) {
-                    <li class="team__conflict" [attr.data-path]="change.path">
-                      <span class="team__conflict-field">{{ conflictOf(change).label }}</span>
-                      <span>{{ 'teamConfig.conflict.mine' | transloco: { value: conflictOf(change).to } }}</span>
-                      <span>{{ 'teamConfig.conflict.their' | transloco: { who: bannerAuthor(), value: conflictOf(change).from } }}</span>
-                      <button tc-button size="sm" type="button" data-testid="conflict-take-theirs" (click)="takeTheirs(change)">
-                        {{ 'teamConfig.conflict.takeTheirs' | transloco: { who: bannerAuthor() } }}
-                      </button>
-                    </li>
-                  }
-                </ul>
-                <div class="team__banner-actions">
-                  <button tc-button type="button" data-testid="merged-done" (click)="store.closeMerged()">
-                    {{ 'teamConfig.common.done' | transloco }}
-                  </button>
-                </div>
-              </section>
-            }
-          }
-        }
-        @if (stoppedMonth(); as month) {
-          <tc-budget-callout
-            [slug]="slug()"
-            [projectName]="projectLabel()"
-            [month]="month"
-            [canManage]="!readOnly()"
-            (resumed)="budgetResumed()"
-            (raise)="raiseBudget()"
-          />
-        }
-        @if (!online() && !readOnly()) {
-          <div tc-banner tone="warning" data-testid="team-offline">
-            <tc-icon tc-banner-icon name="offline" />
-            <p tc-banner-text>{{ 'teamConfig.offline' | transloco }}</p>
-          </div>
-        }
-      </div>
-
-      <tc-team-section
-        name="preset"
-        [title]="'teamConfig.section.preset' | transloco"
-        [foldable]="isPhone()"
-        [summary]="'teamConfig.preset.' + draft.preset | transloco"
-        [(open)]="open.preset"
-      >
-        @if (readOnly()) {
-          <p class="team__value" data-testid="preset-value">{{ 'teamConfig.preset.' + draft.preset | transloco }}</p>
-        } @else {
-          <fieldset tc-segmented stackOnPhone data-testid="preset-group" [legend]="'teamConfig.preset.legend' | transloco" class="team__legendless">
-            @for (preset of presets; track preset) {
-              <label tc-segment>
-                <input
-                  type="radio"
-                  name="tc-team-preset"
-                  data-control="preset"
-                  aria-describedby="tc-team-preset-hint"
-                  [value]="preset"
-                  [checked]="draft.preset === preset"
-                  [attr.data-testid]="'preset-' + preset"
-                  (click)="choosePreset(preset, $event)"
-                />
-                {{ 'teamConfig.preset.' + preset | transloco }}
-              </label>
-            }
-            <p tc-segmented-hint id="tc-team-preset-hint">{{ 'teamConfig.preset.hint.' + draft.preset | transloco }}</p>
-          </fieldset>
-        }
-        <div class="team__preset-line">
-          <p class="team__strong" data-testid="preset-line">
-            @if (overridden().length > 0) {
-              {{ 'teamConfig.preset.line' | translocoPlural: overridden().length : { preset: ('teamConfig.preset.' + draft.preset | transloco) } }}
-            } @else {
-              {{ 'teamConfig.preset.lineNone' | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco) } }}
-            }
-          </p>
-          @if (overridden().length > 0 && !readOnly()) {
-            <button tc-button variant="quiet" type="button" data-testid="preset-reset" (click)="resetToPreset()">
-              {{ 'teamConfig.preset.reset' | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco) } }}
-            </button>
-          }
-        </div>
-      </tc-team-section>
-
-      <tc-team-section
-        name="access"
-        [title]="'teamConfig.section.access' | transloco"
-        [foldable]="isPhone()"
-        [summary]="'teamConfig.value.' + draft.source | transloco"
-        [(open)]="open.access"
-      >
-        <tc-access-source
-          [source]="draft.source"
-          [blocked]="view()?.subscriptionBlocked ?? false"
-          [readOnly]="readOnly()"
-          [error]="errorOf('access.source')"
-          (choose)="chooseSource($event)"
-        />
-      </tc-team-section>
-
-      <tc-team-section
-        name="roles"
-        [title]="'teamConfig.section.roles' | transloco"
-        [foldable]="isPhone()"
-        [summary]="'teamConfig.role.summary' | transloco: { on: rolesOn(), total: roles.length }"
-        [(open)]="open.roles"
-      >
-        <div class="team__roles" role="list" [attr.aria-label]="'teamConfig.section.roles' | transloco">
-          @for (role of roles; track role) {
-            <tc-role-row
-              [teamRole]="role"
-              [settings]="draft.roles[role]"
-              [isOverridden]="isOverridden(role)"
-              [readOnly]="readOnly()"
-              [modelError]="errorOf('roles.' + role + '.model')"
-              [limitsError]="errorOf('roles.' + role + '.limits')"
-              (toggled)="toggleRole(role, $event)"
-              (pickModel)="pickModel(role)"
-              (editLimits)="editLimits(role)"
-              (resetRole)="resetRole(role)"
-            />
-          }
-        </div>
-      </tc-team-section>
-
-      <tc-team-section
-        name="limits"
-        [title]="'teamConfig.section.limits' | transloco"
-        [foldable]="isPhone()"
-        [summary]="budgetSummary()"
-        [(open)]="open.limits"
-      >
-        <tc-team-number
-          path="budget.monthly_usd"
-          [label]="'teamConfig.limits.budget' | transloco"
-          [hint]="'teamConfig.limits.budgetHelp' | transloco"
-          [note]="suggestedUsd() === null ? '' : ('teamConfig.limits.suggest' | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco), usd: suggestedUsd() })"
-          [value]="draft.monthlyUsd"
-          [min]="bounds.monthlyUsd.min"
-          [max]="bounds.monthlyUsd.max"
-          [allowEmpty]="true"
-          [readOnly]="readOnly()"
-          [epoch]="epoch()"
-          [emptyText]="'teamConfig.value.noBudget' | transloco"
-          [rangeText]="'teamConfig.limits.budgetRange' | transloco: { min: bounds.monthlyUsd.min, max: bounds.monthlyUsd.max }"
-          [error]="errorOf('budget.monthly_usd')"
-          (valueChange)="edit('budget.monthly_usd', $event)"
-          (typedInvalid)="markTyped('budget.monthly_usd', $event)"
-        />
-        @if (waivedMonth(); as month) {
-          <tc-waived-month [month]="month" [editing]="budgetEdit()" />
-        }
-        <p class="team__help">{{ 'teamConfig.limits.overshoot' | transloco }}</p>
-      </tc-team-section>
-
-      <tc-team-section
-        name="rules"
-        [title]="'teamConfig.section.rules' | transloco"
-        [foldable]="isPhone()"
-        [summary]="rulesSummary()"
-        [(open)]="open.rules"
-      >
-        <div class="team__group">
-          @for (gate of gates; track gate) {
-            @if (readOnly()) {
-              <p class="team__pair">
-                <span class="team__muted">{{ 'teamConfig.rules.gate.' + gate | transloco }}</span>
-                <span class="team__strong">{{ valueText('gates.' + gate, draft.gates[gate]) }}</span>
-              </p>
-            } @else {
-              <fieldset tc-segmented [legend]="'teamConfig.rules.gate.' + gate | transloco">
-                @for (policy of gatePolicies; track policy) {
-                  <label tc-segment>
-                    <input
-                      type="radio"
-                      [name]="'tc-team-gate-' + gate"
-                      [attr.data-control]="policy === gatePolicies[0] ? 'gates.' + gate : null"
-                      [attr.data-testid]="'gate-' + gate + '-' + policy"
-                      [value]="policy"
-                      [checked]="draft.gates[gate] === policy"
-                      (change)="edit('gates.' + gate, policy)"
-                    />
-                    {{ 'teamConfig.rules.gate.' + policy | transloco }}
-                  </label>
-                }
-              </fieldset>
-            }
-          }
-          <p class="team__help">{{ 'teamConfig.rules.gate.codeHint' | transloco }}</p>
-        </div>
-
-        <div class="team__group" data-testid="code-paths">
-          <p class="team__muted" id="tc-team-paths-label">{{ 'teamConfig.field.gates.code_paths' | transloco }}</p>
-          <ul class="team__paths" aria-labelledby="tc-team-paths-label">
-            @for (glob of draft.gates.code_paths; track glob; let index = $index) {
-              <li class="team__path">
-                <code>{{ glob }}</code>
-                @if (!readOnly()) {
-                  <button
-                    tc-button
-                    size="sm"
-                    variant="quiet"
-                    type="button"
-                    data-testid="code-path-remove"
-                    [attr.aria-label]="'teamConfig.rules.paths.remove' | transloco: { path: glob }"
-                    (click)="removeCodePath(index)"
-                  >
-                    <tc-icon name="x" size="sm" />
-                  </button>
-                }
-              </li>
-            }
-          </ul>
-          @if (!readOnly()) {
-            <form class="team__path-add" novalidate (submit)="$event.preventDefault(); addCodePath(pathInput)">
-              <label class="tc-sr-only" for="tc-team-path-input">{{ 'teamConfig.rules.paths.add' | transloco }}</label>
-              <input
-                #pathInput
-                id="tc-team-path-input"
-                class="tc-input team__path-input"
-                type="text"
-                autocomplete="off"
-                data-control="gates.code_paths"
-                data-testid="code-path-input"
-                [attr.placeholder]="'teamConfig.rules.paths.placeholder' | transloco"
-                [attr.aria-invalid]="errorOf('gates.code_paths') === null ? null : 'true'"
-                [attr.aria-describedby]="errorOf('gates.code_paths') === null ? null : 'tc-team-paths-error'"
-              />
-              <button tc-button type="submit" data-testid="code-path-add">{{ 'teamConfig.rules.paths.add' | transloco }}</button>
-            </form>
-          }
-          @if (errorOf('gates.code_paths'); as error) {
-            <p class="team__error" role="alert" id="tc-team-paths-error"><tc-icon name="alert" size="sm" /><span>{{ error }}</span></p>
-          }
-        </div>
-
-        <tc-team-number
-          path="gates.max_rework_rounds"
-          [label]="'teamConfig.field.gates.max_rework_rounds' | transloco"
-          [hint]="'teamConfig.rules.reworkHint' | transloco"
-          [value]="draft.gates.max_rework_rounds"
-          [min]="bounds.maxReworkRounds.min"
-          [max]="bounds.maxReworkRounds.max"
-          [readOnly]="readOnly()"
-          [epoch]="epoch()"
-          [rangeText]="range(bounds.maxReworkRounds.min, bounds.maxReworkRounds.max)"
-          [error]="errorOf('gates.max_rework_rounds')"
-          (valueChange)="edit('gates.max_rework_rounds', $event)"
-          (typedInvalid)="markTyped('gates.max_rework_rounds', $event)"
-        />
-
-        <div class="team__group">
-          <p class="team__muted">{{ 'teamConfig.rules.caps.title' | transloco }}</p>
-          <div class="team__grid">
-            @for (mode of capModes; track mode) {
-              <tc-team-number
-                [path]="'caps.' + mode + '.dev_tasks'"
-                [label]="capLabel(mode, 'dev_tasks')"
-                [value]="draft.caps[mode].dev_tasks"
-                [min]="bounds.devTasks.min"
-                [max]="bounds.devTasks.max"
-                [readOnly]="readOnly()"
-                [epoch]="epoch()"
-                [rangeText]="range(bounds.devTasks.min, bounds.devTasks.max)"
-                [error]="errorOf('caps.' + mode + '.dev_tasks')"
-                (valueChange)="edit('caps.' + mode + '.dev_tasks', $event)"
-                (typedInvalid)="markTyped('caps.' + mode + '.dev_tasks', $event)"
-              />
-              <tc-team-number
-                [path]="'caps.' + mode + '.parallel_devs'"
-                [label]="capLabel(mode, 'parallel_devs')"
-                [value]="draft.caps[mode].parallel_devs"
-                [min]="bounds.parallelDevs.min"
-                [max]="bounds.parallelDevs.max"
-                [readOnly]="readOnly()"
-                [epoch]="epoch()"
-                [rangeText]="range(bounds.parallelDevs.min, bounds.parallelDevs.max)"
-                [error]="errorOf('caps.' + mode + '.parallel_devs')"
-                (valueChange)="edit('caps.' + mode + '.parallel_devs', $event)"
-                (typedInvalid)="markTyped('caps.' + mode + '.parallel_devs', $event)"
-              />
-            }
-          </div>
-        </div>
-
-        <div class="team__grid">
-          <tc-team-number
-            path="sprint.length_days"
-            [label]="'teamConfig.field.sprint.length_days' | transloco"
-            [value]="draft.sprint.length_days"
-            [min]="bounds.lengthDays.min"
-            [max]="bounds.lengthDays.max"
-            [readOnly]="readOnly()"
-            [epoch]="epoch()"
-            [rangeText]="range(bounds.lengthDays.min, bounds.lengthDays.max)"
-            [error]="errorOf('sprint.length_days')"
-            (valueChange)="edit('sprint.length_days', $event)"
-            (typedInvalid)="markTyped('sprint.length_days', $event)"
-          />
-          <tc-team-number
-            path="sprint.freeze_days"
-            [label]="'teamConfig.field.sprint.freeze_days' | transloco"
-            [value]="draft.sprint.freeze_days"
-            [min]="bounds.freezeDays.min"
-            [max]="bounds.freezeDays.max"
-            [readOnly]="readOnly()"
-            [epoch]="epoch()"
-            [rangeText]="range(bounds.freezeDays.min, bounds.freezeDays.max)"
-            [error]="errorOf('sprint.freeze_days')"
-            (valueChange)="edit('sprint.freeze_days', $event)"
-            (typedInvalid)="markTyped('sprint.freeze_days', $event)"
-          />
-        </div>
-
-        @if (readOnly()) {
-          <p class="team__pair">
-            <span class="team__muted">{{ 'teamConfig.field.language' | transloco }}</span>
-            <span class="team__strong">{{ valueText('language', draft.language) }}</span>
-          </p>
-        } @else {
-          <fieldset tc-segmented [legend]="'teamConfig.field.language' | transloco">
-            @for (language of languages; track language) {
-              <label tc-segment>
-                <input
-                  type="radio"
-                  name="tc-team-language"
-                  [attr.data-control]="language === languages[0] ? 'language' : null"
-                  [attr.data-testid]="'language-' + language"
-                  [value]="language"
-                  [checked]="draft.language === language"
-                  (change)="edit('language', language)"
-                />
-                {{ 'teamConfig.rules.language.' + language | transloco }}
-              </label>
-            }
-          </fieldset>
-        }
-
-        <div class="team__group" data-testid="cost">
-          <h3 class="team__subtitle">{{ 'teamConfig.rules.cost.title' | transloco }}</h3>
-          @if (isSubscription()) {
-            <p class="team__help" id="tc-team-cost-off" data-testid="cost-off">{{ 'teamConfig.rules.cost.subOnly' | transloco }}</p>
-          }
-          <div class="team__lever">
-            <span class="team__lever-name" id="tc-team-cache-name">{{ 'teamConfig.field.cost.prompt_caching' | transloco }}</span>
-            @if (readOnly()) {
-              <span class="team__strong">{{ valueText('cost.prompt_caching', draft.cost.prompt_caching) }}</span>
-            } @else {
-              <button
-                tc-switch
-                type="button"
-                data-control="cost.prompt_caching"
-                data-testid="cost-prompt-caching"
-                [attr.aria-label]="'teamConfig.field.cost.prompt_caching' | transloco"
-                [off]="isSubscription()"
-                [attr.aria-describedby]="isSubscription() ? 'tc-team-cost-off tc-team-cache-hint' : 'tc-team-cache-hint'"
-                [ngModel]="draft.cost.prompt_caching"
-                (ngModelChange)="edit('cost.prompt_caching', $event)"
-              ></button>
-            }
-            <p class="team__help team__lever-hint" id="tc-team-cache-hint">{{ 'teamConfig.rules.cost.cacheHint' | transloco }}</p>
-          </div>
-          <div class="team__lever" data-testid="cost-batch">
-            <span class="team__lever-name" id="tc-team-batch-name">{{ 'teamConfig.field.cost.batch_api' | transloco }}</span>
-            @if (readOnly()) {
-              <span class="team__strong">{{ valueText('cost.batch_api', draft.cost.batch_api) }}</span>
-            } @else {
-              <button
-                tc-switch
-                type="button"
-                off
-                data-control="cost.batch_api"
-                data-testid="cost-batch-api"
-                [attr.aria-label]="'teamConfig.field.cost.batch_api' | transloco"
-                aria-describedby="tc-team-batch-reason tc-team-batch-status"
-                [ngModel]="draft.cost.batch_api"
-              ></button>
-            }
-            <p class="team__help team__lever-hint" id="tc-team-batch-reason" data-testid="cost-batch-reason">
-              {{ 'teamConfig.rules.cost.batchReason' | transloco }}
-            </p>
-            <p class="team__lever-hint" id="tc-team-batch-status">
-              <tc-chip data-testid="cost-batch-status">{{ 'teamConfig.rules.cost.batchStatus' | transloco }}</tc-chip>
-            </p>
-          </div>
-          @if (readOnly()) {
-            <p class="team__pair">
-              <span class="team__muted">{{ 'teamConfig.field.cost.reviewer_context' | transloco }}</span>
-              <span class="team__strong">{{ valueText('cost.reviewer_context', draft.cost.reviewer_context) }}</span>
-            </p>
-          } @else {
-            <fieldset tc-segmented [legend]="'teamConfig.field.cost.reviewer_context' | transloco">
-              @for (context of contexts; track context) {
-                <label tc-segment>
-                  <input
-                    type="radio"
-                    name="tc-team-context"
-                    [attr.data-control]="context === contexts[0] ? 'cost.reviewer_context' : null"
-                    [attr.data-testid]="'context-' + context"
-                    [attr.aria-disabled]="isSubscription() ? 'true' : null"
-                    aria-describedby="tc-team-context-hint"
-                    [value]="context"
-                    [checked]="draft.cost.reviewer_context === context"
-                    (click)="isSubscription() && $event.preventDefault()"
-                    (change)="edit('cost.reviewer_context', context)"
-                  />
-                  {{ 'teamConfig.rules.cost.context.' + context | transloco }}
-                </label>
-              }
-              <p tc-segmented-hint id="tc-team-context-hint">{{ 'teamConfig.rules.cost.contextHint' | transloco }}</p>
-            </fieldset>
-          }
-        </div>
-      </tc-team-section>
-
-      @if (showBar()) {
-        <tc-save-bar
-          [count]="store.changes().length"
-          [label]="'teamConfig.bar.label' | transloco"
-          [offReason]="reviewOffReason()"
-          (review)="review()"
-          (discard)="discard()"
-        />
+  </section>
+  } @case ('merged') {
+  <section tc-callout tone="warning" data-testid="team-merged" aria-labelledby="tc-team-banner">
+    <h2 #bannerHeading tc-callout-title id="tc-team-banner" tabindex="-1">
+      {{ 'teamConfig.conflict.mergedTitle' | transloco: { n: bannerRevision() } }}
+    </h2>
+    <p class="team__banner-text">
+      {{ 'teamConfig.conflict.mergedSub' | translocoPlural: banner.conflicts.length : { who: bannerAuthor() }
+      }}
+    </p>
+    <ul class="team__conflicts">
+      @for (change of banner.conflicts; track change.path) {
+      <li class="team__conflict" [attr.data-path]="change.path">
+        <span class="team__conflict-field">{{ conflictOf(change).label }}</span>
+        <span>{{ 'teamConfig.conflict.mine' | transloco: { value: conflictOf(change).to } }}</span>
+        <span
+          >{{ 'teamConfig.conflict.their' | transloco: { who: bannerAuthor(), value: conflictOf(change).from }
+          }}</span
+        >
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          data-testid="conflict-take-theirs"
+          (click)="takeTheirs(change)"
+        >
+          {{ 'teamConfig.conflict.takeTheirs' | transloco: { who: bannerAuthor() } }}
+        </button>
+      </li>
       }
-    }
+    </ul>
+    <div class="team__banner-actions">
+      <button tc-button type="button" data-testid="merged-done" (click)="store.closeMerged()">
+        {{ 'teamConfig.common.done' | transloco }}
+      </button>
+    </div>
+  </section>
+  } } } @if (stoppedMonth(); as month) {
+  <tc-budget-callout
+    [slug]="slug()"
+    [projectName]="projectLabel()"
+    [month]="month"
+    [canManage]="!readOnly()"
+    (resumed)="budgetResumed()"
+    (raise)="raiseBudget()"
+  />
+  } @if (!online() && !readOnly()) {
+  <div tc-banner tone="warning" data-testid="team-offline">
+    <tc-icon tc-banner-icon name="offline" />
+    <p tc-banner-text>{{ 'teamConfig.offline' | transloco }}</p>
+  </div>
   }
-}
+</div>
+
+<tc-team-section
+  name="preset"
+  [title]="'teamConfig.section.preset' | transloco"
+  [foldable]="isPhone()"
+  [summary]="'teamConfig.preset.' + draft.preset | transloco"
+  [(open)]="open.preset"
+>
+  @if (readOnly()) {
+  <p class="team__value" data-testid="preset-value">{{ 'teamConfig.preset.' + draft.preset | transloco }}</p>
+  } @else {
+  <fieldset
+    tc-segmented
+    stackOnPhone
+    data-testid="preset-group"
+    [legend]="'teamConfig.preset.legend' | transloco"
+    class="team__legendless"
+  >
+    @for (preset of presets; track preset) {
+    <label tc-segment>
+      <input
+        type="radio"
+        name="tc-team-preset"
+        data-control="preset"
+        aria-describedby="tc-team-preset-hint"
+        [value]="preset"
+        [checked]="draft.preset === preset"
+        [attr.data-testid]="'preset-' + preset"
+        (click)="choosePreset(preset, $event)"
+      />
+      {{ 'teamConfig.preset.' + preset | transloco }}
+    </label>
+    }
+    <p tc-segmented-hint id="tc-team-preset-hint">
+      {{ 'teamConfig.preset.hint.' + draft.preset | transloco }}
+    </p>
+  </fieldset>
+  }
+  <div class="team__preset-line">
+    <p class="team__strong" data-testid="preset-line">
+      @if (overridden().length > 0) { {{ 'teamConfig.preset.line' | translocoPlural: overridden().length : {
+      preset: ('teamConfig.preset.' + draft.preset | transloco) } }} } @else { {{ 'teamConfig.preset.lineNone'
+      | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco) } }} }
+    </p>
+    @if (overridden().length > 0 && !readOnly()) {
+    <button tc-button variant="quiet" type="button" data-testid="preset-reset" (click)="resetToPreset()">
+      {{ 'teamConfig.preset.reset' | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco) }
+      }}
+    </button>
+    }
+  </div>
+</tc-team-section>
+
+<tc-team-section
+  name="access"
+  [title]="'teamConfig.section.access' | transloco"
+  [foldable]="isPhone()"
+  [summary]="'teamConfig.value.' + draft.source | transloco"
+  [(open)]="open.access"
+>
+  <tc-access-source
+    [source]="draft.source"
+    [blocked]="view()?.subscriptionBlocked ?? false"
+    [readOnly]="readOnly()"
+    [error]="errorOf('access.source')"
+    (choose)="chooseSource($event)"
+  />
+</tc-team-section>
+
+<tc-team-section
+  name="roles"
+  [title]="'teamConfig.section.roles' | transloco"
+  [foldable]="isPhone()"
+  [summary]="'teamConfig.role.summary' | transloco: { on: rolesOn(), total: roles.length }"
+  [(open)]="open.roles"
+>
+  <div class="team__roles" role="list" [attr.aria-label]="'teamConfig.section.roles' | transloco">
+    @for (role of roles; track role) {
+    <tc-role-row
+      [teamRole]="role"
+      [settings]="draft.roles[role]"
+      [isOverridden]="isOverridden(role)"
+      [readOnly]="readOnly()"
+      [modelError]="errorOf('roles.' + role + '.model')"
+      [limitsError]="errorOf('roles.' + role + '.limits')"
+      (toggled)="toggleRole(role, $event)"
+      (pickModel)="pickModel(role)"
+      (editLimits)="editLimits(role)"
+      (resetRole)="resetRole(role)"
+    />
+    }
+  </div>
+</tc-team-section>
+
+<tc-team-section
+  name="limits"
+  [title]="'teamConfig.section.limits' | transloco"
+  [foldable]="isPhone()"
+  [summary]="budgetSummary()"
+  [(open)]="open.limits"
+>
+  <tc-team-number
+    path="budget.monthly_usd"
+    [label]="'teamConfig.limits.budget' | transloco"
+    [hint]="'teamConfig.limits.budgetHelp' | transloco"
+    [note]="suggestedUsd() === null ? '' : ('teamConfig.limits.suggest' | transloco: { preset: ('teamConfig.preset.' + draft.preset | transloco), usd: suggestedUsd() })"
+    [value]="draft.monthlyUsd"
+    [min]="bounds.monthlyUsd.min"
+    [max]="bounds.monthlyUsd.max"
+    [allowEmpty]="true"
+    [readOnly]="readOnly()"
+    [epoch]="epoch()"
+    [emptyText]="'teamConfig.value.noBudget' | transloco"
+    [rangeText]="'teamConfig.limits.budgetRange' | transloco: { min: bounds.monthlyUsd.min, max: bounds.monthlyUsd.max }"
+    [error]="errorOf('budget.monthly_usd')"
+    (valueChange)="edit('budget.monthly_usd', $event)"
+    (typedInvalid)="markTyped('budget.monthly_usd', $event)"
+  />
+  @if (waivedMonth(); as month) {
+  <tc-waived-month [month]="month" [editing]="budgetEdit()" />
+  }
+  <p class="team__help">{{ 'teamConfig.limits.overshoot' | transloco }}</p>
+</tc-team-section>
+
+<tc-team-section
+  name="rules"
+  [title]="'teamConfig.section.rules' | transloco"
+  [foldable]="isPhone()"
+  [summary]="rulesSummary()"
+  [(open)]="open.rules"
+>
+  <div class="team__group">
+    @for (gate of gates; track gate) { @if (readOnly()) {
+    <p class="team__pair">
+      <span class="team__muted">{{ 'teamConfig.rules.gate.' + gate | transloco }}</span>
+      <span class="team__strong">{{ valueText('gates.' + gate, draft.gates[gate]) }}</span>
+    </p>
+    } @else {
+    <fieldset tc-segmented [legend]="'teamConfig.rules.gate.' + gate | transloco">
+      @for (policy of gatePolicies; track policy) {
+      <label tc-segment>
+        <input
+          type="radio"
+          [name]="'tc-team-gate-' + gate"
+          [attr.data-control]="policy === gatePolicies[0] ? 'gates.' + gate : null"
+          [attr.data-testid]="'gate-' + gate + '-' + policy"
+          [value]="policy"
+          [checked]="draft.gates[gate] === policy"
+          (change)="edit('gates.' + gate, policy)"
+        />
+        {{ 'teamConfig.rules.gate.' + policy | transloco }}
+      </label>
+      }
+    </fieldset>
+    } }
+    <p class="team__help">{{ 'teamConfig.rules.gate.codeHint' | transloco }}</p>
+  </div>
+
+  <div class="team__group" data-testid="code-paths">
+    <p class="team__muted" id="tc-team-paths-label">{{ 'teamConfig.field.gates.code_paths' | transloco }}</p>
+    <ul class="team__paths" aria-labelledby="tc-team-paths-label">
+      @for (glob of draft.gates.code_paths; track glob; let index = $index) {
+      <li class="team__path">
+        <code>{{ glob }}</code>
+        @if (!readOnly()) {
+        <button
+          tc-button
+          size="sm"
+          variant="quiet"
+          type="button"
+          data-testid="code-path-remove"
+          [attr.aria-label]="'teamConfig.rules.paths.remove' | transloco: { path: glob }"
+          (click)="removeCodePath(index)"
+        >
+          <tc-icon name="x" size="sm" />
+        </button>
+        }
+      </li>
+      }
+    </ul>
+    @if (!readOnly()) {
+    <form class="team__path-add" novalidate (submit)="$event.preventDefault(); addCodePath(pathInput)">
+      <label class="tc-sr-only" for="tc-team-path-input"
+        >{{ 'teamConfig.rules.paths.add' | transloco }}</label
+      >
+      <input
+        #pathInput
+        id="tc-team-path-input"
+        class="tc-input team__path-input"
+        type="text"
+        autocomplete="off"
+        data-control="gates.code_paths"
+        data-testid="code-path-input"
+        [attr.placeholder]="'teamConfig.rules.paths.placeholder' | transloco"
+        [attr.aria-invalid]="errorOf('gates.code_paths') === null ? null : 'true'"
+        [attr.aria-describedby]="errorOf('gates.code_paths') === null ? null : 'tc-team-paths-error'"
+      />
+      <button tc-button type="submit" data-testid="code-path-add">
+        {{ 'teamConfig.rules.paths.add' | transloco }}
+      </button>
+    </form>
+    } @if (errorOf('gates.code_paths'); as error) {
+    <p class="team__error" role="alert" id="tc-team-paths-error">
+      <tc-icon name="alert" size="sm" /><span>{{ error }}</span>
+    </p>
+    }
+  </div>
+
+  <tc-team-number
+    path="gates.max_rework_rounds"
+    [label]="'teamConfig.field.gates.max_rework_rounds' | transloco"
+    [hint]="'teamConfig.rules.reworkHint' | transloco"
+    [value]="draft.gates.max_rework_rounds"
+    [min]="bounds.maxReworkRounds.min"
+    [max]="bounds.maxReworkRounds.max"
+    [readOnly]="readOnly()"
+    [epoch]="epoch()"
+    [rangeText]="range(bounds.maxReworkRounds.min, bounds.maxReworkRounds.max)"
+    [error]="errorOf('gates.max_rework_rounds')"
+    (valueChange)="edit('gates.max_rework_rounds', $event)"
+    (typedInvalid)="markTyped('gates.max_rework_rounds', $event)"
+  />
+
+  <div class="team__group">
+    <p class="team__muted">{{ 'teamConfig.rules.caps.title' | transloco }}</p>
+    <div class="team__grid">
+      @for (mode of capModes; track mode) {
+      <tc-team-number
+        [path]="'caps.' + mode + '.dev_tasks'"
+        [label]="capLabel(mode, 'dev_tasks')"
+        [value]="draft.caps[mode].dev_tasks"
+        [min]="bounds.devTasks.min"
+        [max]="bounds.devTasks.max"
+        [readOnly]="readOnly()"
+        [epoch]="epoch()"
+        [rangeText]="range(bounds.devTasks.min, bounds.devTasks.max)"
+        [error]="errorOf('caps.' + mode + '.dev_tasks')"
+        (valueChange)="edit('caps.' + mode + '.dev_tasks', $event)"
+        (typedInvalid)="markTyped('caps.' + mode + '.dev_tasks', $event)"
+      />
+      <tc-team-number
+        [path]="'caps.' + mode + '.parallel_devs'"
+        [label]="capLabel(mode, 'parallel_devs')"
+        [value]="draft.caps[mode].parallel_devs"
+        [min]="bounds.parallelDevs.min"
+        [max]="bounds.parallelDevs.max"
+        [readOnly]="readOnly()"
+        [epoch]="epoch()"
+        [rangeText]="range(bounds.parallelDevs.min, bounds.parallelDevs.max)"
+        [error]="errorOf('caps.' + mode + '.parallel_devs')"
+        (valueChange)="edit('caps.' + mode + '.parallel_devs', $event)"
+        (typedInvalid)="markTyped('caps.' + mode + '.parallel_devs', $event)"
+      />
+      }
+    </div>
+  </div>
+
+  <div class="team__grid">
+    <tc-team-number
+      path="sprint.length_days"
+      [label]="'teamConfig.field.sprint.length_days' | transloco"
+      [value]="draft.sprint.length_days"
+      [min]="bounds.lengthDays.min"
+      [max]="bounds.lengthDays.max"
+      [readOnly]="readOnly()"
+      [epoch]="epoch()"
+      [rangeText]="range(bounds.lengthDays.min, bounds.lengthDays.max)"
+      [error]="errorOf('sprint.length_days')"
+      (valueChange)="edit('sprint.length_days', $event)"
+      (typedInvalid)="markTyped('sprint.length_days', $event)"
+    />
+    <tc-team-number
+      path="sprint.freeze_days"
+      [label]="'teamConfig.field.sprint.freeze_days' | transloco"
+      [value]="draft.sprint.freeze_days"
+      [min]="bounds.freezeDays.min"
+      [max]="bounds.freezeDays.max"
+      [readOnly]="readOnly()"
+      [epoch]="epoch()"
+      [rangeText]="range(bounds.freezeDays.min, bounds.freezeDays.max)"
+      [error]="errorOf('sprint.freeze_days')"
+      (valueChange)="edit('sprint.freeze_days', $event)"
+      (typedInvalid)="markTyped('sprint.freeze_days', $event)"
+    />
+  </div>
+
+  @if (readOnly()) {
+  <p class="team__pair">
+    <span class="team__muted">{{ 'teamConfig.field.language' | transloco }}</span>
+    <span class="team__strong">{{ valueText('language', draft.language) }}</span>
+  </p>
+  } @else {
+  <fieldset tc-segmented [legend]="'teamConfig.field.language' | transloco">
+    @for (language of languages; track language) {
+    <label tc-segment>
+      <input
+        type="radio"
+        name="tc-team-language"
+        [attr.data-control]="language === languages[0] ? 'language' : null"
+        [attr.data-testid]="'language-' + language"
+        [value]="language"
+        [checked]="draft.language === language"
+        (change)="edit('language', language)"
+      />
+      {{ 'teamConfig.rules.language.' + language | transloco }}
+    </label>
+    }
+  </fieldset>
+  }
+
+  <div class="team__group" data-testid="cost">
+    <h3 class="team__subtitle">{{ 'teamConfig.rules.cost.title' | transloco }}</h3>
+    @if (isSubscription()) {
+    <p class="team__help" id="tc-team-cost-off" data-testid="cost-off">
+      {{ 'teamConfig.rules.cost.subOnly' | transloco }}
+    </p>
+    }
+    <div class="team__lever">
+      <span class="team__lever-name" id="tc-team-cache-name"
+        >{{ 'teamConfig.field.cost.prompt_caching' | transloco }}</span
+      >
+      @if (readOnly()) {
+      <span class="team__strong">{{ valueText('cost.prompt_caching', draft.cost.prompt_caching) }}</span>
+      } @else {
+      <button
+        tc-switch
+        type="button"
+        data-control="cost.prompt_caching"
+        data-testid="cost-prompt-caching"
+        [attr.aria-label]="'teamConfig.field.cost.prompt_caching' | transloco"
+        [off]="isSubscription()"
+        [attr.aria-describedby]="isSubscription() ? 'tc-team-cost-off tc-team-cache-hint' : 'tc-team-cache-hint'"
+        [ngModel]="draft.cost.prompt_caching"
+        (ngModelChange)="edit('cost.prompt_caching', $event)"
+      ></button>
+      }
+      <p class="team__help team__lever-hint" id="tc-team-cache-hint">
+        {{ 'teamConfig.rules.cost.cacheHint' | transloco }}
+      </p>
+    </div>
+    <div class="team__lever" data-testid="cost-batch">
+      <span class="team__lever-name" id="tc-team-batch-name"
+        >{{ 'teamConfig.field.cost.batch_api' | transloco }}</span
+      >
+      @if (readOnly()) {
+      <span class="team__strong">{{ valueText('cost.batch_api', draft.cost.batch_api) }}</span>
+      } @else {
+      <button
+        tc-switch
+        type="button"
+        off
+        data-control="cost.batch_api"
+        data-testid="cost-batch-api"
+        [attr.aria-label]="'teamConfig.field.cost.batch_api' | transloco"
+        aria-describedby="tc-team-batch-reason tc-team-batch-status"
+        [ngModel]="draft.cost.batch_api"
+      ></button>
+      }
+      <p class="team__help team__lever-hint" id="tc-team-batch-reason" data-testid="cost-batch-reason">
+        {{ 'teamConfig.rules.cost.batchReason' | transloco }}
+      </p>
+      <p class="team__lever-hint" id="tc-team-batch-status">
+        <tc-chip data-testid="cost-batch-status"
+          >{{ 'teamConfig.rules.cost.batchStatus' | transloco }}</tc-chip
+        >
+      </p>
+    </div>
+    @if (readOnly()) {
+    <p class="team__pair">
+      <span class="team__muted">{{ 'teamConfig.field.cost.reviewer_context' | transloco }}</span>
+      <span class="team__strong">{{ valueText('cost.reviewer_context', draft.cost.reviewer_context) }}</span>
+    </p>
+    } @else {
+    <fieldset tc-segmented [legend]="'teamConfig.field.cost.reviewer_context' | transloco">
+      @for (context of contexts; track context) {
+      <label tc-segment>
+        <input
+          type="radio"
+          name="tc-team-context"
+          [attr.data-control]="context === contexts[0] ? 'cost.reviewer_context' : null"
+          [attr.data-testid]="'context-' + context"
+          [attr.aria-disabled]="isSubscription() ? 'true' : null"
+          aria-describedby="tc-team-context-hint"
+          [value]="context"
+          [checked]="draft.cost.reviewer_context === context"
+          (click)="isSubscription() && $event.preventDefault()"
+          (change)="edit('cost.reviewer_context', context)"
+        />
+        {{ 'teamConfig.rules.cost.context.' + context | transloco }}
+      </label>
+      }
+      <p tc-segmented-hint id="tc-team-context-hint">{{ 'teamConfig.rules.cost.contextHint' | transloco }}</p>
+    </fieldset>
+    }
+  </div>
+</tc-team-section>
+
+@if (showBar()) {
+<tc-save-bar
+  [count]="store.changes().length"
+  [label]="'teamConfig.bar.label' | transloco"
+  [offReason]="reviewOffReason()"
+  (review)="review()"
+  (discard)="discard()"
+/>
+} } } }

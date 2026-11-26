@@ -36,7 +36,9 @@ const scrollToEnd = (body: Locator): Promise<void> =>
     element.scrollTop = element.scrollHeight;
   });
 
-test('the bar casts its shadow while text is under it and drops it at the end of the form', async ({ page }) => {
+test('the bar casts its shadow while text is under it and drops it at the end of the form', async ({
+  page,
+}) => {
   const { foot, body } = await openLongDialog(page);
 
   await expect(foot).toHaveClass(/tc-sheet__foot--lifted/);

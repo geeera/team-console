@@ -324,7 +324,12 @@ export function needsYouViewOf(dto: NeedsYouDto): NeedsYouView {
     concurrencyStops: dto.projects.flatMap((project) =>
       project.concurrencyStop === undefined
         ? []
-        : [{ project: { slug: project.slug, name: project.name }, queuedJobs: project.concurrencyStop.queuedJobs }],
+        : [
+            {
+              project: { slug: project.slug, name: project.name },
+              queuedJobs: project.concurrencyStop.queuedJobs,
+            },
+          ],
     ),
     actionsDrifts: dto.projects.flatMap((project) =>
       project.actionsDrift === undefined

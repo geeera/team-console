@@ -93,7 +93,12 @@ describe('questionContextOf', () => {
 
     it('leaves out a section that is not there, and does not guess a question when others are', () => {
       const context = questionContextOf('Lead paragraph.\n\n## Почему\nПотому что.');
-      expect(context).toMatchObject({ question: null, why: 'Потому что.', ifApproved: null, structured: true });
+      expect(context).toMatchObject({
+        question: null,
+        why: 'Потому что.',
+        ifApproved: null,
+        structured: true,
+      });
     });
 
     it('is null for an empty body, an answer line alone, or empty sections', () => {
@@ -103,7 +108,9 @@ describe('questionContextOf', () => {
     });
 
     it('ignores a level-3 heading as a section and keeps it as text', () => {
-      expect(questionContextOf('## Вопрос\nAsk?\n### Вопрос\nDetail.')?.question).toBe('Ask?\nВопрос\nDetail.');
+      expect(questionContextOf('## Вопрос\nAsk?\n### Вопрос\nDetail.')?.question).toBe(
+        'Ask?\nВопрос\nDetail.',
+      );
     });
 
     it('ends a section at a level-1 heading or any other level-2 heading', () => {
@@ -141,12 +148,20 @@ describe('questionContextOf', () => {
 
     it('reads only GitHub’s maximum body length, so a later section is never reached', () => {
       const body = `## Вопрос\nAsk?\n${'x'.repeat(70_000)}\n## Почему\nToo late.`;
-      expect(questionContextOf(body)).toMatchObject({ question: expect.stringMatching(/^Ask\?/u), why: null });
+      expect(questionContextOf(body)).toMatchObject({
+        question: expect.stringMatching(/^Ask\?/u),
+        why: null,
+      });
     });
 
     it('stays linear on hostile runs of markers', () => {
       const started = performance.now();
-      for (const run of ['<'.repeat(65_000), '<a'.repeat(32_000), '#'.repeat(65_000), '## \n'.repeat(16_000)]) {
+      for (const run of [
+        '<'.repeat(65_000),
+        '<a'.repeat(32_000),
+        '#'.repeat(65_000),
+        '## \n'.repeat(16_000),
+      ]) {
         questionContextOf(`## Вопрос\n${run}`);
       }
       expect(performance.now() - started).toBeLessThan(2_000);
@@ -184,15 +199,17 @@ describe('questionContextOf', () => {
     });
 
     it('removes bidi overrides, zero-width and control characters, keeping emoji joiners', () => {
-      const [rlo, pdf, zwsp, bell] = [0x202e, 0x202c, 0x200b, 0x07].map((point) => String.fromCodePoint(point));
+      const [rlo, pdf, zwsp, bell] = [0x202e, 0x202c, 0x200b, 0x07].map((point) =>
+        String.fromCodePoint(point),
+      );
       const hostile = `## Кратко\nPay${rlo}gro.live${pdf} now${zwsp}${bell} 👩‍💻`;
       expect(questionContextOf(hostile)?.summary).toBe('Paygro.live now 👩‍💻');
     });
 
     it('removes the Arabic letter mark, soft hyphen, Hangul fillers and tag characters too (#288)', () => {
-      const [alm, shy, filler, halfFiller, hangulFiller, tag] = [0x61c, 0xad, 0x115f, 0x1160, 0x3164, 0xe0041].map(
-        (point) => String.fromCodePoint(point),
-      );
+      const [alm, shy, filler, halfFiller, hangulFiller, tag] = [
+        0x61c, 0xad, 0x115f, 0x1160, 0x3164, 0xe0041,
+      ].map((point) => String.fromCodePoint(point));
       const hostile = `## Кратко\nAp${alm}prove${shy} ${filler}the${halfFiller} ${hangulFiller}plan${tag}`;
       expect(questionContextOf(hostile)?.summary).toBe('Approve the plan');
     });
@@ -217,7 +234,10 @@ describe('questionContextOf', () => {
         'Code, not a heading.',
         '```',
       ].join('\n');
-      expect(questionContextOf(body)).toMatchObject({ why: null, question: 'Ask?\nПочему\nCode, not a heading.' });
+      expect(questionContextOf(body)).toMatchObject({
+        why: null,
+        question: 'Ask?\nПочему\nCode, not a heading.',
+      });
     });
 
     it('closes a fence only on the same character, so a different fence inside it is text (#288)', () => {
@@ -227,9 +247,17 @@ describe('questionContextOf', () => {
     });
 
     it('closes a fence only on a run at least as long as the opening one', () => {
-      const body = ['## Вопрос', 'q', '````', '```', '## Почему', 'injected', '````', '## Цена и риск', 'ok'].join(
-        '\n',
-      );
+      const body = [
+        '## Вопрос',
+        'q',
+        '````',
+        '```',
+        '## Почему',
+        'injected',
+        '````',
+        '## Цена и риск',
+        'ok',
+      ].join('\n');
       expect(questionContextOf(body)).toMatchObject({ why: null, costAndRisk: 'ok' });
       // A longer closing run still closes.
       const longer = ['## Вопрос', 'q', '```', '## Почему', 'code', '`````', '## Почему', 'real'].join('\n');
@@ -237,14 +265,24 @@ describe('questionContextOf', () => {
     });
 
     it('does not close a fence on a run with trailing text, which CommonMark reads as content', () => {
-      const body = ['## Вопрос', 'q', '```', '```js', '## Почему', 'injected', '```', '## Цена и риск', 'ok'].join(
-        '\n',
-      );
+      const body = [
+        '## Вопрос',
+        'q',
+        '```',
+        '```js',
+        '## Почему',
+        'injected',
+        '```',
+        '## Цена и риск',
+        'ok',
+      ].join('\n');
       expect(questionContextOf(body)).toMatchObject({ why: null, costAndRisk: 'ok' });
       // Trailing spaces are fine; an info string on the opening fence is too.
-      expect(questionContextOf('## Вопрос\nq\n```ts\n## Почему\ncode\n```  \n## Почему\nreal')).toMatchObject({
-        why: 'real',
-      });
+      expect(questionContextOf('## Вопрос\nq\n```ts\n## Почему\ncode\n```  \n## Почему\nreal')).toMatchObject(
+        {
+          why: 'real',
+        },
+      );
     });
 
     it('never reaches an object prototype through a heading', () => {

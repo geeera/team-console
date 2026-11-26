@@ -39,7 +39,11 @@ export async function consoleTeamStateOf(db: D1Database, projectSlug: string): P
 }
 
 /** The UTC month of `now` against the budget saved now, with the month's waiver (#737). */
-export async function budgetMonthOf(db: D1Database, projectSlug: string, now: string): Promise<TeamBudgetMonthDto> {
+export async function budgetMonthOf(
+  db: D1Database,
+  projectSlug: string,
+  now: string,
+): Promise<TeamBudgetMonthDto> {
   const [spend, config] = await Promise.all([
     new ProjectSpendRepo(db).findMonth(projectSlug, utcMonthOf(now)),
     new TeamConfigRepo(db).findCurrent(projectSlug),

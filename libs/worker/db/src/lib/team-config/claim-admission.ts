@@ -68,7 +68,10 @@ export interface EntitledConcurrency {
 }
 
 /** `entitlementsOf` on a raw `accounts` row; an override that does not parse yields the free tier, as the guard does. */
-export function entitledConcurrencyOf(row: { readonly plan: string; readonly entitlements: string }): EntitledConcurrency {
+export function entitledConcurrencyOf(row: {
+  readonly plan: string;
+  readonly entitlements: string;
+}): EntitledConcurrency {
   let override: unknown = null;
   try {
     override = JSON.parse(row.entitlements) as unknown;
@@ -119,7 +122,9 @@ const PRESET_MAX_PARALLEL = JSON.stringify(
   Object.fromEntries(
     TEAM_CONFIG_PRESETS.map((preset) => [
       preset,
-      Object.fromEntries(TEAM_ROLES.map((role) => [role, TEAM_CONFIG_PRESET_ROLES[preset][role].max_parallel])),
+      Object.fromEntries(
+        TEAM_ROLES.map((role) => [role, TEAM_CONFIG_PRESET_ROLES[preset][role].max_parallel]),
+      ),
     ]),
   ),
 );

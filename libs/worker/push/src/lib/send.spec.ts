@@ -19,11 +19,18 @@ async function generateVapid(): Promise<VapidConfig> {
   ])) as CryptoKeyPair;
   const jwk = (await crypto.subtle.exportKey('jwk', pair.privateKey)) as JsonWebKey;
   const point = new Uint8Array([0x04, ...bytesOf(jwk.x ?? ''), ...bytesOf(jwk.y ?? '')]);
-  return { publicKey: encodeBase64Url(point), privateKey: jwk.d ?? '', subject: 'https://github.com/geeera/team-console' };
+  return {
+    publicKey: encodeBase64Url(point),
+    privateKey: jwk.d ?? '',
+    subject: 'https://github.com/geeera/team-console',
+  };
 }
 
 class MemoryStore implements PushSubscriptionStore {
-  readonly rows = new Map<string, StoredPushSubscription & { failures: number; lastSuccessAt: string | null }>();
+  readonly rows = new Map<
+    string,
+    StoredPushSubscription & { failures: number; lastSuccessAt: string | null }
+  >();
 
   add(subscription: PushSubscriptionRequest): void {
     this.rows.set(subscription.endpoint, {
@@ -86,7 +93,8 @@ describe('PushSender.sendToAll', () => {
     lines.length = 0;
   });
 
-  const sender = (): PushSender => new PushSender({ vapid, fetch: service.fetch, logger, environment: 'production' });
+  const sender = (): PushSender =>
+    new PushSender({ vapid, fetch: service.fetch, logger, environment: 'production' });
 
   it('delivers an encrypted ngsw payload the browser can decrypt, with TTL 24 h and high urgency', async () => {
     const device = await service.subscribe('web.push.apple.com');
@@ -140,7 +148,11 @@ describe('PushSender.sendToAll', () => {
     service.next(gone.endpoint, 'gone');
     service.next(limited.endpoint, 'rate-limited');
 
-    await expect(sender().sendToAll(store, testNotification('en'))).resolves.toEqual({ sent: 1, pruned: 1, failed: 1 });
+    await expect(sender().sendToAll(store, testNotification('en'))).resolves.toEqual({
+      sent: 1,
+      pruned: 1,
+      failed: 1,
+    });
 
     expect([...store.rows.keys()].sort()).toEqual([ok.endpoint, limited.endpoint].sort());
     expect(store.rows.get(limited.endpoint)?.failures).toBe(1);
@@ -151,7 +163,11 @@ describe('PushSender.sendToAll', () => {
     store.add(device);
     service.next(device.endpoint, 'not-found');
 
-    await expect(sender().sendToAll(store, testNotification('en'))).resolves.toEqual({ sent: 0, pruned: 1, failed: 0 });
+    await expect(sender().sendToAll(store, testNotification('en'))).resolves.toEqual({
+      sent: 0,
+      pruned: 1,
+      failed: 0,
+    });
     expect(store.rows.size).toBe(0);
   });
 
@@ -192,7 +208,11 @@ describe('PushSender.sendToAll', () => {
       },
     });
 
-    await expect(flaky.sendToAll(store, testNotification('en'))).resolves.toEqual({ sent: 1, pruned: 0, failed: 1 });
+    await expect(flaky.sendToAll(store, testNotification('en'))).resolves.toEqual({
+      sent: 1,
+      pruned: 0,
+      failed: 1,
+    });
     // Only the host reaches the log: the endpoint path is the device's capability URL.
     expect(JSON.stringify(lines)).not.toContain(new URL(broken.endpoint).pathname);
   });
@@ -236,7 +256,11 @@ describe('PushSender.sendToAll', () => {
       },
     });
 
-    await expect(guarded.sendToAll(store, testNotification('en'))).resolves.toEqual({ sent: 0, pruned: 1, failed: 0 });
+    await expect(guarded.sendToAll(store, testNotification('en'))).resolves.toEqual({
+      sent: 0,
+      pruned: 1,
+      failed: 0,
+    });
     expect(fetched).toEqual([]);
   });
 

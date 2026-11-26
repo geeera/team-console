@@ -32,11 +32,15 @@ let nextPickerId = 0;
             [name]="groupName"
             [checked]="scope() === 'all'"
             [disabled]="disabled()"
-            [attr.aria-describedby]="showsOwners() ? groupName + '-all-hint ' + groupName + '-all-owners' : groupName + '-all-hint'"
+            [attr.aria-describedby]="
+              showsOwners() ? groupName + '-all-hint ' + groupName + '-all-owners' : groupName + '-all-hint'
+            "
             (change)="scope.set('all')"
           />
           {{ 'runners.scope.all' | transloco }}
-          <small tc-choice-hint [id]="groupName + '-all-hint'">{{ 'runners.scope.allHint' | transloco }}</small>
+          <small tc-choice-hint [id]="groupName + '-all-hint'">{{
+            'runners.scope.allHint' | transloco
+          }}</small>
           @if (showsOwners()) {
             <small tc-choice-hint data-testid="runner-scope-owners" [id]="groupName + '-all-owners'">{{
               ownersKey() | transloco
@@ -55,7 +59,9 @@ let nextPickerId = 0;
             (change)="scope.set('selected')"
           />
           {{ 'runners.scope.selected' | transloco }}
-          <small tc-choice-hint [id]="groupName + '-selected-hint'">{{ 'runners.scope.selectedHint' | transloco }}</small>
+          <small tc-choice-hint [id]="groupName + '-selected-hint'">{{
+            'runners.scope.selectedHint' | transloco
+          }}</small>
         </label>
       </fieldset>
       @if (scope() === 'selected') {

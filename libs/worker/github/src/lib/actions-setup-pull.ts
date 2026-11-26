@@ -105,8 +105,13 @@ export async function readActionsSetupPull(
   let files: string[] = [];
   let headFile: RunnerWorkflowFile | null = null;
   if (pull.commits === 1 && pull.changed_files === 1) {
-    const changed = await client.getJson(githubPath`/repos/${repo}/pulls/${number}/files?per_page=${2}`, isFileList);
-    files = changed.flatMap((file) => (isRecord(file) && typeof file['filename'] === 'string' ? [file['filename']] : []));
+    const changed = await client.getJson(
+      githubPath`/repos/${repo}/pulls/${number}/files?per_page=${2}`,
+      isFileList,
+    );
+    files = changed.flatMap((file) =>
+      isRecord(file) && typeof file['filename'] === 'string' ? [file['filename']] : [],
+    );
     headFile = await readRunnerWorkflowFile(client, repo, pull.head.sha);
   }
   return {
@@ -125,7 +130,8 @@ export async function readActionsSetupPull(
 /** A setup branch as the console names it: the prefix and 12 hex characters of a rendering's sha256. */
 const SETUP_BRANCH_STEM = /^[0-9a-f]{12}$/;
 const isSetupBranch = (branch: string): boolean =>
-  branch.startsWith(ACTIONS_SETUP_BRANCH_PREFIX) && SETUP_BRANCH_STEM.test(branch.slice(ACTIONS_SETUP_BRANCH_PREFIX.length));
+  branch.startsWith(ACTIONS_SETUP_BRANCH_PREFIX) &&
+  SETUP_BRANCH_STEM.test(branch.slice(ACTIONS_SETUP_BRANCH_PREFIX.length));
 /** More setup branches than this are not the console's doing; the rest are not looked at. */
 export const SETUP_BRANCHES_MAX = 20;
 
@@ -143,7 +149,10 @@ export async function readSetupBranches(client: GitHubClient, repo: RepoName): P
   }
   let refs: unknown[];
   try {
-    refs = await client.getJson(githubPath`/repos/${repo}/git/matching-refs/heads/${area}/${stem}`, isRefList);
+    refs = await client.getJson(
+      githubPath`/repos/${repo}/git/matching-refs/heads/${area}/${stem}`,
+      isRefList,
+    );
   } catch (error: unknown) {
     if (error instanceof GitHubError && error.problem.type === 'github-not-found') {
       return [];
@@ -180,7 +189,10 @@ export function sameWorkflowBytes(left: Uint8Array, right: Uint8Array): boolean 
  * the one workflow file to this console's rendering. `foreign`: another author, or another repository on either side.
  * `changed`: the console's PR, with other commits, files or bytes on it now.
  */
-export function judgePullProvenance(pull: ActionsSetupPull, expected: PullProvenanceExpectation): PullProvenance {
+export function judgePullProvenance(
+  pull: ActionsSetupPull,
+  expected: PullProvenanceExpectation,
+): PullProvenance {
   const author = pull.author;
   if (
     expected.botLogin === null ||

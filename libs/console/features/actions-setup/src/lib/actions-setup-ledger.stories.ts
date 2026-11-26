@@ -35,7 +35,10 @@ const meta: Meta<Args> = {
       </div>
     `,
   }),
-  args: { firstJob: null, setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }) },
+  args: {
+    firstJob: null,
+    setup: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }),
+  },
 };
 
 export default meta;
@@ -59,25 +62,43 @@ export const PermissionsNotAccepted: Story = {
 };
 /** The console's PR is open. */
 export const PrOpen: Story = {
-  args: { setup: actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { number: 42, url: PR_URL, provenance: 'console' } } } }) },
+  args: {
+    setup: actionsSetupFixture({
+      items: { workflow: { status: 'missing', pr: { number: 42, url: PR_URL, provenance: 'console' } } },
+    }),
+  },
 };
 /** A PR on the console's branch it cannot vouch for: never "merge it". */
 export const PrForeign: Story = {
-  args: { setup: actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { number: 43, url: PR_URL, provenance: 'foreign' } } } }) },
+  args: {
+    setup: actionsSetupFixture({
+      items: { workflow: { status: 'missing', pr: { number: 43, url: PR_URL, provenance: 'foreign' } } },
+    }),
+  },
 };
 /** Reviewers on the Environment: a warning, the step stays done. */
-export const ReviewersWarning: Story = { args: { setup: actionsSetupFixture({ items: { 'protection-rules': { status: 'wrong' } } }) } };
+export const ReviewersWarning: Story = {
+  args: { setup: actionsSetupFixture({ items: { 'protection-rules': { status: 'wrong' } } }) },
+};
 /** Everything is ready; «Включить» is the primary action. */
 export const Ready: Story = { args: { setup: actionsSetupFixture() } };
 /** Switched on. */
 export const On: Story = { args: { setup: actionsSetupFixture({ dispatch: 'actions' }) } };
 /** Switched on, no job yet: step 6 waits and points to the project. */
-export const FirstJobWaiting: Story = { args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'waiting' } } };
+export const FirstJobWaiting: Story = {
+  args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'waiting' } },
+};
 /** The first job passed. */
 export const FirstJobDone: Story = {
-  args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'done', at: '2026-11-21T12:10:00.000Z' } },
+  args: {
+    setup: actionsSetupFixture({ dispatch: 'actions' }),
+    firstJob: { kind: 'done', at: '2026-11-21T12:10:00.000Z' },
+  },
 };
 /** The first job never reached GitHub's runner: the reason is in words. */
 export const FirstJobFailed: Story = {
-  args: { setup: actionsSetupFixture({ dispatch: 'actions' }), firstJob: { kind: 'failed', reason: 'actions-no-show' } },
+  args: {
+    setup: actionsSetupFixture({ dispatch: 'actions' }),
+    firstJob: { kind: 'failed', reason: 'actions-no-show' },
+  },
 };

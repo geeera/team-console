@@ -26,7 +26,8 @@ export function actionsSetupUrl(slug: string): string {
  */
 export const ACTIONS_CALL_TIMEOUT_MS = 30_000;
 
-export type ActionsResult<T, P> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly problem: P };
+export type ActionsResult<T, P> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly problem: P };
 
 /** An answer outside its contract is not shown: it reads as a failed call. */
 class UnexpectedActionsAnswer extends Error {
@@ -55,7 +56,12 @@ export class ActionsSetupApi {
 
   /** No body: the server decides what the PR holds; nothing of the client steers it. */
   openWorkflowPr(slug: string): Promise<ActionsResult<ActionsWorkflowPrDto, WorkflowPrRefusal>> {
-    return this.call(`${actionsSetupUrl(slug)}/workflow-pr`, 'POST', isActionsWorkflowPrDto, workflowPrRefusalOf);
+    return this.call(
+      `${actionsSetupUrl(slug)}/workflow-pr`,
+      'POST',
+      isActionsWorkflowPrDto,
+      workflowPrRefusalOf,
+    );
   }
 
   private async call<T, P>(

@@ -111,7 +111,12 @@ export class ApiGitHub {
   readonly now: () => number;
   private readonly sleep: ((ms: number) => Promise<void>) | undefined;
   private real:
-    | { readonly appId: string; readonly pem: string; readonly setupWrite: SetupWrite; readonly auth: GitHubAppAuth }
+    | {
+        readonly appId: string;
+        readonly pem: string;
+        readonly setupWrite: SetupWrite;
+        readonly auth: GitHubAppAuth;
+      }
     | undefined;
   private mock: Promise<MockGitHub> | undefined;
   private mockAuth: { readonly setupWrite: SetupWrite; readonly auth: GitHubAppAuth } | undefined;

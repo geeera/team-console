@@ -191,17 +191,23 @@ describe('security headers (#126)', () => {
   it('sets nosniff and the deny-all CSP on a success response', async () => {
     const response = await build().request('/ok', {}, env);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
   });
 
   it('sets the same headers on a Problem Details 404 and 500', async () => {
     const notFound = await build().request('/nope', {}, env);
     expect(notFound.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(notFound.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(notFound.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
 
     const internal = await build().request('/boom', {}, env);
     expect(internal.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(internal.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(internal.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
   });
 
   it('keeps a header a route set itself instead of overwriting it', async () => {
@@ -230,7 +236,8 @@ describe('security headers (#126)', () => {
     const app = createWorkerApp<WorkerBaseEnv>({
       service: 'test',
       noStore: true,
-      notFound: () => markAssetResponse(new Response('<html>spa</html>', { headers: { 'Content-Type': 'text/html' } })),
+      notFound: () =>
+        markAssetResponse(new Response('<html>spa</html>', { headers: { 'Content-Type': 'text/html' } })),
     });
     const response = await app.request('/anything', {}, env);
     expect(response.headers.get('x-content-type-options')).toBeNull();

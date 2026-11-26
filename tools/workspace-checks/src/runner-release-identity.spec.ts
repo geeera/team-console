@@ -26,18 +26,34 @@ describe('the runner release identity', () => {
   it('imports only the runner contract module and reads nothing at run time', () => {
     const imports = [...source.matchAll(/^import .* from '([^']+)';$/gm)].map((match) => match[1]);
     expect(imports).toEqual(['./runner']);
-    for (const runtime of ['process', 'globalThis', 'fetch(', 'env', 'localStorage', 'readFile', 'require(']) {
+    for (const runtime of [
+      'process',
+      'globalThis',
+      'fetch(',
+      'env',
+      'localStorage',
+      'readFile',
+      'require(',
+    ]) {
       expect(code).not.toContain(runtime);
     }
     // Every identity member is a `const` with a literal: nothing assigned later, nothing computed from input.
-    for (const name of ['RELEASE_HOST', 'RELEASE_REPOSITORY', 'RELEASE_WORKFLOW_PATH', 'RELEASE_OIDC_ISSUER', 'RELEASE_PREDICATE_TYPE']) {
+    for (const name of [
+      'RELEASE_HOST',
+      'RELEASE_REPOSITORY',
+      'RELEASE_WORKFLOW_PATH',
+      'RELEASE_OIDC_ISSUER',
+      'RELEASE_PREDICATE_TYPE',
+    ]) {
       expect(source).toMatch(new RegExp(`^export const ${name} = '[^']+';$`, 'm'));
     }
   });
 
   it('is what the runner verifies with, given only the file and the version', () => {
     const update = read('apps/runner/src/update/update.ts');
-    expect([...update.matchAll(/attestationVerifyArgs\(([^)]*)\)/g)].map((match) => match[1])).toEqual(['tarball, target']);
+    expect([...update.matchAll(/attestationVerifyArgs\(([^)]*)\)/g)].map((match) => match[1])).toEqual([
+      'tarball, target',
+    ]);
     expect(update).toMatch(/import \{[^}]*attestationVerifyArgs[^}]*\} from '@shared\/contracts';/);
   });
 

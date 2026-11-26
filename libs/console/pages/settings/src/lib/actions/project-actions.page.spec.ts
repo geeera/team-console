@@ -2,7 +2,11 @@ import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { ActionsSetupApi, actionsSetupFixture, type ActionsCheckProblem } from '@console/entities/actions-setup';
+import {
+  ActionsSetupApi,
+  actionsSetupFixture,
+  type ActionsCheckProblem,
+} from '@console/entities/actions-setup';
 import { JobsApi, jobFixture } from '@console/entities/job';
 import { ProjectsStore } from '@console/entities/project';
 import { RunnersApi } from '@console/entities/runner';
@@ -14,7 +18,11 @@ import { ProjectActionsPage } from './project-actions.page';
 type CheckAnswer = { ok: true; value: ActionsSetupDto } | { ok: false; problem: ActionsCheckProblem };
 
 describe('ProjectActionsPage (#759)', () => {
-  async function render(answers: CheckAnswer[], jobs: readonly JobDto[] = [], dispatchBranch: string | null = 'main') {
+  async function render(
+    answers: CheckAnswer[],
+    jobs: readonly JobDto[] = [],
+    dispatchBranch: string | null = 'main',
+  ) {
     const checks: string[] = [];
     TestBed.configureTestingModule({
       providers: [
@@ -27,7 +35,8 @@ describe('ProjectActionsPage (#759)', () => {
           useValue: {
             status: signal('ready'),
             ready: async () => true,
-            bySlug: (slug: string) => (slug === 'storify' ? { slug, repo: 'geeera/storify', displayName: 'storify' } : undefined),
+            bySlug: (slug: string) =>
+              slug === 'storify' ? { slug, repo: 'geeera/storify', displayName: 'storify' } : undefined,
           },
         },
         {
@@ -42,7 +51,9 @@ describe('ProjectActionsPage (#759)', () => {
         { provide: JobsApi, useValue: { list: async () => ({ ok: true, value: { jobs } }) } },
         {
           provide: RunnersApi,
-          useValue: { dispatch: async () => ({ ok: true, value: { dispatch: 'pull', defaultBranch: dispatchBranch } }) },
+          useValue: {
+            dispatch: async () => ({ ok: true, value: { dispatch: 'pull', defaultBranch: dispatchBranch } }),
+          },
         },
       ],
     });
@@ -57,7 +68,8 @@ describe('ProjectActionsPage (#759)', () => {
     };
     await settle();
     const root = fixture.nativeElement as HTMLElement;
-    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null => root.querySelector<T>(`[data-testid="${id}"]`);
+    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
+      root.querySelector<T>(`[data-testid="${id}"]`);
     return { root, find, checks, settle };
   }
 
@@ -65,7 +77,12 @@ describe('ProjectActionsPage (#759)', () => {
 
   it('checks once on entry and counts the missing steps, the default branch in the copy', async () => {
     const { find, checks, root } = await render([
-      { ok: true, value: actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }) },
+      {
+        ok: true,
+        value: actionsSetupFixture({
+          items: { secret: { status: 'missing' }, workflow: { status: 'missing' } },
+        }),
+      },
     ]);
     expect(checks).toEqual(['storify']);
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('Запуск на GitHub Actions');
@@ -75,7 +92,12 @@ describe('ProjectActionsPage (#759)', () => {
 
   it('names the branch the check read before any switch recorded one (#870)', async () => {
     const { root } = await render(
-      [{ ok: true, value: actionsSetupFixture({ defaultBranch: 'trunk', items: { workflow: { status: 'missing' } } }) }],
+      [
+        {
+          ok: true,
+          value: actionsSetupFixture({ defaultBranch: 'trunk', items: { workflow: { status: 'missing' } } }),
+        },
+      ],
       [],
       null,
     );
@@ -120,7 +142,10 @@ describe('ProjectActionsPage (#759)', () => {
 
   it('shows drift when switched on and no longer ready', async () => {
     const { find } = await render([
-      { ok: true, value: actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }) },
+      {
+        ok: true,
+        value: actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }),
+      },
     ]);
     expect(find('actions-drift')?.textContent).toContain('репозиторий больше не готов');
   });
@@ -128,10 +153,16 @@ describe('ProjectActionsPage (#759)', () => {
   it('adds step 6 once it is on: waiting with no Actions job yet, done with a finished one', async () => {
     const on = { ok: true, value: actionsSetupFixture({ dispatch: 'actions' }) } as const;
     const waiting = await render([on]);
-    expect(waiting.root.querySelector('[data-step="first-job"]')?.getAttribute('data-first-job')).toBe('waiting');
+    expect(waiting.root.querySelector('[data-step="first-job"]')?.getAttribute('data-first-job')).toBe(
+      'waiting',
+    );
     document.body.replaceChildren();
     TestBed.resetTestingModule();
-    const finished = jobFixture({ dispatch: 'actions', state: 'finished', finishedAt: '2026-11-21T10:00:00.000Z' });
+    const finished = jobFixture({
+      dispatch: 'actions',
+      state: 'finished',
+      finishedAt: '2026-11-21T10:00:00.000Z',
+    });
     const done = await render([on], [finished]);
     expect(done.root.querySelector('[data-step="first-job"]')?.getAttribute('data-first-job')).toBe('done');
   });

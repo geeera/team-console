@@ -92,7 +92,11 @@ type Env = Readonly<Record<string, string | undefined>>;
  * that node's `npm i -g` is found. `stdinRequestToken` is the line `--request-token -` read; with it, the variable
  * must be unset, so which of the two was used is never a guess.
  */
-export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToken?: string): ActionsRunSettings {
+export function actionsRunSettingsOf(
+  env: Env,
+  nodeDir: string,
+  stdinRequestToken?: string,
+): ActionsRunSettings {
   const problems: string[] = [];
   const read = (name: string): string => {
     const value = env[name]?.trim() ?? '';
@@ -139,7 +143,9 @@ export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToke
   } else {
     idTokenToken = stdinRequestToken.trim();
     if (optional(ACTIONS_RUN_ENV.idTokenToken) !== null) {
-      problems.push(`give the request token once: --request-token - or ${ACTIONS_RUN_ENV.idTokenToken}, not both`);
+      problems.push(
+        `give the request token once: --request-token - or ${ACTIONS_RUN_ENV.idTokenToken}, not both`,
+      );
     }
     if (!TOKEN_VALUE.test(idTokenToken)) {
       problems.push('--request-token - did not read one token from stdin');
@@ -151,7 +157,10 @@ export function actionsRunSettingsOf(env: Env, nodeDir: string, stdinRequestToke
     problems.push(`${ACTIONS_RUN_ENV.serverUrl} must be an https origin`);
   }
   const repository = read(ACTIONS_RUN_ENV.repository);
-  if (repository !== '' && (!REPOSITORY.test(repository) || repository.split('/').some((part) => /^\.+$/.test(part)))) {
+  if (
+    repository !== '' &&
+    (!REPOSITORY.test(repository) || repository.split('/').some((part) => /^\.+$/.test(part)))
+  ) {
     problems.push(`${ACTIONS_RUN_ENV.repository} must be <owner>/<name>`);
   }
   const readToken = optional(ACTIONS_RUN_ENV.readToken);
@@ -242,7 +251,10 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
   }
 
   const key = generateRunnerKey();
-  const idToken = await requestActionsIdToken({ ...settings.idToken, audience: settings.audience }, deps.fetch);
+  const idToken = await requestActionsIdToken(
+    { ...settings.idToken, audience: settings.audience },
+    deps.fetch,
+  );
   const exchanged = await postOidcExchange(
     settings.apiUrl,
     {
@@ -273,27 +285,32 @@ export async function runOnceOidc(deps: OidcRunDeps): Promise<OidcRunEnd> {
     credential,
     ...(settings.readToken === null ? {} : { vcs: { readToken: settings.readToken } }),
   };
-  const report = await runJob(job, exchanged.jobToken, {
-    home: settings.home,
-    config,
-    client: new RunnerClient({
-      apiUrl: settings.apiUrl,
-      runnerId: exchanged.runner.id,
-      audience: exchanged.runner.audience,
-      privateKey: key.privateKey,
-      fetch: deps.fetch,
-    }),
-    backend,
-    registry: new JobRegistry(),
-    sourceEnv,
-    log,
-    now: deps.now,
-    shutdown: deps.shutdown,
-    // One job per identity: a limit has no next claim to pause, so the streak starts and ends here.
-    limitStreak: 0,
-    // The exchange created this identity for exactly this project (#775: `selected`, server-set); the scope is that.
-    scope: { source: 'exchange', projectScope: 'selected', projects: [job.projectSlug] },
-    ...deps.timing,
-  }, exchanged.teamConfig);
+  const report = await runJob(
+    job,
+    exchanged.jobToken,
+    {
+      home: settings.home,
+      config,
+      client: new RunnerClient({
+        apiUrl: settings.apiUrl,
+        runnerId: exchanged.runner.id,
+        audience: exchanged.runner.audience,
+        privateKey: key.privateKey,
+        fetch: deps.fetch,
+      }),
+      backend,
+      registry: new JobRegistry(),
+      sourceEnv,
+      log,
+      now: deps.now,
+      shutdown: deps.shutdown,
+      // One job per identity: a limit has no next claim to pause, so the streak starts and ends here.
+      limitStreak: 0,
+      // The exchange created this identity for exactly this project (#775: `selected`, server-set); the scope is that.
+      scope: { source: 'exchange', projectScope: 'selected', projects: [job.projectSlug] },
+      ...deps.timing,
+    },
+    exchanged.teamConfig,
+  );
   return { kind: 'ran', report };
 }

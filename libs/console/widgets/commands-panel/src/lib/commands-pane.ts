@@ -20,7 +20,9 @@ import { CommandsPanel, type CommandsProject } from './commands-panel';
 })
 export class CommandsPane {
   private readonly transloco = inject(TranslocoService);
-  private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  private readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   readonly project = input.required<CommandsProject>();
   readonly closed = output<void>();

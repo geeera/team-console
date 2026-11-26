@@ -1,6 +1,12 @@
 import { lstatSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { BUNDLE_FILE, NODE_FILE, RELEASE_FILES, RELEASE_SUMS_FILE, runnerReleaseChannelOf } from '@shared/contracts';
+import {
+  BUNDLE_FILE,
+  NODE_FILE,
+  RELEASE_FILES,
+  RELEASE_SUMS_FILE,
+  runnerReleaseChannelOf,
+} from '@shared/contracts';
 
 /**
  * The install directory `update` maintains (#604): each release in its own `releases/<version>/`, one `current`
@@ -25,15 +31,18 @@ export const releaseDirOf = (version: string): string => join(RELEASES_DIR, vers
 export const BIN_DIR = 'bin';
 
 /** The file names inside `bin/` that a release holds. */
-export const BIN_FILES: readonly string[] = RELEASE_FILES.filter((file) => file.startsWith(`${BIN_DIR}/`)).map(
-  (file) => basename(file),
-);
+export const BIN_FILES: readonly string[] = RELEASE_FILES.filter((file) =>
+  file.startsWith(`${BIN_DIR}/`),
+).map((file) => basename(file));
 
 /** Relative to `bin/`, so the prefix stays movable. */
 export const binLinkTargetOf = (file: string): string => join('..', CURRENT_LINK, BIN_DIR, file);
 
 /** What the top-level files of a converted prefix link to, in the order they are switched: the bundle last. */
-export const SUMS_LINK: Readonly<[string, string]> = [RELEASE_SUMS_FILE, join(CURRENT_LINK, RELEASE_SUMS_FILE)];
+export const SUMS_LINK: Readonly<[string, string]> = [
+  RELEASE_SUMS_FILE,
+  join(CURRENT_LINK, RELEASE_SUMS_FILE),
+];
 export const NODE_LINK: Readonly<[string, string]> = [NODE_FILE, join(CURRENT_LINK, NODE_FILE)];
 export const BUNDLE_LINK: Readonly<[string, string]> = [BUNDLE_FILE, join(CURRENT_LINK, BUNDLE_FILE)];
 

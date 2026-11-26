@@ -707,7 +707,9 @@ describe('the installation-wide list token (#194, ADR 0003 decisions 2(a) and 6 
         }),
       );
       const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
-      await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe(installationToken('list'));
+      await expect(auth.listTokenSourceFor(INSTALLATION_ID).getToken()).resolves.toBe(
+        installationToken('list'),
+      );
     },
   );
 
@@ -812,7 +814,13 @@ describe('readInstallationPermissions', () => {
     html_url: `https://github.com/settings/installations/${String(INSTALLATION_ID)}`,
     suspended_at: null,
     created_at: '2026-11-01T00:00:00Z',
-    permissions: { metadata: 'read', actions: 'write', environments: 'read', 'odd name': 'write', contents: 'none' },
+    permissions: {
+      metadata: 'read',
+      actions: 'write',
+      environments: 'read',
+      'odd name': 'write',
+      contents: 'none',
+    },
     ...overrides,
   });
 
@@ -829,7 +837,10 @@ describe('readInstallationPermissions', () => {
     expect(JSON.stringify(read)).not.toContain('owner@example.com');
     const [call] = github.calls;
     expect(call?.url).toBe(`https://api.github.com/app/installations/${String(INSTALLATION_ID)}`);
-    const decoded = await decodeJwt(call?.headers.get('authorization')?.replace(/^Bearer /, '') ?? '', key.publicKey);
+    const decoded = await decodeJwt(
+      call?.headers.get('authorization')?.replace(/^Bearer /, '') ?? '',
+      key.publicKey,
+    );
     expect(decoded.claims['iss']).toBe(APP_ID);
     // No token is minted to learn what the installation was granted.
     expect(github.calls.some((entry) => new URL(entry.url).pathname.endsWith('/access_tokens'))).toBe(false);
@@ -837,7 +848,14 @@ describe('readInstallationPermissions', () => {
 
   it('reports a suspended installation, and drops a settings page or slug that is not GitHub’s', async () => {
     const github = scriptedGitHub(() =>
-      json(200, installation({ suspended_at: '2026-11-02T00:00:00Z', html_url: 'https://evil.example.com/x', app_slug: 'Bad Slug' })),
+      json(
+        200,
+        installation({
+          suspended_at: '2026-11-02T00:00:00Z',
+          html_url: 'https://evil.example.com/x',
+          app_slug: 'Bad Slug',
+        }),
+      ),
     );
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
     await expect(auth.readInstallationPermissions(INSTALLATION_ID)).resolves.toMatchObject({
@@ -858,13 +876,17 @@ describe('readInstallationPermissions', () => {
   it('refuses an answer for another installation id with 502 github-unexpected', async () => {
     const github = scriptedGitHub(() => json(200, installation({ id: INSTALLATION_ID + 1 })));
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
-    expect((await rejection(auth.readInstallationPermissions(INSTALLATION_ID))).problem.type).toBe('github-unexpected');
+    expect((await rejection(auth.readInstallationPermissions(INSTALLATION_ID))).problem.type).toBe(
+      'github-unexpected',
+    );
   });
 
   it('maps a GitHub 5xx to github-unavailable', async () => {
     const github = scriptedGitHub(() => json(503, { message: 'unavailable' }));
     const auth = new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch });
-    expect((await rejection(auth.readInstallationPermissions(INSTALLATION_ID))).problem.type).toBe('github-unavailable');
+    expect((await rejection(auth.readInstallationPermissions(INSTALLATION_ID))).problem.type).toBe(
+      'github-unavailable',
+    );
   });
 
   it.each([0, -1, 1.5, Number.NaN])('refuses installation id %s before any request', async (id) => {

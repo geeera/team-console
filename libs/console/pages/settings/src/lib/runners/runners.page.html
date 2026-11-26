@@ -8,191 +8,210 @@
     <p class="runners__lead">{{ 'runners.lead' | transloco }}</p>
   </header>
 
-  @switch (store.status()) {
-    @case ('ready') {
-      <section class="runners__section" aria-labelledby="runners-machines" data-testid="runners-machines">
-        <div class="runners__section-head">
-          <h2 id="runners-machines" class="runners__section-title">{{ 'runners.machines' | transloco }}</h2>
-          <div class="runners__section-actions">
-            <button tc-button size="sm" type="button" data-testid="runners-refresh" (click)="reload()">
-              <tc-icon name="refresh" size="sm" />{{ 'runners.refresh' | transloco }}
-            </button>
-            @if (!store.isEmpty()) {
-              <button tc-button size="sm" type="button" variant="primary" data-testid="runners-enrol" (click)="enrolRunner()">
-                <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
-              </button>
+  @switch (store.status()) { @case ('ready') {
+  <section class="runners__section" aria-labelledby="runners-machines" data-testid="runners-machines">
+    <div class="runners__section-head">
+      <h2 id="runners-machines" class="runners__section-title">{{ 'runners.machines' | transloco }}</h2>
+      <div class="runners__section-actions">
+        <button tc-button size="sm" type="button" data-testid="runners-refresh" (click)="reload()">
+          <tc-icon name="refresh" size="sm" />{{ 'runners.refresh' | transloco }}
+        </button>
+        @if (!store.isEmpty()) {
+        <button
+          tc-button
+          size="sm"
+          type="button"
+          variant="primary"
+          data-testid="runners-enrol"
+          (click)="enrolRunner()"
+        >
+          <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
+        </button>
+        }
+      </div>
+    </div>
+    @if (store.release().minimumVersion; as minimum) {
+    <p class="runners__release" data-testid="runners-release">
+      {{ 'runners.release' | transloco: { version: store.release().version ?? '—', minimum: minimum } }}
+    </p>
+    } @if (store.pendingEnrolments().length > 0) {
+    <div class="runners__pending" data-testid="runners-pending">
+      <h3 id="runners-pending-title" class="runners__policy-title">
+        {{ 'runners.pending.title' | transloco }}
+      </h3>
+      <p class="runners__lead">{{ 'runners.pending.lead' | transloco }}</p>
+      <ul class="runners__pending-list" role="list" aria-labelledby="runners-pending-title">
+        @for (enrolment of store.pendingEnrolments(); track enrolment.id) {
+        <li class="runners__pending-row" data-testid="runners-pending-code">
+          <span class="runners__pending-text">
+            <strong dir="auto">{{ enrolment.name }}</strong>
+            · {{ 'runners.pending.expires' | transloco: { time: enrolment.expiresAt | localTime } }} · @if
+            (enrolment.projectScope === 'all') { {{ 'runners.pending.scopeAll' | transloco }} } @else if
+            (enrolment.allowedProjects.length > 0) { {{ 'runners.pending.projects' | transloco: { projects:
+            enrolment.allowedProjects.join(', ') } }} } @else { {{ 'runners.pending.noProjects' | transloco }}
             }
-          </div>
-        </div>
-        @if (store.release().minimumVersion; as minimum) {
-          <p class="runners__release" data-testid="runners-release">
-            {{ 'runners.release' | transloco: { version: store.release().version ?? '—', minimum: minimum } }}
-          </p>
-        }
-        @if (store.pendingEnrolments().length > 0) {
-          <div class="runners__pending" data-testid="runners-pending">
-            <h3 id="runners-pending-title" class="runners__policy-title">{{ 'runners.pending.title' | transloco }}</h3>
-            <p class="runners__lead">{{ 'runners.pending.lead' | transloco }}</p>
-            <ul class="runners__pending-list" role="list" aria-labelledby="runners-pending-title">
-              @for (enrolment of store.pendingEnrolments(); track enrolment.id) {
-                <li class="runners__pending-row" data-testid="runners-pending-code">
-                  <span class="runners__pending-text">
-                    <strong dir="auto">{{ enrolment.name }}</strong>
-                    · {{ 'runners.pending.expires' | transloco: { time: enrolment.expiresAt | localTime } }}
-                    ·
-                    @if (enrolment.projectScope === 'all') {
-                      {{ 'runners.pending.scopeAll' | transloco }}
-                    } @else if (enrolment.allowedProjects.length > 0) {
-                      {{ 'runners.pending.projects' | transloco: { projects: enrolment.allowedProjects.join(', ') } }}
-                    } @else {
-                      {{ 'runners.pending.noProjects' | transloco }}
-                    }
-                  </span>
-                  <button
-                    tc-button
-                    size="sm"
-                    type="button"
-                    variant="danger"
-                    data-testid="runners-pending-withdraw"
-                    [attr.aria-label]="'runners.pending.withdrawAria' | transloco: { name: enrolment.name }"
-                    (click)="withdrawEnrolment(enrolment)"
-                  >
-                    {{ 'runners.pending.withdraw' | transloco }}
-                  </button>
-                </li>
-              }
-            </ul>
-          </div>
-        }
-        @if (store.isEmpty()) {
-          <tc-state-block
-            kind="empty"
-            icon="play"
-            data-testid="runners-empty"
-            [title]="'runners.empty.title' | transloco"
-            [description]="'runners.empty.body' | transloco"
+          </span>
+          <button
+            tc-button
+            size="sm"
+            type="button"
+            variant="danger"
+            data-testid="runners-pending-withdraw"
+            [attr.aria-label]="'runners.pending.withdrawAria' | transloco: { name: enrolment.name }"
+            (click)="withdrawEnrolment(enrolment)"
           >
-            <button tc-button tc-state-action type="button" variant="primary" data-testid="runners-enrol" (click)="enrolRunner()">
-              <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
+            {{ 'runners.pending.withdraw' | transloco }}
+          </button>
+        </li>
+        }
+      </ul>
+    </div>
+    } @if (store.isEmpty()) {
+    <tc-state-block
+      kind="empty"
+      icon="play"
+      data-testid="runners-empty"
+      [title]="'runners.empty.title' | transloco"
+      [description]="'runners.empty.body' | transloco"
+    >
+      <button
+        tc-button
+        tc-state-action
+        type="button"
+        variant="primary"
+        data-testid="runners-enrol"
+        (click)="enrolRunner()"
+      >
+        <tc-icon name="plus" size="sm" />{{ 'runners.enrol.open' | transloco }}
+      </button>
+    </tc-state-block>
+    } @else {
+    <ul class="runners__list" role="list">
+      @for (runner of store.runners(); track runner.id) {
+      <li>
+        <tc-runner-card [runner]="runner" [minimumVersion]="store.release().minimumVersion">
+          @if (runner.revokedAt === null) {
+          <span tc-runner-actions class="runners__actions">
+            <button
+              tc-button
+              size="sm"
+              type="button"
+              data-testid="runner-edit-projects"
+              [attr.aria-label]="'runners.scope.editAria' | transloco: { name: runner.name }"
+              (click)="editProjects(runner)"
+            >
+              {{ 'runners.scope.edit' | transloco }}
             </button>
-          </tc-state-block>
-        } @else {
-          <ul class="runners__list" role="list">
-            @for (runner of store.runners(); track runner.id) {
-              <li>
-                <tc-runner-card [runner]="runner" [minimumVersion]="store.release().minimumVersion">
-                  @if (runner.revokedAt === null) {
-                    <span tc-runner-actions class="runners__actions">
-                      <button
-                        tc-button
-                        size="sm"
-                        type="button"
-                        data-testid="runner-edit-projects"
-                        [attr.aria-label]="'runners.scope.editAria' | transloco: { name: runner.name }"
-                        (click)="editProjects(runner)"
-                      >
-                        {{ 'runners.scope.edit' | transloco }}
-                      </button>
-                      @if (runner.enroller === 'claimable') {
-                        <button
-                          tc-button
-                          size="sm"
-                          type="button"
-                          data-testid="runner-claim-enroller"
-                          [attr.aria-label]="'runners.enroller.aria' | transloco: { name: runner.name }"
-                          (click)="claimEnroller(runner)"
-                        >
-                          {{ 'runners.enroller.open' | transloco }}
-                        </button>
-                      }
-                      @if (runner.suspect !== null) {
-                        <button
-                          tc-button
-                          size="sm"
-                          type="button"
-                          data-testid="runner-clear-suspect"
-                          [attr.aria-label]="'runners.suspect.aria' | transloco: { name: runner.name }"
-                          (click)="clearSuspect(runner)"
-                        >
-                          {{ 'runners.suspect.open' | transloco }}
-                        </button>
-                      }
-                      <button
-                        tc-button
-                        size="sm"
-                        type="button"
-                        variant="danger"
-                        data-testid="runner-revoke"
-                        [attr.aria-label]="'runners.revoke.aria' | transloco: { name: runner.name }"
-                        (click)="revoke(runner)"
-                      >
-                        {{ 'runners.revoke.open' | transloco }}
-                      </button>
-                    </span>
-                  }
-                </tc-runner-card>
-              </li>
+            @if (runner.enroller === 'claimable') {
+            <button
+              tc-button
+              size="sm"
+              type="button"
+              data-testid="runner-claim-enroller"
+              [attr.aria-label]="'runners.enroller.aria' | transloco: { name: runner.name }"
+              (click)="claimEnroller(runner)"
+            >
+              {{ 'runners.enroller.open' | transloco }}
+            </button>
+            } @if (runner.suspect !== null) {
+            <button
+              tc-button
+              size="sm"
+              type="button"
+              data-testid="runner-clear-suspect"
+              [attr.aria-label]="'runners.suspect.aria' | transloco: { name: runner.name }"
+              (click)="clearSuspect(runner)"
+            >
+              {{ 'runners.suspect.open' | transloco }}
+            </button>
             }
-          </ul>
-        }
-      </section>
-
-      <section class="runners__section" aria-labelledby="runners-placement" data-testid="runners-placement">
-        <div>
-          <h2 id="runners-placement" class="runners__section-title">{{ 'runners.policy.title' | transloco }}</h2>
-          <p class="runners__lead">{{ 'runners.policy.lead' | transloco }}</p>
-        </div>
-        @if (accountScope(); as scope) {
-          <div class="runners__policy" data-testid="runners-policy-account">
-            <h3 class="runners__policy-title">{{ 'runners.policy.account' | transloco }}</h3>
-            <tc-runner-policy-editor [scope]="scope" [runners]="store.runners()" (saved)="accountPolicySaved()" />
-          </div>
-        }
-        <div class="runners__policy" data-testid="runners-policy-project">
-          <h3 class="runners__policy-title">{{ 'runners.policy.project' | transloco }}</h3>
-          @if (projectScope(); as scope) {
-            <tc-field [label]="'runners.policy.pickProject' | transloco" required>
-              <select tcInput data-testid="runners-policy-pick" (change)="pickProject($any($event.target).value)">
-                @for (project of projects(); track project.slug) {
-                  <option [value]="project.slug" [selected]="project.slug === projectSlug()">{{ project.displayName }}</option>
-                }
-              </select>
-            </tc-field>
-            <tc-runner-policy-editor
-              [scope]="scope"
-              [runners]="store.runners()"
-              [revision]="accountRevision()"
-              [teamUrl]="teamUrl()"
-            />
-            @if (projectSlug(); as slug) {
-              <div class="runners__dispatch" data-testid="runners-dispatch" role="group" aria-labelledby="runners-dispatch-title">
-                <h4 id="runners-dispatch-title" class="runners__policy-title">{{ 'runners.dispatch.title' | transloco }}</h4>
-                <p class="runners__lead">{{ 'runners.dispatch.lead' | transloco }}</p>
-                <tc-project-dispatch-editor [slug]="slug" [teamUrl]="teamUrl()" />
-              </div>
-            }
-          } @else {
-            <p class="runners__lead">{{ 'runners.policy.noProjects' | transloco }}</p>
+            <button
+              tc-button
+              size="sm"
+              type="button"
+              variant="danger"
+              data-testid="runner-revoke"
+              [attr.aria-label]="'runners.revoke.aria' | transloco: { name: runner.name }"
+              (click)="revoke(runner)"
+            >
+              {{ 'runners.revoke.open' | transloco }}
+            </button>
+          </span>
           }
-        </div>
-      </section>
+        </tc-runner-card>
+      </li>
+      }
+    </ul>
     }
-    @case ('forbidden') {
-      <tc-state-block
-        kind="error"
-        icon="lock"
-        data-testid="runners-forbidden"
-        [title]="'runners.forbidden.title' | transloco"
-        [description]="(store.forbidden() === 'none' ? 'runners.forbidden.none' : 'runners.forbidden.member') | transloco"
+  </section>
+
+  <section class="runners__section" aria-labelledby="runners-placement" data-testid="runners-placement">
+    <div>
+      <h2 id="runners-placement" class="runners__section-title">{{ 'runners.policy.title' | transloco }}</h2>
+      <p class="runners__lead">{{ 'runners.policy.lead' | transloco }}</p>
+    </div>
+    @if (accountScope(); as scope) {
+    <div class="runners__policy" data-testid="runners-policy-account">
+      <h3 class="runners__policy-title">{{ 'runners.policy.account' | transloco }}</h3>
+      <tc-runner-policy-editor [scope]="scope" [runners]="store.runners()" (saved)="accountPolicySaved()" />
+    </div>
+    }
+    <div class="runners__policy" data-testid="runners-policy-project">
+      <h3 class="runners__policy-title">{{ 'runners.policy.project' | transloco }}</h3>
+      @if (projectScope(); as scope) {
+      <tc-field [label]="'runners.policy.pickProject' | transloco" required>
+        <select tcInput data-testid="runners-policy-pick" (change)="pickProject($any($event.target).value)">
+          @for (project of projects(); track project.slug) {
+          <option [value]="project.slug" [selected]="project.slug === projectSlug()">
+            {{ project.displayName }}
+          </option>
+          }
+        </select>
+      </tc-field>
+      <tc-runner-policy-editor
+        [scope]="scope"
+        [runners]="store.runners()"
+        [revision]="accountRevision()"
+        [teamUrl]="teamUrl()"
       />
-    }
-    @case ('error') {
-      <tc-state-block kind="error" data-testid="runners-error" [title]="'runners.loadFailed' | transloco" [description]="failureText()">
-        <button tc-button tc-state-action type="button" (click)="reload()">{{ 'ui.error.retry' | transloco }}</button>
-      </tc-state-block>
-    }
-    @default {
-      <tc-state-block kind="loading" data-testid="runners-loading" [title]="'runners.loading' | transloco" />
-    }
-  }
+      @if (projectSlug(); as slug) {
+      <div
+        class="runners__dispatch"
+        data-testid="runners-dispatch"
+        role="group"
+        aria-labelledby="runners-dispatch-title"
+      >
+        <h4 id="runners-dispatch-title" class="runners__policy-title">
+          {{ 'runners.dispatch.title' | transloco }}
+        </h4>
+        <p class="runners__lead">{{ 'runners.dispatch.lead' | transloco }}</p>
+        <tc-project-dispatch-editor [slug]="slug" [teamUrl]="teamUrl()" />
+      </div>
+      } } @else {
+      <p class="runners__lead">{{ 'runners.policy.noProjects' | transloco }}</p>
+      }
+    </div>
+  </section>
+  } @case ('forbidden') {
+  <tc-state-block
+    kind="error"
+    icon="lock"
+    data-testid="runners-forbidden"
+    [title]="'runners.forbidden.title' | transloco"
+    [description]="(store.forbidden() === 'none' ? 'runners.forbidden.none' : 'runners.forbidden.member') | transloco"
+  />
+  } @case ('error') {
+  <tc-state-block
+    kind="error"
+    data-testid="runners-error"
+    [title]="'runners.loadFailed' | transloco"
+    [description]="failureText()"
+  >
+    <button tc-button tc-state-action type="button" (click)="reload()">
+      {{ 'ui.error.retry' | transloco }}
+    </button>
+  </tc-state-block>
+  } @default {
+  <tc-state-block kind="loading" data-testid="runners-loading" [title]="'runners.loading' | transloco" />
+  } }
 </div>

@@ -96,7 +96,12 @@ async function claimJob(api: APIRequestContext, runner: Runner): Promise<ClaimRe
   return (await asRunner(api, runner, '/jobs/claim', {})) as ClaimResponse;
 }
 
-async function finishJob(api: APIRequestContext, runner: Runner, jobId: string, costUsd: number): Promise<void> {
+async function finishJob(
+  api: APIRequestContext,
+  runner: Runner,
+  jobId: string,
+  costUsd: number,
+): Promise<void> {
   await asRunner(api, runner, `/jobs/${jobId}/finish`, {
     result: 'finished',
     summary: 'Reviewed',
@@ -271,7 +276,9 @@ test('beside an owner’s own pause, Raise says the team stays paused and never 
     await field.fill('25');
     await dialog.getByRole('button', { name: ru('budget.raise.confirm') }).click();
 
-    await expect(page.getByRole('status').filter({ hasText: ru('budget.raise.savedStillPaused') })).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: ru('budget.raise.savedStillPaused') }),
+    ).toBeVisible();
     await expect(page.getByRole('status').filter({ hasText: ru('budget.resumed') })).toHaveCount(0);
     await expect(page.getByTestId('budget-stop')).toHaveCount(0);
 

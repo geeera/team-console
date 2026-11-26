@@ -111,7 +111,10 @@ export function projectOwnerRefusal(c: WorkerContext<ApiEnv>, project: ProjectRo
   if (canManageProject(c, project)) {
     return null;
   }
-  c.get('logger').warn('project write refused', { reason: 'account-owner-only', identity: c.get('identity').kind });
+  c.get('logger').warn('project write refused', {
+    reason: 'account-owner-only',
+    identity: c.get('identity').kind,
+  });
   return problem(c, {
     type: 'account-owner-only',
     title: 'Forbidden',

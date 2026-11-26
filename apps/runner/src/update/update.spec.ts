@@ -1,8 +1,25 @@
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import {
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { RELEASE_FILES, attestationVerifyArgs, releasePlatformOf, tarballNameOf, type RunnerReleaseDto } from '@shared/contracts';
+import {
+  RELEASE_FILES,
+  attestationVerifyArgs,
+  releasePlatformOf,
+  tarballNameOf,
+  type RunnerReleaseDto,
+} from '@shared/contracts';
 import type { Exec, ExecOptions, ExecResult } from '../host/exec';
 import { AUTO_UPDATE_INTERVAL_MS, autoUpdater } from './auto-update';
 import { installRootOf } from './install-layout';
@@ -71,13 +88,17 @@ describe('update: which version (C11 row 2, RR13)', () => {
 
   it('refuses a version lower than the installed one', async () => {
     expect(
-      await refusal(checkForUpdate({ currentVersion: INSTALLED, policy: 'notify', release: release('0.1.9') })),
+      await refusal(
+        checkForUpdate({ currentVersion: INSTALLED, policy: 'notify', release: release('0.1.9') }),
+      ),
     ).toBe('downgrade');
   });
 
   it('refuses a pre-release of the installed version as a downgrade', async () => {
     expect(
-      await refusal(checkForUpdate({ currentVersion: INSTALLED, policy: 'auto', release: release('0.2.0-rc.1') })),
+      await refusal(
+        checkForUpdate({ currentVersion: INSTALLED, policy: 'auto', release: release('0.2.0-rc.1') }),
+      ),
     ).toBe('downgrade');
   });
 
@@ -91,7 +112,9 @@ describe('update: which version (C11 row 2, RR13)', () => {
 
   it('refuses a version it cannot order', async () => {
     expect(
-      await refusal(checkForUpdate({ currentVersion: 'dev-build', policy: 'notify', release: release(TARGET) })),
+      await refusal(
+        checkForUpdate({ currentVersion: 'dev-build', policy: 'notify', release: release(TARGET) }),
+      ),
     ).toBe('version-unreadable');
   });
 
@@ -252,11 +275,14 @@ describe('update: installing a release (C11 row 1)', () => {
     };
   }
 
-  const installedBundle = async (): Promise<string> => await readFile(join(prefix, 'team-console-runner.mjs'), 'utf8');
+  const installedBundle = async (): Promise<string> =>
+    await readFile(join(prefix, 'team-console-runner.mjs'), 'utf8');
   const stagingLeft = async (): Promise<string[]> => await readdir(join(home, 'updates')).catch(() => []);
   /** Each call as `command` plus its leading flags, without the run's temp paths. */
   const commands = (): string[] =>
-    calls.map((call) => [call.command, ...call.args.filter((arg) => !arg.startsWith(parent)).slice(0, 2)].join(' '));
+    calls.map((call) =>
+      [call.command, ...call.args.filter((arg) => !arg.startsWith(parent)).slice(0, 2)].join(' '),
+    );
 
   it('downloads, verifies, checks the tree and switches the prefix to the release', async () => {
     await applyUpdate(TARGET, depsOf({}));
@@ -287,8 +313,12 @@ describe('update: installing a release (C11 row 1)', () => {
       '--dir',
       download[8],
     ]);
-    expect(calls[2]?.args).toEqual(attestationVerifyArgs(join(download[8] ?? '', tarballNameOf(TARGET, 'darwin-arm64')), TARGET));
-    expect(calls.filter((call) => call.command === 'gh').every((call) => call.env?.['GH_HOST'] === undefined)).toBe(true);
+    expect(calls[2]?.args).toEqual(
+      attestationVerifyArgs(join(download[8] ?? '', tarballNameOf(TARGET, 'darwin-arm64')), TARGET),
+    );
+    expect(
+      calls.filter((call) => call.command === 'gh').every((call) => call.env?.['GH_HOST'] === undefined),
+    ).toBe(true);
     expect(await stagingLeft()).toEqual([]);
     expect(log.join('\n')).toContain('verified team-console-runner-0.3.0-darwin-arm64.tar.gz');
   });
@@ -450,15 +480,18 @@ describe('update: installing a release (C11 row 1)', () => {
   });
 
   // #900: `sudo … update` has a fixed PATH without Homebrew; "install gh" would send the owner the wrong way.
-  it.each(['enoent', 'exit'] as const)('as root, says gh is off root’s PATH and points to the manual update (%s)', async (ghMissing) => {
-    const { problem, message } = await refused(applyUpdate(TARGET, depsOf({ ghMissing }, { uid: 0 })));
-    expect(problem).toBe('gh-missing');
-    expect(message).toContain("only from root's PATH (/usr/bin:/bin)");
-    expect(message).toContain('updated by hand: docs/runbooks/runner.md › Update');
-    expect(message).not.toContain('install it (https://cli.github.com)');
-    expect(commands()).toEqual(['gh --version']);
-    expect(await installedBundle()).toBe(OLD_BUNDLE);
-  });
+  it.each(['enoent', 'exit'] as const)(
+    'as root, says gh is off root’s PATH and points to the manual update (%s)',
+    async (ghMissing) => {
+      const { problem, message } = await refused(applyUpdate(TARGET, depsOf({ ghMissing }, { uid: 0 })));
+      expect(problem).toBe('gh-missing');
+      expect(message).toContain("only from root's PATH (/usr/bin:/bin)");
+      expect(message).toContain('updated by hand: docs/runbooks/runner.md › Update');
+      expect(message).not.toContain('install it (https://cli.github.com)');
+      expect(commands()).toEqual(['gh --version']);
+      expect(await installedBundle()).toBe(OLD_BUNDLE);
+    },
+  );
 
   it('as a user, still says to install gh and log in', async () => {
     const { message } = await refused(applyUpdate(TARGET, depsOf({ ghMissing: 'enoent' }, { uid: 501 })));
@@ -513,7 +546,9 @@ describe('update: installing a release (C11 row 1)', () => {
   });
 
   it('refuses a bundle that reports another version than the release it came from', async () => {
-    expect(await refusal(applyUpdate(TARGET, depsOf({ reportedVersion: '9.9.9' })))).toBe('verification-failed');
+    expect(await refusal(applyUpdate(TARGET, depsOf({ reportedVersion: '9.9.9' })))).toBe(
+      'verification-failed',
+    );
     expect(await installedBundle()).toBe(OLD_BUNDLE);
   });
 

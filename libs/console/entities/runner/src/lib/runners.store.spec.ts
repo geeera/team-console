@@ -2,20 +2,37 @@ import { TestBed } from '@angular/core/testing';
 import { OWNER_ACCOUNT_ID, type AccountMembershipDto, type RunnerListDto } from '@shared/contracts';
 import type { RunnerResult } from './runner-failure';
 import { RUNNER_FIXTURE_IDS, runnerFixture } from './runner.fixture';
-import { liveRunnersOf, managedAccountOf, projectPauseOf, runnerPresenceOf, runnersInDisplayOrder } from './runner.model';
+import {
+  liveRunnersOf,
+  managedAccountOf,
+  projectPauseOf,
+  runnerPresenceOf,
+  runnersInDisplayOrder,
+} from './runner.model';
 import { RunnersApi } from './runners.api';
 import { RunnersStore } from './runners.store';
 
 const OWNER: AccountMembershipDto = { id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role: 'owner' };
-const MEMBER: AccountMembershipDto = { id: '01M6YSNJ0000000000000000A2', slug: 'acme', name: 'Acme', role: 'member' };
+const MEMBER: AccountMembershipDto = {
+  id: '01M6YSNJ0000000000000000A2',
+  slug: 'acme',
+  name: 'Acme',
+  role: 'member',
+};
 const RELEASE = { version: '0.3.0', minimumVersion: '0.2.0' };
 
 describe('RunnersStore', () => {
   function setup(
     accounts: RunnerResult<readonly AccountMembershipDto[]>,
-    list: (accountId: string) => RunnerResult<RunnerListDto> = () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
+    list: (accountId: string) => RunnerResult<RunnerListDto> = () => ({
+      ok: true,
+      value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE },
+    }),
   ) {
-    const api = { accounts: vi.fn(async () => accounts), list: vi.fn(async (accountId: string) => list(accountId)) };
+    const api = {
+      accounts: vi.fn(async () => accounts),
+      list: vi.fn(async (accountId: string) => list(accountId)),
+    };
     TestBed.configureTestingModule({ providers: [{ provide: RunnersApi, useValue: api }] });
     return { store: TestBed.inject(RunnersStore), api };
   }
@@ -32,11 +49,20 @@ describe('RunnersStore', () => {
   });
 
   it("reads every owned account's runners and answers by account (#847)", async () => {
-    const second: AccountMembershipDto = { id: '01M6YSNJ0000000000000000A3', slug: 'two', name: 'Two', role: 'owner' };
+    const second: AccountMembershipDto = {
+      id: '01M6YSNJ0000000000000000A3',
+      slug: 'two',
+      name: 'Two',
+      role: 'owner',
+    };
     const theirs = runnerFixture({ id: RUNNER_FIXTURE_IDS.vps, name: 'Other account' });
     const { store } = setup({ ok: true, value: [OWNER, second] }, (id) => ({
       ok: true,
-      value: { runners: id === second.id ? [theirs] : [runnerFixture()], pendingEnrolments: [], release: RELEASE },
+      value: {
+        runners: id === second.id ? [theirs] : [runnerFixture()],
+        pendingEnrolments: [],
+        release: RELEASE,
+      },
     }));
     await store.load();
     expect(store.account()).toEqual(OWNER);
@@ -48,7 +74,12 @@ describe('RunnersStore', () => {
   });
 
   it('logs a failed read of another owned account and leaves it without runners (#891)', async () => {
-    const second: AccountMembershipDto = { id: '01M6YSNJ0000000000000000A3', slug: 'two', name: 'Two', role: 'owner' };
+    const second: AccountMembershipDto = {
+      id: '01M6YSNJ0000000000000000A3',
+      slug: 'two',
+      name: 'Two',
+      role: 'owner',
+    };
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const { store } = setup({ ok: true, value: [OWNER, second] }, (id) =>
       id === second.id
@@ -127,10 +158,22 @@ describe('RunnersStore', () => {
 
 describe('runner model', () => {
   it.each([
-    [runnerFixture({ revokedAt: '2026-11-11T00:00:00.000Z', suspect: { at: 'x', reason: 'new-country' } }), 'revoked'],
+    [
+      runnerFixture({ revokedAt: '2026-11-11T00:00:00.000Z', suspect: { at: 'x', reason: 'new-country' } }),
+      'revoked',
+    ],
     [runnerFixture({ suspect: { at: '2026-11-11T00:00:00.000Z', reason: 'two-pollers' } }), 'suspect'],
-    [runnerFixture({ suspect: { at: '2026-11-11T00:00:00.000Z', reason: 'two-pollers' }, pause: { reason: 'manual', until: '2026-11-11T05:00:00.000Z' } }), 'suspect'],
-    [runnerFixture({ online: false, pause: { reason: 'usage-limit', until: '2026-11-11T05:00:00.000Z' } }), 'paused'],
+    [
+      runnerFixture({
+        suspect: { at: '2026-11-11T00:00:00.000Z', reason: 'two-pollers' },
+        pause: { reason: 'manual', until: '2026-11-11T05:00:00.000Z' },
+      }),
+      'suspect',
+    ],
+    [
+      runnerFixture({ online: false, pause: { reason: 'usage-limit', until: '2026-11-11T05:00:00.000Z' } }),
+      'paused',
+    ],
     [runnerFixture({ pause: { reason: 'rate-limit', until: '2026-11-11T05:00:00.000Z' } }), 'paused'],
     [runnerFixture({ lastSeenAt: null, online: false }), 'never-seen'],
     [runnerFixture({ online: false }), 'offline'],

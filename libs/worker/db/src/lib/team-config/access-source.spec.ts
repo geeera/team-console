@@ -24,19 +24,37 @@ describe('runnerServesSql', () => {
   it('answers all, selected and D3 against D1 the way the claim does', async () => {
     const account = '01M6YSNJ0000000000000RSQ01';
     const key = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) });
-    const runner = (id: string, scope: 'all' | 'selected', list: readonly string[], enrolledBy: string | null, sources: readonly string[] | null) =>
-      env.DB
-        .prepare(
-          `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, project_scope, allowed_projects, enrolled_by, version, enrolled_at)
+    const runner = (
+      id: string,
+      scope: 'all' | 'selected',
+      list: readonly string[],
+      enrolledBy: string | null,
+      sources: readonly string[] | null,
+    ) =>
+      env.DB.prepare(
+        `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, isolation, project_scope, allowed_projects, enrolled_by, version, enrolled_at)
            VALUES (?1, ?2, 'r', ?3, ?4, 'user', ?5, ?6, ?7, '0.1.0', '2026-11-17T00:00:00.000Z')`,
-        )
-        .bind(id, account, key, JSON.stringify(sources === null ? { local: true, maxConcurrency: 1 } : { local: true, maxConcurrency: 1, accessSources: sources }), scope, JSON.stringify(list), enrolledBy);
+      ).bind(
+        id,
+        account,
+        key,
+        JSON.stringify(
+          sources === null
+            ? { local: true, maxConcurrency: 1 }
+            : { local: true, maxConcurrency: 1, accessSources: sources },
+        ),
+        scope,
+        JSON.stringify(list),
+        enrolledBy,
+      );
     const project = (slug: string, createdBy: string | null) =>
-      env.DB
-        .prepare(`INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at, account_id, created_by) VALUES (?1, ?2, ?1, 0, '2026-11-17T00:00:00.000Z', ?3, ?4)`)
-        .bind(slug, `acme/${slug}`, account, createdBy);
+      env.DB.prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at, account_id, created_by) VALUES (?1, ?2, ?1, 0, '2026-11-17T00:00:00.000Z', ?3, ?4)`,
+      ).bind(slug, `acme/${slug}`, account, createdBy);
     await env.DB.batch([
-      env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rsql', 'R', '2026-11-17T00:00:00.000Z')`).bind(account),
+      env.DB.prepare(
+        `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rsql', 'R', '2026-11-17T00:00:00.000Z')`,
+      ).bind(account),
       project('rsql-mine', 'owner-1'),
       project('rsql-theirs', 'owner-2'),
       runner('01M6YSNJ0000000000000RSQA1', 'all', [], 'owner-1', ['subscription']),
@@ -44,11 +62,10 @@ describe('runnerServesSql', () => {
       runner('01M6YSNJ0000000000000RSQS1', 'selected', ['rsql-theirs'], 'owner-1', ['subscription']),
     ]);
     const served = async (): Promise<string[]> => {
-      const { results } = await env.DB
-        .prepare(
-          `SELECT r.id || ':' || p.slug AS pair FROM runners r JOIN projects p ON p.account_id = r.account_id
+      const { results } = await env.DB.prepare(
+        `SELECT r.id || ':' || p.slug AS pair FROM runners r JOIN projects p ON p.account_id = r.account_id
            WHERE r.account_id = ?1 AND ${runnerServesSql('r', 'p.slug')} ORDER BY pair`,
-        )
+      )
         .bind(account)
         .all<{ pair: string }>();
       return results.map((row) => row.pair);
@@ -66,8 +83,12 @@ describe('runnerServesSql', () => {
     for (const n of [1, 2]) {
       const user = `01M6YSNJ0000000000000RSQM${String(n)}`;
       await env.DB.batch([
-        env.DB.prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, '2026-11-17T00:00:00.000Z', '2026-11-17T00:00:00.000Z')`).bind(user, String(770000 + n), `rsql-${String(n)}`),
-        env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', '2026-11-17T00:00:00.000Z')`).bind(account, user),
+        env.DB.prepare(
+          `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, '2026-11-17T00:00:00.000Z', '2026-11-17T00:00:00.000Z')`,
+        ).bind(user, String(770000 + n), `rsql-${String(n)}`),
+        env.DB.prepare(
+          `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', '2026-11-17T00:00:00.000Z')`,
+        ).bind(account, user),
       ]);
     }
     expect(await served()).toEqual([

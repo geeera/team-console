@@ -120,7 +120,10 @@ export class ActionsSetupLedger {
   /** Step 3's one link: the Environment page GitHub named, else the repository's environments list. */
   protected readonly environmentLink = computed(() => {
     const setup = this.setup();
-    const named = setup === null ? null : linkOf(itemOf(setup, 'environment')) ?? linkOf(itemOf(setup, 'branch-policy'));
+    const named =
+      setup === null
+        ? null
+        : (linkOf(itemOf(setup, 'environment')) ?? linkOf(itemOf(setup, 'branch-policy')));
     if (named !== null) {
       return named;
     }

@@ -50,7 +50,11 @@ export default {
     if (url.pathname === '/_fake/next' && request.method === 'POST') {
       const body = await bodyOf(request);
       const outcomes = body['outcomes'];
-      if (typeof body['endpoint'] !== 'string' || !Array.isArray(outcomes) || !outcomes.every(isFakePushOutcome)) {
+      if (
+        typeof body['endpoint'] !== 'string' ||
+        !Array.isArray(outcomes) ||
+        !outcomes.every(isFakePushOutcome)
+      ) {
         return json(400, { message: 'endpoint and a list of known outcomes are required' });
       }
       fake.next(body['endpoint'], ...outcomes);

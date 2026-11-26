@@ -69,7 +69,10 @@ export interface DesignOpenRequest {
           compact
           icon="grid"
           data-testid="question-previews-none"
-          [title]="(pullRequestUrl() === null ? 'questions.previews.noneNoPr' : 'questions.previews.none') | transloco"
+          [title]="
+            (pullRequestUrl() === null ? 'questions.previews.noneNoPr' : 'questions.previews.none')
+              | transloco
+          "
         >
           @if (pullRequestUrl(); as url) {
             <a

@@ -1,4 +1,10 @@
-import { isSpaceSection, isVisibleSpaceSection, spaceLocationOf, spaceUrlOf, VISIBLE_SPACE_SECTIONS } from './space-routes';
+import {
+  isSpaceSection,
+  isVisibleSpaceSection,
+  spaceLocationOf,
+  spaceUrlOf,
+  VISIBLE_SPACE_SECTIONS,
+} from './space-routes';
 
 describe('spaceUrlOf', () => {
   it('opens the last path, or the default section when there is none', () => {

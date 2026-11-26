@@ -8,7 +8,12 @@ const reduced = { globals: { motion: 'reduce' } };
 const phone = { globals: { viewport: { value: 'iphone', isRotated: false } } };
 
 const AT = '2026-11-20T08:00:00Z';
-const run = (state: SprintRun['state'], slotName: string): SprintRun => ({ slot: null, slotName, state, at: AT });
+const run = (state: SprintRun['state'], slotName: string): SprintRun => ({
+  slot: null,
+  slotName,
+  state,
+  at: AT,
+});
 
 const RUNS: readonly SprintRun[] = [
   run('running', 'Morning'),
@@ -39,7 +44,9 @@ type Story = StoryObj<BoardRunLog>;
 export const Working: Story = {};
 /** Not working: the stamps stay, the dot is gone. */
 export const Paused: Story = { args: { team: team('paused', RUNS.slice(1)) } };
-export const Failing: Story = { args: { team: team('failing', [run('failed', 'Morning'), ...RUNS.slice(1, 3)]) } };
+export const Failing: Story = {
+  args: { team: team('failing', [run('failed', 'Morning'), ...RUNS.slice(1, 3)]) },
+};
 export const Dark: Story = dark;
 /** Reduced motion: the dot stays still. */
 export const ReducedMotion: Story = reduced;

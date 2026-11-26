@@ -122,7 +122,10 @@ test('the owner: no runner, then an offline one, then a ready one, and Run now f
     const availability = runs.getByTestId('jobs-availability');
     await expect(availability).toHaveAttribute('data-availability', 'offline');
     await expect(availability).toContainText(ru('jobs.availability.offlineLead'));
-    await expect(availability.getByTestId('jobs-availability-runners')).toHaveAttribute('href', '/settings/runners');
+    await expect(availability.getByTestId('jobs-availability-runners')).toHaveAttribute(
+      'href',
+      '/settings/runners',
+    );
     await expect(runs.getByTestId('run-now-submit')).toBeEnabled();
 
     // The runner polls once (nothing to claim yet): ready, no line.
@@ -155,7 +158,12 @@ test('a member gets no form and no header Run, only the line about the account o
 }) => {
   await seed(stack, ['geeera/team-console']);
   let availability: JobListDto['runnerAvailability'] = 'ready';
-  await routeJobs(page, (list) => ({ jobs: list.jobs, nextCursor: list.nextCursor, runnerAvailability: availability, canRunNow: false }));
+  await routeJobs(page, (list) => ({
+    jobs: list.jobs,
+    nextCursor: list.nextCursor,
+    runnerAvailability: availability,
+    canRunNow: false,
+  }));
   await page.goto(BOARD);
   const runs = page.getByTestId('runs');
   await expect(runs.getByTestId('jobs-member-line')).toHaveText(ru('jobs.member.line'));
@@ -193,11 +201,21 @@ test('with display names, a member hears who the owners are and the D3 owner hea
   );
   await expectAccessible(page, 'Board, GitHub tracker, member, named owners');
 
-  list = (answer) => ({ jobs: answer.jobs, nextCursor: answer.nextCursor, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' });
+  list = (answer) => ({
+    jobs: answer.jobs,
+    nextCursor: answer.nextCursor,
+    runnerAvailability: 'none',
+    canRunNow: true,
+    runnerUnavailableReason: 'other-owner-subscription',
+  });
   await routeRunners(page, [d3Runner(false, 'Анна')]);
   await page.reload();
   await expect(runs.getByTestId('jobs-none-body')).toHaveText(
-    ru('jobs.none.d3Named', { runner: '\u2068Mac\u2069', owner: '\u2068Анна\u2069', project: '\u2068team-console\u2069' }),
+    ru('jobs.none.d3Named', {
+      runner: '\u2068Mac\u2069',
+      owner: '\u2068Анна\u2069',
+      project: '\u2068team-console\u2069',
+    }),
   );
 });
 
@@ -206,7 +224,12 @@ test('D3: another owner’s subscription runner and the owner’s own one each g
   stack,
 }) => {
   await seed(stack, ['geeera/team-console']);
-  await routeJobs(page, (list) => ({ ...list, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' }));
+  await routeJobs(page, (list) => ({
+    ...list,
+    runnerAvailability: 'none',
+    canRunNow: true,
+    runnerUnavailableReason: 'other-owner-subscription',
+  }));
   await routeRunners(page, [d3Runner(false)]);
   await page.goto(BOARD);
   const runs = page.getByTestId('runs');
@@ -227,14 +250,19 @@ test('D3: another owner’s subscription runner and the owner’s own one each g
   await page.reload();
   await expect(none).toHaveAttribute('data-none', 'd3-mine');
   await expect(none.getByRole('heading', { level: 4 })).toHaveText(ru('jobs.none.d3MineTitle'));
-  await expect(none.getByTestId('jobs-none-runner')).toHaveText(ru('jobs.none.d3MineOpen', { runner: '⁨Mac⁩' }));
+  await expect(none.getByTestId('jobs-none-runner')).toHaveText(
+    ru('jobs.none.d3MineOpen', { runner: '⁨Mac⁩' }),
+  );
 });
 
 test('with much wider type the no-runner blocks wrap inside the runs column, beside the issues on a 1280 px screen', async ({
   page,
   stack,
 }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desktop', 'the runs column sits beside the issues on a wide screen only');
+  test.skip(
+    testInfo.project.name !== 'desktop',
+    'the runs column sits beside the issues on a wide screen only',
+  );
   await seed(stack, ['geeera/team-console']);
   await page.setViewportSize({ width: 1280, height: 800 });
   const none = page.getByTestId('runs').getByTestId('jobs-none');
@@ -245,7 +273,12 @@ test('with much wider type the no-runner blocks wrap inside the runs column, bes
   await page.addStyleTag(wideType);
   expect(await outsideRunsColumn(page), 'the owner’s block').toEqual([]);
 
-  await routeJobs(page, (list) => ({ ...list, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' }));
+  await routeJobs(page, (list) => ({
+    ...list,
+    runnerAvailability: 'none',
+    canRunNow: true,
+    runnerUnavailableReason: 'other-owner-subscription',
+  }));
   for (const enrolledByYou of [false, true]) {
     await page.unroute('**/api/v1/accounts/*/runners');
     await routeRunners(page, [d3Runner(enrolledByYou)]);
@@ -270,7 +303,12 @@ test('a kind the server refuses says so in clay and queues nothing', async ({ pa
       json: { type: problemTypeOf('tracker-not-cut-over'), title: 'Conflict', status: 409 },
     });
   });
-  await routeJobs(page, (list) => ({ jobs: list.jobs, nextCursor: list.nextCursor, runnerAvailability: 'ready', canRunNow: true }));
+  await routeJobs(page, (list) => ({
+    jobs: list.jobs,
+    nextCursor: list.nextCursor,
+    runnerAvailability: 'ready',
+    canRunNow: true,
+  }));
   await page.goto(BOARD);
   const runs = page.getByTestId('runs');
   await runs.getByTestId('run-now-submit').click();

@@ -113,7 +113,8 @@ function item(
   pr?: ActionsSetupPrDto,
 ): ActionsSetupItemDto {
   // Every link is GitHub's own UI; anything else is dropped rather than handed to the page.
-  const safeLink = status !== 'ok' && link !== undefined && link !== null && isGitHubUiUrl(link) ? link : undefined;
+  const safeLink =
+    status !== 'ok' && link !== undefined && link !== null && isGitHubUiUrl(link) ? link : undefined;
   return {
     id,
     status,
@@ -133,7 +134,10 @@ const ORDER: readonly ActionsSetupItemId[] = [
 ];
 
 function refPath(ref: string): string {
-  return ref.split('/').map((segment) => encodeURIComponent(segment)).join('/');
+  return ref
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
 }
 
 /** The Environment's settings page: GitHub's UI addresses it by id (`…/settings/environments/{id}/edit`). */
@@ -163,7 +167,10 @@ function branchPolicyStatus(
     return 'missing';
   }
   const [only] = policies.policies;
-  return policies.complete && policies.policies.length === 1 && only?.type === 'branch' && only.name === defaultBranch
+  return policies.complete &&
+    policies.policies.length === 1 &&
+    only?.type === 'branch' &&
+    only.name === defaultBranch
     ? 'ok'
     : 'wrong';
 }
@@ -288,10 +295,16 @@ export function judgeWorkflowFile(
   if (!isEarlierRelease) {
     return { status: 'modified', current };
   }
-  return { status: runnerSupportOf(current, minimum) === 'unsupported' ? 'unsupported' : 'outdated', current };
+  return {
+    status: runnerSupportOf(current, minimum) === 'unsupported' ? 'unsupported' : 'outdated',
+    current,
+  };
 }
 
-export function runnerSupportOf(current: ActionsWorkflowReadPinsDto | null, minimum: string | null): ActionsRunnerSupport {
+export function runnerSupportOf(
+  current: ActionsWorkflowReadPinsDto | null,
+  minimum: string | null,
+): ActionsRunnerSupport {
   const runner = current?.runner ?? null;
   if (runner === null) {
     return 'unknown';
@@ -327,7 +340,12 @@ async function stalePullOf(
   for (const branch of earlier.slice(0, STALE_BRANCHES_CHECKED)) {
     const pull = await readActionsSetupPull(client, repo, branch);
     if (pull !== null && pull.htmlUrl !== null) {
-      return { number: pull.number, url: pull.htmlUrl, provenance: staleProvenanceOf(pull, expectation, rendering), stale: true };
+      return {
+        number: pull.number,
+        url: pull.htmlUrl,
+        provenance: staleProvenanceOf(pull, expectation, rendering),
+        stale: true,
+      };
     }
   }
   return undefined;
@@ -402,7 +420,10 @@ function answer(facts: AnswerFacts, items: Items): ActionsSetupDto {
 }
 
 /** The project's readiness inputs, in one D1 read; `null` when the row is gone. */
-export async function readinessTargetOf(deps: Pick<ReadinessDeps, 'env'>, row: ProjectRow): Promise<ActionsReadinessTarget | null> {
+export async function readinessTargetOf(
+  deps: Pick<ReadinessDeps, 'env'>,
+  row: ProjectRow,
+): Promise<ActionsReadinessTarget | null> {
   return new ProjectDispatchRepo(deps.env.DB).readinessTargetOf(row.slug);
 }
 
@@ -493,10 +514,17 @@ export async function checkActionsReadiness(
         repository.defaultBranch,
       )
     : unknownEnvironment();
-  const workflow = await workflowItem(client, repository.current, repository.defaultBranch, rendered.rendering, facts.minimum, {
-    repositoryId: target.repoId,
-    botLogin: installation.botLogin,
-  });
+  const workflow = await workflowItem(
+    client,
+    repository.current,
+    repository.defaultBranch,
+    rendered.rendering,
+    facts.minimum,
+    {
+      repositoryId: target.repoId,
+      botLogin: installation.botLogin,
+    },
+  );
   const setup = answer(
     { ...facts, defaultBranch: repository.defaultBranch, current: workflow.current },
     {
@@ -518,7 +546,11 @@ export async function checkActionsReadiness(
   if (judged === 'wrong') {
     throw new Error('the readiness check judged the workflow file wrong');
   }
-  await recordWorkflowJudgement(deps, row.slug, { status: judged, sha256: rendered.rendering.sha256, checkedAt });
+  await recordWorkflowJudgement(deps, row.slug, {
+    status: judged,
+    sha256: rendered.rendering.sha256,
+    checkedAt,
+  });
   deps.logger.info('actions readiness checked', {
     slug: row.slug,
     ready: setup.ready,

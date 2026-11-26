@@ -127,7 +127,13 @@ describe('buildTrackerInbox', () => {
     const [item] = buildTrackerInbox([
       {
         ...ROW,
-        ask: { id: 42, ask: 'Done?', category: 'access', commands: ['done', 'override'], recommended: 'done' },
+        ask: {
+          id: 42,
+          ask: 'Done?',
+          category: 'access',
+          commands: ['done', 'override'],
+          recommended: 'done',
+        },
       },
       { ...ROW, number: 8, key: 'TC-8' },
     ]).items;
@@ -188,7 +194,10 @@ describe('buildTrackerInbox', () => {
 describe('trackerInboxItemsOf and buildTrackerQuestions', () => {
   it('take the open ask’s commands, else the section’s', () => {
     const rows: TrackerInboxRow[] = [
-      { ...ROW, ask: { id: 43, ask: 'Approve?', category: 'scope', commands: ['approve'], recommended: null } },
+      {
+        ...ROW,
+        ask: { id: 43, ask: 'Approve?', category: 'scope', commands: ['approve'], recommended: null },
+      },
       { ...ROW, number: 8, key: 'TC-8' },
     ];
     expect(trackerInboxItemsOf(rows).map(({ allowedCommands }) => allowedCommands)).toEqual([

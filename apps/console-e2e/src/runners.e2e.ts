@@ -26,10 +26,14 @@ async function markSuspect(workerIndex: number, runnerId: string): Promise<void>
  */
 
 // #582: the code rides in the command's environment, never in its argv.
-const COMMAND = /^TC_ENROL_CODE=(?<code>tce_[A-Za-z0-9_-]{43}) team-console-runner enrol --url (?<url>http:\/\/127\.0\.0\.1:\d+)$/;
+const COMMAND =
+  /^TC_ENROL_CODE=(?<code>tce_[A-Za-z0-9_-]{43}) team-console-runner enrol --url (?<url>http:\/\/127\.0\.0\.1:\d+)$/;
 
 /** The runner binary's half of enrolment: a fresh Ed25519 key (or the given one), its public JWK only. */
-function enrolBodyOf(code: string, publicKey: KeyObject = generateKeyPairSync('ed25519').publicKey): Record<string, unknown> {
+function enrolBodyOf(
+  code: string,
+  publicKey: KeyObject = generateKeyPairSync('ed25519').publicKey,
+): Record<string, unknown> {
   const jwk = publicKey.export({ format: 'jwk' });
   return {
     code,
@@ -108,7 +112,8 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
   await expectAccessible(page, 'New runner dialog');
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.enrol.onceTitle') })).toBeFocused();
-  const command = (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
+  const command =
+    (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
   const { url, code = '' } = COMMAND.exec(command)?.groups ?? {};
   expect(url, command).toBe(new URL(stack.baseURL).origin);
   // #772: the bare code as well, for the `--code -` prompt, copyable on its own.
@@ -151,9 +156,9 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
     await check.dispose();
   }
   // The project follows the account default until it gets its own.
-  await expect(page.getByTestId('runners-policy-project').getByTestId('runner-policy-effective')).toContainText(
-    'E2E Mac',
-  );
+  await expect(
+    page.getByTestId('runners-policy-project').getByTestId('runner-policy-effective'),
+  ).toContainText('E2E Mac');
 
   // 4. Narrow its projects: the dialog warns that its jobs there would be cancelled.
   await card.getByTestId('runner-edit-projects').click();
@@ -181,7 +186,11 @@ test('enrol a runner with a one-time code, see it listed, pin placement to it, n
  * Gets a code from the dialog as the owner does, and answers it (the command's `TC_ENROL_CODE`). The dialog's default
  * scope is every project of the account (#775); `selected` ticks the one project the stack seeds.
  */
-async function issueCodeInDialog(page: Page, name: string, scope: 'all' | 'selected' = 'all'): Promise<string> {
+async function issueCodeInDialog(
+  page: Page,
+  name: string,
+  scope: 'all' | 'selected' = 'all',
+): Promise<string> {
   await page.getByTestId('runners-enrol').first().click();
   const wizard = page.getByRole('dialog', { name: ru('runners.enrol.title') });
   await wizard.getByTestId('wizard-name').fill(name);
@@ -195,9 +204,12 @@ async function issueCodeInDialog(page: Page, name: string, scope: 'all' | 'selec
   await expect(dialog.getByTestId('enrol-name')).toHaveValue(name);
   await dialog.getByTestId('enrol-submit').click();
   await expect(dialog.getByTestId('enrol-scope')).toContainText(
-    scope === 'all' ? ru('runners.enrol.scopeAll') : ru('runners.enrol.projects', { projects: 'team-console' }),
+    scope === 'all'
+      ? ru('runners.enrol.scopeAll')
+      : ru('runners.enrol.projects', { projects: 'team-console' }),
   );
-  const command = (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
+  const command =
+    (await dialog.getByTestId('enrol-command').getByTestId('copy-code-text').textContent()) ?? '';
   const { code = '' } = COMMAND.exec(command)?.groups ?? {};
   await dialog.getByTestId('enrol-done').click();
   await expect(dialog).toHaveCount(0);
@@ -214,7 +226,10 @@ function runnerJwtOf(privateKey: KeyObject, runnerId: string, audience: string):
 
 // #571: the runner hits the Claude usage limit, pauses itself and mirrors that on its own door; the owner sees why
 // and until when. The pause rules (claim, bounds, accounts) are the API's own specs (runner-pause.spec.ts).
-test('a runner paused on its usage limit says so, with the reason and the time it resumes', async ({ page, stack }) => {
+test('a runner paused on its usage limit says so, with the reason and the time it resumes', async ({
+  page,
+  stack,
+}) => {
   await page.goto('/settings/runners');
   const code = await issueCodeInDialog(page, 'E2E Mac');
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
@@ -245,7 +260,10 @@ test('a runner paused on its usage limit says so, with the reason and the time i
 
 // #775: the scope is changed on the card without re-enrolling — `selected` → `all` and back — and the stored row
 // follows, so the next claim (and the runner, through `/runner/self` and each claim's `scope`) sees it.
-test('switch a runner between its chosen projects and all projects of the account without re-enrolling', async ({ page, stack }) => {
+test('switch a runner between its chosen projects and all projects of the account without re-enrolling', async ({
+  page,
+  stack,
+}) => {
   await page.goto('/settings/runners');
   const runnerId = await enrolOnceWith(stack, await issueCodeInDialog(page, 'E2E Mac', 'selected'));
   await page.getByTestId('runners-refresh').click();
@@ -264,12 +282,16 @@ test('switch a runner between its chosen projects and all projects of the accoun
   await widen.getByTestId('runner-projects-save').click();
   await expect(widen).toHaveCount(0);
   await expect(card.getByTestId('runner-scope')).toHaveText(ru('runners.card.scopeAll'));
-  await expect(card.getByTestId('runner-projects')).toHaveText(ru('runners.card.scopeAllNow', { projects: 'team-console' }));
+  await expect(card.getByTestId('runner-projects')).toHaveText(
+    ru('runners.card.scopeAllNow', { projects: 'team-console' }),
+  );
   await expectAccessible(page, 'Settings › Runners (all-projects runner)');
 
   const api = await apiClient(stack);
   try {
-    const listed = (await (await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)).json()) as RunnerListDto;
+    const listed = (await (
+      await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)
+    ).json()) as RunnerListDto;
     expect(listed.runners.find((runner) => runner.id === runnerId)).toMatchObject({
       projectScope: 'all',
       allowedProjects: [],
@@ -303,7 +325,9 @@ test('withdraw a pending enrolment code, after which it enrols nothing', async (
   await expectAccessible(page, 'Settings › Runners (a pending code)');
 
   await row.getByTestId('runners-pending-withdraw').click();
-  const confirm = page.getByRole('alertdialog', { name: ru('runners.pending.withdrawTitle', { name: 'Wrong screen' }) });
+  const confirm = page.getByRole('alertdialog', {
+    name: ru('runners.pending.withdrawTitle', { name: 'Wrong screen' }),
+  });
   await expect(confirm).toContainText(ru('runners.pending.withdrawMessage'));
   await expectAccessible(page, 'Withdraw code confirmation');
   await confirm.getByRole('button', { name: ru('runners.pending.withdrawConfirm') }).click();
@@ -366,7 +390,10 @@ async function insertLegacyRunner(workerIndex: number, runnerId: string): Promis
 
 // #827 (owner decision (a)): a runner enrolled before enrollers were recorded says so, and the account's sole owner
 // claims it as theirs behind a confirmation; the card then shows no note and no action.
-test('claim a runner from before enrollers were recorded as its enroller', async ({ page, stack }, testInfo) => {
+test('claim a runner from before enrollers were recorded as its enroller', async ({
+  page,
+  stack,
+}, testInfo) => {
   const runnerId = '01M6YSNJ0000000000000827E1';
   await insertLegacyRunner(testInfo.workerIndex, runnerId);
   await page.goto('/settings/runners');
@@ -390,7 +417,9 @@ test('claim a runner from before enrollers were recorded as its enroller', async
 
   const api = await apiClient(stack);
   try {
-    const listed = (await (await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)).json()) as RunnerListDto;
+    const listed = (await (
+      await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)
+    ).json()) as RunnerListDto;
     expect(listed.runners.find((runner) => runner.id === runnerId)?.enroller).toBe('recorded');
     const again = await api.post(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runnerId}/claim-enroller`, {
       data: {},

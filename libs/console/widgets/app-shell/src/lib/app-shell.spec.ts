@@ -67,18 +67,16 @@ describe('AppShell', () => {
     state = TestBed.inject(PersistedStateStore);
 
     const ready = TestBed.inject(ProjectsStore).ready();
-    http
-      .expectOne(PROJECTS_URL)
-      .flush([
-        {
-          slug: 'a',
-          repo: 'g/a',
-          displayName: 'Alpha',
-          routineId: null,
-          addedAt: '2026-09-29T00:00:00Z',
-          archivedAt: null,
-        },
-      ]);
+    http.expectOne(PROJECTS_URL).flush([
+      {
+        slug: 'a',
+        repo: 'g/a',
+        displayName: 'Alpha',
+        routineId: null,
+        addedAt: '2026-09-29T00:00:00Z',
+        archivedAt: null,
+      },
+    ]);
     await ready;
 
     fixture = TestBed.createComponent(AppShell);
@@ -91,23 +89,28 @@ describe('AppShell', () => {
 
   afterEach(() => {
     // The environment mark asks where the app runs (#237); tests that do not look at it leave it unknown.
-    http.match(HEALTH_URL).forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
+    http
+      .match(HEALTH_URL)
+      .forEach((request) => request.flush(null, { status: 502, statusText: 'Bad Gateway' }));
     http.verify();
   });
 
   it.each([
     [true, 'nav'],
     [false, 'header'],
-  ] as const)('marks a non-production environment in text in the %s layout (#237)', async (wide, landmark) => {
-    await setup(wide);
-    http.expectOne(HEALTH_URL).flush({ status: 'ok', environment: 'stage', version: '0.1.0' });
-    // The environment lands a microtask after the flush.
-    await new Promise((resolve) => setTimeout(resolve));
-    await fixture.whenStable();
+  ] as const)(
+    'marks a non-production environment in text in the %s layout (#237)',
+    async (wide, landmark) => {
+      await setup(wide);
+      http.expectOne(HEALTH_URL).flush({ status: 'ok', environment: 'stage', version: '0.1.0' });
+      // The environment lands a microtask after the flush.
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
 
-    const mark = root().querySelector(`${landmark} [data-testid="environment-mark"]`);
-    expect(mark?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Окружение: Stage');
-  });
+      const mark = root().querySelector(`${landmark} [data-testid="environment-mark"]`);
+      expect(mark?.textContent?.replace(/\s+/g, ' ').trim()).toBe('Окружение: Stage');
+    },
+  );
 
   it('wide: a sidebar with the navigation, the switcher and Settings; the badge on Needs you', async () => {
     await setup(true);

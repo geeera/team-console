@@ -1,4 +1,9 @@
-import { expect, request as playwrightRequest, type APIRequestContext, type BrowserContext } from '@playwright/test';
+import {
+  expect,
+  request as playwrightRequest,
+  type APIRequestContext,
+  type BrowserContext,
+} from '@playwright/test';
 import { isEnvironment, type Environment } from '@shared/contracts';
 import { fetchResendingIdleResets, resendingIdleResets } from './idle-reset';
 
@@ -67,9 +72,12 @@ export async function clearFakeMilestones(stack: Stack, repo: string): Promise<v
  * api's mock again: what a later spec on the same worker expects.
  */
 export async function clearFakePulls(stack: Stack, repo: string): Promise<void> {
-  const response = await fetchResendingIdleResets(`${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`, {
-    method: 'DELETE',
-  });
+  const response = await fetchResendingIdleResets(
+    `${fakeOf(stack)}/_fake/pulls?repo=${encodeURIComponent(repo)}`,
+    {
+      method: 'DELETE',
+    },
+  );
   if (!response.ok) {
     throw new Error(`fake GitHub pulls: ${response.status}`);
   }

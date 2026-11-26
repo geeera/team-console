@@ -1,12 +1,5 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
-import {
-  ChangeDetectionStrategy,
-  Component,
-  computed,
-  inject,
-  output,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { PushStore } from '@console/entities/push';
 import { NetworkStatus } from '@console/shared/api';

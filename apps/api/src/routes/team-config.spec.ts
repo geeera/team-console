@@ -14,7 +14,13 @@ import {
 import { ApiGitHub } from '../github';
 import { json } from '../testing/github-kit';
 import { enqueueJob, enrolRunner, seedClaimedJob, sendAsJob, sendAsRunner } from '../testing/runner-kit';
-import { seedAccount, seedAccountProject, seedMembership, seedSessionUser, sendAsSession } from '../testing/session-kit';
+import {
+  seedAccount,
+  seedAccountProject,
+  seedMembership,
+  seedSessionUser,
+  sendAsSession,
+} from '../testing/session-kit';
 import {
   jobActor,
   pullRequestsGitHub,
@@ -33,7 +39,12 @@ const P = '/api/v1/projects';
 const base = (project: SeededProject): string => `${P}/${project.slug}/team-config`;
 const doc = (members: Record<string, unknown> = {}) => ({ schema: TEAM_CONFIG_SCHEMA, ...members });
 
-async function put(project: SeededProject, config: unknown, ifMatch: string, extra: Record<string, unknown> = {}): Promise<Response> {
+async function put(
+  project: SeededProject,
+  config: unknown,
+  ifMatch: string,
+  extra: Record<string, unknown> = {},
+): Promise<Response> {
   return send('PUT', base(project), { config, ...extra }, { ifMatch });
 }
 
@@ -74,7 +85,13 @@ describe('GET …/team-config', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('ETag')).toBe('"0"');
     const body = (await response.json()) as TeamConfigDto;
-    expect(body).toMatchObject({ config: null, revision: 0, preset: 'recommended', budget: { monthly_usd: null }, updatedAt: null });
+    expect(body).toMatchObject({
+      config: null,
+      revision: 0,
+      preset: 'recommended',
+      budget: { monthly_usd: null },
+      updatedAt: null,
+    });
     expect(body.resolved.access).toEqual({ source: 'subscription' });
     expect(body.resolved.roles).toEqual(TEAM_CONFIG_PRESET_ROLES.recommended);
   });
@@ -98,13 +115,25 @@ describe('GET …/team-config', () => {
     const account = await seedAccount();
     const owner = await seedSessionUser('owner');
     await seedMembership(account.id, owner.userId, 'owner');
-    await env.DB.prepare(`UPDATE users SET email = 'owner@example.test' WHERE id = ?1`).bind(owner.userId).run();
+    await env.DB.prepare(`UPDATE users SET email = 'owner@example.test' WHERE id = ?1`)
+      .bind(owner.userId)
+      .run();
     const { slug } = await seedAccountProject(account, { tracker: 'console' });
     const path = `${P}/${slug}/team-config`;
-    const put = await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'api_key' } }) }, { headers: { 'If-Match': '"0"' } });
+    const put = await sendAsSession(
+      owner,
+      'PUT',
+      path,
+      { config: doc({ access: { source: 'api_key' } }) },
+      { headers: { 'If-Match': '"0"' } },
+    );
     expect(put.status).toBe(200);
     const body = (await put.json()) as TeamConfigDto;
-    const login = (await env.DB.prepare(`SELECT login FROM users WHERE id = ?1`).bind(owner.userId).first<{ login: string }>())?.login;
+    const login = (
+      await env.DB.prepare(`SELECT login FROM users WHERE id = ?1`)
+        .bind(owner.userId)
+        .first<{ login: string }>()
+    )?.login;
     expect(body.updatedByName).toBe(login);
     expect(JSON.stringify(body)).not.toContain('owner@example.test');
 
@@ -118,15 +147,25 @@ describe('GET …/team-config', () => {
     expect(JSON.stringify([listed, revision])).not.toContain('owner@example.test');
   });
 
-  it('carries the current revision\'s reason as stored text, null before any revision or without one (#688)', async () => {
+  it("carries the current revision's reason as stored text, null before any revision or without one (#688)", async () => {
     const project = await seedTrackerProject();
     expect(((await (await send('GET', base(project))).json()) as TeamConfigDto).reason).toBeNull();
     const reason = '<img src=x onerror=alert(1)> QA on Sonnet';
-    const saved = await send('PUT', base(project), { config: doc({ access: { source: 'api_key' } }), reason }, { ifMatch: '"0"' });
+    const saved = await send(
+      'PUT',
+      base(project),
+      { config: doc({ access: { source: 'api_key' } }), reason },
+      { ifMatch: '"0"' },
+    );
     expect(saved.status).toBe(200);
     expect(((await saved.json()) as TeamConfigDto).reason).toBe(reason);
     expect(((await (await send('GET', base(project))).json()) as TeamConfigDto).reason).toBe(reason);
-    const next = await send('PUT', base(project), { config: doc({ access: { source: 'api_key' }, language: 'en' }) }, { ifMatch: '"1"' });
+    const next = await send(
+      'PUT',
+      base(project),
+      { config: doc({ access: { source: 'api_key' }, language: 'en' }) },
+      { ifMatch: '"1"' },
+    );
     expect(((await next.json()) as TeamConfigDto).reason).toBeNull();
   });
 });
@@ -168,7 +207,10 @@ describe('PUT …/team-config', () => {
   it('gives two concurrent PUTs with the same If-Match one 200 and one 412', async () => {
     const project = await seedTrackerProject();
     await saved(project, doc());
-    const statuses = await Promise.all([put(project, doc({ preset: 'max' }), '"1"'), put(project, doc({ preset: 'economy' }), '"1"')]);
+    const statuses = await Promise.all([
+      put(project, doc({ preset: 'max' }), '"1"'),
+      put(project, doc({ preset: 'economy' }), '"1"'),
+    ]);
     expect(statuses.map((response) => response.status).sort()).toEqual([200, 412]);
     expect(await auditRows(project.slug)).toHaveLength(2);
   });
@@ -185,7 +227,10 @@ describe('PUT …/team-config', () => {
     const project = await seedTrackerProject();
     const response = await put(project, config, '"0"');
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ type: expect.stringContaining('team-config-invalid') as unknown, field });
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('team-config-invalid') as unknown,
+      field,
+    });
     expect(await auditRows(project.slug)).toHaveLength(0);
   });
 
@@ -193,7 +238,10 @@ describe('PUT …/team-config', () => {
     const project = await seedTrackerProject();
     const response = await put(project, { schema: 'team-config/v2' }, '"0"');
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ type: expect.stringContaining('team-config-schema') as unknown, field: 'schema' });
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('team-config-schema') as unknown,
+      field: 'schema',
+    });
   });
 
   it('refuses a body member other than config and reason, and a reason over 500 characters', async () => {
@@ -208,7 +256,12 @@ describe('PUT …/team-config', () => {
 
   it('refuses a cross-origin PUT (CSRF) before it writes', async () => {
     const project = await seedTrackerProject();
-    const response = await send('PUT', base(project), { config: doc() }, { ifMatch: '"0"', headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    const response = await send(
+      'PUT',
+      base(project),
+      { config: doc() },
+      { ifMatch: '"0"', headers: { 'Sec-Fetch-Site': 'cross-site' } },
+    );
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('csrf');
     expect(await auditRows(project.slug)).toHaveLength(0);
@@ -218,10 +271,21 @@ describe('PUT …/team-config', () => {
     const project = await seedTrackerProject();
     const member = await seedSessionUser('member');
     await seedMembership(OWNER_ACCOUNT_ID, member.userId, 'member');
-    const memberResponse = await sendAsSession(member, 'PUT', base(project), { config: doc() }, { headers: { 'If-Match': '"0"' } });
+    const memberResponse = await sendAsSession(
+      member,
+      'PUT',
+      base(project),
+      { config: doc() },
+      { headers: { 'If-Match': '"0"' } },
+    );
     expect(await slugOf(memberResponse)).toBe('owner-only');
     for (const role of ['orchestrator', 'pm', 'dev', 'security']) {
-      const response = await send('PUT', base(project), { config: doc() }, { ifMatch: '"0"', job: jobActor(role) });
+      const response = await send(
+        'PUT',
+        base(project),
+        { config: doc() },
+        { ifMatch: '"0"', job: jobActor(role) },
+      );
       expect(response.status, role).toBe(403);
       expect(await slugOf(response), role).toBe('owner-only');
     }
@@ -235,7 +299,10 @@ describe('the audit row of a change (threat model C12 row 3)', () => {
   it('holds only revision_from, revision_to and the changed paths, never a value', async () => {
     const project = await seedTrackerProject();
     const sentinel = `SENTINEL${crypto.randomUUID().replaceAll('-', '')}`;
-    await saved(project, doc({ gates: { code_paths: [`${sentinel}/**`] }, roles: { dev: { model: 'claude-fable-5-1' } } }));
+    await saved(
+      project,
+      doc({ gates: { code_paths: [`${sentinel}/**`] }, roles: { dev: { model: 'claude-fable-5-1' } } }),
+    );
     const [row] = await auditRows(project.slug);
     expect(row?.details).not.toContain(sentinel);
     expect(row?.details).not.toContain('claude-fable-5-1');
@@ -249,7 +316,9 @@ describe('the audit row of a change (threat model C12 row 3)', () => {
   });
 
   it('names a large change by its sections rather than growing past the bound', () => {
-    const diff = Array.from({ length: 40 }, (_, i) => ({ path: `roles.r${String(i % 14)}.max_turns${String(i)}` }));
+    const diff = Array.from({ length: 40 }, (_, i) => ({
+      path: `roles.r${String(i % 14)}.max_turns${String(i)}`,
+    }));
     const paths = auditPathsOf(diff);
     expect(paths.length).toBeLessThanOrEqual(32);
     expect(paths).toContain('roles.r0');
@@ -260,7 +329,9 @@ describe('the audit row of a change (threat model C12 row 3)', () => {
     // Built at run time so no token-shaped literal is in the repository.
     const token = ['ghp', 'A'.repeat(36)].join('_');
     expect((await put(project, doc(), '"0"', { reason: `rotate after ${token} leaked` })).status).toBe(200);
-    const revision = (await (await send('GET', `${base(project)}/revisions/1`)).json()) as TeamConfigRevisionDto;
+    const revision = (await (
+      await send('GET', `${base(project)}/revisions/1`)
+    ).json()) as TeamConfigRevisionDto;
     expect(revision.reason).not.toContain(token);
     expect(revision.reason).toContain('rotate after');
   });
@@ -286,9 +357,18 @@ describe('access source and placement (ADR 0009 d.3, threat model C12 row 6)', (
     const path = `${P}/${slug}/team-config`;
     const hosted = await hostedRunner(account.id);
 
-    const refused = await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'subscription' } }) }, { headers: { 'If-Match': '"0"' } });
+    const refused = await sendAsSession(
+      owner,
+      'PUT',
+      path,
+      { config: doc({ access: { source: 'subscription' } }) },
+      { headers: { 'If-Match': '"0"' } },
+    );
     expect(refused.status).toBe(422);
-    expect(await refused.json()).toMatchObject({ type: expect.stringContaining('access-source-hosted') as unknown, field: 'access.source' });
+    expect(await refused.json()).toMatchObject({
+      type: expect.stringContaining('access-source-hosted') as unknown,
+      field: 'access.source',
+    });
 
     // The read says so, for Settings to show the choice disabled with its reason (#688).
     const blockedOf = async (): Promise<boolean> =>
@@ -297,19 +377,50 @@ describe('access source and placement (ADR 0009 d.3, threat model C12 row 6)', (
 
     // Pinned to a self-hosted runner, a subscription is fine; then pointing the placement at the hosted one is refused.
     const mac = await enrolRunner(account.id, { allowedProjects: [slug], as: owner });
-    expect((await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: mac.id })).status).toBe(200);
+    expect(
+      (await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: mac.id }))
+        .status,
+    ).toBe(200);
     expect(await blockedOf()).toBe(false);
-    expect((await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'subscription' } }) }, { headers: { 'If-Match': '"0"' } })).status).toBe(200);
-    const reverse = await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: hosted });
+    expect(
+      (
+        await sendAsSession(
+          owner,
+          'PUT',
+          path,
+          { config: doc({ access: { source: 'subscription' } }) },
+          { headers: { 'If-Match': '"0"' } },
+        )
+      ).status,
+    ).toBe(200);
+    const reverse = await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, {
+      mode: 'pinned',
+      runner: hosted,
+    });
     expect(reverse.status).toBe(422);
     expect(await slugOf(reverse)).toBe('access-source-hosted');
-    const accountDefault = await sendAsSession(owner, 'PUT', `/api/v1/accounts/${account.id}/runner-policy`, { mode: 'any' });
+    const accountDefault = await sendAsSession(owner, 'PUT', `/api/v1/accounts/${account.id}/runner-policy`, {
+      mode: 'any',
+    });
     expect(accountDefault.status).toBe(200);
     expect((await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, null)).status).toBe(422);
 
     // On an API key the hosted runner is allowed.
-    expect((await sendAsSession(owner, 'PUT', path, { config: doc({ access: { source: 'api_key' } }) }, { headers: { 'If-Match': '"1"' } })).status).toBe(200);
-    expect((await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: hosted })).status).toBe(200);
+    expect(
+      (
+        await sendAsSession(
+          owner,
+          'PUT',
+          path,
+          { config: doc({ access: { source: 'api_key' } }) },
+          { headers: { 'If-Match': '"1"' } },
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (await sendAsSession(owner, 'PUT', `${P}/${slug}/runner-policy`, { mode: 'pinned', runner: hosted }))
+        .status,
+    ).toBe(200);
   });
 });
 
@@ -329,9 +440,15 @@ describe('two accounts (threat model C12 row 2, C9)', () => {
     const b = await seedAccount();
     const { slug } = await seedAccountProject(b, { tracker: 'console', repoId: 912_346 });
     for (const [method, suffix] of ROUTES) {
-      const response = await sendAsSession(a, method, `${P}/${slug}/team-config${suffix}`, method === 'GET' ? undefined : {}, {
-        headers: { 'If-Match': '"0"' },
-      });
+      const response = await sendAsSession(
+        a,
+        method,
+        `${P}/${slug}/team-config${suffix}`,
+        method === 'GET' ? undefined : {},
+        {
+          headers: { 'If-Match': '"0"' },
+        },
+      );
       expect(response.status, `${method} ${suffix}`).toBe(404);
       expect(await slugOf(response)).toBe('project-not-found');
     }
@@ -341,10 +458,15 @@ describe('two accounts (threat model C12 row 2, C9)', () => {
     const x = await seedTrackerProject();
     const y = await seedTrackerProject();
     for (const [method, suffix] of ROUTES) {
-      const response = await send(method, `${P}/${y.slug}/team-config${suffix}`, method === 'GET' ? undefined : {}, {
-        ifMatch: '"0"',
-        job: { ...jobActor('pm'), projectSlug: x.slug },
-      });
+      const response = await send(
+        method,
+        `${P}/${y.slug}/team-config${suffix}`,
+        method === 'GET' ? undefined : {},
+        {
+          ifMatch: '"0"',
+          job: { ...jobActor('pm'), projectSlug: x.slug },
+        },
+      );
       expect(response.status, `${method} ${suffix}`).toBe(404);
       expect(await slugOf(response)).toBe('project-not-found');
     }
@@ -365,14 +487,18 @@ describe('…/resolved for a job (threat model C12 row 2, T2)', () => {
       expect(view.roles.dev.model).toBe(TEAM_CONFIG_PRESET_ROLES.economy.dev.model);
     }
     // The owner reads the current revision.
-    expect(((await (await send('GET', `${base(project)}/resolved`)).json()) as ResolvedTeamConfigDto).revision).toBe(2);
+    expect(
+      ((await (await send('GET', `${base(project)}/resolved`)).json()) as ResolvedTeamConfigDto).revision,
+    ).toBe(2);
   });
 
   it('resolves a job claimed before any document to recommended plus the project’s access source', async () => {
     const project = await seedTrackerProject();
     const { runner, jobToken } = await seedClaimedJob(project.slug);
     await saved(project, doc({ preset: 'max', access: { source: 'api_key' } }));
-    const view = (await (await sendAsJob(runner, jobToken, 'GET', `${base(project)}/resolved`)).json()) as ResolvedTeamConfigDto;
+    const view = (await (
+      await sendAsJob(runner, jobToken, 'GET', `${base(project)}/resolved`)
+    ).json()) as ResolvedTeamConfigDto;
     expect(view.revision).toBe(0);
     expect(view.roles).toEqual(TEAM_CONFIG_PRESET_ROLES.recommended);
     expect(view.access.source).toBe('api_key');
@@ -382,22 +508,37 @@ describe('…/resolved for a job (threat model C12 row 2, T2)', () => {
     const project = await seedTrackerProject();
     await saved(project, doc({ budget: { monthly_usd: 400 } }));
     const { runner, jobToken } = await seedClaimedJob(project.slug);
-    const view: unknown = await (await sendAsJob(runner, jobToken, 'GET', `${base(project)}/resolved`)).json();
+    const view: unknown = await (
+      await sendAsJob(runner, jobToken, 'GET', `${base(project)}/resolved`)
+    ).json();
     expect(isResolvedTeamConfig(view)).toBe(true);
-    expect(Object.keys(view as object).sort()).toEqual(['access', 'caps', 'cost', 'gates', 'language', 'revision', 'roles', 'schema', 'sprint']);
+    expect(Object.keys(view as object).sort()).toEqual([
+      'access',
+      'caps',
+      'cost',
+      'gates',
+      'language',
+      'revision',
+      'roles',
+      'schema',
+      'sprint',
+    ]);
     for (const key of ['budget', 'preset', 'reason', 'created_by', 'createdBy', 'diff']) {
       expect(keysOf(view)).not.toContain(key);
     }
   });
 
-  it.each(['', '/revisions', '/revisions/1'])('refuses a job on …/team-config%s with 403 owner-only', async (suffix) => {
-    const project = await seedTrackerProject();
-    await saved(project, doc());
-    const { runner, jobToken } = await seedClaimedJob(project.slug);
-    const response = await sendAsJob(runner, jobToken, 'GET', `${base(project)}${suffix}`);
-    expect(response.status).toBe(403);
-    expect(await slugOf(response)).toBe('owner-only');
-  });
+  it.each(['', '/revisions', '/revisions/1'])(
+    'refuses a job on …/team-config%s with 403 owner-only',
+    async (suffix) => {
+      const project = await seedTrackerProject();
+      await saved(project, doc());
+      const { runner, jobToken } = await seedClaimedJob(project.slug);
+      const response = await sendAsJob(runner, jobToken, 'GET', `${base(project)}${suffix}`);
+      expect(response.status).toBe(403);
+      expect(await slugOf(response)).toBe('owner-only');
+    },
+  );
 });
 
 describe('no credential in any team-config DTO (threat model C12 row 6)', () => {
@@ -410,7 +551,9 @@ describe('no credential in any team-config DTO (threat model C12 row 6)', () => 
     }
     await enqueueJob(project.slug, { kind: 'slot-qa' });
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
-    const claim = (await (await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})).json()) as ClaimResponse;
+    const claim = (await (
+      await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})
+    ).json()) as ClaimResponse;
     bodies.push(claim.teamConfig);
     expect(bodies.flatMap(keysOf).filter((key) => CREDENTIAL_KEYS.test(key))).toEqual([]);
   });
@@ -422,13 +565,20 @@ describe('the claim response (ADR 0009 d.7)', () => {
     await saved(project, doc({ preset: 'economy', access: { source: 'api_key' } }));
     await enqueueJob(project.slug, { kind: 'slot-qa' });
     await enqueueJob(project.slug, { kind: 'slot-dev' });
-    const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug], enrol: { capabilities: { local: true, maxConcurrency: 2 } } });
-    const first = (await (await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})).json()) as ClaimResponse;
+    const runner = await enrolRunner(OWNER_ACCOUNT_ID, {
+      allowedProjects: [project.slug],
+      enrol: { capabilities: { local: true, maxConcurrency: 2 } },
+    });
+    const first = (await (
+      await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})
+    ).json()) as ClaimResponse;
     expect(first.teamConfigRevision).toBe(1);
     expect(first.teamConfig.revision).toBe(1);
     expect(isResolvedTeamConfig(first.teamConfig)).toBe(true);
     await saved(project, doc({ preset: 'max', access: { source: 'api_key' } }), '"1"');
-    const second = (await (await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})).json()) as ClaimResponse;
+    const second = (await (
+      await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})
+    ).json()) as ClaimResponse;
     expect(second.teamConfigRevision).toBe(2);
     expect(second.teamConfig.roles.dev.model).toBe('claude-fable-5-1');
   });
@@ -437,7 +587,9 @@ describe('the claim response (ADR 0009 d.7)', () => {
     const project = await seedTrackerProject();
     await enqueueJob(project.slug, { kind: 'slot-qa' });
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
-    const claim = (await (await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})).json()) as ClaimResponse;
+    const claim = (await (
+      await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {})
+    ).json()) as ClaimResponse;
     expect(claim.teamConfigRevision).toBeNull();
     expect(claim.teamConfig.roles).toEqual(TEAM_CONFIG_PRESET_ROLES.recommended);
   });
@@ -448,14 +600,24 @@ describe('revisions', () => {
     const project = await seedTrackerProject();
     await saved(project, doc());
     await saved(project, doc({ language: 'en' }), '"1"');
-    const page = (await (await send('GET', `${base(project)}/revisions?limit=1`)).json()) as TeamConfigRevisionListDto;
+    const page = (await (
+      await send('GET', `${base(project)}/revisions?limit=1`)
+    ).json()) as TeamConfigRevisionListDto;
     expect(page.revisions.map((row) => row.revision)).toEqual([1]);
     expect(page.nextCursor).toBe(1);
-    const next = (await (await send('GET', `${base(project)}/revisions?after=1`)).json()) as TeamConfigRevisionListDto;
-    expect(next.revisions).toEqual([expect.objectContaining({ revision: 2, paths: ['language'], reason: null })]);
-    const second = (await (await send('GET', `${base(project)}/revisions/2`)).json()) as TeamConfigRevisionDto;
+    const next = (await (
+      await send('GET', `${base(project)}/revisions?after=1`)
+    ).json()) as TeamConfigRevisionListDto;
+    expect(next.revisions).toEqual([
+      expect.objectContaining({ revision: 2, paths: ['language'], reason: null }),
+    ]);
+    const second = (await (
+      await send('GET', `${base(project)}/revisions/2`)
+    ).json()) as TeamConfigRevisionDto;
     expect(second.diff).toEqual([{ path: 'language', to: 'en' }]);
-    const { id } = (await env.DB.prepare(`SELECT id FROM team_config_revisions WHERE project_slug = ?1 AND revision = 1`)
+    const { id } = (await env.DB.prepare(
+      `SELECT id FROM team_config_revisions WHERE project_slug = ?1 AND revision = 1`,
+    )
       .bind(project.slug)
       .first<{ id: string }>()) ?? { id: '' };
     for (const n of [id, '0', '3', '01', '-1']) {
@@ -469,11 +631,19 @@ describe('revisions', () => {
 describe('POST …/team-config/reset', () => {
   it('applies a preset to every role and keeps the rest of the document', async () => {
     const project = await seedTrackerProject();
-    await saved(project, doc({ preset: 'max', language: 'en', roles: { dev: { model: 'claude-sonnet-5' } } }));
+    await saved(
+      project,
+      doc({ preset: 'max', language: 'en', roles: { dev: { model: 'claude-sonnet-5' } } }),
+    );
     const response = await send('POST', `${base(project)}/reset`, { preset: 'economy' }, { ifMatch: '"1"' });
     expect(response.status).toBe(200);
     const body = (await response.json()) as TeamConfigDto;
-    expect(body.config).toEqual({ schema: TEAM_CONFIG_SCHEMA, preset: 'economy', language: 'en', access: { source: 'subscription' } });
+    expect(body.config).toEqual({
+      schema: TEAM_CONFIG_SCHEMA,
+      preset: 'economy',
+      language: 'en',
+      access: { source: 'subscription' },
+    });
     expect(body.revision).toBe(2);
   });
 
@@ -481,7 +651,9 @@ describe('POST …/team-config/reset', () => {
     const project = await seedTrackerProject();
     await saved(project, doc({ access: { source: 'api_key' } }));
     expect((await send('POST', `${base(project)}/reset`, {})).status).toBe(428);
-    const body = (await (await send('POST', `${base(project)}/reset`, {}, { ifMatch: '"1"' })).json()) as TeamConfigDto;
+    const body = (await (
+      await send('POST', `${base(project)}/reset`, {}, { ifMatch: '"1"' })
+    ).json()) as TeamConfigDto;
     expect(body.preset).toBe('economy');
     const invalid = await send('POST', `${base(project)}/reset`, { preset: 'custom' }, { ifMatch: '"2"' });
     expect(await invalid.json()).toMatchObject({ field: 'preset' });
@@ -501,7 +673,10 @@ describe('POST …/team-config/import (threat model C12 row 7)', () => {
   }
 
   /** GitHub with the project's repository by its recorded id, and `file` as its project.yml on `dev`. */
-  function gitHubWith(file: string | { readonly size: number } | null): { github: ApiGitHub; contentReads: () => URL[] } {
+  function gitHubWith(file: string | { readonly size: number } | null): {
+    github: ApiGitHub;
+    contentReads: () => URL[];
+  } {
     const { github, stub } = pullRequestsGitHub(
       () => null,
       (call) => {
@@ -512,13 +687,32 @@ describe('POST …/team-config/import (threat model C12 row 7)', () => {
           return json(404, { message: 'Not Found' });
         }
         if (typeof file !== 'string') {
-          return json(200, { type: 'file', size: file.size, sha: 'c'.repeat(40), encoding: 'none', content: '' });
+          return json(200, {
+            type: 'file',
+            size: file.size,
+            sha: 'c'.repeat(40),
+            encoding: 'none',
+            content: '',
+          });
         }
         const content = base64Of(file);
-        return json(200, { type: 'file', size: new TextEncoder().encode(file).length, sha: 'c'.repeat(40), encoding: 'base64', content });
+        return json(200, {
+          type: 'file',
+          size: new TextEncoder().encode(file).length,
+          sha: 'c'.repeat(40),
+          encoding: 'base64',
+          content,
+        });
       },
     );
-    return { github, contentReads: () => stub.reads().filter((call) => CONTENTS.test(call.url.pathname)).map((call) => call.url) };
+    return {
+      github,
+      contentReads: () =>
+        stub
+          .reads()
+          .filter((call) => CONTENTS.test(call.url.pathname))
+          .map((call) => call.url),
+    };
   }
 
   const importAs = (project: SeededProject, github: ApiGitHub, body: unknown = {}) =>
@@ -577,17 +771,28 @@ describe('POST …/team-config/import (threat model C12 row 7)', () => {
     expect(contentReads().map((url) => `${url.pathname}${url.search}`)).toEqual([
       `/repos/acme/${project.slug}/contents/.product-team/project.yml?ref=dev`,
     ]);
-    expect((await (await send('GET', base(project))).json()) as TeamConfigDto).toMatchObject({ revision: 0, config: null });
+    expect((await (await send('GET', base(project))).json()) as TeamConfigDto).toMatchObject({
+      revision: 0,
+      config: null,
+    });
     // The draft saves as it is.
     expect((await put(project, body.draft, '"0"')).status).toBe(200);
   });
 
   it('refuses an alias bomb (billion laughs) without expanding it', async () => {
     const project = await seedTrackerProject();
-    const bomb = ['a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]', 'b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]', 'c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]', 'review: { qa: *c }'].join('\n');
+    const bomb = [
+      'a: &a ["lol","lol","lol","lol","lol","lol","lol","lol","lol"]',
+      'b: &b [*a,*a,*a,*a,*a,*a,*a,*a,*a]',
+      'c: &c [*b,*b,*b,*b,*b,*b,*b,*b,*b]',
+      'review: { qa: *c }',
+    ].join('\n');
     const response = await importAs(project, gitHubWith(bomb).github);
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({ type: expect.stringContaining('team-config-import-invalid') as unknown, field: 'project.yml' });
+    expect(await response.json()).toMatchObject({
+      type: expect.stringContaining('team-config-import-invalid') as unknown,
+      field: 'project.yml',
+    });
   });
 
   it('refuses a 1 MB file before reading its content', async () => {
@@ -599,9 +804,15 @@ describe('POST …/team-config/import (threat model C12 row 7)', () => {
 
   it('never reads a __proto__ key into the draft', async () => {
     const project = await seedTrackerProject();
-    const yml = ['__proto__: { preset: max }', 'review:', '  __proto__: { qa: never }', '  qa: always'].join('\n');
+    const yml = ['__proto__: { preset: max }', 'review:', '  __proto__: { qa: never }', '  qa: always'].join(
+      '\n',
+    );
     const body = (await (await importAs(project, gitHubWith(yml).github)).json()) as TeamConfigImportDto;
-    expect(body.draft).toEqual({ schema: TEAM_CONFIG_SCHEMA, preset: 'recommended', gates: { qa: 'always' } });
+    expect(body.draft).toEqual({
+      schema: TEAM_CONFIG_SCHEMA,
+      preset: 'recommended',
+      gates: { qa: 'always' },
+    });
     expect(body.notes).toContainEqual({ path: 'review.__proto__', code: 'key-ignored' });
     expect(Object.getPrototypeOf(body.draft)).toBe(Object.prototype);
   });

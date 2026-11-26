@@ -1,4 +1,15 @@
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  rm,
+  stat,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ACCOUNT_ID, RUNNER_ID } from '../testing/fake-console';
@@ -105,7 +116,9 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
     it('is changed in place by updateRunnerConfig: judged again, 0600, nothing left beside it', async () => {
       await saveRunnerConfig(home, config);
       const toolchain = { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' };
-      await expect(updateRunnerConfig(home, (current) => ({ ...current, toolchain }))).resolves.toMatchObject({ toolchain });
+      await expect(updateRunnerConfig(home, (current) => ({ ...current, toolchain }))).resolves.toMatchObject(
+        { toolchain },
+      );
       await expect(loadRunnerConfig(home)).resolves.toEqual({ ...config, toolchain });
       expect(await modeOf(configPathOf(home))).toBe(0o600);
       expect(await readdir(home)).toEqual(['config.json']);
@@ -123,7 +136,9 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       const elsewhere = join(parent, 'elsewhere.json');
       await writeFile(elsewhere, JSON.stringify(config), { mode: 0o600 });
       await symlink(elsewhere, configPathOf(home));
-      await expect(updateRunnerConfig(home, (current) => current)).rejects.toMatchObject({ problem: 'file-unsafe' });
+      await expect(updateRunnerConfig(home, (current) => current)).rejects.toMatchObject({
+        problem: 'file-unsafe',
+      });
       expect(JSON.parse(await readFile(elsewhere, 'utf8'))).toEqual(config);
       expect((await lstat(configPathOf(home))).isSymbolicLink()).toBe(true);
     });
@@ -269,7 +284,10 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
       credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
       toolchain: { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' },
       env: { passthrough: ['PT_REPO'] },
-      repositories: { 'team-console': 'https://github.com/geeera/team-console.git', local: '/srv/repos/local' },
+      repositories: {
+        'team-console': 'https://github.com/geeera/team-console.git',
+        local: '/srv/repos/local',
+      },
     };
 
     it('accepts them and keeps them through a save', async () => {
@@ -294,7 +312,8 @@ describe('runner config (ADR 0008 decision 2, threat model C4 row 1)', () => {
     });
 
     it('refuses the removed per-runner roles override and says why (ADR 0009 "Migration" 4)', () => {
-      const parse = (): unknown => parseRunnerConfig({ ...config, roles: { reviewer: { model: 'claude-opus-5-5' } } });
+      const parse = (): unknown =>
+        parseRunnerConfig({ ...config, roles: { reviewer: { model: 'claude-opus-5-5' } } });
       expect(parse).toThrow(RunnerFileError);
       expect(parse).toThrow(/roles is no longer read: .*team configuration in the console/);
     });

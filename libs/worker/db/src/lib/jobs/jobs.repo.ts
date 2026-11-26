@@ -32,7 +32,11 @@ import {
   type AuditCondition,
   type NewAuditEvent,
 } from '../accounts/audit.repo';
-import { claimPlacementAdmitsSql, runnerFitsAccessSourceSql, runnerServesSql } from '../team-config/access-source';
+import {
+  claimPlacementAdmitsSql,
+  runnerFitsAccessSourceSql,
+  runnerServesSql,
+} from '../team-config/access-source';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
@@ -332,7 +336,10 @@ function redactedPayload(value: unknown, depth = 0): unknown {
     return value.map((item) => redactedPayload(item, depth + 1));
   }
   return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, redactedPayload(item, depth + 1)]),
+    Object.entries(value as Record<string, unknown>).map(([key, item]) => [
+      key,
+      redactedPayload(item, depth + 1),
+    ]),
   );
 }
 
@@ -369,7 +376,8 @@ export class JobsRepo {
       return 'ok';
     }
     // A NULL account fails the insert (the account trigger, else NOT NULL), so the whole batch rolls back.
-    const account = hold === undefined ? '?2' : `CASE WHEN EXISTS (${jobTokenHoldsSql(14)}) THEN ?2 ELSE NULL END`;
+    const account =
+      hold === undefined ? '?2' : `CASE WHEN EXISTS (${jobTokenHoldsSql(14)}) THEN ?2 ELSE NULL END`;
     const holdParams = hold === undefined ? [] : [hold.tokenHash, hold.jobId, hold.at];
     try {
       await this.db.batch(
@@ -632,7 +640,9 @@ export class JobsRepo {
   /** The entitled concurrency of the job's account; `null` when the job does not exist. */
   private async entitledConcurrencyOfJob(jobId: string): Promise<EntitledConcurrency | null> {
     const row = await this.db
-      .prepare(`SELECT a.id, a.plan, a.entitlements FROM jobs j JOIN accounts a ON a.id = j.account_id WHERE j.id = ?1`)
+      .prepare(
+        `SELECT a.id, a.plan, a.entitlements FROM jobs j JOIN accounts a ON a.id = j.account_id WHERE j.id = ?1`,
+      )
       .bind(jobId)
       .first<AccountEntitlementsRow>();
     return row === null ? null : entitledConcurrencyOf(row);
@@ -740,7 +750,9 @@ export class JobsRepo {
     if (accounts.length === 0) {
       return [];
     }
-    const limits = JSON.stringify(Object.fromEntries(accounts.map((row) => [row.id, entitledConcurrencyOf(row).limit])));
+    const limits = JSON.stringify(
+      Object.fromEntries(accounts.map((row) => [row.id, entitledConcurrencyOf(row).limit])),
+    );
     // An account missing from the map (its first job queued after the read) reads as 0: the next sweep takes it.
     const entitledLimit = `COALESCE((SELECT el.value FROM json_each(?7) el WHERE el.key = j.account_id), 0)`;
     const { results } = await this.db
@@ -811,7 +823,12 @@ export class JobsRepo {
    * for it (`actions-no-show`). `summary` is one of the console's own phrases, never GitHub's text. The job as
    * failed, or `null` when it was no longer waiting.
    */
-  async failUndispatched(jobId: string, at: string, reason: string, summary: string): Promise<JobRecord | null> {
+  async failUndispatched(
+    jobId: string,
+    at: string,
+    reason: string,
+    summary: string,
+  ): Promise<JobRecord | null> {
     const result = JSON.stringify({ summary, metrics: { reason }, acted: false });
     const failed: AuditCondition = {
       exists: `SELECT 1 FROM jobs WHERE id = ? AND state = 'failed' AND finished_at = ?`,
@@ -825,7 +842,12 @@ export class JobsRepo {
            RETURNING ${COLUMNS}`,
         )
         .bind(jobId, at, result),
-      this.eventStatement(jobId, at, { level: 'error', kind: 'failed', payload: { reason, summary } }, failed),
+      this.eventStatement(
+        jobId,
+        at,
+        { level: 'error', kind: 'failed', payload: { reason, summary } },
+        failed,
+      ),
     ]);
     const row = (update?.results as JobRow[] | undefined)?.[0];
     return row === undefined ? null : toRecord(row);
@@ -974,10 +996,14 @@ export class JobsRepo {
     if ((results[2]?.meta.changes ?? 0) !== 1) {
       // The batch judged the source; this read only names why nothing was written.
       const project = await this.db
-        .prepare(`SELECT p.access_source FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`)
+        .prepare(
+          `SELECT p.access_source FROM jobs j JOIN projects p ON p.slug = j.project_slug WHERE j.id = ?1`,
+        )
         .bind(exchange.jobId)
         .first<{ access_source: string }>();
-      return project !== null && project.access_source !== 'api_key' ? { kind: 'access-source' } : { kind: 'not-claimable' };
+      return project !== null && project.access_source !== 'api_key'
+        ? { kind: 'access-source' }
+        : { kind: 'not-claimable' };
     }
     const job = await this.findById(exchange.jobId);
     return job === null ? { kind: 'not-claimable' } : { kind: 'claimed', job };
@@ -1000,7 +1026,12 @@ export class JobsRepo {
   }
 
   /** `onlyIf`: as for the audit row, the event is written only when the condition holds inside the batch (#492). */
-  private eventStatement(jobId: string, at: string, event: JobEventInput, onlyIf?: AuditCondition): D1PreparedStatement {
+  private eventStatement(
+    jobId: string,
+    at: string,
+    event: JobEventInput,
+    onlyIf?: AuditCondition,
+  ): D1PreparedStatement {
     // The cap is judged inside the insert, so a flood past it writes nothing (threat model C2, D1 write budget).
     return this.db
       .prepare(
@@ -1050,7 +1081,9 @@ export class JobsRepo {
     // Read in the same batch (one transaction), so `held` is the very judgement the inserts above saw.
     statements.push(
       this.db
-        .prepare(`SELECT COALESCE(MAX(seq), 0) AS seq, EXISTS (${held.exists}) AS held FROM job_events WHERE job_id = ?`)
+        .prepare(
+          `SELECT COALESCE(MAX(seq), 0) AS seq, EXISTS (${held.exists}) AS held FROM job_events WHERE job_id = ?`,
+        )
         .bind(...held.params, id),
     );
     const results = await this.db.batch(statements);
@@ -1066,7 +1099,13 @@ export class JobsRepo {
         `SELECT seq, at, level, kind, payload FROM job_events WHERE job_id = ?1 AND seq > ?2 ORDER BY seq LIMIT ?3`,
       )
       .bind(id, after, limit + 1)
-      .all<{ seq: number; at: string; level: JobEventInput['level']; kind: JobEventInput['kind']; payload: string }>();
+      .all<{
+        seq: number;
+        at: string;
+        level: JobEventInput['level'];
+        kind: JobEventInput['kind'];
+        payload: string;
+      }>();
     return results.map((row) => ({ ...row, payload: JSON.parse(row.payload) as Record<string, unknown> }));
   }
 
@@ -1085,12 +1124,21 @@ export class JobsRepo {
   async finish(
     id: string,
     runnerId: string,
-    outcome: { readonly result: 'finished' | 'failed'; readonly summary: string; readonly metrics: Readonly<Record<string, unknown>>; readonly acted: boolean },
+    outcome: {
+      readonly result: 'finished' | 'failed';
+      readonly summary: string;
+      readonly metrics: Readonly<Record<string, unknown>>;
+      readonly acted: boolean;
+    },
     now: string,
     audit: NewAuditEvent,
     spend?: FinishSpend,
   ): Promise<boolean> {
-    const result = redactedPayload({ summary: outcome.summary, metrics: outcome.metrics, acted: outcome.acted });
+    const result = redactedPayload({
+      summary: outcome.summary,
+      metrics: outcome.metrics,
+      acted: outcome.acted,
+    });
     // One batch (#492): the event and the audit row are written only if the guarded UPDATE took, so a lapsed lease or
     // another runner's call writes nothing that reads as a finish (#490 review), and a failure between two calls can
     // no longer leave a finished job without its audit row.

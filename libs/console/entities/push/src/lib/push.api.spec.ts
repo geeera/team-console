@@ -73,7 +73,10 @@ describe('PushApi', () => {
   });
 
   it('stores and removes this device by its endpoint', async () => {
-    const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/1', keys: { p256dh: 'a', auth: 'b' } };
+    const subscription = {
+      endpoint: 'https://fcm.googleapis.com/fcm/send/1',
+      keys: { p256dh: 'a', auth: 'b' },
+    };
     const saving = api.save(subscription);
     const put = http.expectOne(PUSH_SUBSCRIPTIONS_URL);
     expect(put.request.method).toBe('PUT');

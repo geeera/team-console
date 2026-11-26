@@ -41,5 +41,9 @@ export const LongValues: Story = {
 };
 /** Markup in a value is text, never HTML (threat model T4). */
 export const MarkupAsText: Story = {
-  args: { rows: [{ path: 'gates.code_paths', label: 'Пути кода', from: 'apps/**', to: '<img src=x onerror=alert(1)>' }] },
+  args: {
+    rows: [
+      { path: 'gates.code_paths', label: 'Пути кода', from: 'apps/**', to: '<img src=x onerror=alert(1)>' },
+    ],
+  },
 };

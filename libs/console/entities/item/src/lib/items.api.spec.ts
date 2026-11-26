@@ -96,18 +96,19 @@ describe('ItemsApi', () => {
       { title: 'Into a closed sprint', body: '', kind: 'feature', sprint: 5 },
       'key-quick-4',
     );
-    http
-      .expectOne(itemsUrl('team-console'))
-      .flush(
-        {
-          type: 'https://team-console/problems/item-invalid',
-          title: 'item-invalid',
-          status: 422,
-          field: 'sprint',
-        },
-        { status: 422, statusText: 'Unprocessable Entity', headers: problemHeaders },
-      );
-    await expect(vanished).resolves.toMatchObject({ ok: false, failure: { kind: 'invalid', field: 'sprint' } });
+    http.expectOne(itemsUrl('team-console')).flush(
+      {
+        type: 'https://team-console/problems/item-invalid',
+        title: 'item-invalid',
+        status: 422,
+        field: 'sprint',
+      },
+      { status: 422, statusText: 'Unprocessable Entity', headers: problemHeaders },
+    );
+    await expect(vanished).resolves.toMatchObject({
+      ok: false,
+      failure: { kind: 'invalid', field: 'sprint' },
+    });
   });
 
   it('records a decision with its key and reads a replay as replayed (#457)', async () => {
@@ -140,10 +141,23 @@ describe('ItemsApi', () => {
   });
 
   it('reads the sprint list with its open counts, and refuses one without them (#561)', async () => {
-    const sprint = { number: 4, title: 'Sprint 04', dueOn: null, state: 'open', description: '', createdAt: 'x', closedAt: null };
+    const sprint = {
+      number: 4,
+      title: 'Sprint 04',
+      dueOn: null,
+      state: 'open',
+      description: '',
+      createdAt: 'x',
+      closedAt: null,
+    };
     const counted = api.sprintList('team-console');
-    http.expectOne(sprintsUrl('team-console')).flush({ sprints: [{ ...sprint, openCount: 3 }], backlogOpenCount: 7 });
-    await expect(counted).resolves.toMatchObject({ ok: true, value: { backlogOpenCount: 7, sprints: [{ openCount: 3 }] } });
+    http
+      .expectOne(sprintsUrl('team-console'))
+      .flush({ sprints: [{ ...sprint, openCount: 3 }], backlogOpenCount: 7 });
+    await expect(counted).resolves.toMatchObject({
+      ok: true,
+      value: { backlogOpenCount: 7, sprints: [{ openCount: 3 }] },
+    });
     const uncounted = api.sprintList('team-console');
     http.expectOne(sprintsUrl('team-console')).flush({ sprints: [sprint], backlogOpenCount: 7 });
     await expect(uncounted).resolves.toEqual({ ok: false, reason: 'error' });
@@ -204,7 +218,9 @@ describe('ItemsApi', () => {
     const endless = api.items('team-console', {}, true);
     for (let n = 0; n < 20; n += 1) {
       await Promise.resolve();
-      http.expectOne((request) => request.url.endsWith('/items')).flush({ items: page(n + 1, 1), next: n + 1 });
+      http
+        .expectOne((request) => request.url.endsWith('/items'))
+        .flush({ items: page(n + 1, 1), next: n + 1 });
     }
     await expect(endless).resolves.toEqual({ ok: false, reason: 'error' });
   });

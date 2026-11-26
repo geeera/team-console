@@ -15,7 +15,10 @@ import { runJob, type JobRunDeps } from './run-job';
  * reports the argv, the settings file, the env's names and the clone's shape it was started with.
  */
 
-const CLAIM_FIXTURE = resolve(import.meta.dirname, '../../../api/fixtures/team-config/claim.with-config.json');
+const CLAIM_FIXTURE = resolve(
+  import.meta.dirname,
+  '../../../api/fixtures/team-config/claim.with-config.json',
+);
 
 interface ClaimFixture {
   readonly response: { readonly body: { readonly job: JobDto; readonly teamConfig: ResolvedTeamConfigDto } };
@@ -76,7 +79,9 @@ describe('runJob with the claim’s team configuration (#685)', () => {
 
   async function plantApiKey(): Promise<void> {
     await mkdir(join(fixture.home, 'credentials'), { mode: 0o700 });
-    await writeFile(join(fixture.home, 'credentials', 'anthropic.key'), sentinels.anthropicKey, { mode: 0o600 });
+    await writeFile(join(fixture.home, 'credentials', 'anthropic.key'), sentinels.anthropicKey, {
+      mode: 0o600,
+    });
   }
 
   function depsFor(client: ReturnType<typeof recordingConsole>, config: RunnerConfig): JobRunDeps {
@@ -103,8 +108,14 @@ describe('runJob with the claim’s team configuration (#685)', () => {
       await plantApiKey();
     }
     const client = recordingConsole();
-    const config = runnerConfigFor(fixture.repo, options.credential === false ? {} : { credential: apiKeyCredential });
-    const job = jobFixture({ items: [SCENARIO.launch], ...(options.role === undefined ? {} : { role: options.role }) });
+    const config = runnerConfigFor(
+      fixture.repo,
+      options.credential === false ? {} : { credential: apiKeyCredential },
+    );
+    const job = jobFixture({
+      items: [SCENARIO.launch],
+      ...(options.role === undefined ? {} : { role: options.role }),
+    });
     const outcome = await runJob(job, sentinels.jobToken, depsFor(client, config), teamConfig);
     const finished = client.finished[0];
     return {
@@ -159,7 +170,9 @@ describe('runJob with the claim’s team configuration (#685)', () => {
     const { client, report } = await launch(
       viewWith('cost', { prompt_caching: false, batch_api: true, reviewer_context: 'repo' }),
     );
-    expect(report?.settings).toMatchObject({ env: { DISABLE_AUTOUPDATER: '1', DISABLE_PROMPT_CACHING: '1' } });
+    expect(report?.settings).toMatchObject({
+      env: { DISABLE_AUTOUPDATER: '1', DISABLE_PROMPT_CACHING: '1' },
+    });
     expect(teamNoticeOf(client)?.['cost']).toEqual({
       prompt_caching: 'off',
       batch_api: 'unsupported',
@@ -190,11 +203,22 @@ describe('runJob with the claim’s team configuration (#685)', () => {
         credential: apiKeyCredential,
         toolchain: { path: '/usr/bin:/bin', claude: cli },
       });
-      const report = await runJob(jobFixture({ items: [SCENARIO.launch] }), sentinels.jobToken, depsFor(client, config), teamConfig);
+      const report = await runJob(
+        jobFixture({ items: [SCENARIO.launch] }),
+        sentinels.jobToken,
+        depsFor(client, config),
+        teamConfig,
+      );
       expect(report).toMatchObject({ result: 'failed', reason: 'team-config-invalid' });
-      expect(client.finished[0]).toMatchObject({ result: 'failed', metrics: { reason: 'team-config-invalid' } });
+      expect(client.finished[0]).toMatchObject({
+        result: 'failed',
+        metrics: { reason: 'team-config-invalid' },
+      });
       expect(client.sent).toContainEqual(
-        expect.objectContaining({ kind: 'notice', payload: expect.objectContaining({ refused: 'team-config-invalid' }) }),
+        expect.objectContaining({
+          kind: 'notice',
+          payload: expect.objectContaining({ refused: 'team-config-invalid' }),
+        }),
       );
       await expect(readdir(fixture.root)).resolves.not.toContain('cli-started');
       return client;
@@ -232,7 +256,9 @@ describe('runJob with the claim’s team configuration (#685)', () => {
       expect(result).toBe('failed');
       expect(client.finished[0]?.metrics).toMatchObject({ reason: 'credential-source-mismatch' });
       const refusal = client.sent.find((event) => event.payload['refused'] === 'credential-source-mismatch');
-      expect(refusal?.payload['detail']).toBe("the api-key credential does not match the project's subscription access source");
+      expect(refusal?.payload['detail']).toBe(
+        "the api-key credential does not match the project's subscription access source",
+      );
       const everything = JSON.stringify([client.sent, client.finished, logs]);
       expect(everything).not.toContain(sentinels.anthropicKey);
     }, 30_000);
@@ -262,21 +288,30 @@ describe('runJob with the claim’s team configuration (#685)', () => {
   describe('T11: reviewer_context diff narrows the reviewer’s clone only', () => {
     it('a reviewer job gets a blob-less, one-commit clone and the status says applied', async () => {
       const { client, report } = await launch(claim.response.body.teamConfig, { role: 'reviewer' });
-      expect(report).toMatchObject({ shallow: true, promisor: 'true', readme: true, model: 'claude-sonnet-5' });
+      expect(report).toMatchObject({
+        shallow: true,
+        promisor: 'true',
+        readme: true,
+        model: 'claude-sonnet-5',
+      });
       expect(teamNoticeOf(client)).toMatchObject({
         teamConfig: { clone: 'diff' },
         cost: { reviewer_context: 'applied' },
       });
     }, 30_000);
 
-    it.each(['security', 'qa'])('a %s job always gets the full clone', async (role) => {
-      const { client, report } = await launch(claim.response.body.teamConfig, { role });
-      expect(report).toMatchObject({ shallow: false, promisor: null, readme: true });
-      expect(teamNoticeOf(client)).toMatchObject({
-        teamConfig: { clone: 'full' },
-        cost: { reviewer_context: 'not-applicable' },
-      });
-    }, 30_000);
+    it.each(['security', 'qa'])(
+      'a %s job always gets the full clone',
+      async (role) => {
+        const { client, report } = await launch(claim.response.body.teamConfig, { role });
+        expect(report).toMatchObject({ shallow: false, promisor: null, readme: true });
+        expect(teamNoticeOf(client)).toMatchObject({
+          teamConfig: { clone: 'full' },
+          cost: { reviewer_context: 'not-applicable' },
+        });
+      },
+      30_000,
+    );
 
     it('a reviewer on a subscription project gets the full clone: the levers apply under api_key only', async () => {
       const { client, report } = await launch(viewWith('access.source', 'subscription'), {

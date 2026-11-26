@@ -1,7 +1,11 @@
 import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActionsSetupApi, actionsSetupFixture, type WorkflowPrRefusal } from '@console/entities/actions-setup';
+import {
+  ActionsSetupApi,
+  actionsSetupFixture,
+  type WorkflowPrRefusal,
+} from '@console/entities/actions-setup';
 import { NetworkStatus } from '@console/shared/api';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import type { ActionsSetupDto, ActionsWorkflowPrDto } from '@shared/contracts';
@@ -13,7 +17,10 @@ const MISSING = actionsSetupFixture({ items: { workflow: { status: 'missing' } }
 type PrAnswer = { ok: true; value: ActionsWorkflowPrDto } | { ok: false; problem: WorkflowPrRefusal };
 
 describe('WorkflowStep (#759 step 4)', () => {
-  async function render(setup: ActionsSetupDto, answer: () => PrAnswer = () => ({ ok: true, value: { number: 42, url: PR_URL, kind: 'setup' } })) {
+  async function render(
+    setup: ActionsSetupDto,
+    answer: () => PrAnswer = () => ({ ok: true, value: { number: 42, url: PR_URL, kind: 'setup' } }),
+  ) {
     const announce = vi.fn(async () => undefined);
     const calls: string[] = [];
     TestBed.configureTestingModule({
@@ -28,7 +35,10 @@ describe('WorkflowStep (#759 step 4)', () => {
               calls.push(slug);
               return answer();
             },
-            workflow: async () => ({ ok: true, value: { text: 'on: workflow_dispatch', sha256: 'a'.repeat(64), version: '0.42.0' } }),
+            workflow: async () => ({
+              ok: true,
+              value: { text: 'on: workflow_dispatch', sha256: 'a'.repeat(64), version: '0.42.0' },
+            }),
           },
         },
       ],
@@ -50,7 +60,8 @@ describe('WorkflowStep (#759 step 4)', () => {
     };
     await settle();
     const root = fixture.nativeElement as HTMLElement;
-    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null => root.querySelector<T>(`[data-testid="${id}"]`);
+    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
+      root.querySelector<T>(`[data-testid="${id}"]`);
     const click = async (id: string): Promise<void> => {
       find(id)?.click();
       await settle();
@@ -85,7 +96,9 @@ describe('WorkflowStep (#759 step 4)', () => {
 
   it('never says merge for a PR the console cannot vouch for', async () => {
     const { find } = await render(
-      actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { number: 9, url: PR_URL, provenance: 'changed' } } } }),
+      actionsSetupFixture({
+        items: { workflow: { status: 'missing', pr: { number: 9, url: PR_URL, provenance: 'changed' } } },
+      }),
     );
     expect(find('workflow-fix')?.textContent).toContain('Не мержите его, пока не проверите');
     expect(find('workflow-open-pr')).toBeNull();
@@ -93,7 +106,10 @@ describe('WorkflowStep (#759 step 4)', () => {
 
   it('names a leftover branch and links it on GitHub (#844), and opens the Copy path', async () => {
     const link = 'https://github.com/geeera/storify/branches/all?query=team-console%2Frunner-';
-    const { find, click } = await render(MISSING, () => ({ ok: false, problem: { kind: 'branch-exists', link } }));
+    const { find, click } = await render(MISSING, () => ({
+      ok: false,
+      problem: { kind: 'branch-exists', link },
+    }));
     await click('workflow-open-pr');
     expect(find('workflow-refusal')?.getAttribute('role')).toBe('alert');
     expect(find('workflow-refusal')?.textContent).toContain('удалите эту ветку на GitHub');
@@ -111,7 +127,14 @@ describe('WorkflowStep (#759 step 4)', () => {
   });
 
   it.each([
-    [{ kind: 'permission-missing', permissions: ['workflows'], link: 'https://github.com/settings/installations/1' }, 'Приложению не хватает прав: workflows'],
+    [
+      {
+        kind: 'permission-missing',
+        permissions: ['workflows'],
+        link: 'https://github.com/settings/installations/1',
+      },
+      'Приложению не хватает прав: workflows',
+    ],
     [{ kind: 'tampered' }, 'Консоль не смогла открыть чистый PR'],
     [{ kind: 'downgrade', pins: ['runner'] }, 'более новые версии (runner)'],
     [{ kind: 'misconfigured' }, 'ошибка на нашей стороне'],
@@ -125,21 +148,29 @@ describe('WorkflowStep (#759 step 4)', () => {
   });
 
   it('re-checks when the file is already current', async () => {
-    const { find, click, rechecks } = await render(MISSING, () => ({ ok: false, problem: { kind: 'ready' } }));
+    const { find, click, rechecks } = await render(MISSING, () => ({
+      ok: false,
+      problem: { kind: 'ready' },
+    }));
     await click('workflow-open-pr');
     expect(find('workflow-refusal')?.textContent).toContain('Файл уже на месте');
     expect(rechecks).toHaveLength(1);
   });
 
   it('says when a PR can be opened again after a 429', async () => {
-    const { find, click } = await render(MISSING, () => ({ ok: false, problem: { kind: 'rate', retryAt: '2026-11-21T13:00:00.000Z' } }));
+    const { find, click } = await render(MISSING, () => ({
+      ok: false,
+      problem: { kind: 'rate', retryAt: '2026-11-21T13:00:00.000Z' },
+    }));
     await click('workflow-open-pr');
     expect(find('workflow-rate')?.textContent).toContain('PR можно открыть ещё раз позже');
   });
 
   it('leads with the Copy path while the app lacks its permissions', async () => {
     const { find } = await render(
-      actionsSetupFixture({ items: { 'app-permissions': { status: 'missing' }, workflow: { status: 'missing' } } }),
+      actionsSetupFixture({
+        items: { 'app-permissions': { status: 'missing' }, workflow: { status: 'missing' } },
+      }),
     );
     expect(find('workflow-open-pr')).toBeNull();
     expect(find('workflow-copy-reason')?.textContent).toContain('когда приложение получит права');
@@ -150,9 +181,13 @@ describe('WorkflowStep (#759 step 4)', () => {
     const OLD = { runner: '0.1.0', node: '22.1.0', claudeCode: '2.0.0' } as const;
 
     it('words an outdated file with both runner versions and offers the bump PR', async () => {
-      const { find } = await render(actionsSetupFixture({ items: { workflow: { status: 'outdated' } }, versions: { current: OLD } }));
+      const { find } = await render(
+        actionsSetupFixture({ items: { workflow: { status: 'outdated' } }, versions: { current: OLD } }),
+      );
       expect(find('workflow-step')?.dataset['state']).toBe('outdated');
-      expect(find('workflow-fix')?.textContent).toContain('Вышла новая версия раннера: 0.1.0 → 0.2.0. Задания идут и на старой.');
+      expect(find('workflow-fix')?.textContent).toContain(
+        'Вышла новая версия раннера: 0.1.0 → 0.2.0. Задания идут и на старой.',
+      );
       expect(find('workflow-open-pr')?.textContent?.trim()).toBe('Открыть PR с обновлением');
     });
 
@@ -170,20 +205,31 @@ describe('WorkflowStep (#759 step 4)', () => {
     it('calls a PR for an earlier version stale, links it, and still offers a new one', async () => {
       const { find } = await render(
         actionsSetupFixture({
-          items: { workflow: { status: 'outdated', pr: { number: 9, url: PR_URL, provenance: 'console', stale: true } } },
+          items: {
+            workflow: {
+              status: 'outdated',
+              pr: { number: 9, url: PR_URL, provenance: 'console', stale: true },
+            },
+          },
           versions: { current: OLD },
         }),
       );
-      expect(find('workflow-fix')?.textContent).toContain('PR #9 открыт для прежней версии файла. Закройте его и откройте новый.');
+      expect(find('workflow-fix')?.textContent).toContain(
+        'PR #9 открыт для прежней версии файла. Закройте его и откройте новый.',
+      );
       expect(find<HTMLAnchorElement>('workflow-link-pr')?.getAttribute('href')).toBe(PR_URL);
       expect(find('workflow-link-pr')?.className).not.toContain('primary');
       expect(find('workflow-open-pr')).not.toBeNull();
     });
 
     it('leads with the Copy path when the check says the PR path is off, before any click', async () => {
-      const { find, calls } = await render(actionsSetupFixture({ items: { workflow: { status: 'missing' } }, workflowPr: 'disabled' }));
+      const { find, calls } = await render(
+        actionsSetupFixture({ items: { workflow: { status: 'missing' } }, workflowPr: 'disabled' }),
+      );
       expect(find('workflow-open-pr')).toBeNull();
-      expect(find('workflow-copy-reason')?.textContent).toContain('Сейчас консоль не открывает PR. Добавьте файл сами');
+      expect(find('workflow-copy-reason')?.textContent).toContain(
+        'Сейчас консоль не открывает PR. Добавьте файл сами',
+      );
       expect(find('workflow-show-file')?.className).toContain('primary');
       expect(calls).toEqual([]);
     });

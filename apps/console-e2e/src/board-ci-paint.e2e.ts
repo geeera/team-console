@@ -62,7 +62,12 @@ async function watchPainting(page: Page): Promise<void> {
       if (document.querySelector('.sprint-ci-chip--painting') !== null) {
         seen.painted = true;
       }
-    }).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class'],
+    });
   });
 }
 
@@ -78,7 +83,10 @@ async function leaveAndReturn(page: Page): Promise<void> {
 test('a running check that passed is painted in when the board is opened again', async ({ page }) => {
   await passAfterFirstRead(page);
   await page.goto(BOARD);
-  const chip = page.getByTestId('pulls').locator(`tc-list-row[data-number="${String(PULL)}"]`).getByTestId('ci');
+  const chip = page
+    .getByTestId('pulls')
+    .locator(`tc-list-row[data-number="${String(PULL)}"]`)
+    .getByTestId('ci');
   await expect(chip).toHaveAttribute('data-ci', 'pending');
   await watchPainting(page);
 
@@ -95,7 +103,10 @@ test('under reduced motion the colour changes with no fill and no halo', async (
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await passAfterFirstRead(page);
   await page.goto(BOARD);
-  const chip = page.getByTestId('pulls').locator(`tc-list-row[data-number="${String(PULL)}"]`).getByTestId('ci');
+  const chip = page
+    .getByTestId('pulls')
+    .locator(`tc-list-row[data-number="${String(PULL)}"]`)
+    .getByTestId('ci');
   await expect(chip).toHaveAttribute('data-ci', 'pending');
 
   await leaveAndReturn(page);

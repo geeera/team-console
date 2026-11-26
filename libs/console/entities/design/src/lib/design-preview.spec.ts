@@ -9,7 +9,10 @@ import { MANIFEST, screen } from './design.model.spec';
 
 @Component({
   imports: [DesignPreview, DesignSummary],
-  template: `<tc-design-preview [slug]="slug" [issue]="issue()" /><tc-design-summary [slug]="slug" [issue]="issue()" />`,
+  template: `<tc-design-preview [slug]="slug" [issue]="issue()" /><tc-design-summary
+      [slug]="slug"
+      [issue]="issue()"
+    />`,
 })
 class Host {
   readonly slug = 'tc';
@@ -51,9 +54,9 @@ describe('DesignPreview and DesignSummary', () => {
     );
     expect(img.getAttribute('alt')).toBe('');
     expect(root.querySelector('iframe, svg, object')).toBeNull();
-    expect(root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      '#277 · 3 экрана · iPhone и Mac',
-    );
+    expect(
+      root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('#277 · 3 экрана · iPhone и Mac');
   });
 
   it('says HTML when the design has only an interactive version, and a dash when it has nothing', async () => {
@@ -62,19 +65,21 @@ describe('DesignPreview and DesignSummary', () => {
     await settle();
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="design-thumb-none"]')?.textContent?.trim()).toBe('HTML');
-    expect(root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      '#277 · только интерактивная версия',
-    );
+    expect(
+      root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('#277 · только интерактивная версия');
 
     fixture.componentInstance.issue.set(278);
     await fixture.whenStable();
-    http.expectOne('/api/v1/projects/tc/designs/278').flush({ ...MANIFEST, issue: 278, screens: [], interactive: null });
+    http
+      .expectOne('/api/v1/projects/tc/designs/278')
+      .flush({ ...MANIFEST, issue: 278, screens: [], interactive: null });
     await settle();
     await fixture.whenStable();
     expect(root.querySelector('[data-testid="design-thumb-none"]')?.textContent?.trim()).toBe('—');
-    expect(root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      '#278 · без картинок',
-    );
+    expect(
+      root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('#278 · без картинок');
   });
 
   it('falls back to a placeholder when the image fails to load, and names one device alone', async () => {
@@ -82,9 +87,9 @@ describe('DesignPreview and DesignSummary', () => {
     http.expectOne('/api/v1/projects/tc/designs/277').flush({ ...MANIFEST, screens: [screen('mac-01.png')] });
     await settle();
     await fixture.whenStable();
-    expect(root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
-      '#277 · 1 экран · Mac',
-    );
+    expect(
+      root.querySelector('[data-testid="design-summary"]')?.textContent?.replace(/\s+/g, ' ').trim(),
+    ).toBe('#277 · 1 экран · Mac');
     root.querySelector('img')?.dispatchEvent(new Event('error'));
     await settle();
     // A failed thumbnail refetches the list once; the same commit again means the file is really gone.
@@ -122,16 +127,28 @@ describe('DesignPreview and DesignSummary', () => {
 
 @Component({
   imports: [DesignPreview],
-  template: `<tc-design-preview slug="tc" [issue]="277" variant="card" [manifest]="manifest" [screen]="screen()" />`,
+  template: `<tc-design-preview
+    slug="tc"
+    [issue]="277"
+    variant="card"
+    [manifest]="manifest"
+    [screen]="screen()"
+  />`,
 })
 class ScreenHost {
-  readonly manifest = { ...MANIFEST, screens: [...MANIFEST.screens, screen('phone-03-huge.png', { tooLarge: true })] };
+  readonly manifest = {
+    ...MANIFEST,
+    screens: [...MANIFEST.screens, screen('phone-03-huge.png', { tooLarge: true })],
+  };
   readonly screen = signal<string | null>('docs/design/277-viewer/mac-01-list.png');
 }
 
 describe('DesignPreview of one screen', () => {
   it('shows the screen it is given, and the placeholder for one not listed or too large to serve', async () => {
-    await TestBed.configureTestingModule({ imports: [ScreenHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [ScreenHost],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(ScreenHost);
     await fixture.whenStable();
@@ -150,7 +167,13 @@ describe('DesignPreview of one screen', () => {
 
 @Component({
   imports: [DesignPreview],
-  template: `<tc-design-preview slug="tc" [issue]="277" variant="card" [worded]="true" [manifest]="manifest()" />`,
+  template: `<tc-design-preview
+    slug="tc"
+    [issue]="277"
+    variant="card"
+    [worded]="true"
+    [manifest]="manifest()"
+  />`,
 })
 class WordedHost {
   readonly manifest = signal<typeof MANIFEST>({ ...MANIFEST, screens: [], interactive: null });
@@ -158,7 +181,10 @@ class WordedHost {
 
 describe('DesignPreview on an artifact card (#766)', () => {
   it('says in words that there are no pictures, or only the interactive version', async () => {
-    await TestBed.configureTestingModule({ imports: [WordedHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [WordedHost],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(WordedHost);
     await fixture.whenStable();
@@ -176,7 +202,10 @@ describe('DesignPreview on an artifact card (#766)', () => {
   });
 
   it('says the picture did not load when the image fails', async () => {
-    await TestBed.configureTestingModule({ imports: [WordedHost], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [WordedHost],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(WordedHost);
     fixture.componentInstance.manifest.set(MANIFEST);

@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:test';
-import { OWNER_ACCOUNT_ID, type EnrolmentCodeDto, type RunnerDto, type RunnerListDto } from '@shared/contracts';
+import {
+  OWNER_ACCOUNT_ID,
+  type EnrolmentCodeDto,
+  type RunnerDto,
+  type RunnerListDto,
+} from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import {
   accessEnv,
@@ -48,7 +53,12 @@ describe('enrolment codes', () => {
     });
     expect(response.status).toBe(201);
     const body = (await response.json()) as EnrolmentCodeDto;
-    expect(body).toMatchObject({ name: 'Mac', projectScope: 'selected', allowedProjects: [project.slug], apiUrl: 'http://api.test' });
+    expect(body).toMatchObject({
+      name: 'Mac',
+      projectScope: 'selected',
+      allowedProjects: [project.slug],
+      apiUrl: 'http://api.test',
+    });
     expect(body.code.startsWith(ENROLMENT_CODE_PREFIX)).toBe(true);
     const audit = await env.DB.prepare(
       `SELECT details FROM audit_events WHERE kind = 'enrolment-code.created' AND account_id = ?1 ORDER BY id DESC`,
@@ -56,8 +66,13 @@ describe('enrolment codes', () => {
       .bind(OWNER_ACCOUNT_ID)
       .first<{ details: string }>();
     expect(audit?.details).not.toContain(body.code.slice(ENROLMENT_CODE_PREFIX.length));
-    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({ name: 'Mac', allowedProjects: [project.slug] });
-    const stored = await env.DB.prepare(`SELECT code_hash FROM runner_enrolments ORDER BY created_at DESC`).first<{
+    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({
+      name: 'Mac',
+      allowedProjects: [project.slug],
+    });
+    const stored = await env.DB.prepare(
+      `SELECT code_hash FROM runner_enrolments ORDER BY created_at DESC`,
+    ).first<{
       code_hash: string;
     }>();
     expect(stored?.code_hash).toMatch(/^[0-9a-f]{64}$/);
@@ -92,8 +107,16 @@ describe('enrolment codes', () => {
   it.each([
     ['a missing name', { allowedProjects: [] }, 'name'],
     ['a blank name', { name: '   ', allowedProjects: [] }, 'name'],
-    ['a malformed slug', { name: 'x', projectScope: 'selected', allowedProjects: ['Not A Slug'] }, 'allowedProjects'],
-    ['a list beside all', { name: 'x', projectScope: 'all', allowedProjects: ['team-console'] }, 'allowedProjects'],
+    [
+      'a malformed slug',
+      { name: 'x', projectScope: 'selected', allowedProjects: ['Not A Slug'] },
+      'allowedProjects',
+    ],
+    [
+      'a list beside all',
+      { name: 'x', projectScope: 'all', allowedProjects: ['team-console'] },
+      'allowedProjects',
+    ],
     ['a list with no scope', { name: 'x', allowedProjects: ['team-console'] }, 'allowedProjects'],
     ['an unknown scope', { name: 'x', projectScope: 'everything', allowedProjects: [] }, 'projectScope'],
   ])('refuses %s with 422', async (_, body, field) => {
@@ -117,7 +140,11 @@ describe('enrolment codes', () => {
     )
       .bind(OWNER_ACCOUNT_ID)
       .first<{ details: string }>();
-    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({ name: 'Mac', projectScope: 'all', allowedProjects: [] });
+    expect(JSON.parse(audit?.details ?? '{}')).toMatchObject({
+      name: 'Mac',
+      projectScope: 'all',
+      allowedProjects: [],
+    });
   });
 
   it('is the owner’s: a member gets 403, a non-member and the service identity 404', async () => {
@@ -181,11 +208,19 @@ describe('runner list, allowed projects and revoke', () => {
       RUNNER_MINIMUM_VERSION: '0.2.0-rc.1',
     });
 
-    const response = await sendAsSession(owner, 'GET', runnersPath(owner.account.id), undefined, {}, bindings);
+    const response = await sendAsSession(
+      owner,
+      'GET',
+      runnersPath(owner.account.id),
+      undefined,
+      {},
+      bindings,
+    );
     expect(response.status).toBe(200);
     const body = (await response.json()) as RunnerListDto;
     expect(body.release).toEqual({ version: '0.3.0', minimumVersion: '0.2.0-rc.1' });
-    const flagOf = (id: string): boolean | undefined => body.runners.find((runner) => runner.id === id)?.belowMinimum;
+    const flagOf = (id: string): boolean | undefined =>
+      body.runners.find((runner) => runner.id === id)?.belowMinimum;
     expect([flagOf(behind.id), flagOf(current.id), flagOf(unlabelled.id)]).toEqual([true, false, true]);
 
     const patched = await sendAsSession(
@@ -199,7 +234,9 @@ describe('runner list, allowed projects and revoke', () => {
     expect(((await patched.json()) as RunnerDto).belowMinimum).toBe(true);
 
     // No minimum configured (the deployed default): nothing is behind, and the release reads as unknown.
-    const unset = (await (await sendAsSession(owner, 'GET', runnersPath(owner.account.id))).json()) as RunnerListDto;
+    const unset = (await (
+      await sendAsSession(owner, 'GET', runnersPath(owner.account.id))
+    ).json()) as RunnerListDto;
     expect(unset.release).toEqual({ version: null, minimumVersion: null });
     expect(unset.runners.every((runner) => !runner.belowMinimum)).toBe(true);
   });
@@ -226,10 +263,15 @@ describe('runner list, allowed projects and revoke', () => {
     expect(foreignSlug.status).toBe(422);
     expect(await slugOf(foreignSlug)).toBe('allowed-projects-invalid');
 
-    const foreignRunner = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${theirRunner.id}`, {
-      projectScope: 'selected',
-      allowedProjects: [project.slug],
-    });
+    const foreignRunner = await sendAsSession(
+      owner,
+      'PATCH',
+      `${runnersPath(owner.account.id)}/${theirRunner.id}`,
+      {
+        projectScope: 'selected',
+        allowedProjects: [project.slug],
+      },
+    );
     expect(foreignRunner.status).toBe(404);
     expect(await slugOf(foreignRunner)).toBe('runner-not-found');
     const unchanged = await env.DB.prepare(`SELECT allowed_projects FROM runners WHERE id = ?1`)
@@ -260,9 +302,18 @@ describe('runner list, allowed projects and revoke', () => {
     const project = await seedAccountProject(owner.account);
     const path = `${runnersPath(owner.account.id)}/${mine.id}`;
     const scopeAudits = (): Promise<number | null> =>
-      env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1`).bind(mine.id).first<number>('n');
+      env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1`,
+      )
+        .bind(mine.id)
+        .first<number>('n');
 
-    for (const body of [{ allowedProjects: [] }, { projectScope: 'all' }, { projectScope: 'all', allowedProjects: [project.slug] }, { projectScope: 'selected', allowedProjects: [], extra: 1 }]) {
+    for (const body of [
+      { allowedProjects: [] },
+      { projectScope: 'all' },
+      { projectScope: 'all', allowedProjects: [project.slug] },
+      { projectScope: 'selected', allowedProjects: [], extra: 1 },
+    ]) {
       const refused = await sendAsSession(owner, 'PATCH', path, body);
       expect(refused.status).toBe(422);
       expect(await slugOf(refused)).toBe('runner-invalid');
@@ -280,12 +331,22 @@ describe('runner list, allowed projects and revoke', () => {
     expect(again.status).toBe(200);
     expect(await scopeAudits()).toBe(1);
 
-    const narrowed = await sendAsSession(owner, 'PATCH', path, { projectScope: 'selected', allowedProjects: [] });
+    const narrowed = await sendAsSession(owner, 'PATCH', path, {
+      projectScope: 'selected',
+      allowedProjects: [],
+    });
     expect(narrowed.status).toBe(200);
     expect(((await narrowed.json()) as RunnerDto).servedProjects).toEqual([]);
     expect(await scopeAudits()).toBe(2);
-    const detail = await env.DB.prepare(`SELECT details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id DESC`).bind(mine.id).first<{ details: string }>();
-    expect(JSON.parse(detail?.details ?? '{}')).toEqual({ from: { projectScope: 'all', allowedProjects: [] }, to: { projectScope: 'selected', allowedProjects: [] } });
+    const detail = await env.DB.prepare(
+      `SELECT details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id DESC`,
+    )
+      .bind(mine.id)
+      .first<{ details: string }>();
+    expect(JSON.parse(detail?.details ?? '{}')).toEqual({
+      from: { projectScope: 'all', allowedProjects: [] },
+      to: { projectScope: 'selected', allowedProjects: [] },
+    });
   });
 
   // R-SCOPE-4: a hosted or GitHub Actions identity keeps the scope the console gave it.
@@ -302,12 +363,19 @@ describe('runner list, allowed projects and revoke', () => {
       .bind(hostedId, owner.account.id, JSON.stringify(key.publicKeyJwk), new Date().toISOString())
       .run();
     const ephemeral = await enrolRunner(owner.account.id, { as: owner });
-    await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral' WHERE id = ?1`).bind(ephemeral.id).run();
+    await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral' WHERE id = ?1`)
+      .bind(ephemeral.id)
+      .run();
     for (const id of [hostedId, ephemeral.id]) {
-      const refused = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${id}`, { projectScope: 'all', allowedProjects: [] });
+      const refused = await sendAsSession(owner, 'PATCH', `${runnersPath(owner.account.id)}/${id}`, {
+        projectScope: 'all',
+        allowedProjects: [],
+      });
       expect(refused.status).toBe(422);
       expect(await slugOf(refused)).toBe('runner-scope-fixed');
-      const row = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`).bind(id).first<{ project_scope: string }>();
+      const row = await env.DB.prepare(`SELECT project_scope FROM runners WHERE id = ?1`)
+        .bind(id)
+        .first<{ project_scope: string }>();
       expect(row?.project_scope).toBe('selected');
     }
   });
@@ -316,8 +384,14 @@ describe('runner list, allowed projects and revoke', () => {
   it('marks a served project the runner’s declared access sources do not fit', async () => {
     const project = await seedAccountProject(owner.account);
     await setProjectAccessSource(project.slug, 'api_key', owner);
-    const mine = await enrolRunner(owner.account.id, { as: owner, projectScope: 'all', enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] } } });
-    const listed = (await (await sendAsSession(owner, 'GET', runnersPath(owner.account.id))).json()) as RunnerListDto;
+    const mine = await enrolRunner(owner.account.id, {
+      as: owner,
+      projectScope: 'all',
+      enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['subscription'] } },
+    });
+    const listed = (await (
+      await sendAsSession(owner, 'GET', runnersPath(owner.account.id))
+    ).json()) as RunnerListDto;
     const dto = listed.runners.find((runner) => runner.id === mine.id);
     expect(dto?.capabilities.accessSources).toEqual(['subscription']);
     expect(dto?.servedProjects).toContainEqual({ slug: project.slug, accessSource: 'api_key', fit: false });
@@ -335,14 +409,35 @@ describe('runner list, allowed projects and revoke', () => {
     const firstDto = (JSON.parse(firstText) as RunnerListDto).runners.find((runner) => runner.id === mine.id);
     expect(firstDto?.enrolledByYou).toBe(true);
     expect(Object.keys(firstDto ?? {}).sort()).toEqual([
-      'allowedProjects', 'belowMinimum', 'capabilities', 'enrolledAt', 'enrolledByName', 'enrolledByYou', 'enroller',
-      'host', 'hosted', 'id',
-      'isolation', 'lastSeenAt', 'lastSeenCountry', 'name', 'online', 'pause', 'pinnedVersion', 'projectScope',
-      'revokedAt', 'servedProjects', 'suspect', 'version',
+      'allowedProjects',
+      'belowMinimum',
+      'capabilities',
+      'enrolledAt',
+      'enrolledByName',
+      'enrolledByYou',
+      'enroller',
+      'host',
+      'hosted',
+      'id',
+      'isolation',
+      'lastSeenAt',
+      'lastSeenCountry',
+      'name',
+      'online',
+      'pause',
+      'pinnedVersion',
+      'projectScope',
+      'revokedAt',
+      'servedProjects',
+      'suspect',
+      'version',
     ]);
     const asSecond = await sendAsSession(second, 'GET', runnersPath(account.account.id));
     const secondText = await asSecond.text();
-    expect((JSON.parse(secondText) as RunnerListDto).runners.find((runner) => runner.id === mine.id)?.enrolledByYou).toBe(false);
+    expect(
+      (JSON.parse(secondText) as RunnerListDto).runners.find((runner) => runner.id === mine.id)
+        ?.enrolledByYou,
+    ).toBe(false);
     for (const text of [firstText, secondText]) {
       expect(text).not.toContain(account.userId);
       expect(text).not.toContain(secondId);
@@ -351,7 +446,9 @@ describe('runner list, allowed projects and revoke', () => {
     expect(firstDto?.enrolledByName).toBeNull();
     await env.DB.prepare(`UPDATE users SET display_name = 'Анна' WHERE id = ?1`).bind(account.userId).run();
     const named = await (await sendAsSession(second, 'GET', runnersPath(account.account.id))).text();
-    expect((JSON.parse(named) as RunnerListDto).runners.find((runner) => runner.id === mine.id)?.enrolledByName).toBe('Анна');
+    expect(
+      (JSON.parse(named) as RunnerListDto).runners.find((runner) => runner.id === mine.id)?.enrolledByName,
+    ).toBe('Анна');
     expect(named).not.toContain(account.userId);
   });
 
@@ -360,14 +457,29 @@ describe('runner list, allowed projects and revoke', () => {
     const theirRunner = await enrolRunner(OWNER_ACCOUNT_ID);
     expect((await sendAsRunner(mine, 'GET', RELEASE)).status).toBe(200);
 
-    const foreign = await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/${theirRunner.id}/revoke`, {});
+    const foreign = await sendAsSession(
+      owner,
+      'POST',
+      `${runnersPath(owner.account.id)}/${theirRunner.id}/revoke`,
+      {},
+    );
     expect(foreign.status).toBe(404);
     expect((await sendAsRunner(theirRunner, 'GET', RELEASE)).status).toBe(200);
 
-    const revoked = await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/${mine.id}/revoke`, {});
+    const revoked = await sendAsSession(
+      owner,
+      'POST',
+      `${runnersPath(owner.account.id)}/${mine.id}/revoke`,
+      {},
+    );
     expect(revoked.status).toBe(200);
     expect(((await revoked.json()) as RunnerDto).revokedAt).not.toBeNull();
-    const again = await sendAsSession(owner, 'POST', `${runnersPath(owner.account.id)}/${mine.id}/revoke`, {});
+    const again = await sendAsSession(
+      owner,
+      'POST',
+      `${runnersPath(owner.account.id)}/${mine.id}/revoke`,
+      {},
+    );
     expect(again.status).toBe(409);
     expect(await slugOf(again)).toBe('runner-revoked');
 
@@ -420,23 +532,35 @@ describe('the scope of a subscription runner in a two-owner account', () => {
   const patch = (as: SessionUser, runnerId: string, body: unknown): Promise<Response> =>
     sendAsSession(as, 'PATCH', `${runnersPath(enroller.account.id)}/${runnerId}`, body);
   const storedScope = (runnerId: string) =>
-    env.DB.prepare(`SELECT project_scope, allowed_projects FROM runners WHERE id = ?1`).bind(runnerId).first<{ project_scope: string; allowed_projects: string }>();
+    env.DB.prepare(`SELECT project_scope, allowed_projects FROM runners WHERE id = ?1`)
+      .bind(runnerId)
+      .first<{ project_scope: string; allowed_projects: string }>();
   const scopeAudits = (runnerId: string) =>
-    env.DB.prepare(`SELECT actor, details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id`)
+    env.DB.prepare(
+      `SELECT actor, details FROM audit_events WHERE kind = 'runner.scope-changed' AND target = ?1 ORDER BY id`,
+    )
       .bind(runnerId)
       .all<{ actor: string; details: string }>()
-      .then((rows) => rows.results.map((row) => ({ actor: row.actor, details: JSON.parse(row.details) as unknown })));
+      .then((rows) =>
+        rows.results.map((row) => ({ actor: row.actor, details: JSON.parse(row.details) as unknown })),
+      );
 
   it('lets the enroller add another owner’s project, and audits it as every scope change', async () => {
     const theirs = await projectOf(other);
     const runner = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected' });
-    const response = await patch(enroller, runner.id, { projectScope: 'selected', allowedProjects: [theirs] });
+    const response = await patch(enroller, runner.id, {
+      projectScope: 'selected',
+      allowedProjects: [theirs],
+    });
     expect(response.status).toBe(200);
     expect(((await response.json()) as RunnerDto).servedProjects.map((row) => row.slug)).toEqual([theirs]);
     expect(await scopeAudits(runner.id)).toEqual([
       {
         actor: enroller.userId,
-        details: { from: { projectScope: 'selected', allowedProjects: [] }, to: { projectScope: 'selected', allowedProjects: [theirs] } },
+        details: {
+          from: { projectScope: 'selected', allowedProjects: [] },
+          to: { projectScope: 'selected', allowedProjects: [theirs] },
+        },
       },
     ]);
   });
@@ -444,7 +568,11 @@ describe('the scope of a subscription runner in a two-owner account', () => {
   it('refuses another owner adding a project, even their own, or widening to all (403 runner-scope-enroller-only)', async () => {
     const mine = await projectOf(enroller);
     const theirs = await projectOf(other);
-    const runner = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected', allowedProjects: [mine] });
+    const runner = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'selected',
+      allowedProjects: [mine],
+    });
     for (const body of [
       { projectScope: 'selected', allowedProjects: [mine, theirs] },
       { projectScope: 'selected', allowedProjects: [theirs] },
@@ -454,34 +582,59 @@ describe('the scope of a subscription runner in a two-owner account', () => {
       expect(refused.status).toBe(403);
       expect(await slugOf(refused)).toBe('runner-scope-enroller-only');
     }
-    expect(await storedScope(runner.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([mine]) });
+    expect(await storedScope(runner.id)).toEqual({
+      project_scope: 'selected',
+      allowed_projects: JSON.stringify([mine]),
+    });
     expect(await scopeAudits(runner.id)).toEqual([]);
     // Saving the scope it already has adds nothing: not a refusal.
-    expect((await patch(other, runner.id, { projectScope: 'selected', allowedProjects: [mine] })).status).toBe(200);
+    expect(
+      (await patch(other, runner.id, { projectScope: 'selected', allowedProjects: [mine] })).status,
+    ).toBe(200);
   });
 
   it('lets another owner narrow it, from a list and from all, and audits the change', async () => {
     const mine = await projectOf(enroller);
     const alsoMine = await projectOf(enroller);
-    const listed = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected', allowedProjects: [mine, alsoMine] });
+    const listed = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'selected',
+      allowedProjects: [mine, alsoMine],
+    });
     const narrowed = await patch(other, listed.id, { projectScope: 'selected', allowedProjects: [alsoMine] });
     expect(narrowed.status).toBe(200);
-    expect(await storedScope(listed.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([alsoMine]) });
+    expect(await storedScope(listed.id)).toEqual({
+      project_scope: 'selected',
+      allowed_projects: JSON.stringify([alsoMine]),
+    });
     expect(await scopeAudits(listed.id)).toEqual([
       {
         actor: other.userId,
-        details: { from: { projectScope: 'selected', allowedProjects: [mine, alsoMine] }, to: { projectScope: 'selected', allowedProjects: [alsoMine] } },
+        details: {
+          from: { projectScope: 'selected', allowedProjects: [mine, alsoMine] },
+          to: { projectScope: 'selected', allowedProjects: [alsoMine] },
+        },
       },
     ]);
-    expect((await patch(other, listed.id, { projectScope: 'selected', allowedProjects: [] })).status).toBe(200);
+    expect((await patch(other, listed.id, { projectScope: 'selected', allowedProjects: [] })).status).toBe(
+      200,
+    );
 
     // Under `all` (D3) it serves the enroller's projects; another owner may keep some of those, never one of theirs.
     const everything = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'all' });
     const theirs = await projectOf(other);
-    const widening = await patch(other, everything.id, { projectScope: 'selected', allowedProjects: [mine, theirs] });
+    const widening = await patch(other, everything.id, {
+      projectScope: 'selected',
+      allowedProjects: [mine, theirs],
+    });
     expect(widening.status).toBe(403);
-    expect((await patch(other, everything.id, { projectScope: 'selected', allowedProjects: [mine] })).status).toBe(200);
-    expect(await storedScope(everything.id)).toEqual({ project_scope: 'selected', allowed_projects: JSON.stringify([mine]) });
+    expect(
+      (await patch(other, everything.id, { projectScope: 'selected', allowedProjects: [mine] })).status,
+    ).toBe(200);
+    expect(await storedScope(everything.id)).toEqual({
+      project_scope: 'selected',
+      allowed_projects: JSON.stringify([mine]),
+    });
   });
 
   it('leaves a runner that cannot serve a subscription to every owner, as before', async () => {
@@ -491,7 +644,9 @@ describe('the scope of a subscription runner in a two-owner account', () => {
       projectScope: 'selected',
       enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
     });
-    expect((await patch(other, apiKey.id, { projectScope: 'selected', allowedProjects: [theirs] })).status).toBe(200);
+    expect(
+      (await patch(other, apiKey.id, { projectScope: 'selected', allowedProjects: [theirs] })).status,
+    ).toBe(200);
     expect((await patch(other, apiKey.id, { projectScope: 'all', allowedProjects: [] })).status).toBe(200);
   });
 });
@@ -514,12 +669,21 @@ describe('claim a runner as its enroller', () => {
     return id;
   }
 
-  const claim = (as: SessionUser, runnerId: string, accountId: string = as.account.id, extra = {}): Promise<Response> =>
+  const claim = (
+    as: SessionUser,
+    runnerId: string,
+    accountId: string = as.account.id,
+    extra = {},
+  ): Promise<Response> =>
     sendAsSession(as, 'POST', `${runnersPath(accountId)}/${runnerId}/claim-enroller`, undefined, extra);
   const enrollerOf = (runnerId: string): Promise<string | null> =>
-    env.DB.prepare(`SELECT enrolled_by FROM runners WHERE id = ?1`).bind(runnerId).first<string | null>('enrolled_by');
+    env.DB.prepare(`SELECT enrolled_by FROM runners WHERE id = ?1`)
+      .bind(runnerId)
+      .first<string | null>('enrolled_by');
   const claimAudits = (runnerId: string) =>
-    env.DB.prepare(`SELECT actor, actor_kind, details FROM audit_events WHERE kind = 'runner.enroller-claimed' AND target = ?1`)
+    env.DB.prepare(
+      `SELECT actor, actor_kind, details FROM audit_events WHERE kind = 'runner.enroller-claimed' AND target = ?1`,
+    )
       .bind(runnerId)
       .all<{ actor: string; actor_kind: string; details: string }>()
       .then((rows) => rows.results);
@@ -552,7 +716,11 @@ describe('claim a runner as its enroller', () => {
     const owner = await seedSessionUser('owner');
     const secondId = await seedUser('owner');
     await seedMembership(owner.account.id, secondId, 'owner');
-    const second: SessionUser = { userId: secondId, cookie: await seedSession(secondId), account: owner.account };
+    const second: SessionUser = {
+      userId: secondId,
+      cookie: await seedSession(secondId),
+      account: owner.account,
+    };
     const runnerId = await legacyRunner(owner.account.id);
     expect(await listedEnroller(owner, runnerId)).toBe('unrecorded');
     for (const as of [owner, second]) {
@@ -603,7 +771,10 @@ describe('claim a runner as its enroller', () => {
 
     const memberId = await seedUser('member');
     await seedMembership(owner.account.id, memberId, 'member');
-    const asMember = await claim({ userId: memberId, cookie: await seedSession(memberId), account: owner.account }, runnerId);
+    const asMember = await claim(
+      { userId: memberId, cookie: await seedSession(memberId), account: owner.account },
+      runnerId,
+    );
     expect(asMember.status).toBe(403);
     expect(await slugOf(asMember)).toBe('account-owner-only');
     expect(await enrollerOf(runnerId)).toBeNull();
@@ -613,7 +784,9 @@ describe('claim a runner as its enroller', () => {
   it('refuses a cross-site write with 403 csrf and writes nothing', async () => {
     const owner = await seedSessionUser('owner');
     const runnerId = await legacyRunner(owner.account.id);
-    const crossSite = await claim(owner, runnerId, owner.account.id, { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    const crossSite = await claim(owner, runnerId, owner.account.id, {
+      headers: { 'Sec-Fetch-Site': 'cross-site' },
+    });
     expect(crossSite.status).toBe(403);
     expect(await slugOf(crossSite)).toBe('csrf');
     expect(await enrollerOf(runnerId)).toBeNull();
@@ -622,7 +795,9 @@ describe('claim a runner as its enroller', () => {
   it('answers two concurrent claims with one 200 and one 409, audited once', async () => {
     const owner = await seedSessionUser('owner');
     const runnerId = await legacyRunner(owner.account.id);
-    const statuses = (await Promise.all([claim(owner, runnerId), claim(owner, runnerId)])).map((response) => response.status);
+    const statuses = (await Promise.all([claim(owner, runnerId), claim(owner, runnerId)])).map(
+      (response) => response.status,
+    );
     expect(statuses.sort()).toEqual([200, 409]);
     expect(await claimAudits(runnerId)).toHaveLength(1);
   });
@@ -656,16 +831,23 @@ describe('claim a runner as its enroller', () => {
       const signing = await createSigningKey();
       jwks.set(teamDomain, { keys: [signing.publicJwk] });
       // A subject no user row is linked to.
-      const token = await signAccessToken(signing, teamDomain, { subject: `unlinked-${crypto.randomUUID()}` });
+      const token = await signAccessToken(signing, teamDomain, {
+        subject: `unlinked-${crypto.randomUUID()}`,
+      });
       const bindings = accessEnv(teamDomain);
       const asAccess = (method: 'GET' | 'POST', path: string) =>
         fetchApi(path, bindings, {
           method,
-          headers: { 'Cf-Access-Jwt-Assertion': token, ...(method === 'POST' ? { 'Sec-Fetch-Site': 'same-origin' } : {}) },
+          headers: {
+            'Cf-Access-Jwt-Assertion': token,
+            ...(method === 'POST' ? { 'Sec-Fetch-Site': 'same-origin' } : {}),
+          },
         });
       const legacy = await legacyRunner(OWNER_ACCOUNT_ID);
       const viaDoor = await legacyRunner(OWNER_ACCOUNT_ID);
-      await env.DB.prepare(`UPDATE runners SET enrolled_by = 'access-owner' WHERE id = ?1`).bind(viaDoor).run();
+      await env.DB.prepare(`UPDATE runners SET enrolled_by = 'access-owner' WHERE id = ?1`)
+        .bind(viaDoor)
+        .run();
 
       const listed = await asAccess('GET', runnersPath(OWNER_ACCOUNT_ID));
       expect(listed.status).toBe(200);
@@ -729,7 +911,9 @@ describe('clear a suspect mark', () => {
 
   it('answers two concurrent clears with one 200 and one 409', async () => {
     const runner = await suspectRunner();
-    const statuses = (await Promise.all([clear(runner.id), clear(runner.id)])).map((response) => response.status);
+    const statuses = (await Promise.all([clear(runner.id), clear(runner.id)])).map(
+      (response) => response.status,
+    );
     expect(statuses.sort()).toEqual([200, 409]);
     const audits = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.suspect-cleared' AND target = ?1`,
@@ -774,7 +958,8 @@ describe('withdraw a pending enrolment code', () => {
   });
 
   const pendingOf = async (as: SessionUser): Promise<RunnerListDto['pendingEnrolments']> =>
-    ((await (await sendAsSession(as, 'GET', runnersPath(as.account.id))).json()) as RunnerListDto).pendingEnrolments;
+    ((await (await sendAsSession(as, 'GET', runnersPath(as.account.id))).json()) as RunnerListDto)
+      .pendingEnrolments;
   const withdraw = (id: string, as: SessionUser = owner): Promise<Response> =>
     sendAsSession(as, 'POST', `${runnersPath(as.account.id)}/enrolment-codes/${id}/withdraw`, {});
 

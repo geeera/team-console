@@ -25,7 +25,11 @@ test.beforeAll(async ({ stack }) => {
 async function serveWaiting(page: Page): Promise<(count: number) => void> {
   let count = 3;
   await page.route(NEEDS_YOU, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(waitingItems(count)) }),
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(waitingItems(count)),
+    }),
   );
   return (next) => {
     count = next;
@@ -47,7 +51,9 @@ test('the waiting tile rolls to the new count after a refresh', async ({ page })
   await refreshWaiting(page);
 
   await expect(tile.locator('dd')).toHaveText(ru('board.stat.waitingValue.few', { n: 2 }));
-  await expect(tile.getByRole('button')).toHaveAccessibleName(new RegExp(ru('board.stat.waitingValue.few', { n: 2 })));
+  await expect(tile.getByRole('button')).toHaveAccessibleName(
+    new RegExp(ru('board.stat.waitingValue.few', { n: 2 })),
+  );
   await expectAccessible(page, 'Board after a counter rolled');
 });
 

@@ -93,7 +93,9 @@ async function sampleRunnerEnviron(pid: number): Promise<EnvironSample | undefin
   }
   const after = await cmdlineOf(pid);
   if (refused !== undefined && after !== '') {
-    throw new Error(`/proc/${String(pid)}/environ refused a live process (${JSON.stringify(after)})`, { cause: refused });
+    throw new Error(`/proc/${String(pid)}/environ refused a live process (${JSON.stringify(after)})`, {
+      cause: refused,
+    });
   }
   // Nothing read is nothing to check; a short read still must not hold the token.
   return environ === '' ? undefined : { environ, whole: after.includes(RUNNER_BUNDLE) };
@@ -157,7 +159,9 @@ describe('integration: run-once --oidc against the local stack', () => {
     return id;
   }
 
-  async function readBack(jobId: string): Promise<{ job: JobDto; events: readonly JobEventDto[]; raw: string }> {
+  async function readBack(
+    jobId: string,
+  ): Promise<{ job: JobDto; events: readonly JobEventDto[]; raw: string }> {
     const jobText = await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${jobId}`)).text();
     const eventsText = await (
       await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${jobId}/events?limit=100`)
@@ -174,12 +178,19 @@ describe('integration: run-once --oidc against the local stack', () => {
     // The integration run's evidence (pasted into the PR): what the console holds for the job.
     console.info(
       `[${label}] job ${job.id} ${job.state} runner=${String(job.runnerId)} result=${JSON.stringify(job.result)}\n` +
-        events.map((event) => `  #${String(event.seq)} ${event.level} ${event.kind} ${JSON.stringify(event.payload)}`).join('\n'),
+        events
+          .map(
+            (event) =>
+              `  #${String(event.seq)} ${event.level} ${event.kind} ${JSON.stringify(event.payload)}`,
+          )
+          .join('\n'),
     );
   }
 
   async function liveRunners(): Promise<string[]> {
-    const list: unknown = await (await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)).json();
+    const list: unknown = await (
+      await fetch(`${stack.origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)
+    ).json();
     if (!isRunnerListDto(list)) {
       throw new Error('the runner list did not answer a RunnerListDto');
     }
@@ -225,7 +236,9 @@ describe('integration: run-once --oidc against the local stack', () => {
       dispatch: 'actions',
       result: { summary: 'Done: nothing to do', metrics: { exitCode: 0, costUsd: 0.0123, turns: 3 } },
     });
-    expect(done.events.find((event) => event.kind === 'started')?.payload).toMatchObject({ backend: 'actions-ephemeral' });
+    expect(done.events.find((event) => event.kind === 'started')?.payload).toMatchObject({
+      backend: 'actions-ephemeral',
+    });
     expect(done.events.at(-1)?.kind).toBe('finished');
     const envNames = /env: ([A-Z0-9_,]+)/.exec(done.raw)?.[1]?.split(',') ?? [];
     expect(envNames).toContain('ANTHROPIC_API_KEY');
@@ -249,7 +262,8 @@ describe('integration: run-once --oidc against the local stack', () => {
     expect((await readBack(replayId)).job.state).toBe('queued');
 
     // 4. A token of another Environment (no key policy): refused naming the claim.
-    nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId: freshRunId(), audience }, { environment: 'production' });
+    nextClaims = (audience) =>
+      runClaimsOf({ repositoryId: REPO_ID, runId: freshRunId(), audience }, { environment: 'production' });
     const wrongEnv = await cli(replayId);
     console.info(`[environment] exit ${String(wrongEnv.exit)}: ${wrongEnv.err.join(' | ')}`);
     expect(wrongEnv.exit).toBe(EXIT_FAILED);
@@ -257,7 +271,10 @@ describe('integration: run-once --oidc against the local stack', () => {
 
     // 5. A self-hosted Actions runner (owner decision 2 on #573): refused.
     nextClaims = (audience) =>
-      runClaimsOf({ repositoryId: REPO_ID, runId: freshRunId(), audience }, { runner_environment: 'self-hosted' });
+      runClaimsOf(
+        { repositoryId: REPO_ID, runId: freshRunId(), audience },
+        { runner_environment: 'self-hosted' },
+      );
     const selfHosted = await cli(replayId);
     expect(selfHosted.exit).toBe(EXIT_FAILED);
     expect(selfHosted.err.join('\n')).toMatch(/claim runner_environment/);
@@ -307,19 +324,29 @@ describe('integration: run-once --oidc against the local stack', () => {
     await symlink(process.execPath, join(runnerTemp, 'node', 'bin', 'node'));
     // The specs' git next to node (first on the template's PATH): on a Mac /usr/bin/git is Apple's, whose built-in
     // config (`credential.helper`) the runner's allow-list refuses; the VM's /usr/bin/git has none.
-    const specGit = execFileSync('sh', ['-c', 'command -v git'], { env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin' } })
+    const specGit = execFileSync('sh', ['-c', 'command -v git'], {
+      env: { PATH: process.env['PATH'] ?? '/usr/bin:/bin' },
+    })
       .toString()
       .trim();
     await symlink(specGit, join(runnerTemp, 'node', 'bin', 'git'));
     await mkdir(join(runnerTemp, 'runner', 'bin'), { recursive: true });
-    await build({ ...bundleOptions(), outfile: join(runnerTemp, 'runner', 'team-console-runner.mjs'), metafile: false });
-    await copyFile(join(import.meta.dirname, '..', '..', 'bin', 'team-console-runner'), join(runnerTemp, 'runner', 'bin', 'team-console-runner'));
+    await build({
+      ...bundleOptions(),
+      outfile: join(runnerTemp, 'runner', 'team-console-runner.mjs'),
+      metafile: false,
+    });
+    await copyFile(
+      join(import.meta.dirname, '..', '..', 'bin', 'team-console-runner'),
+      join(runnerTemp, 'runner', 'bin', 'team-console-runner'),
+    );
     await mkdir(join(runnerTemp, 'claude-code'));
     await symlink(CLAUDE_FAKE, join(runnerTemp, 'claude-code', 'claude'));
     const template = parse(
       await readFile(join(import.meta.dirname, '..', '..', 'templates', 'team-console-runner.yml'), 'utf8'),
     ) as { jobs: Record<string, { steps: { name?: string; run?: string }[] }> };
-    const script = Object.values(template.jobs)[0]?.steps.find((step) => step.name === 'Run the job')?.run ?? '';
+    const script =
+      Object.values(template.jobs)[0]?.steps.find((step) => step.name === 'Run the job')?.run ?? '';
     expect(script).toContain('--request-token -');
     const scriptPath = join(runnerTemp, 'run-the-job.sh');
     await writeFile(scriptPath, script, { mode: 0o600 });
@@ -328,13 +355,23 @@ describe('integration: run-once --oidc against the local stack', () => {
     nextClaims = (audience) => runClaimsOf({ repositoryId: REPO_ID, runId, audience });
     const jobId = await queueActionsJob(SCENARIO.ok, runId);
     const env: Record<string, string> = {
-      ...actionsEnvOf({ consoleUrl: stack.origin, jobId, runnerTemp, idTokenUrl: tokens.url, serverUrl: git.origin, audience: AUDIENCE }),
+      ...actionsEnvOf({
+        consoleUrl: stack.origin,
+        jobId,
+        runnerTemp,
+        idTokenUrl: tokens.url,
+        serverUrl: git.origin,
+        audience: AUDIENCE,
+      }),
       PATH: '/usr/bin:/bin',
     };
     // The template sets the CLI's path itself.
     delete env['TC_CLAUDE_COMMAND'];
     // How GitHub runs a `shell: bash` step.
-    const child = spawn('bash', ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn('bash', ['--noprofile', '--norc', '-eo', 'pipefail', scriptPath], {
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
     const stdout: string[] = [];
     const stderr: string[] = [];
     // Once the job id is on stdout the exchange is done and the runner supervises the job: the moment a compromised job
@@ -362,17 +399,28 @@ describe('integration: run-once --oidc against the local stack', () => {
       }
     }
     const code = await exited;
-    console.info(`[template job step] exit ${String(code)} stdout ${JSON.stringify(stdout.join(''))} stderr ${JSON.stringify(stderr.join(''))}`);
+    console.info(
+      `[template job step] exit ${String(code)} stdout ${JSON.stringify(stdout.join(''))} stderr ${JSON.stringify(stderr.join(''))}`,
+    );
     expect(signalled).toBe(true);
     expect(code).toBe(EXIT_OK);
     expect(stderr.join('')).not.toContain('Debugger listening');
     // GitHub consumes the `::add-mask::` workflow command; what is left on the log is the job id alone.
-    const lines = stdout.join('').split('\n').filter((line) => line !== '');
+    const lines = stdout
+      .join('')
+      .split('\n')
+      .filter((line) => line !== '');
     expect(lines.filter((line) => !line.startsWith('::add-mask::'))).toEqual([jobId]);
-    expect(lines.filter((line) => line.startsWith('::'))).toEqual([`::add-mask::${actionsSecrets.inferenceKey}`]);
+    expect(lines.filter((line) => line.startsWith('::'))).toEqual([
+      `::add-mask::${actionsSecrets.inferenceKey}`,
+    ]);
     const done = await readBack(jobId);
     show('template', done.job, done.events);
-    expect(done.job).toMatchObject({ state: 'finished', dispatch: 'actions', result: { summary: 'Done: nothing to do' } });
+    expect(done.job).toMatchObject({
+      state: 'finished',
+      dispatch: 'actions',
+      result: { summary: 'Done: nothing to do' },
+    });
     expect(tokens.audiences.at(-1)).toBe(AUDIENCE);
     if (process.platform === 'linux') {
       // At least one read of the running runner's whole environment, or the checks below prove nothing.

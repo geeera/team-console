@@ -85,9 +85,7 @@ test.describe('the Artifacts section', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await query.fill('Paper');
     await expect(marks.first()).toBeVisible();
-    expect(
-      await marks.first().evaluate((el) => getComputedStyle(el).animationDuration),
-    ).toBe('0.001s');
+    expect(await marks.first().evaluate((el) => getComputedStyle(el).animationDuration)).toBe('0.001s');
   });
 
   test('the keyboard reaches the type toggles, and a reload keeps the filter from the URL', async ({
@@ -128,7 +126,10 @@ test.describe('the Artifacts section', () => {
       const response = await route.fetch();
       const body = (await response.json()) as ArtifactsResponse;
       await held;
-      await route.fulfill({ response, json: { ...body, items: body.items.filter((item) => item.type !== 'design') } });
+      await route.fulfill({
+        response,
+        json: { ...body, items: body.items.filter((item) => item.type !== 'design') },
+      });
     });
 
     await page.goto('/p/team-console/artifacts?type=design');

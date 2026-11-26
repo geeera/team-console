@@ -85,7 +85,9 @@ export function focusAfterLeaving(
 ): () => HTMLElement | null {
   const row = root.querySelector<HTMLElement>(`tc-list-row[data-number="${String(number)}"]`);
   const numberOf = (element: Element | null | undefined): number | null =>
-    element instanceof HTMLElement && element.dataset['number'] !== undefined ? Number(element.dataset['number']) : null;
+    element instanceof HTMLElement && element.dataset['number'] !== undefined
+      ? Number(element.dataset['number'])
+      : null;
   const neighbour = numberOf(row?.nextElementSibling) ?? numberOf(row?.previousElementSibling);
   const status = row?.closest<HTMLElement>('tc-lane')?.dataset['status'];
   return () => {
@@ -93,7 +95,9 @@ export function focusAfterLeaving(
     if (button !== null) {
       return button;
     }
-    const lane = [...root.querySelectorAll<HTMLElement>('tc-lane')].find((element) => element.dataset['status'] === status);
+    const lane = [...root.querySelectorAll<HTMLElement>('tc-lane')].find(
+      (element) => element.dataset['status'] === status,
+    );
     const landing = lane?.querySelector<HTMLElement>('[role="heading"]') ?? fallback();
     // A heading is not a tab stop; it takes focus once, as a landing point.
     if (landing !== null && !landing.hasAttribute('tabindex')) {

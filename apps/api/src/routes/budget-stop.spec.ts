@@ -182,7 +182,9 @@ describe('the budget stop and its Needs-you row', () => {
     )
       .bind(project.slug)
       .first<{ details: string }>();
-    expect(JSON.parse(waived?.details ?? '{}')).toMatchObject({ waivedMonth: new Date().toISOString().slice(0, 7) });
+    expect(JSON.parse(waived?.details ?? '{}')).toMatchObject({
+      waivedMonth: new Date().toISOString().slice(0, 7),
+    });
     const next = await enqueue(project);
     expect((await claim(runner))?.job.id).toBe(next);
   });
@@ -231,7 +233,9 @@ describe('a save after “Resume this month” (#737: a changed budget ends the 
 
   const pausedByOf = async (project: SeededProject): Promise<string | null> =>
     (
-      await env.DB.prepare(`SELECT paused_by FROM team_state WHERE project_slug = ?1 AND paused_at IS NOT NULL`)
+      await env.DB.prepare(
+        `SELECT paused_by FROM team_state WHERE project_slug = ?1 AND paused_at IS NOT NULL`,
+      )
         .bind(project.slug)
         .first<{ paused_by: string }>()
     )?.paused_by ?? null;

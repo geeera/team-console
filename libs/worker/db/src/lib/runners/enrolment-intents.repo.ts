@@ -105,7 +105,8 @@ const COLUMNS = `id, account_id, name, project_scope, allowed_projects, isolatio
   public_key, host, capabilities, version, fingerprint, poll_token_hash, bound_at, bound_country, approved_at, runner_id`;
 
 /** An intent that can still be bound or approved at the time bound to `now` (a numbered placeholder). */
-const liveSql = (now: string): string => `state IN ('pending', 'bound') AND julianday(expires_at) > julianday(${now})`;
+const liveSql = (now: string): string =>
+  `state IN ('pending', 'bound') AND julianday(expires_at) > julianday(${now})`;
 /** Rows this old are long final (an intent lives ten minutes) and outside every cap's window; the audit keeps them. */
 const PRUNE_AFTER = '-1 day';
 
@@ -147,7 +148,9 @@ function toRecord(row: IntentRow): EnrolmentIntentRecord {
     accountId: row.account_id,
     name: row.name,
     projectScope: row.project_scope,
-    allowedProjects: Array.isArray(list) ? list.filter((slug): slug is string => typeof slug === 'string') : [],
+    allowedProjects: Array.isArray(list)
+      ? list.filter((slug): slug is string => typeof slug === 'string')
+      : [],
     isolation: row.isolation,
     createdBy: row.created_by,
     createdAt: row.created_at,
@@ -167,13 +170,19 @@ export class EnrolmentIntentsRepo {
    * creations racing at the cap cannot both pass: `live-limit` while the account already holds `liveMax` intents that
    * can still be bound or approved, `hourly-limit` once it made `perHour` in the last hour. Nothing is written then.
    */
-  async create(intent: NewEnrolmentIntent, caps: EnrolmentIntentCaps, audit: NewAuditEvent): Promise<CreateIntentOutcome> {
+  async create(
+    intent: NewEnrolmentIntent,
+    caps: EnrolmentIntentCaps,
+    audit: NewAuditEvent,
+  ): Promise<CreateIntentOutcome> {
     const live = `SELECT COUNT(*) FROM runner_enrolment_requests WHERE account_id = ?2 AND ${liveSql('?8')}`;
     const lastHour = `SELECT COUNT(*) FROM runner_enrolment_requests
                       WHERE account_id = ?2 AND julianday(created_at) > julianday(?8, '-1 hour')`;
     const [, insert] = await this.db.batch([
       this.db
-        .prepare(`DELETE FROM runner_enrolment_requests WHERE account_id = ?1 AND julianday(created_at) < julianday(?2, ?3)`)
+        .prepare(
+          `DELETE FROM runner_enrolment_requests WHERE account_id = ?1 AND julianday(created_at) < julianday(?2, ?3)`,
+        )
         .bind(intent.accountId, intent.at, PRUNE_AFTER),
       ...auditedWrite(
         this.db,
@@ -224,7 +233,9 @@ export class EnrolmentIntentsRepo {
   /** The owner's read: an intent of another account, or made by another owner, is `null` like one that never was. */
   async findOwned(owner: IntentOwner, id: string): Promise<EnrolmentIntentRecord | null> {
     const row = await this.db
-      .prepare(`SELECT ${COLUMNS} FROM runner_enrolment_requests WHERE id = ?1 AND account_id = ?2 AND created_by = ?3`)
+      .prepare(
+        `SELECT ${COLUMNS} FROM runner_enrolment_requests WHERE id = ?1 AND account_id = ?2 AND created_by = ?3`,
+      )
       .bind(id, owner.accountId, owner.createdBy)
       .first<IntentRow>();
     return row === null ? null : toRecord(row);
@@ -236,7 +247,12 @@ export class EnrolmentIntentsRepo {
    * or its account is suspended; nothing is written then, the audit row included. The UPDATE's own WHERE decides, and
    * the 0037 trigger refuses a second bind even past it.
    */
-  async bind(id: string, isolation: EnrolmentIsolation, bind: EnrolmentIntentBind, audit: NewAuditEvent): Promise<boolean> {
+  async bind(
+    id: string,
+    isolation: EnrolmentIsolation,
+    bind: EnrolmentIntentBind,
+    audit: NewAuditEvent,
+  ): Promise<boolean> {
     try {
       const [update] = await this.db.batch([
         ...auditedWrite(
@@ -379,7 +395,12 @@ export class EnrolmentIntentsRepo {
    * `null` when the intent is not approved, was collected already, the token is not its own, or the collection
    * window (`expires_at`, or `collectSeconds` after the approval, whichever is later) has passed.
    */
-  async collect(id: string, pollTokenHash: string, at: string, collectSeconds: number): Promise<string | null> {
+  async collect(
+    id: string,
+    pollTokenHash: string,
+    at: string,
+    collectSeconds: number,
+  ): Promise<string | null> {
     const row = await this.db
       .prepare(
         `UPDATE runner_enrolment_requests SET state = 'used', collected_at = ?3

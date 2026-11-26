@@ -77,12 +77,18 @@ export async function createEnrolmentCode(
         })
       : await sendAsSession(as, 'POST', path, body);
   if (response.status !== 201) {
-    throw new Error(`creating an enrolment code answered ${String(response.status)}: ${await response.text()}`);
+    throw new Error(
+      `creating an enrolment code answered ${String(response.status)}: ${await response.text()}`,
+    );
   }
   return (await response.json()) as EnrolmentCodeDto;
 }
 
-export function enrolBodyOf(code: string, publicKeyJwk: Ed25519PublicJwk, overrides: Partial<EnrolRunnerInput> = {}): EnrolRunnerInput {
+export function enrolBodyOf(
+  code: string,
+  publicKeyJwk: Ed25519PublicJwk,
+  overrides: Partial<EnrolRunnerInput> = {},
+): EnrolRunnerInput {
   return {
     code,
     publicKey: publicKeyJwk,
@@ -160,7 +166,11 @@ function uniqueAddress(): string {
 }
 
 /** `POST /api/v1/runner/enrol` as the runner binary sends it: no cookie, no bearer, no browser headers. */
-export async function postEnrol(body: unknown, request: Partial<ApiRequest> = {}, bindings: ApiEnv = localEnv()): Promise<Response> {
+export async function postEnrol(
+  body: unknown,
+  request: Partial<ApiRequest> = {},
+  bindings: ApiEnv = localEnv(),
+): Promise<Response> {
   return fetchApi('/api/v1/runner/enrol', bindings, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'CF-Connecting-IP': uniqueAddress(), ...request.headers },
@@ -172,7 +182,12 @@ export async function postEnrol(body: unknown, request: Partial<ApiRequest> = {}
 /** The owner's wizard asks for an enrolment intent (#634): the local bypass (the owner account) or a session user. */
 export async function createEnrolmentIntent(
   accountId: string,
-  input: { name?: string; projectScope?: RunnerProjectScope; allowedProjects?: readonly string[]; isolation?: EnrolmentIsolation } = {},
+  input: {
+    name?: string;
+    projectScope?: RunnerProjectScope;
+    allowedProjects?: readonly string[];
+    isolation?: EnrolmentIsolation;
+  } = {},
   as: SessionUser | 'local' = 'local',
 ): Promise<EnrolmentIntentCreatedDto> {
   const body = {
@@ -186,12 +201,18 @@ export async function createEnrolmentIntent(
     as === 'local'
       ? await fetchApi(path, localEnv(), {
           method: 'POST',
-          headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json', 'Idempotency-Key': newKey() },
+          headers: {
+            'Sec-Fetch-Site': 'same-origin',
+            'Content-Type': 'application/json',
+            'Idempotency-Key': newKey(),
+          },
           body: JSON.stringify(body),
         })
       : await sendAsSession(as, 'POST', path, body);
   if (response.status !== 201) {
-    throw new Error(`creating an enrolment intent answered ${String(response.status)}: ${await response.text()}`);
+    throw new Error(
+      `creating an enrolment intent answered ${String(response.status)}: ${await response.text()}`,
+    );
   }
   return (await response.json()) as EnrolmentIntentCreatedDto;
 }
@@ -230,7 +251,10 @@ export async function postEnrolDoor(
 /** A runner's key bound to a fresh intent of `accountId`, with the poll token only the binder holds. */
 export async function bindIntent(
   accountId: string,
-  options: Parameters<typeof createEnrolmentIntent>[1] & { as?: SessionUser | 'local'; start?: Partial<StartEnrolmentInput> } = {},
+  options: Parameters<typeof createEnrolmentIntent>[1] & {
+    as?: SessionUser | 'local';
+    start?: Partial<StartEnrolmentInput>;
+  } = {},
 ): Promise<{
   readonly intentId: string;
   readonly privateKey: CryptoKey | KeyObject;
@@ -252,7 +276,9 @@ export async function bindIntent(
 
 /** Lets the binder poll again at once: the `slow-down` clock of the intent is put back. */
 export async function resetPollClock(intentId: string): Promise<void> {
-  await env.DB.prepare(`UPDATE runner_enrolment_requests SET last_polled_at = NULL WHERE id = ?1`).bind(intentId).run();
+  await env.DB.prepare(`UPDATE runner_enrolment_requests SET last_polled_at = NULL WHERE id = ?1`)
+    .bind(intentId)
+    .run();
 }
 
 /** A runner enrolled through the API on a fresh code of `accountId`. */
@@ -329,7 +355,12 @@ export async function sendAsJob(
   method: string,
   path: string,
   body?: unknown,
-  options: { jwt?: RunnerJwtOptions; headers?: Record<string, string>; bindings?: ApiEnv; logSink?: (line: string) => void } = {},
+  options: {
+    jwt?: RunnerJwtOptions;
+    headers?: Record<string, string>;
+    bindings?: ApiEnv;
+    logSink?: (line: string) => void;
+  } = {},
 ): Promise<Response> {
   const token = await runnerJwt(runner, options.jwt);
   return fetchApi(path, options.bindings ?? localEnv(), {
@@ -346,7 +377,11 @@ export async function sendAsJob(
 }
 
 /** Run now, enqueued by the owner through the API; the job's id. */
-export async function enqueueJob(slug: string, input: Record<string, unknown> = {}, as: SessionUser | 'local' = 'local'): Promise<string> {
+export async function enqueueJob(
+  slug: string,
+  input: Record<string, unknown> = {},
+  as: SessionUser | 'local' = 'local',
+): Promise<string> {
   const body = { kind: 'slot-dev', ...input };
   const path = `/api/v1/projects/${slug}/jobs`;
   const response =
@@ -369,7 +404,12 @@ export async function sendAsRunner(
   method: string,
   path: string,
   body?: unknown,
-  options: { jwt?: RunnerJwtOptions; headers?: Record<string, string>; bindings?: ApiEnv; logSink?: (line: string) => void } = {},
+  options: {
+    jwt?: RunnerJwtOptions;
+    headers?: Record<string, string>;
+    bindings?: ApiEnv;
+    logSink?: (line: string) => void;
+  } = {},
 ): Promise<Response> {
   const token = await runnerJwt(runner, options.jwt);
   return fetchApi(path, options.bindings ?? localEnv(), {
@@ -425,22 +465,30 @@ export async function setProjectAccessSource(
         })
       : await sendAsSession(as, 'PUT', path, body, { headers: { 'If-Match': '"0"' } });
   if (response.status !== 200) {
-    throw new Error(`setting the access source answered ${String(response.status)}: ${await response.text()}`);
+    throw new Error(
+      `setting the access source answered ${String(response.status)}: ${await response.text()}`,
+    );
   }
 }
 
 /** The runner's stored allow-list becomes `slugs` (the row only; no cancel batch rides along). */
 export const narrowRunner = (runnerId: string, slugs: readonly string[]) => () =>
-  env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(slugs)).run();
+  env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`)
+    .bind(runnerId, JSON.stringify(slugs))
+    .run();
 
 export const revokeRunner = (runnerId: string) => () =>
-  env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(runnerId, new Date().toISOString()).run();
+  env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`)
+    .bind(runnerId, new Date().toISOString())
+    .run();
 
 /** As the owner's cancel does: the job leaves the live states and its token is cleared. */
 export const cancelJob = (jobId: string) => () =>
   env.DB.prepare(
     `UPDATE jobs SET state = 'cancelled', finished_at = ?2, token_hash = NULL, lease_until = NULL WHERE id = ?1`,
-  ).bind(jobId, new Date().toISOString()).run();
+  )
+    .bind(jobId, new Date().toISOString())
+    .run();
 
 /**
  * Cancels every job still in flight — claimed, running, or dispatched to Actions and waiting for its run — as the
@@ -463,7 +511,10 @@ export async function cancelJobsInFlight(): Promise<void> {
  */
 export function commitDuringAuthentication(change: () => Promise<unknown>): void {
   const sight = RunnersRepo.prototype.sight;
-  vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (this: RunnersRepo, ...args) {
+  vi.spyOn(RunnersRepo.prototype, 'sight').mockImplementationOnce(async function (
+    this: RunnersRepo,
+    ...args
+  ) {
     await change();
     return sight.apply(this, args);
   });

@@ -4,8 +4,12 @@ const point = (code: number): string => String.fromCodePoint(code);
 
 describe('withoutInvisibles', () => {
   it('removes bidi overrides, isolates and marks, so a title reads in its written order', () => {
-    const [rlo, pdf, lri, pdi, lrm, rlm, alm] = [0x202e, 0x202c, 0x2066, 0x2069, 0x200e, 0x200f, 0x61c].map(point);
-    expect(withoutInvisibles(`Pay${rlo}gro.live${pdf} ${lri}now${pdi}${lrm}${rlm}${alm}`)).toBe('Paygro.live now');
+    const [rlo, pdf, lri, pdi, lrm, rlm, alm] = [0x202e, 0x202c, 0x2066, 0x2069, 0x200e, 0x200f, 0x61c].map(
+      point,
+    );
+    expect(withoutInvisibles(`Pay${rlo}gro.live${pdf} ${lri}now${pdi}${lrm}${rlm}${alm}`)).toBe(
+      'Paygro.live now',
+    );
   });
 
   it('removes zero-width characters, the word joiner, the soft hyphen and the BOM', () => {

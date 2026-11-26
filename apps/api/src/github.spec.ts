@@ -129,11 +129,15 @@ describe('ALLOW_ACTIONS_SETUP_WRITE, the kill switch of the Actions setup write 
 
   it('refuses the workflow-pr mint with 503 github-write-disabled while the switch is off', async () => {
     const github = new ApiGitHub();
-    const { auth } = await github.connect(localEnv({ GITHUB_MOCK: 'true', ALLOW_ACTIONS_SETUP_WRITE: 'false' }));
+    const { auth } = await github.connect(
+      localEnv({ GITHUB_MOCK: 'true', ALLOW_ACTIONS_SETUP_WRITE: 'false' }),
+    );
     const error = await auth.mintScoped('workflow-pr', TARGET, noAudit).catch((caught: unknown) => caught);
     expect(mapGitHubError(error)?.problem).toMatchObject({ type: 'github-write-disabled', status: 503 });
     // The read kind is not behind the switch.
-    await expect(auth.mintScoped('environment-read', TARGET, noAudit)).resolves.toMatchObject({ kind: 'environment-read' });
+    await expect(auth.mintScoped('environment-read', TARGET, noAudit)).resolves.toMatchObject({
+      kind: 'environment-read',
+    });
   });
 
   it('mints it once the switch is on, and switches back off with the variable', async () => {

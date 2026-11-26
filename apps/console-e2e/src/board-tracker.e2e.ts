@@ -23,7 +23,11 @@ test.beforeAll(async ({ stack }, testInfo) => {
     const sprint = await createSprint(api, SLUG, contextDay(testInfo, 1));
     // Sprint 1 is already frozen (its demo is tomorrow), so #560 refuses a creation straight into it; plant the
     // item in the backlog first, as if it had been planned before the freeze started, then move it by SQL.
-    inSprint = await createItem(api, SLUG, { title: 'Board reads the tracker', status: 'in-progress', sprint: null });
+    inSprint = await createItem(api, SLUG, {
+      title: 'Board reads the tracker',
+      status: 'in-progress',
+      sprint: null,
+    });
     await localD1(
       testInfo.workerIndex,
       `UPDATE items SET sprint_id = (SELECT id FROM sprints WHERE project_slug = '${SLUG}' AND number = ${String(sprint)})

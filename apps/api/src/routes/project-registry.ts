@@ -123,7 +123,11 @@ function setupOf(
 }
 
 /** R-SCOPE-2 (#775): the `all` runners serving the new project from now on, when there are any (ids only). */
-async function servedByRunnersOf(db: D1Database, accountId: string, slug: string): Promise<{ servedByRunners?: readonly string[] }> {
+async function servedByRunnersOf(
+  db: D1Database,
+  accountId: string,
+  slug: string,
+): Promise<{ servedByRunners?: readonly string[] }> {
   const serving = await new RunnersRepo(db).allScopeRunnersServing(accountId, slug);
   return serving.length > 0 ? { servedByRunners: serving } : {};
 }
@@ -159,303 +163,305 @@ export function createProjectRegistryRoutes(
 ): Hono<WorkerHonoEnv<ApiEnv>> {
   const limit = bodyLimit({ maxSize: MAX_BODY_BYTES });
 
-  return new Hono<WorkerHonoEnv<ApiEnv>>()
-    .get('/', async (c) => {
-      const rows = await scopedProjectsOf(c, c.req.query('include') === 'archived' ? 'all' : 'active');
-      const nowMs = github.now();
-      const body: ProjectDto[] = rows.map((row) =>
-        withTracker(
-          withSlots(c.env, toProjectDto(row, nowMs)),
-          row.archived_at === null ? trackerProjectOf(row) : null,
-        ),
-      );
-      return c.json(body);
-    })
+  return (
+    new Hono<WorkerHonoEnv<ApiEnv>>()
+      .get('/', async (c) => {
+        const rows = await scopedProjectsOf(c, c.req.query('include') === 'archived' ? 'all' : 'active');
+        const nowMs = github.now();
+        const body: ProjectDto[] = rows.map((row) =>
+          withTracker(
+            withSlots(c.env, toProjectDto(row, nowMs)),
+            row.archived_at === null ? trackerProjectOf(row) : null,
+          ),
+        );
+        return c.json(body);
+      })
 
-    // #482 security review: the add checks repository ownership against the environment owner's connection and
-    // mints with the environment's app, so until T-4 binds a connection per user only the Access owner adds a
-    // project; the dev/stage service identity is refused too (#372): CI never needs to change the registry.
-    .post('/', ownerOnlyMiddleware, limit, async (c) => {
-      const identity = c.get('identity');
-      const request = parseAddProject(await jsonBody(c));
-      if (isRefusal(request)) {
-        return refused(c, request);
-      }
-      const { repo, slug, displayName } = request;
-      const projects = new ProjectsRepo(c.env.DB);
-      // The account the project is created in: an `owner` membership of the identity (ADR 0008 decision 2 — never
-      // a body member). One owner membership decides; several need `accountId`, which must be one of them.
-      const owned = membershipsOf(c.get('identity'), c.env).filter(
-        (membership) => membership.role === 'owner',
-      );
-      const accountId =
-        request.accountId === undefined
-          ? owned.length === 1
-            ? owned[0]?.accountId
-            : undefined
-          : owned.some((membership) => membership.accountId === request.accountId)
-            ? request.accountId
-            : undefined;
-      if (accountId === undefined) {
-        c.get('logger').warn('project add refused', { reason: 'account-owner-only', owned: owned.length });
-        return stepProblem(c, {
-          type: 'account-owner-only',
-          title: 'Only an account owner adds a project',
-          status: 403,
-          step: 'unique',
-          detail:
-            owned.length > 1
-              ? 'You own several accounts; say which one with accountId'
-              : 'Projects are added by an owner of the account',
+      // #482 security review: the add checks repository ownership against the environment owner's connection and
+      // mints with the environment's app, so until T-4 binds a connection per user only the Access owner adds a
+      // project; the dev/stage service identity is refused too (#372): CI never needs to change the registry.
+      .post('/', ownerOnlyMiddleware, limit, async (c) => {
+        const identity = c.get('identity');
+        const request = parseAddProject(await jsonBody(c));
+        if (isRefusal(request)) {
+          return refused(c, request);
+        }
+        const { repo, slug, displayName } = request;
+        const projects = new ProjectsRepo(c.env.DB);
+        // The account the project is created in: an `owner` membership of the identity (ADR 0008 decision 2 — never
+        // a body member). One owner membership decides; several need `accountId`, which must be one of them.
+        const owned = membershipsOf(c.get('identity'), c.env).filter(
+          (membership) => membership.role === 'owner',
+        );
+        const accountId =
+          request.accountId === undefined
+            ? owned.length === 1
+              ? owned[0]?.accountId
+              : undefined
+            : owned.some((membership) => membership.accountId === request.accountId)
+              ? request.accountId
+              : undefined;
+        if (accountId === undefined) {
+          c.get('logger').warn('project add refused', { reason: 'account-owner-only', owned: owned.length });
+          return stepProblem(c, {
+            type: 'account-owner-only',
+            title: 'Only an account owner adds a project',
+            status: 403,
+            step: 'unique',
+            detail:
+              owned.length > 1
+                ? 'You own several accounts; say which one with accountId'
+                : 'Projects are added by an owner of the account',
+          });
+        }
+
+        // Cheap and before any GitHub call; the insert below repeats it atomically.
+        const conflict = await projects.findConflict(slug, repo.fullName);
+        if (conflict !== null) {
+          return stepProblem(c, {
+            type: 'project-exists',
+            title: 'The project is already registered',
+            status: 409,
+            step: 'unique',
+            detail: conflict.archived
+              ? `An archived project already uses this slug or repository (${conflict.slug})`
+              : `A project already uses this slug or repository (${conflict.slug})`,
+          });
+        }
+
+        const connection = await github.connect(c.env);
+
+        let installationId: number;
+        try {
+          installationId = await connection.auth.installationIdFor(repo);
+        } catch (error: unknown) {
+          const extra = isGitHubProblem(error, 'github-app-not-installed')
+            ? { installUrl: installUrlFor(c.env.ENVIRONMENT) }
+            : {};
+          throw inStep(error, 'app-installed', extra);
+        }
+
+        const owner = await owners.current(c.env, c.get('logger'));
+        if (owner === null) {
+          return stepProblem(c, {
+            type: 'github-owner-not-connected',
+            title: 'No GitHub account is connected',
+            status: 403,
+            step: 'repo-owner',
+            detail: 'Connect the owner GitHub account in Settings first',
+            extensions: { connectUrl: GITHUB_CONNECT_PATH },
+          });
+        }
+
+        const client = repositoryClient(connection, repo);
+        let read: RepositoryRead;
+        try {
+          read = await readRepository(client, repo);
+        } catch (error: unknown) {
+          throw inStep(error, 'repo-owner');
+        }
+        if (!isRepoOwnedBy(owner, read.owner)) {
+          return stepProblem(c, {
+            type: 'github-owner-mismatch',
+            title: 'The repository belongs to another account',
+            status: 409,
+            step: 'repo-owner',
+            detail: `${read.fullName} is owned by ${read.owner.login}, not by the connected account ${owner.login}`,
+            // Both logins are named in Settings' copy (#24), so the client never parses `detail`.
+            extensions: { repoOwner: read.owner.login, login: owner.login },
+          });
+        }
+        // Webhooks route by this id only (ADR 0008 decision 2, #484): a row without one would never receive a delivery.
+        const repoId = read.id;
+        if (repoId === null) {
+          return stepProblem(c, {
+            type: 'github-unexpected',
+            title: 'Unexpected answer from GitHub',
+            status: 502,
+            step: 'repo-owner',
+            detail: 'GitHub did not report the repository id',
+          });
+        }
+
+        let yml: string | null;
+        try {
+          yml = await readProjectYml(client, repo);
+        } catch (error: unknown) {
+          throw inStep(error, 'project-yml');
+        }
+        if (yml === null) {
+          return stepProblem(c, {
+            type: 'project-yml-missing',
+            title: 'The repository has no .product-team/project.yml',
+            status: 422,
+            step: 'project-yml',
+            detail: "Run the product-team plugin's kickoff or adopt in this repository first",
+          });
+        }
+
+        // The installation belongs to this account from here on (decision 4; T-4 adds the setup-URL handshake):
+        // one GitHub installation is one account's, so a repository of another account's installation is refused
+        // before the row exists.
+        const at = new Date().toISOString();
+        const actor = auditActorOf(identity);
+        const linked = await new InstallationsRepo(c.env.DB).link({
+          accountId,
+          provider: 'github',
+          installationId: String(installationId),
+          accountLogin: read.owner.login,
+          // A `users` row only: the Access owner before the link and the local bypass have none.
+          linkedByUserId: identity.kind === 'user' ? identity.userId : null,
+          at,
         });
-      }
+        if (linked === 'linked-elsewhere') {
+          c.get('logger').warn('project add refused', { reason: 'installation-other-account', slug });
+          return stepProblem(c, {
+            type: 'installation-other-account',
+            title: 'The installation belongs to another account',
+            status: 409,
+            step: 'app-installed',
+            detail: 'The app installation on this repository is linked to another console account',
+          });
+        }
 
-      // Cheap and before any GitHub call; the insert below repeats it atomically.
-      const conflict = await projects.findConflict(slug, repo.fullName);
-      if (conflict !== null) {
-        return stepProblem(c, {
-          type: 'project-exists',
-          title: 'The project is already registered',
-          status: 409,
-          step: 'unique',
-          detail: conflict.archived
-            ? `An archived project already uses this slug or repository (${conflict.slug})`
-            : `A project already uses this slug or repository (${conflict.slug})`,
+        // GitHub's spelling (current casing, a rename followed); the input when GitHub's is not a name we accept.
+        const canonicalRepo = isValidRepoName(read.fullName) ? read.fullName : repo.fullName;
+        const created = await projects.create({
+          slug,
+          repo: canonicalRepo,
+          displayName,
+          installationId,
+          addedAt: at,
+          accountId,
+          repoId,
+          // D3 (#775): who created it, for the runner scope term; the audit actor, as `runners.enrolled_by` is.
+          createdBy: actor.actor,
         });
-      }
-
-      const connection = await github.connect(c.env);
-
-      let installationId: number;
-      try {
-        installationId = await connection.auth.installationIdFor(repo);
-      } catch (error: unknown) {
-        const extra = isGitHubProblem(error, 'github-app-not-installed')
-          ? { installUrl: installUrlFor(c.env.ENVIRONMENT) }
-          : {};
-        throw inStep(error, 'app-installed', extra);
-      }
-
-      const owner = await owners.current(c.env, c.get('logger'));
-      if (owner === null) {
-        return stepProblem(c, {
-          type: 'github-owner-not-connected',
-          title: 'No GitHub account is connected',
-          status: 403,
-          step: 'repo-owner',
-          detail: 'Connect the owner GitHub account in Settings first',
-          extensions: { connectUrl: GITHUB_CONNECT_PATH },
-        });
-      }
-
-      const client = repositoryClient(connection, repo);
-      let read: RepositoryRead;
-      try {
-        read = await readRepository(client, repo);
-      } catch (error: unknown) {
-        throw inStep(error, 'repo-owner');
-      }
-      if (!isRepoOwnedBy(owner, read.owner)) {
-        return stepProblem(c, {
-          type: 'github-owner-mismatch',
-          title: 'The repository belongs to another account',
-          status: 409,
-          step: 'repo-owner',
-          detail: `${read.fullName} is owned by ${read.owner.login}, not by the connected account ${owner.login}`,
-          // Both logins are named in Settings' copy (#24), so the client never parses `detail`.
-          extensions: { repoOwner: read.owner.login, login: owner.login },
-        });
-      }
-      // Webhooks route by this id only (ADR 0008 decision 2, #484): a row without one would never receive a delivery.
-      const repoId = read.id;
-      if (repoId === null) {
-        return stepProblem(c, {
-          type: 'github-unexpected',
-          title: 'Unexpected answer from GitHub',
-          status: 502,
-          step: 'repo-owner',
-          detail: 'GitHub did not report the repository id',
-        });
-      }
-
-      let yml: string | null;
-      try {
-        yml = await readProjectYml(client, repo);
-      } catch (error: unknown) {
-        throw inStep(error, 'project-yml');
-      }
-      if (yml === null) {
-        return stepProblem(c, {
-          type: 'project-yml-missing',
-          title: 'The repository has no .product-team/project.yml',
-          status: 422,
-          step: 'project-yml',
-          detail: "Run the product-team plugin's kickoff or adopt in this repository first",
-        });
-      }
-
-      // The installation belongs to this account from here on (decision 4; T-4 adds the setup-URL handshake):
-      // one GitHub installation is one account's, so a repository of another account's installation is refused
-      // before the row exists.
-      const at = new Date().toISOString();
-      const actor = auditActorOf(identity);
-      const linked = await new InstallationsRepo(c.env.DB).link({
-        accountId,
-        provider: 'github',
-        installationId: String(installationId),
-        accountLogin: read.owner.login,
-        // A `users` row only: the Access owner before the link and the local bypass have none.
-        linkedByUserId: identity.kind === 'user' ? identity.userId : null,
-        at,
-      });
-      if (linked === 'linked-elsewhere') {
-        c.get('logger').warn('project add refused', { reason: 'installation-other-account', slug });
-        return stepProblem(c, {
-          type: 'installation-other-account',
-          title: 'The installation belongs to another account',
-          status: 409,
-          step: 'app-installed',
-          detail: 'The app installation on this repository is linked to another console account',
-        });
-      }
-
-      // GitHub's spelling (current casing, a rename followed); the input when GitHub's is not a name we accept.
-      const canonicalRepo = isValidRepoName(read.fullName) ? read.fullName : repo.fullName;
-      const created = await projects.create({
-        slug,
-        repo: canonicalRepo,
-        displayName,
-        installationId,
-        addedAt: at,
-        accountId,
-        repoId,
-        // D3 (#775): who created it, for the runner scope term; the audit actor, as `runners.enrolled_by` is.
-        createdBy: actor.actor,
-      });
-      const row = created === 'created' ? await projects.findActiveBySlug(slug) : null;
-      if (row === null) {
-        // Lost the race the pre-check above did not see (#472 review): which UNIQUE was taken, never a 500.
-        const taken = created === 'created' ? 'slug-taken' : created;
-        c.get('logger').warn('project add refused', { reason: taken, slug });
-        return stepProblem(c, {
-          type: taken,
-          title: 'The project is already registered',
-          status: 409,
-          step: 'unique',
-          detail:
-            taken === 'slug-taken'
-              ? 'A project with this slug was added meanwhile'
-              : 'A project with this repository was added meanwhile',
-        });
-      }
-      await new AuditRepo(c.env.DB).append({
-        accountId,
-        at,
-        actorKind: actor.kind,
-        actor: actor.actor,
-        kind: 'project.created',
-        target: slug,
-        // R-SCOPE-2 (#775): the `all` runners that serve the new project from now on, so the audit says which machines
-        // (and whose Claude sign-in, D3) picked it up without anyone choosing it.
-        details: { repoId, installationId, ...(await servedByRunnersOf(c.env.DB, accountId, slug)) },
-        ipCountry: c.req.header('CF-IPCountry') ?? null,
-      });
-      c.get('logger').info('project added', { slug });
-      c.header('Location', `/api/v1/projects/${slug}`);
-      return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), null), 201);
-    })
-
-    .patch('/:slug', userOrOwnerMiddleware, limit, async (c) => {
-      const project = await findProject(c, c.req.param('slug'));
-      if (project === null) {
-        return projectNotFound(c);
-      }
-      const ownerRefusal = projectOwnerRefusal(c, project);
-      if (ownerRefusal !== null) {
-        return ownerRefusal;
-      }
-      const changes = parseUpdateProject(await jsonBody(c));
-      if (isRefusal(changes)) {
-        return refused(c, changes);
-      }
-      const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
-      // Archived between the lookup and the update.
-      if (row === null) {
-        return projectNotFound(c);
-      }
-      await auditOwnerAction(c, project, 'project.updated', {
-        fields: Object.keys(changes).sort(),
-      });
-      return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), trackerProjectOf(row)));
-    })
-
-    .post('/:slug/archive', userOrOwnerMiddleware, async (c) => {
-      const project = await findProject(c, c.req.param('slug'));
-      if (project === null) {
-        return projectNotFound(c);
-      }
-      const ownerRefusal = projectOwnerRefusal(c, project);
-      if (ownerRefusal !== null) {
-        return ownerRefusal;
-      }
-      const at = new Date().toISOString();
-      const actor = auditActorOf(c.get('identity'));
-      const archived = await new ProjectsRepo(c.env.DB).archive(project.slug, at, [
-        auditEventStatement(c.env.DB, {
-          accountId: project.account_id,
+        const row = created === 'created' ? await projects.findActiveBySlug(slug) : null;
+        if (row === null) {
+          // Lost the race the pre-check above did not see (#472 review): which UNIQUE was taken, never a 500.
+          const taken = created === 'created' ? 'slug-taken' : created;
+          c.get('logger').warn('project add refused', { reason: taken, slug });
+          return stepProblem(c, {
+            type: taken,
+            title: 'The project is already registered',
+            status: 409,
+            step: 'unique',
+            detail:
+              taken === 'slug-taken'
+                ? 'A project with this slug was added meanwhile'
+                : 'A project with this repository was added meanwhile',
+          });
+        }
+        await new AuditRepo(c.env.DB).append({
+          accountId,
           at,
           actorKind: actor.kind,
           actor: actor.actor,
-          kind: 'project.archived',
-          target: project.slug,
+          kind: 'project.created',
+          target: slug,
+          // R-SCOPE-2 (#775): the `all` runners that serve the new project from now on, so the audit says which machines
+          // (and whose Claude sign-in, D3) picked it up without anyone choosing it.
+          details: { repoId, installationId, ...(await servedByRunnersOf(c.env.DB, accountId, slug)) },
           ipCountry: c.req.header('CF-IPCountry') ?? null,
-        }),
-      ]);
-      if (!archived) {
-        return projectNotFound(c);
-      }
-      c.get('logger').info('project archived', { slug: project.slug });
-      return c.body(null, 204);
-    })
+        });
+        c.get('logger').info('project added', { slug });
+        c.header('Location', `/api/v1/projects/${slug}`);
+        return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), null), 201);
+      })
 
-    .get('/:slug/setup', async (c) => {
-      const project = await findProject(c, c.req.param('slug'));
-      if (project === null) {
-        return projectNotFound(c);
-      }
-      const repo = repoOf(c, project);
-      if (repo instanceof Response) {
-        return repo;
-      }
-      const key = readCacheKey({
-        environment: c.env.ENVIRONMENT,
-        slug: project.slug,
-        epoch: project.cache_epoch,
-        type: 'setup',
-      });
-      const facts = await github.readCache.getOrFill(
-        key,
-        SETUP_TTL_SECONDS,
-        async () => repositoryFacts(await github.connect(c.env), repo),
-        { fresh: c.req.query('fresh') === '1' },
-      );
-      const connection = await owners.current(c.env, c.get('logger'));
-      // The repository id backfill of rows registered before 0018 (T-2): recorded once from what GitHub answered.
-      if (project.repo_id === null && facts.repoId !== null) {
-        if (isBackfillAllowed(facts, connection, project.repo)) {
-          const recorded = await new ProjectsRepo(c.env.DB).setRepoId(project.slug, facts.repoId);
-          c.get('logger').info('project repo id backfilled', { slug: project.slug, recorded });
-        } else {
-          // No slug: the refusal stays fail-closed and names no row (#504).
-          c.get('logger').warn('repo id backfill refused');
+      .patch('/:slug', userOrOwnerMiddleware, limit, async (c) => {
+        const project = await findProject(c, c.req.param('slug'));
+        if (project === null) {
+          return projectNotFound(c);
         }
-      }
-      const signals = new ProjectSignalsRepo(c.env.DB);
-      const body = setupOf(c.env.ENVIRONMENT, facts, connection, {
-        events: await signals.eventsFor(project.repo),
-        accessLostAt: await signals.accessLostAt(project.slug),
-        routineToken: hasRoutineToken(c.env, project.slug),
-      });
-      return c.json(body);
-    });
+        const ownerRefusal = projectOwnerRefusal(c, project);
+        if (ownerRefusal !== null) {
+          return ownerRefusal;
+        }
+        const changes = parseUpdateProject(await jsonBody(c));
+        if (isRefusal(changes)) {
+          return refused(c, changes);
+        }
+        const row = await new ProjectsRepo(c.env.DB).update(project.slug, changes);
+        // Archived between the lookup and the update.
+        if (row === null) {
+          return projectNotFound(c);
+        }
+        await auditOwnerAction(c, project, 'project.updated', {
+          fields: Object.keys(changes).sort(),
+        });
+        return c.json(withTracker(withSlots(c.env, toProjectDto(row, github.now())), trackerProjectOf(row)));
+      })
+
+      .post('/:slug/archive', userOrOwnerMiddleware, async (c) => {
+        const project = await findProject(c, c.req.param('slug'));
+        if (project === null) {
+          return projectNotFound(c);
+        }
+        const ownerRefusal = projectOwnerRefusal(c, project);
+        if (ownerRefusal !== null) {
+          return ownerRefusal;
+        }
+        const at = new Date().toISOString();
+        const actor = auditActorOf(c.get('identity'));
+        const archived = await new ProjectsRepo(c.env.DB).archive(project.slug, at, [
+          auditEventStatement(c.env.DB, {
+            accountId: project.account_id,
+            at,
+            actorKind: actor.kind,
+            actor: actor.actor,
+            kind: 'project.archived',
+            target: project.slug,
+            ipCountry: c.req.header('CF-IPCountry') ?? null,
+          }),
+        ]);
+        if (!archived) {
+          return projectNotFound(c);
+        }
+        c.get('logger').info('project archived', { slug: project.slug });
+        return c.body(null, 204);
+      })
+
+      .get('/:slug/setup', async (c) => {
+        const project = await findProject(c, c.req.param('slug'));
+        if (project === null) {
+          return projectNotFound(c);
+        }
+        const repo = repoOf(c, project);
+        if (repo instanceof Response) {
+          return repo;
+        }
+        const key = readCacheKey({
+          environment: c.env.ENVIRONMENT,
+          slug: project.slug,
+          epoch: project.cache_epoch,
+          type: 'setup',
+        });
+        const facts = await github.readCache.getOrFill(
+          key,
+          SETUP_TTL_SECONDS,
+          async () => repositoryFacts(await github.connect(c.env), repo),
+          { fresh: c.req.query('fresh') === '1' },
+        );
+        const connection = await owners.current(c.env, c.get('logger'));
+        // The repository id backfill of rows registered before 0018 (T-2): recorded once from what GitHub answered.
+        if (project.repo_id === null && facts.repoId !== null) {
+          if (isBackfillAllowed(facts, connection, project.repo)) {
+            const recorded = await new ProjectsRepo(c.env.DB).setRepoId(project.slug, facts.repoId);
+            c.get('logger').info('project repo id backfilled', { slug: project.slug, recorded });
+          } else {
+            // No slug: the refusal stays fail-closed and names no row (#504).
+            c.get('logger').warn('repo id backfill refused');
+          }
+        }
+        const signals = new ProjectSignalsRepo(c.env.DB);
+        const body = setupOf(c.env.ENVIRONMENT, facts, connection, {
+          events: await signals.eventsFor(project.repo),
+          accessLostAt: await signals.accessLostAt(project.slug),
+          routineToken: hasRoutineToken(c.env, project.slug),
+        });
+        return c.json(body);
+      })
+  );
 }

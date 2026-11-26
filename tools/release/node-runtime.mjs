@@ -60,7 +60,11 @@ export function parsePin(text) {
     throw new Error(`Node.js ${pin.version} is below ${MINIMUM.join('.')}, which the launcher needs`);
   }
   const sums = pin.sha256;
-  if (typeof sums !== 'object' || sums === null || Object.keys(sums).sort().join(',') !== [...PLATFORMS].sort().join(',')) {
+  if (
+    typeof sums !== 'object' ||
+    sums === null ||
+    Object.keys(sums).sort().join(',') !== [...PLATFORMS].sort().join(',')
+  ) {
     throw new Error(`the Node.js pin needs one sha256 for each of ${PLATFORMS.join(', ')} and nothing else`);
   }
   for (const platform of PLATFORMS) {
@@ -74,8 +78,14 @@ export function parsePin(text) {
 /** The pinned fingerprints as the workflow passes them: 40 uppercase hex each, separated by white space. */
 export function parseFingerprints(text) {
   const list = text.split(/\s+/).filter((item) => item !== '');
-  if (list.length === 0 || !list.every((item) => FINGERPRINT.test(item)) || new Set(list).size !== list.length) {
-    throw new Error('NODE_RELEASE_KEY_FINGERPRINTS must be distinct 40-hex uppercase primary key fingerprints');
+  if (
+    list.length === 0 ||
+    !list.every((item) => FINGERPRINT.test(item)) ||
+    new Set(list).size !== list.length
+  ) {
+    throw new Error(
+      'NODE_RELEASE_KEY_FINGERPRINTS must be distinct 40-hex uppercase primary key fingerprints',
+    );
   }
   return list;
 }
@@ -178,7 +188,8 @@ export function packetsOf(bytes) {
         throw new Error('an indeterminate-length packet in a key');
       }
       const size = [1, 2, 4][type];
-      length = size === 1 ? bytes[at + 1] : size === 2 ? bytes.readUInt16BE(at + 1) : bytes.readUInt32BE(at + 1);
+      length =
+        size === 1 ? bytes[at + 1] : size === 2 ? bytes.readUInt16BE(at + 1) : bytes.readUInt32BE(at + 1);
       start = at + 1 + size;
     }
     if (start + length > bytes.length) {
@@ -213,7 +224,9 @@ export function assertKeyringIsPinned(armored, pinned) {
   const found = keyringFingerprints(armored);
   const sorted = (list) => [...list].sort().join(' ');
   if (found.length !== new Set(found).size || sorted(found) !== sorted(pinned)) {
-    throw new Error(`the keyring's keys (${sorted(found)}) are not exactly the pinned ones (${sorted(pinned)})`);
+    throw new Error(
+      `the keyring's keys (${sorted(found)}) are not exactly the pinned ones (${sorted(pinned)})`,
+    );
   }
 }
 
@@ -233,9 +246,15 @@ export function missedSecurityReleases(index, pin) {
     throw new Error('the Node.js release index is not a list');
   }
   return index
-    .map((entry) => ({ version: String(entry?.version ?? '').replace(/^v/, ''), security: entry?.security === true }))
+    .map((entry) => ({
+      version: String(entry?.version ?? '').replace(/^v/, ''),
+      security: entry?.security === true,
+    }))
     .filter((entry) => VERSION.test(entry.version) && entry.security)
-    .filter((entry) => versionParts(entry.version)[0] === pin.major && compareVersions(entry.version, pin.version) > 0)
+    .filter(
+      (entry) =>
+        versionParts(entry.version)[0] === pin.major && compareVersions(entry.version, pin.version) > 0,
+    )
     .map((entry) => entry.version)
     .sort(compareVersions);
 }
@@ -245,7 +264,9 @@ const PIN_FILE = path.join(repoRoot, 'apps/runner/node/node-release.json');
 const KEYRING_FILE = path.join(repoRoot, 'apps/runner/node/release-keys.asc');
 
 function download(url, file) {
-  execFileSync('curl', ['--proto', '=https', '--tlsv1.2', '-fsSL', '--retry', '3', '-o', file, url], { stdio: 'inherit' });
+  execFileSync('curl', ['--proto', '=https', '--tlsv1.2', '-fsSL', '--retry', '3', '-o', file, url], {
+    stdio: 'inherit',
+  });
 }
 
 /** Downloads `SHASUMS256.txt.asc`, has gpgv check it against the pinned keyring, and checks the pin against it. */

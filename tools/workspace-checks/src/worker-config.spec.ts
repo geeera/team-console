@@ -98,15 +98,18 @@ describe('api and hooks share one D1 database', () => {
 
 describe('apps/api/wrangler.jsonc', () => {
   // "/api/*" alone leaves "/api" and "/api/" to the SPA fallback and so outside the auth middleware (#51).
-  it.each(ENVIRONMENTS)('serves the SPA with the Worker first on /api, /api/* and the install identity in env %s', (env) => {
-    expect(readWorkerConfig('api', env).assets).toEqual(
-      expect.objectContaining({
-        binding: 'ASSETS',
-        not_found_handling: 'single-page-application',
-        run_worker_first: ['/api', '/api/*', '/manifest.webmanifest', '/favicon.ico', '/brand/*'],
-      }),
-    );
-  });
+  it.each(ENVIRONMENTS)(
+    'serves the SPA with the Worker first on /api, /api/* and the install identity in env %s',
+    (env) => {
+      expect(readWorkerConfig('api', env).assets).toEqual(
+        expect.objectContaining({
+          binding: 'ASSETS',
+          not_found_handling: 'single-page-application',
+          run_worker_first: ['/api', '/api/*', '/manifest.webmanifest', '/favicon.ico', '/brand/*'],
+        }),
+      );
+    },
+  );
 
   it.each(ENVIRONMENTS)(
     'keeps ACCESS_TEAM_DOMAIN, ACCESS_AUD and ACCESS_SERVICE_TOKEN_ID empty in env %s (public repo)',
@@ -166,12 +169,15 @@ describe('apps/api/wrangler.jsonc', () => {
     expect(readWorkerConfig('hooks', 'production').vars).not.toHaveProperty('ALLOW_ACTIONS_SETUP_WRITE');
   });
 
-  it.each(ENVIRONMENTS)('names its own https workers.dev origin as CONSOLE_PUBLIC_ORIGIN (#759, env %s)', (env) => {
-    const config = readWorkerConfig('api', env);
-    // The renderer's pattern (@shared/actions-workflow) is stricter still; this pins each env to its own Worker.
-    expect(config.vars['CONSOLE_PUBLIC_ORIGIN']).toBe(`https://${config.name}.geeera.workers.dev`);
-    expect(readWorkerConfig('hooks', env).vars).not.toHaveProperty('CONSOLE_PUBLIC_ORIGIN');
-  });
+  it.each(ENVIRONMENTS)(
+    'names its own https workers.dev origin as CONSOLE_PUBLIC_ORIGIN (#759, env %s)',
+    (env) => {
+      const config = readWorkerConfig('api', env);
+      // The renderer's pattern (@shared/actions-workflow) is stricter still; this pins each env to its own Worker.
+      expect(config.vars['CONSOLE_PUBLIC_ORIGIN']).toBe(`https://${config.name}.geeera.workers.dev`);
+      expect(readWorkerConfig('hooks', env).vars).not.toHaveProperty('CONSOLE_PUBLIC_ORIGIN');
+    },
+  );
 
   it.each(ENVIRONMENTS)('is the only Worker that applies migrations (env %s)', (env) => {
     expect(readWorkerConfig('api', env).d1_databases[0]?.migrations_dir).toBe('migrations');

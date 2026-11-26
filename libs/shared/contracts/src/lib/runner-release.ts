@@ -15,7 +15,8 @@ export const RELEASE_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
 export const RELEASE_PREDICATE_TYPE = 'https://slsa.dev/provenance/v1';
 
 /** The label `release-runner.yml` builds from a `v<label>` tag: SemVer core with an optional pre-release, no build. */
-const RELEASE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+const RELEASE_VERSION =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 export const isReleaseVersion = (value: unknown): value is string =>
   typeof value === 'string' && value.length <= 64 && RELEASE_VERSION.test(value);
 
@@ -27,7 +28,10 @@ export const RELEASE_PLATFORMS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'li
 export type ReleasePlatform = (typeof RELEASE_PLATFORMS)[number];
 
 /** The macOS platforms: the `user` backend and the verified-download one-liner exist only there. */
-export const MAC_RELEASE_PLATFORMS = ['darwin-arm64', 'darwin-x64'] as const satisfies readonly ReleasePlatform[];
+export const MAC_RELEASE_PLATFORMS = [
+  'darwin-arm64',
+  'darwin-x64',
+] as const satisfies readonly ReleasePlatform[];
 export type MacReleasePlatform = (typeof MAC_RELEASE_PLATFORMS)[number];
 
 /** The release platform of a Node `process.platform`/`process.arch` pair, or `null` when none is published. */
@@ -117,14 +121,18 @@ const SUMS_LINE = /^([0-9a-f]{64}) {2}(\S+)$/;
  * line for each platform's tarball of `version`, sorted by name, each ending in a newline, and nothing else. Anything
  * else is `null` (R-ONE-2: the Worker refuses a malformed `RUNNER_RELEASE_SHA256SUMS` before it names a sum).
  */
-export function releaseSumsOf(text: string, version: string): Readonly<Record<ReleasePlatform, string>> | null {
+export function releaseSumsOf(
+  text: string,
+  version: string,
+): Readonly<Record<ReleasePlatform, string>> | null {
   if (!isReleaseVersion(version) || !text.endsWith('\n')) {
     return null;
   }
   const lines = text.slice(0, -1).split('\n');
-  const expected = RELEASE_PLATFORMS.map((platform) => ({ platform, name: tarballNameOf(version, platform) })).sort(
-    (a, b) => (a.name < b.name ? -1 : 1),
-  );
+  const expected = RELEASE_PLATFORMS.map((platform) => ({
+    platform,
+    name: tarballNameOf(version, platform),
+  })).sort((a, b) => (a.name < b.name ? -1 : 1));
   if (lines.length !== expected.length) {
     return null;
   }

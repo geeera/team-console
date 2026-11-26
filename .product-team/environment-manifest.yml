@@ -38,7 +38,7 @@ items:
     origin: owner
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (auth middleware, ADR 0001 decision 7)"]
+    neededBy: ['apps/api (auth middleware, ADR 0001 decision 7)']
     purpose: Сверяет e-mail во входящем JWT от Cloudflare Access — впускает только владельца.
     guide:
       obtain: Тот же e-mail, что указан в Access-приложении этого окружения (owner-checklist шаг 7.4).
@@ -53,7 +53,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (GitHubAppAuth — минтинг JWT и installation-токенов, ADR 0003 решения 2, 6)"]
+    neededBy: ['apps/api (GitHubAppAuth — минтинг JWT и installation-токенов, ADR 0003 решения 2, 6)']
     purpose: Приватный ключ консольного GitHub App'а этого окружения, конвертированный в PKCS#8.
     guide:
       obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` при создании приложения.
@@ -68,7 +68,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (обмен OAuth-кода на токен владельца, ADR 0003 решение 3)"]
+    neededBy: ['apps/api (обмен OAuth-кода на токен владельца, ADR 0003 решение 3)']
     purpose: OAuth client secret консольного GitHub App'а, для подключения владельца.
     guide:
       obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` при создании приложения.
@@ -81,7 +81,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (шифрует пару токенов владельца в D1, ADR 0003 решение 4)"]
+    neededBy: ['apps/api (шифрует пару токенов владельца в D1, ADR 0003 решение 4)']
     purpose: HKDF master-key (32 случайных байта, base64) для хранения токенов владельца в D1.
     guide:
       obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` (свой ключ на каждое окружение).
@@ -96,23 +96,24 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: api }, { place: wrangler-secret, app: hooks }]
-    neededBy: ["apps/api, apps/hooks (веб-пуш, ADR 0001 решение 11)"]
+    neededBy: ['apps/api, apps/hooks (веб-пуш, ADR 0001 решение 11)']
     purpose: Приватный VAPID-ключ (base64url); подписывает push JWT, своя пара на каждое окружение.
     guide:
       obtain: >-
         Генерируется `tools/owner-setup/set-secrets.sh` через Node's built-in crypto (без npm-пакетов) —
         ничего скачивать не нужно.
       scopes: null
-      rotation: "`set-secrets.sh --rotate`; ломает все существующие подписки push — пользователь подписывается заново."
+      rotation: '`set-secrets.sh --rotate`; ломает все существующие подписки push — пользователь подписывается заново.'
       gotchas: Один и тот же PEM на api и на hooks в одном окружении; разные окружения не делят пару.
 
-  - name: "ROUTINE_TOKEN_<SLUG>"
+  - name: 'ROUTINE_TOKEN_<SLUG>'
     pattern: true
     kind: secret
     origin: owner
     environments: [production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (routes/team-commands.ts; будит routine PM-чата продукта <SLUG>, ADR 0001 решение 11)"]
+    neededBy:
+      ['apps/api (routes/team-commands.ts; будит routine PM-чата продукта <SLUG>, ADR 0001 решение 11)']
     purpose: Bearer-токен API-триггера routine продукта `<SLUG>`, один на каждый управляемый продукт.
     guide:
       obtain: claude.ai/code → routine продукта с API-триггером → скопировать её bearer-токен.
@@ -123,14 +124,14 @@ items:
         (`projectSlugToRoutineTokenName` в @shared/contracts), например `ROUTINE_TOKEN_TEAM_CONSOLE`; обычно
         только на production — dev/stage не управляют реальными продуктами.
 
-  - name: "SLOT_TOKEN_<SLUG>_<SLOT>"
+  - name: 'SLOT_TOKEN_<SLUG>_<SLOT>'
     pattern: true
     optional: true
     kind: secret
     origin: owner
     environments: [production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (routes/team-commands.ts; «Запустить сейчас» по слоту, #114)"]
+    neededBy: ['apps/api (routes/team-commands.ts; «Запустить сейчас» по слоту, #114)']
     purpose: Bearer API-триггера рутины слота (`<SLOT>` ∈ PM | DEV | QA) продукта `<SLUG>`.
     guide:
       obtain: >-
@@ -142,14 +143,14 @@ items:
         Пока секрета нет, панель «Команды» показывает карточку настройки вместо ошибки; пауза/возобновление
         работают без него. dev/stage — только если нужно проверить запуск оттуда.
 
-  - name: "SLOT_ROUTINE_<SLUG>_<SLOT>"
+  - name: 'SLOT_ROUTINE_<SLUG>_<SLOT>'
     pattern: true
     optional: true
     kind: secret
     origin: owner
     environments: [production]
     locations: [{ place: wrangler-secret, app: api }]
-    neededBy: ["apps/api (routes/team-commands.ts; id рутины слота, #114)"]
+    neededBy: ['apps/api (routes/team-commands.ts; id рутины слота, #114)']
     purpose: Id (`trig_…`) рутины слота `<SLOT>` продукта `<SLUG>`, чтобы он не лежал в публичном репозитории.
     guide:
       obtain: Тот же экран триггера что и `SLOT_TOKEN_<SLUG>_<SLOT>` — id виден в адресе триггера.
@@ -163,7 +164,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: hooks }]
-    neededBy: ["apps/hooks (HMAC `X-Hub-Signature-256` входящих вебхуков, ADR 0003 решение 5)"]
+    neededBy: ['apps/hooks (HMAC `X-Hub-Signature-256` входящих вебхуков, ADR 0003 решение 5)']
     purpose: Webhook secret консольного GitHub App'а этого окружения.
     guide:
       obtain: Генерируется автоматически `tools/owner-setup/create-apps.sh` вместе с созданием приложения.
@@ -179,7 +180,7 @@ items:
     origin: owner
     environments: [dev, stage, production]
     locations: [{ place: wrangler-secret, app: hooks }]
-    neededBy: ["apps/hooks (принимает оба значения HMAC во время ротации, ADR 0003 решение 5)"]
+    neededBy: ['apps/hooks (принимает оба значения HMAC во время ротации, ADR 0003 решение 5)']
     purpose: Второе допустимое значение HMAC на время ротации `WEBHOOK_SECRET`.
     guide:
       obtain: Предыдущее значение `WEBHOOK_SECRET`, скопированное вручную перед заменой основного секрета.
@@ -195,7 +196,7 @@ items:
     locations:
       - { place: github-environment-variable }
       - { place: wrangler-var, app: api }
-    neededBy: ["apps/api (JWKS host для проверки JWT, ADR 0001 решение 7)", "deploy.yml (передаёт как --var)"]
+    neededBy: ['apps/api (JWKS host для проверки JWT, ADR 0001 решение 7)', 'deploy.yml (передаёт как --var)']
     purpose: Team domain Cloudflare Access (`<команда>.cloudflareaccess.com`) этого окружения.
     guide:
       obtain: Zero Trust → Settings → General, team domain (один на всю команду Zero Trust).
@@ -212,7 +213,7 @@ items:
     locations:
       - { place: github-environment-variable }
       - { place: wrangler-var, app: api }
-    neededBy: ["apps/api (JWT audience check, ADR 0001 решение 7)", "deploy.yml (передаёт как --var)"]
+    neededBy: ['apps/api (JWT audience check, ADR 0001 решение 7)', 'deploy.yml (передаёт как --var)']
     purpose: Application Audience (AUD) Tag Access-приложения `team-console-<env>`.
     guide:
       obtain: Access-приложение → вкладка Overview → Application Audience (AUD) Tag.
@@ -225,7 +226,7 @@ items:
     origin: owner
     environments: [dev, stage]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (пропускает запросы e2e-сервисного токена на dev/stage, ADR 0001 решение 7)"]
+    neededBy: ['apps/api (пропускает запросы e2e-сервисного токена на dev/stage, ADR 0001 решение 7)']
     purpose: Client ID сервисного токена Access (`common_name` в JWT), принимаемого на dev/stage.
     guide:
       obtain: Zero Trust → Access controls → Service Tokens → `team-console-e2e` → Client ID.
@@ -240,7 +241,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (минтинг JWT приложения, ADR 0003 решение 6)"]
+    neededBy: ['apps/api (минтинг JWT приложения, ADR 0003 решение 6)']
     purpose: App ID консольного GitHub App'а этого окружения (Worker binding name).
     guide:
       obtain: >-
@@ -257,7 +258,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (OAuth-обмен кода на токен владельца, ADR 0003 решение 3)"]
+    neededBy: ['apps/api (OAuth-обмен кода на токен владельца, ADR 0003 решение 3)']
     purpose: OAuth client id консольного GitHub App'а этого окружения (Worker binding name).
     guide:
       obtain: >-
@@ -274,10 +275,10 @@ items:
     locations:
       - { place: github-environment-variable }
       - { place: wrangler-var, app: api }
-    neededBy: ["apps/api (сверка входящего логина при OAuth-коллбэке, ADR 0003 решение 3)", "deploy.yml"]
+    neededBy: ['apps/api (сверка входящего логина при OAuth-коллбэке, ADR 0003 решение 3)', 'deploy.yml']
     purpose: Единственный GitHub-логин, который принимает подключение владельца (#59).
     guide:
-      obtain: "`tools/owner-setup/create-apps.sh` читает его сам: `gh api repos/<repo> --jq .owner.login`."
+      obtain: '`tools/owner-setup/create-apps.sh` читает его сам: `gh api repos/<repo> --jq .owner.login`.'
       scopes: null
       rotation: null
       gotchas: null
@@ -290,7 +291,7 @@ items:
       - { place: github-environment-variable }
       - { place: wrangler-var, app: api }
       - { place: wrangler-var, app: hooks }
-    neededBy: ["apps/api, apps/hooks (клиент подписывается на push, #11)", "deploy.yml (передаёт как --var)"]
+    neededBy: ['apps/api, apps/hooks (клиент подписывается на push, #11)', 'deploy.yml (передаёт как --var)']
     purpose: Публичная половина VAPID-пары этого окружения — не секрет, но своя на каждое окружение.
     guide:
       obtain: Печатается в терминал `tools/owner-setup/set-secrets.sh` при генерации пары — скопировать оттуда.
@@ -304,21 +305,22 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }, { place: wrangler-var, app: hooks }]
-    neededBy: ["apps/api, apps/hooks (идентичность окружения, #237; местный обход авторизации, ADR 0001 решение 7)"]
-    purpose: "`dev`/`stage`/`production` — фиксированное значение, одинаковое при каждом деплое этого окружения."
+    neededBy:
+      ['apps/api, apps/hooks (идентичность окружения, #237; местный обход авторизации, ADR 0001 решение 7)']
+    purpose: '`dev`/`stage`/`production` — фиксированное значение, одинаковое при каждом деплое этого окружения.'
     guide:
       obtain: null
       scopes: null
       rotation: Меняется только переименованием окружения — не ожидается.
-      gotchas: "`local` существует только как `--var` флаг `nx serve`/Dockerfile, никогда в wrangler.jsonc."
+      gotchas: '`local` существует только как `--var` флаг `nx serve`/Dockerfile, никогда в wrangler.jsonc.'
 
   - name: ALLOW_SERVICE_TOKEN
     kind: variable
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (разрешает путь сервисного токена Access на dev/stage, ADR 0001 решение 7)"]
-    purpose: "`true` на dev/stage (для e2e), `false` на production — фиксировано в wrangler.jsonc."
+    neededBy: ['apps/api (разрешает путь сервисного токена Access на dev/stage, ADR 0001 решение 7)']
+    purpose: '`true` на dev/stage (для e2e), `false` на production — фиксировано в wrangler.jsonc.'
     guide:
       obtain: null
       scopes: null
@@ -330,7 +332,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (выключатель записи настройки GitHub Actions: ветка, файл workflow и PR, #759)"]
+    neededBy: ['apps/api (выключатель записи настройки GitHub Actions: ветка, файл workflow и PR, #759)']
     purpose: >-
       Аварийный выключатель: только точное значение `true` разрешает токен с правами Contents, Workflows и Pull
       requests на запись. `true` на dev, `false` на stage и production — фиксировано в wrangler.jsonc. Включается
@@ -349,7 +351,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (адрес консоли в файле workflow раннера GitHub Actions, #759)"]
+    neededBy: ['apps/api (адрес консоли в файле workflow раннера GitHub Actions, #759)']
     purpose: >-
       Публичный адрес консоли (`https://…`, без порта и пути). Консоль вписывает его в файл
       `team-console-runner.yml` как `TC_CONSOLE_URL`, поэтому заказчику не нужны переменные в Environment.
@@ -368,8 +370,8 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }, { place: wrangler-var, app: hooks }]
-    neededBy: ["apps/api, apps/hooks (JWT `sub` для push, #11 threat model row 4)"]
-    purpose: "URL репозитория (`https://github.com/geeera/team-console`) — фиксированное значение, никогда e-mail."
+    neededBy: ['apps/api, apps/hooks (JWT `sub` для push, #11 threat model row 4)']
+    purpose: 'URL репозитория (`https://github.com/geeera/team-console`) — фиксированное значение, никогда e-mail.'
     guide:
       obtain: null
       scopes: null
@@ -382,7 +384,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)"]
+    neededBy: ['apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)']
     purpose: Версия раннера, которую консоль объявляет актуальной на `GET /api/v1/runner/release`.
     guide:
       obtain: null
@@ -398,7 +400,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)"]
+    neededBy: ['apps/api (`GET /api/v1/runner/release`, #467 ADR 0008 решение 8)']
     purpose: Минимальная версия раннера, ниже которой раннер обязан отказаться запускаться.
     guide:
       obtain: null
@@ -412,7 +414,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (команда установки на Mac в ответе enrolment-intents, #634 PR 5, S1)"]
+    neededBy: ['apps/api (команда установки на Mac в ответе enrolment-intents, #634 PR 5, S1)']
     purpose: Текст `SHA256SUMS` релиза из `RUNNER_RELEASE_VERSION`; по нему команда установки проверяет скачанный архив.
     guide:
       obtain: null
@@ -430,7 +432,7 @@ items:
     origin: generated
     environments: [dev, stage, production]
     locations: [{ place: wrangler-var, app: api }]
-    neededBy: ["apps/api (команда для Linux в ответе enrolment-intents, #634 PR 7, R-LNX)"]
+    neededBy: ['apps/api (команда для Linux в ответе enrolment-intents, #634 PR 7, R-LNX)']
     purpose: Дайджест (`sha256:…`) образа раннера из `RUNNER_RELEASE_VERSION`; команда для Linux тянет образ только по нему.
     guide:
       obtain: null
@@ -448,13 +450,13 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api (пропуск проверки JWT вместе с ENVIRONMENT=local)"]
-    purpose: "`local` обходит проверку Access JWT только локально, вместе с `ENVIRONMENT=local`."
+    neededBy: ['apps/api (пропуск проверки JWT вместе с ENVIRONMENT=local)']
+    purpose: '`local` обходит проверку Access JWT только локально, вместе с `ENVIRONMENT=local`.'
     guide:
       obtain: null
       scopes: null
       rotation: null
-      gotchas: "`tools/workspace-checks` проваливается, если это появится в любом `env.*` блоке wrangler.jsonc."
+      gotchas: '`tools/workspace-checks` проваливается, если это появится в любом `env.*` блоке wrangler.jsonc.'
 
   - name: GITHUB_MOCK
     optional: true
@@ -462,8 +464,8 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api (подменяет api.github.com на fixture GitHub из @worker/github)"]
-    purpose: "`true` переключает GitHub на локальную fixture-реализацию; только с `ENVIRONMENT=local`."
+    neededBy: ['apps/api (подменяет api.github.com на fixture GitHub из @worker/github)']
+    purpose: '`true` переключает GitHub на локальную fixture-реализацию; только с `ENVIRONMENT=local`.'
     guide:
       obtain: null
       scopes: null
@@ -476,7 +478,7 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api (origin фейкового GitHub, `npx nx serve fake-github`)"]
+    neededBy: ['apps/api (origin фейкового GitHub, `npx nx serve fake-github`)']
     purpose: Loopback-адрес фейкового GitHub для github.com и api.github.com (`http://127.0.0.1:9999`).
     guide:
       obtain: null
@@ -490,7 +492,7 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api (origin фейковых routines, `nx run api:fake-routines`, #114)"]
+    neededBy: ['apps/api (origin фейковых routines, `nx run api:fake-routines`, #114)']
     purpose: Loopback-адрес фейкового API routines, который «Run now» дёргает вместо api.anthropic.com.
     guide:
       obtain: null
@@ -504,7 +506,7 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api, apps/hooks (origin фейкового push-сервиса, `nx run api:fake-push`)"]
+    neededBy: ['apps/api, apps/hooks (origin фейкового push-сервиса, `nx run api:fake-push`)']
     purpose: Loopback-адрес фейкового push-сервиса, которому локально отправляются пуши вместо Apple/FCM/Mozilla.
     guide:
       obtain: null
@@ -518,7 +520,10 @@ items:
     origin: generated
     environments: [local]
     locations: [{ place: local-only }]
-    neededBy: ["apps/api (`POST /api/v1/runner/oidc-exchange`, #668: тестовый JWKS вместо ключей GitHub Actions OIDC)"]
+    neededBy:
+      [
+        'apps/api (`POST /api/v1/runner/oidc-exchange`, #668: тестовый JWKS вместо ключей GitHub Actions OIDC)',
+      ]
     purpose: JSON Web Key Set, которым локально подменяются ключи издателя GitHub Actions OIDC, чтобы спеки и интеграционный прогон подписывали свои токены. Учитывается только при ENVIRONMENT=local.
     guide:
       obtain: null
@@ -536,8 +541,8 @@ items:
     purpose: Cloudflare API-токен с правами на Workers Scripts, D1 и Pages.
     guide:
       obtain: dashboard.cloudflare.com → My Profile → API Tokens → Create Token (или Roll существующего).
-      scopes: "Workers Scripts: Edit, D1: Edit, Account: Read, Cloudflare Pages: Edit."
-      rotation: "Roll в Cloudflare, затем `tools/owner-setup/set-secrets.sh --rotate`."
+      scopes: 'Workers Scripts: Edit, D1: Edit, Account: Read, Cloudflare Pages: Edit.'
+      rotation: 'Roll в Cloudflare, затем `tools/owner-setup/set-secrets.sh --rotate`.'
       gotchas: >-
         Заводится `tools/owner-setup/set-secrets.sh` как GitHub Environment secret на каждое окружение —
         никогда как repository-level secret (любой workflow на любой ветке видел бы его).
@@ -561,12 +566,12 @@ items:
     origin: owner
     environments: [dev, stage, production]
     locations: [{ place: github-repository-secret }]
-    neededBy: ["owner-digest.yml"]
+    neededBy: ['owner-digest.yml']
     purpose: Токен Telegram-бота для ежедневной сводки «нужен ты».
     guide:
-      obtain: "Написать @BotFather → `/newbot` → скопировать токен."
+      obtain: 'Написать @BotFather → `/newbot` → скопировать токен.'
       scopes: null
-      rotation: "`/revoke` у @BotFather, затем обновить секрет."
+      rotation: '`/revoke` у @BotFather, затем обновить секрет.'
       gotchas: Репозиторный секрет — один на весь репозиторий, не по окружениям.
 
   - name: PT_TELEGRAM_CHAT
@@ -575,7 +580,7 @@ items:
     origin: owner
     environments: [dev, stage, production]
     locations: [{ place: github-repository-secret }]
-    neededBy: ["owner-digest.yml"]
+    neededBy: ['owner-digest.yml']
     purpose: Chat id, куда бот шлёт сводку.
     guide:
       obtain: >-
@@ -591,7 +596,7 @@ items:
     origin: owner
     environments: [dev, stage, production]
     locations: [{ place: github-repository-secret }]
-    neededBy: ["owner-digest.yml (альтернатива Telegram)"]
+    neededBy: ['owner-digest.yml (альтернатива Telegram)']
     purpose: Имя топика ntfy для сводки, если выбран ntfy вместо Telegram.
     guide:
       obtain: Поставить приложение ntfy, придумать длинное случайное имя топика, подписаться на него.
@@ -633,7 +638,7 @@ items:
     environments: [dev, stage, production]
     locations: [{ place: github-environment-variable }]
     neededBy:
-      - "tools/owner-setup/create-apps.sh (breadcrumb — засечка незавершённой настройки)"
+      - 'tools/owner-setup/create-apps.sh (breadcrumb — засечка незавершённой настройки)'
       - "project.yml's team.console_app_slugs (trust root for owner requests, ADR 0005)"
     purpose: Имя консольного GitHub App'а этого окружения (`team-console-<env>`), записанное ещё до создания.
     guide:

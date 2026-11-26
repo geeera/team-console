@@ -82,8 +82,8 @@ const QUEUE_CHOICES: readonly QueueChoice[] = ['up', 'keep', 'down'];
               [href]="htmlUrl"
               target="_blank"
               rel="noopener noreferrer"
-              >{{ 'commands.request.open' | transloco }}<span class="tc-sr-only">
-                {{ 'ui.frame.newTab' | transloco }}</span
+              >{{ 'commands.request.open' | transloco
+              }}<span class="tc-sr-only"> {{ 'ui.frame.newTab' | transloco }}</span
               ><tc-icon name="external" size="sm"
             /></a>
           }

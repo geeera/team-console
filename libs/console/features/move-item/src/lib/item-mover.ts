@@ -17,7 +17,14 @@ import {
   type QueuePositionDto,
   type TrackerSprintDto,
 } from '@shared/contracts';
-import { moveMenuOf, moveTargetOf, queueMoveOf, SPRINT_CAP, type MoveMenuCopy, type MoveTarget } from './move-menu';
+import {
+  moveMenuOf,
+  moveTargetOf,
+  queueMoveOf,
+  SPRINT_CAP,
+  type MoveMenuCopy,
+  type MoveTarget,
+} from './move-menu';
 
 /** What a move needs to know of a task: any tracker read of it will do (a board row, the task screen). */
 export type MovableItem = Pick<ItemSummaryDto, 'key' | 'number' | 'title' | 'sprint' | 'status' | 'version'>;
@@ -131,7 +138,10 @@ export class ItemMover {
   ): Promise<void> {
     const result = await this.api.reorder(slug, item.number, item.version, move, key);
     if (!result.ok) {
-      handlers.failed({ failure: result.failure, retry: () => this.reorder(slug, item, move, key, handlers) }, item);
+      handlers.failed(
+        { failure: result.failure, retry: () => this.reorder(slug, item, move, key, handlers) },
+        item,
+      );
       return;
     }
     const moved = result.value;
@@ -186,7 +196,9 @@ export class ItemMover {
     if (target === null) {
       return this.t('plan.backlog');
     }
-    return sprints.find((sprint) => sprint.number === target)?.title ?? `Sprint ${String(target).padStart(2, '0')}`;
+    return (
+      sprints.find((sprint) => sprint.number === target)?.title ?? `Sprint ${String(target).padStart(2, '0')}`
+    );
   }
 
   private copy(item: MovableItem): MoveMenuCopy {
@@ -203,7 +215,9 @@ export class ItemMover {
       toCurrent: (sprint) => this.t('plan.toCurrent', { sprint: sprint.title }),
       toBacklog: this.t('plan.toBacklog'),
       count: (n, sprint) =>
-        sprint.dueOn === null ? counted('plan.backlogCount', n) : counted('plan.count', n, { date: day(sprint) }),
+        sprint.dueOn === null
+          ? counted('plan.backlogCount', n)
+          : counted('plan.count', n, { date: day(sprint) }),
       backlogCount: (n) => counted('plan.backlogCount', n),
       full: (n) => counted('plan.full', n, { cap: SPRINT_CAP }),
       here: this.t('plan.here'),

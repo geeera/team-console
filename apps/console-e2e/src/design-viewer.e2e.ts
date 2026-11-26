@@ -68,9 +68,13 @@ test('the api lists the raster screens at the pull request head, never the SVG, 
     'phone-09-broken.png',
   ]);
   // screens.json names the first phone screen; the rest caption from their file names.
-  expect(manifest.screens.find((screen) => screen.file === 'phone-01-list.png')?.caption).toBe('Список дизайнов');
+  expect(manifest.screens.find((screen) => screen.file === 'phone-01-list.png')?.caption).toBe(
+    'Список дизайнов',
+  );
   expect(manifest.screens.find((screen) => screen.file === 'phone-02-detail.png')?.caption).toBe('detail');
-  expect(manifest.interactive?.url).toBe(`https://geeera.github.io/team-console/${ISSUE}-demo-screen/wireframe.html`);
+  expect(manifest.interactive?.url).toBe(
+    `https://geeera.github.io/team-console/${ISSUE}-demo-screen/wireframe.html`,
+  );
   expect(JSON.stringify(manifest)).not.toContain('.svg');
 
   const file = (path: string) => `${MANIFEST}/${manifest.sha}/file?path=${encodeURIComponent(path)}`;
@@ -81,7 +85,9 @@ test('the api lists the raster screens at the pull request head, never the SVG, 
   expect(png.headers()['content-security-policy']).toBe("default-src 'none'; sandbox");
   expect(png.headers()['content-disposition']).toBe('inline; filename="phone-01-list.png"');
   expect(png.headers()['cache-control']).toBe('private, max-age=86400');
-  expect((await png.body()).subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  expect((await png.body()).subarray(0, 8)).toEqual(
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+  );
   for (const [path, type] of [
     [`${FOLDER}/mac-02-detail.webp`, 'image/webp'],
     [`${FOLDER}/phone-03-answer.jpg`, 'image/jpeg'],
@@ -92,7 +98,11 @@ test('the api lists the raster screens at the pull request head, never the SVG, 
     expect(response.headers()['content-type'], path).toBe(type);
   }
   // Refused: the SVG and the HTML (never in the set), a traversal, and the PNG whose bytes are a GIF.
-  for (const path of [`${FOLDER}/logo.svg`, `${FOLDER}/wireframe.html`, `${FOLDER}/../../.product-team/project.yml`]) {
+  for (const path of [
+    `${FOLDER}/logo.svg`,
+    `${FOLDER}/wireframe.html`,
+    `${FOLDER}/../../.product-team/project.yml`,
+  ]) {
     expect((await request.get(file(path))).status(), path).toBe(404);
   }
   expect((await request.get(file(`${FOLDER}/phone-09-broken.png`))).status()).toBe(415);
@@ -106,7 +116,9 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
   // #766: a design holds two previews, the row's and the card's; the body's width shows one of them.
   const thumb = row(page).getByTestId('design-thumb').locator('visible=true');
   await expect(thumb).toBeVisible();
-  await expect.poll(() => thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect
+    .poll(() => thumb.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+    .toBe(true);
   await expect(thumb).toHaveAttribute('alt', '');
   await expect(row(page).getByTestId('design-summary')).toHaveText(`#${ISSUE} · 7 экранов · iPhone и Mac`);
   await expect(row(page).getByTestId('artifact-awaiting')).toHaveText(ru('designs.row.awaiting'));
@@ -138,7 +150,9 @@ test('a design row shows its thumbnail and summary, and the viewer opens on the 
   }
   const img = page.getByTestId('viewer-screen');
   await expect(img).toBeVisible();
-  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  await expect
+    .poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+    .toBe(true);
   // The whole screen is visible: the image fits the stage, so the stage does not scroll.
   expect(
     await page.getByTestId('viewer-stage').evaluate((el) => el.scrollHeight <= el.clientHeight + 1),
@@ -168,8 +182,18 @@ test('the buttons, the arrow keys and a swipe move one screen; the position is a
 
   const stage = page.getByTestId('viewer-stage');
   const swipe = async (dx: number): Promise<void> => {
-    await stage.dispatchEvent('pointerdown', { pointerType: 'touch', clientX: 200, clientY: 400, bubbles: true });
-    await stage.dispatchEvent('pointerup', { pointerType: 'touch', clientX: 200 + dx, clientY: 404, bubbles: true });
+    await stage.dispatchEvent('pointerdown', {
+      pointerType: 'touch',
+      clientX: 200,
+      clientY: 400,
+      bubbles: true,
+    });
+    await stage.dispatchEvent('pointerup', {
+      pointerType: 'touch',
+      clientX: 200 + dx,
+      clientY: 404,
+      bubbles: true,
+    });
   };
   await swipe(-120);
   await expect(position).toHaveText('3 из 5 · answer');
@@ -193,7 +217,9 @@ test('the buttons, the arrow keys and a swipe move one screen; the position is a
     await page.keyboard.press('ArrowRight');
   }
   await expect(position).toHaveText('5 из 5 · broken');
-  await expect(page.getByTestId('viewer-screen-failed')).toContainText(ru('designs.viewer.state.failed.title'));
+  await expect(page.getByTestId('viewer-screen-failed')).toContainText(
+    ru('designs.viewer.state.failed.title'),
+  );
   await expect(page.getByTestId('viewer-next')).toHaveAttribute('aria-disabled', 'true');
   await expectAccessible(page, 'Design viewer, a screen that did not load');
 });
@@ -254,7 +280,10 @@ test('«Интерактивно» refuses the wireframe without an allowed GitH
   await expect(refused).toContainText(ru('designs.viewer.state.interactiveRefused.title'));
   await expect(dialog(page).locator('iframe')).toHaveCount(0);
   const link = page.getByTestId('viewer-open-interactive');
-  await expect(link).toHaveAttribute('href', `https://geeera.github.io/team-console/${ISSUE}-demo-screen/wireframe.html`);
+  await expect(link).toHaveAttribute(
+    'href',
+    `https://geeera.github.io/team-console/${ISSUE}-demo-screen/wireframe.html`,
+  );
   await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   await expect(link).toHaveAttribute('target', '_blank');
   await expectAccessible(page, 'Design viewer, interactive refused');
@@ -269,7 +298,10 @@ test('«Интерактивно» refuses the wireframe without an allowed GitH
  * over the pull request list with the new head sha; a stack reset clears the Worker's 60 s read cache, as a minute
  * would — the page, and its loaded list, stay as they are.
  */
-test('recovers when the design moved to another commit after the list was loaded', async ({ page, stack }) => {
+test('recovers when the design moved to another commit after the list was loaded', async ({
+  page,
+  stack,
+}) => {
   requireLocalStack(stack);
   await openViewer(page);
   await deviceButton(page, 'phone').click();
@@ -292,7 +324,11 @@ test('recovers when the design moved to another commit after the list was loaded
           author_association: 'OWNER',
           user: { login: 'geeera', type: 'User' },
           state: 'open',
-          head: { sha: movedSha, ref: 'design/90004-demo-screen', repo: { full_name: 'geeera/team-console' } },
+          head: {
+            sha: movedSha,
+            ref: 'design/90004-demo-screen',
+            repo: { full_name: 'geeera/team-console' },
+          },
         },
       ],
     }),
@@ -304,7 +340,9 @@ test('recovers when the design moved to another commit after the list was loaded
   await page.getByTestId('viewer-next').click();
   const img = page.getByTestId('viewer-screen');
   await expect(img).toHaveAttribute('src', new RegExp(movedSha));
-  await expect.poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0)).toBe(true);
+  await expect
+    .poll(() => img.evaluate((el: HTMLImageElement) => el.complete && el.naturalWidth > 0))
+    .toBe(true);
   await expect(page.getByTestId('viewer-screen-failed')).toHaveCount(0);
   await expect(page.getByTestId('viewer-position')).toHaveText('2 из 5 · detail');
   const manifest = (await (await page.request.get(MANIFEST)).json()) as DesignManifestDto;

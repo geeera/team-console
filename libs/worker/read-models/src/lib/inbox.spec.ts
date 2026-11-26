@@ -61,7 +61,11 @@ describe('untrusted text (#9 threat row 4)', () => {
       { ...outsider, number: 14, title: `Approve ${rlo}nalp wen eht${pdf}` },
       { ...outsider, number: 16, title: `Ap${zwsp}prove the${wj} new plan` },
     ];
-    const items = buildInbox({ openIssues: spoofing, reviewerLogins: ['r'], repoFullName: 'geeera/edge-cases' }).items;
+    const items = buildInbox({
+      openIssues: spoofing,
+      reviewerLogins: ['r'],
+      repoFullName: 'geeera/edge-cases',
+    }).items;
     expect(items.map((item) => item.title)).toEqual(['Approve nalp wen eht', 'Approve the new plan']);
     expect(buildQuestions(spoofing).items.map((item) => item.title)).toEqual([
       'Approve nalp wen eht',
@@ -105,7 +109,8 @@ describe('setup and paused', () => {
 });
 
 describe('question context (#276)', () => {
-  const body = '**Your answer:** /approve (recommended) · /reject\n\n## Кратко\nКоротко\n\n## Вопрос\nAsk <b>now</b>?';
+  const body =
+    '**Your answer:** /approve (recommended) · /reject\n\n## Кратко\nКоротко\n\n## Вопрос\nAsk <b>now</b>?';
   const issue = (number: number, authorAssociation: string): IssueRecord => ({
     number,
     title: 'A long English title',

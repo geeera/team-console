@@ -126,7 +126,9 @@ export class ProjectSetupPage {
   });
   /** Step 5's link to the project's environment (#750): only once its status answered 200, like the row. */
   private readonly environmentRoute = computed(() =>
-    this.projectEnvironment.of(this.slug()).snapshot() === null ? null : projectEnvironmentRouteOf(this.slug()),
+    this.projectEnvironment.of(this.slug()).snapshot() === null
+      ? null
+      : projectEnvironmentRouteOf(this.slug()),
   );
   /** The connection the setup status reported; Connect is offered here when it is missing (ADR 0003). */
   protected readonly connectionBanner = computed<'none' | 'lost' | null>(() => {

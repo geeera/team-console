@@ -74,7 +74,9 @@ export class ProjectActionsPage {
   protected readonly status = computed(() => this.statuses.of(this.slug()));
   protected readonly snapshot = computed(() => this.status().snapshot());
   protected readonly problem = computed(() => this.status().problem());
-  protected readonly isChecking = computed(() => this.status().state() === 'loading' || this.status().state() === 'idle');
+  protected readonly isChecking = computed(
+    () => this.status().state() === 'loading' || this.status().state() === 'idle',
+  );
   protected readonly summary = computed(() => {
     const snapshot = this.snapshot();
     return snapshot === null ? null : actionsSummaryOf(snapshot);
@@ -95,7 +97,9 @@ export class ProjectActionsPage {
     const repo = this.project()?.repo;
     return repo === undefined ? null : `https://github.com/${repo}`;
   });
-  protected readonly branchLabel = computed(() => this.branch() ?? this.transloco.translate('actions.branchFallback'));
+  protected readonly branchLabel = computed(
+    () => this.branch() ?? this.transloco.translate('actions.branchFallback'),
+  );
   /** A block replaces the ledger: nothing to show, or nothing this session may see. */
   protected readonly blockingProblem = computed(() => {
     const problem = this.problem();

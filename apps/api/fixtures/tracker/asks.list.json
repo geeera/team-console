@@ -17,10 +17,7 @@
           "id": 1,
           "category": "scope",
           "ask": "Ship the beta to the first ten users?",
-          "commands": [
-            "approve",
-            "reject"
-          ],
+          "commands": ["approve", "reject"],
           "recommended": "approve",
           "createdAt": "2026-11-12T10:00:00.000Z",
           "source": "console",

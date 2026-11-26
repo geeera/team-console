@@ -70,7 +70,15 @@ describe('buildNeedsYou (#16: inbox order, then project, then number)', () => {
         problem: null,
         canManage: true,
       },
-      { ...beta, setup: false, setupUrl: null, paused: false, pausedUrl: null, problem: null, canManage: true },
+      {
+        ...beta,
+        setup: false,
+        setupUrl: null,
+        paused: false,
+        pausedUrl: null,
+        problem: null,
+        canManage: true,
+      },
       {
         ...gamma,
         setup: false,
@@ -111,7 +119,10 @@ describe('buildNeedsYou: the budget stop (#684)', () => {
       [
         { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
         { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
-        { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+        {
+          project: { slug: 'gamma', name: 'Gamma' },
+          problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 },
+        },
       ],
       [],
       new Map([
@@ -131,7 +142,10 @@ describe('buildNeedsYou: the concurrency stop (#746)', () => {
       [
         { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
         { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
-        { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+        {
+          project: { slug: 'gamma', name: 'Gamma' },
+          problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 },
+        },
       ],
       [],
       new Map([['alpha', budget]]),
@@ -141,7 +155,11 @@ describe('buildNeedsYou: the concurrency stop (#746)', () => {
         ['gamma', { queuedJobs: 1 }],
       ]),
     );
-    expect(result.projects.map((project) => project.concurrencyStop)).toEqual([{ queuedJobs: 2 }, undefined, { queuedJobs: 1 }]);
+    expect(result.projects.map((project) => project.concurrencyStop)).toEqual([
+      { queuedJobs: 2 },
+      undefined,
+      { queuedJobs: 1 },
+    ]);
     expect(result.projects[0]?.budgetStop).toEqual(budget);
     expect(Object.hasOwn(result.projects[1] ?? {}, 'concurrencyStop')).toBe(false);
   });
@@ -152,17 +170,37 @@ describe('buildNeedsYou: the Actions workflow drift (#874)', () => {
   const projects = [
     { project: { slug: 'alpha', name: 'Alpha' }, inbox: inbox([]) },
     { project: { slug: 'beta', name: 'Beta' }, inbox: inbox([]) },
-    { project: { slug: 'gamma', name: 'Gamma' }, problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 } },
+    {
+      project: { slug: 'gamma', name: 'Gamma' },
+      problem: { type: 'github-rate-limit', title: 'Rate limited', status: 429 },
+    },
   ];
 
   it('carries the drift of a project read or not, and nothing on the others', () => {
-    const result = buildNeedsYou(projects, [], new Map(), new Map(), new Map(), new Map([['alpha', drift], ['gamma', drift]]));
+    const result = buildNeedsYou(
+      projects,
+      [],
+      new Map(),
+      new Map(),
+      new Map(),
+      new Map([
+        ['alpha', drift],
+        ['gamma', drift],
+      ]),
+    );
     expect(result.projects.map((project) => project.actionsDrift)).toEqual([drift, undefined, drift]);
     expect(Object.hasOwn(result.projects[1] ?? {}, 'actionsDrift')).toBe(false);
   });
 
   it('leaves it out for a caller who may not manage the project: the setup page is the owner’s alone', () => {
-    const result = buildNeedsYou(projects, [], new Map(), new Map([['alpha', false]]), new Map(), new Map([['alpha', drift]]));
+    const result = buildNeedsYou(
+      projects,
+      [],
+      new Map(),
+      new Map([['alpha', false]]),
+      new Map(),
+      new Map([['alpha', drift]]),
+    );
     expect(Object.hasOwn(result.projects[0] ?? {}, 'actionsDrift')).toBe(false);
   });
 });

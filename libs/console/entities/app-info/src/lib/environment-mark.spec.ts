@@ -37,15 +37,18 @@ describe('EnvironmentMark (#237)', () => {
     ['dev', 'Dev', 'tc-chip--warning'],
     ['stage', 'Stage', 'tc-chip--danger'],
     ['local', 'Local', null],
-  ] as const)('names %s in text, with the environment spelled out for a screen reader', async (environment, label, tone) => {
-    await render(environment);
+  ] as const)(
+    'names %s in text, with the environment spelled out for a screen reader',
+    async (environment, label, tone) => {
+      await render(environment);
 
-    expect(chip()?.textContent?.replace(/\s+/g, ' ').trim()).toBe(`Окружение: ${label}`);
-    expect(chip()?.querySelector('.tc-sr-only')?.textContent?.trim()).toBe('Окружение:');
-    if (tone !== null) {
-      expect(chip()?.classList).toContain(tone);
-    }
-  });
+      expect(chip()?.textContent?.replace(/\s+/g, ' ').trim()).toBe(`Окружение: ${label}`);
+      expect(chip()?.querySelector('.tc-sr-only')?.textContent?.trim()).toBe('Окружение:');
+      if (tone !== null) {
+        expect(chip()?.classList).toContain(tone);
+      }
+    },
+  );
 
   it('shows nothing in production', async () => {
     await render('production');

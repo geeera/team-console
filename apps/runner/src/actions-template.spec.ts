@@ -68,7 +68,9 @@ function configuredConsoles(): { readonly environment: string; readonly origin: 
   const environments = [...config.matchAll(/"ENVIRONMENT": "([a-z]+)"/g)].map((match) => match[1] ?? '');
   const origins = [...config.matchAll(/"CONSOLE_PUBLIC_ORIGIN": "([^"]*)"/g)].map((match) => match[1] ?? '');
   if (environments.join() !== 'dev,stage,production' || origins.length !== environments.length) {
-    throw new Error('apps/api/wrangler.jsonc must name ENVIRONMENT and CONSOLE_PUBLIC_ORIGIN once per deployed env');
+    throw new Error(
+      'apps/api/wrangler.jsonc must name ENVIRONMENT and CONSOLE_PUBLIC_ORIGIN once per deployed env',
+    );
   }
   return environments.map((environment, index) => ({ environment, origin: origins[index] ?? '' }));
 }
@@ -85,7 +87,12 @@ const RENDERINGS: readonly Subject[] = await Promise.all(
   }),
 );
 const SUBJECTS: readonly Subject[] = [
-  { label: 'the template', text: templateText, consoleUrl: CONSOLE_URL_PLACEHOLDER, audience: CONSOLE_AUDIENCE_PLACEHOLDER },
+  {
+    label: 'the template',
+    text: templateText,
+    consoleUrl: CONSOLE_URL_PLACEHOLDER,
+    audience: CONSOLE_AUDIENCE_PLACEHOLDER,
+  },
   ...RENDERINGS,
 ];
 
@@ -179,11 +186,7 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
     }
     const expressions = [...text.matchAll(/\$\{\{[^}]*\}\}/g)].map((match) => match[0]);
     expect(new Set(expressions)).toEqual(
-      new Set([
-        '${{ inputs.job_id }}',
-        '${{ github.token }}',
-        `\${{ secrets.${INFERENCE_API_KEY_ENV} }}`,
-      ]),
+      new Set(['${{ inputs.job_id }}', '${{ github.token }}', `\${{ secrets.${INFERENCE_API_KEY_ENV} }}`]),
     );
     // #759: no Actions variable at all; the console's origin and audience are literals of the rendering.
     expect(text).not.toContain('${{ vars.');
@@ -200,7 +203,13 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
       expect(isUlid(candidate)).toBe(true);
       expect(ulid.test(candidate)).toBe(true);
     }
-    for (const candidate of ['01ka0000000000000000000j01', '01KA0000000000000000000J0', '01KA0000000000000000000JI1', '$(id)', '']) {
+    for (const candidate of [
+      '01ka0000000000000000000j01',
+      '01KA0000000000000000000J0',
+      '01KA0000000000000000000JI1',
+      '$(id)',
+      '',
+    ]) {
       expect(isUlid(candidate)).toBe(false);
       expect(ulid.test(candidate)).toBe(false);
     }
@@ -215,13 +224,17 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
       expect(script).toContain('sudo systemctl stop "${unit}"');
       expect(script).toContain('for unit in docker.socket docker.service; do');
       expect(script).toContain('sudo rm -f /var/run/docker.sock /run/docker.sock');
-      expect(script).toContain('printf "%s\\n" "Defaults env_reset" "root ALL=(ALL:ALL) ALL" > /etc/sudoers.team-console');
+      expect(script).toContain(
+        'printf "%s\\n" "Defaults env_reset" "root ALL=(ALL:ALL) ALL" > /etc/sudoers.team-console',
+      );
       expect(script).toContain('visudo -cq -f /etc/sudoers.team-console');
       expect(script).toContain('rm -rf /etc/sudoers.d');
       expect(script).toContain('mv -f /etc/sudoers.team-console /etc/sudoers');
       // The new sudoers is checked before the old rules go, so a broken file never replaces them half-way.
       expect(script.indexOf('visudo -cq')).toBeLessThan(script.indexOf('rm -rf /etc/sudoers.d'));
-      expect(script.indexOf('rm -rf /etc/sudoers.d')).toBeLessThan(script.indexOf('mv -f /etc/sudoers.team-console'));
+      expect(script.indexOf('rm -rf /etc/sudoers.d')).toBeLessThan(
+        script.indexOf('mv -f /etc/sudoers.team-console'),
+      );
     });
 
     it('asserts right after that sudo, the socket and ptrace are gone', () => {
@@ -236,7 +249,12 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
     it('comes right after the job id check, before every download and the job', () => {
       const dropAt = indexOf('Give up root for the rest of the run');
       expect(dropAt).toBe(1);
-      for (const name of ['Install Node.js', 'Download and verify the runner', 'Install the Claude Code CLI', 'Run the job']) {
+      for (const name of [
+        'Install Node.js',
+        'Download and verify the runner',
+        'Install the Claude Code CLI',
+        'Run the job',
+      ]) {
         expect(indexOf(name)).toBeGreaterThan(indexOf('Check that root is gone'));
       }
       // No step after the check asks for root again.
@@ -253,13 +271,17 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
     it('is pinned to one release version', () => {
       expect(version()).toMatch(/^\d+\.\d+\.\d+$/);
       expect(runOf(step())).toContain('tarball="team-console-runner-${RUNNER_VERSION}-linux-x64.tar.gz"');
-      expect(expand('team-console-runner-${RUNNER_VERSION}-linux-x64.tar.gz', { RUNNER_VERSION: version() })).toBe(
-        tarballNameOf(version(), 'linux-x64'),
-      );
+      expect(
+        expand('team-console-runner-${RUNNER_VERSION}-linux-x64.tar.gz', { RUNNER_VERSION: version() }),
+      ).toBe(tarballNameOf(version(), 'linux-x64'));
     });
 
     it('is downloaded and verified with exactly the flags of the release identity in @shared/contracts', () => {
-      const values = { RUNNER_VERSION: version(), download: '<download>', tarball: tarballNameOf(version(), 'linux-x64') };
+      const values = {
+        RUNNER_VERSION: version(),
+        download: '<download>',
+        tarball: tarballNameOf(version(), 'linux-x64'),
+      };
       const verify = commandWords(runOf(step()), 'gh attestation verify').map((word) => expand(word, values));
       expect(verify).toEqual(['gh', ...attestationVerifyArgs(`<download>/${values.tarball}`, version())]);
       const download = commandWords(runOf(step()), 'gh release download').map((word) => expand(word, values));
@@ -312,7 +334,9 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
         [INFERENCE_API_KEY_ENV]: `\${{ secrets.${INFERENCE_API_KEY_ENV} }}`,
         [ACTIONS_RUN_ENV.readToken]: '${{ github.token }}',
       });
-      expect(runOf(step())).toContain(`export ${ACTIONS_RUN_ENV.claude}="\${RUNNER_TEMP}/claude-code/claude"`);
+      expect(runOf(step())).toContain(
+        `export ${ACTIONS_RUN_ENV.claude}="\${RUNNER_TEMP}/claude-code/claude"`,
+      );
     });
 
     it('masks the key as defence in depth', () => {
@@ -341,7 +365,6 @@ describe.each(SUBJECTS)('apps/runner/templates/team-console-runner.yml, $label',
       expect(text).not.toMatch(/--inspect/);
     });
   });
-
 });
 
 it('the launcher in the release starts node with SIGUSR1 off as well, whatever NODE_OPTIONS holds', () => {
@@ -385,7 +408,9 @@ describe('the console’s renderings of the template (#759, security note PR 2)'
 
   it('keeps the gh attestation verify flags byte for byte in every rendering, so no console moves the trust root', () => {
     const template = verifyLineOf(templateText);
-    expect(template).toContain('--signer-workflow github.com/geeera/team-console/.github/workflows/release-runner.yml');
+    expect(template).toContain(
+      '--signer-workflow github.com/geeera/team-console/.github/workflows/release-runner.yml',
+    );
     for (const rendering of RENDERINGS) {
       expect(verifyLineOf(rendering.text)).toBe(template);
     }

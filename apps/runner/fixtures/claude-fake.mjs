@@ -126,7 +126,9 @@ switch (scenario) {
     // What the launch was given (#685): the flags, the settings file, the env's names and the clone's shape.
     const gitOut = (gitArgs) => {
       try {
-        return execFileSync('git', gitArgs, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+        return execFileSync('git', gitArgs, { stdio: ['ignore', 'pipe', 'ignore'] })
+          .toString()
+          .trim();
       } catch {
         return null;
       }

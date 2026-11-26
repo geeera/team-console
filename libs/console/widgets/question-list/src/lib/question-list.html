@@ -71,9 +71,10 @@
     >
       <tc-icon tc-banner-icon [name]="isDriftBroken(drift) ? 'alert' : 'refresh'" size="sm" />
       <span tc-banner-text
-        >{{ (isDriftBroken(drift) ? 'needsYou.attention.actionsDrift.broken' : 'needsYou.attention.actionsDrift.update')
-        | transloco: { name: drift.project.name } }}
-        <span class="questions__attention-meta" data-testid="actions-drift-checked">{{ driftCheckedOf(drift) }}</span
+        >{{ (isDriftBroken(drift) ? 'needsYou.attention.actionsDrift.broken' :
+        'needsYou.attention.actionsDrift.update') | transloco: { name: drift.project.name } }}
+        <span class="questions__attention-meta" data-testid="actions-drift-checked"
+          >{{ driftCheckedOf(drift) }}</span
         ><tc-icon class="questions__attention-go" name="chevron-right" size="sm"
       /></span>
     </a>
@@ -151,8 +152,7 @@
   /></a>
   }
 </section>
-} @if (rows().length === 0 && attentionCount() === 0) {
-@if (isAllProjects() && !emptyTitle()) {
+} @if (rows().length === 0 && attentionCount() === 0) { @if (isAllProjects() && !emptyTitle()) {
 <!-- #354: the whole inbox is clear. The stamp is pressed on only when the list emptied while this page was open. -->
 <tc-state-block
   kind="empty"
@@ -168,8 +168,7 @@
   [title]="emptyTitle() || ('questions.emptyTitle' | transloco)"
   [description]="emptyHint() || ('needsYou.emptyHint' | transloco)"
 />
-}
-} @else if (rows().length > 0) {
+} } @else if (rows().length > 0) {
 <ul class="questions__list" [attr.aria-label]="listLabel() || ('questions.listLabel' | transloco)">
   @for (row of visibleRows(); track row.key) {
   <li class="questions__row" [attr.data-row]="row.key" [attr.data-number]="row.item.number">

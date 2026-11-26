@@ -44,7 +44,11 @@ export function parseInstallMemory(raw: string | null): InstallMemory {
   if (value['choice'] === 'never') {
     return { choice: 'never' };
   }
-  if (value['choice'] === 'snoozed' && typeof value['until'] === 'string' && !Number.isNaN(Date.parse(value['until']))) {
+  if (
+    value['choice'] === 'snoozed' &&
+    typeof value['until'] === 'string' &&
+    !Number.isNaN(Date.parse(value['until']))
+  ) {
     return value['auto'] === true
       ? { choice: 'snoozed', until: value['until'], auto: true }
       : { choice: 'snoozed', until: value['until'] };

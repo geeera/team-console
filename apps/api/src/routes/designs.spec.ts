@@ -1,4 +1,9 @@
-import { DESIGN_IMAGE_MAX_BYTES, isProblemDetails, problemSlugOf, type DesignManifestDto } from '@shared/contracts';
+import {
+  DESIGN_IMAGE_MAX_BYTES,
+  isProblemDetails,
+  problemSlugOf,
+  type DesignManifestDto,
+} from '@shared/contracts';
 import { MemoryReadCache } from '@worker/github';
 import { ApiGitHub } from '../github';
 import {
@@ -81,7 +86,10 @@ interface World {
 
 function handlerFor(world: World): (call: GitHubCall) => Response {
   const pulls = world.pulls ?? [
-    pull(176, PR_SHA, { body: `Closes #${ISSUE}`, head: { sha: PR_SHA, ref: 'design/90004-demo', repo: { full_name: REPO } } }),
+    pull(176, PR_SHA, {
+      body: `Closes #${ISSUE}`,
+      head: { sha: PR_SHA, ref: 'design/90004-demo', repo: { full_name: REPO } },
+    }),
   ];
   return (call) => {
     const path = call.url.pathname.replace(`/repos/${REPO}`, '');
@@ -119,7 +127,10 @@ function handlerFor(world: World): (call: GitHubCall) => Response {
       if (call.headers.get('accept') !== RAW) {
         return json(200, { encoding: 'base64', content: '' });
       }
-      return new Response(found.bytes, { status: 200, headers: { 'Content-Type': 'application/vnd.github.raw' } });
+      return new Response(found.bytes, {
+        status: 200,
+        headers: { 'Content-Type': 'application/vnd.github.raw' },
+      });
     }
     return json(404, { message: 'Not Found' });
   };
@@ -154,7 +165,8 @@ async function problemSlug(response: Response): Promise<string> {
   return slug;
 }
 
-const blobReads = (stub: StubGitHub) => stub.reads().filter((call) => call.url.pathname.includes('/git/blobs/'));
+const blobReads = (stub: StubGitHub) =>
+  stub.reads().filter((call) => call.url.pathname.includes('/git/blobs/'));
 
 beforeEach(async () => {
   await resetProjects();
@@ -200,9 +212,9 @@ describe('GET /api/v1/projects/:slug/designs/:issue', () => {
     expect(JSON.stringify(body)).not.toContain('.svg');
     // lookup + mint + pulls + tree + screens.json
     expect(stub.calls).toHaveLength(5);
-    expect(stub.reads().every((call) => call.headers.get('authorization') === `Bearer ${TOKEN_SENTINEL}1`)).toBe(
-      true,
-    );
+    expect(
+      stub.reads().every((call) => call.headers.get('authorization') === `Bearer ${TOKEN_SENTINEL}1`),
+    ).toBe(true);
   });
 
   it('reads the default branch head when no open pull request links the issue', async () => {
@@ -239,13 +251,16 @@ describe('GET /api/v1/projects/:slug/designs/:issue', () => {
     expect(stub.reads()).toHaveLength(before);
   });
 
-  it.each(['0', '-1', '1.5', 'x', '12345678901', '1%2F2'])('404 design-file-not-found for issue %s', async (issue) => {
-    const { github, stub } = setup();
-    const response = await manifest(github, issue);
-    expect(response.status).toBe(404);
-    expect(await problemSlug(response)).toBe('design-file-not-found');
-    expect(stub.calls).toEqual([]);
-  });
+  it.each(['0', '-1', '1.5', 'x', '12345678901', '1%2F2'])(
+    '404 design-file-not-found for issue %s',
+    async (issue) => {
+      const { github, stub } = setup();
+      const response = await manifest(github, issue);
+      expect(response.status).toBe(404);
+      expect(await problemSlug(response)).toBe('design-file-not-found');
+      expect(stub.calls).toEqual([]);
+    },
+  );
 
   it('passes a repository GitHub does not show the app through as 404 github-not-found', async () => {
     const { github } = setup({ tree: () => json(404, { message: 'Not Found' }) });
@@ -272,13 +287,17 @@ describe('GET /api/v1/projects/:slug/designs/:issue/:sha/file', () => {
     expect(new Uint8Array(await response.arrayBuffer())).toEqual(png('list'));
     expect(response.headers.get('content-type')).toBe('image/png');
     expect(response.headers.get('content-length')).toBe(String(png('list').byteLength));
-    expect(response.headers.get('x-content-type-options')).toBe(DESIGN_FILE_HEADERS['X-Content-Type-Options']);
+    expect(response.headers.get('x-content-type-options')).toBe(
+      DESIGN_FILE_HEADERS['X-Content-Type-Options'],
+    );
     expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
     expect(response.headers.get('content-disposition')).toBe('inline; filename="phone-01-list.png"');
     expect(response.headers.get('cache-control')).toBe('private, max-age=86400');
 
     // The private-repository path: the blob is read with the installation token and the raw media type.
-    const blob = blobReads(stub).find((call) => call.url.pathname.endsWith(shaOf(`${FOLDER}/phone-01-list.png`)));
+    const blob = blobReads(stub).find((call) =>
+      call.url.pathname.endsWith(shaOf(`${FOLDER}/phone-01-list.png`)),
+    );
     expect(blob?.headers.get('authorization')).toBe(`Bearer ${TOKEN_SENTINEL}1`);
     expect(blob?.headers.get('accept')).toBe(RAW);
     // The Worker resolves the issue's commit itself (the pull requests), then reads that tree and the blob.
@@ -361,9 +380,9 @@ describe('GET /api/v1/projects/:slug/designs/:issue/:sha/file', () => {
     const response = await file(github, `${FOLDER}/phone-04-huge.png`);
     expect(response.status).toBe(413);
     expect(await problemSlug(response)).toBe('design-file-too-large');
-    expect(blobReads(stub).some((call) => call.url.pathname.endsWith(shaOf(`${FOLDER}/phone-04-huge.png`)))).toBe(
-      false,
-    );
+    expect(
+      blobReads(stub).some((call) => call.url.pathname.endsWith(shaOf(`${FOLDER}/phone-04-huge.png`))),
+    ).toBe(false);
   });
 
   it('refuses a body that outgrows the cap while streaming, whatever the tree said, with 413', async () => {
@@ -374,7 +393,9 @@ describe('GET /api/v1/projects/:slug/designs/:issue/:sha/file', () => {
 
   it('400 without a path, 404 for a sha that is not a commit sha', async () => {
     const { github, stub } = setup();
-    const noPath = await fetchApi(`/api/v1/projects/tc/designs/${ISSUE}/${PR_SHA}/file`, localEnv(), { github });
+    const noPath = await fetchApi(`/api/v1/projects/tc/designs/${ISSUE}/${PR_SHA}/file`, localEnv(), {
+      github,
+    });
     expect(noPath.status).toBe(400);
     expect(await problemSlug(noPath)).toBe('design-file-path-missing');
     for (const sha of ['dev', 'A'.repeat(40), '1'.repeat(39), '..']) {
@@ -414,7 +435,10 @@ describe('Access: the owner and the dev service identity', () => {
 
     const listed = await fetchApi(manifestPath(), accessEnv(teamDomain), { github, headers });
     expect(listed.status).toBe(200);
-    const served = await fetchApi(filePath(`${FOLDER}/phone-01-list.png`), accessEnv(teamDomain), { github, headers });
+    const served = await fetchApi(filePath(`${FOLDER}/phone-01-list.png`), accessEnv(teamDomain), {
+      github,
+      headers,
+    });
     expect(served.status).toBe(200);
     expect(served.headers.get('content-type')).toBe('image/png');
     vi.restoreAllMocks();
@@ -423,7 +447,9 @@ describe('Access: the owner and the dev service identity', () => {
   it('401 without a JWT on a deployed environment', async () => {
     const teamDomain = uniqueTeamDomain();
     const { github, stub } = setup();
-    const response = await fetchApi(filePath(`${FOLDER}/phone-01-list.png`), accessEnv(teamDomain), { github });
+    const response = await fetchApi(filePath(`${FOLDER}/phone-01-list.png`), accessEnv(teamDomain), {
+      github,
+    });
     expect(response.status).toBe(401);
     expect(stub.calls).toEqual([]);
   });

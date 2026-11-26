@@ -120,7 +120,8 @@ export function extractInlineStyles(source: string): InlineStyleBlock[] {
   for (const bindingMatch of source.matchAll(styleBinding)) {
     const css = bindingMatch[1] ?? bindingMatch[2] ?? '';
     if (css.trim() !== '') {
-      const indices = (bindingMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const indices = (bindingMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> })
+        .indices;
       const group = indices?.[1] ?? indices?.[2];
       blocks.push({ startLine: lineOf(source, group ? group[0] : bindingMatch.index), css });
     }
@@ -145,7 +146,8 @@ export function extractInlineStyles(source: string): InlineStyleBlock[] {
   for (const stringMatch of source.matchAll(stylesString)) {
     const css = stringMatch[1] ?? stringMatch[2] ?? stringMatch[3] ?? '';
     if (css.trim() !== '') {
-      const indices = (stringMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> }).indices;
+      const indices = (stringMatch as RegExpMatchArray & { indices: Array<[number, number] | undefined> })
+        .indices;
       const group = indices?.[1] ?? indices?.[2] ?? indices?.[3];
       blocks.push({ startLine: lineOf(source, group ? group[0] : stringMatch.index), css });
     }

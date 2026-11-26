@@ -35,7 +35,10 @@ function readiness(
   items: Partial<Record<ActionsSetupItemId, Omit<ActionsSetupItemDto, 'id'>>> = {},
   dispatch: ActionsSetupDto['dispatch'] = 'pull',
 ): ActionsSetupDto {
-  const rows = ACTIONS_SETUP_ITEMS.map((id): ActionsSetupItemDto => ({ id, ...(items[id] ?? { status: 'ok' }) }));
+  const rows = ACTIONS_SETUP_ITEMS.map((id): ActionsSetupItemDto => ({
+    id,
+    ...(items[id] ?? { status: 'ok' }),
+  }));
   const pins = { runner: '0.42.0', node: '22.23.5', claudeCode: '2.1.325' };
   return {
     dispatch,
@@ -51,11 +54,18 @@ function readiness(
 }
 
 function problem(status: number, slug: string, extensions: Record<string, unknown> = {}) {
-  return { status, contentType: 'application/problem+json', json: { type: problemTypeOf(slug), title: 'x', status, ...extensions } };
+  return {
+    status,
+    contentType: 'application/problem+json',
+    json: { type: problemTypeOf(slug), title: 'x', status, ...extensions },
+  };
 }
 
 /** The readiness answer the page gets, replaceable between checks. */
-async function answerReadiness(page: Page, answer: () => ActionsSetupDto | ReturnType<typeof problem>): Promise<{ calls: () => number }> {
+async function answerReadiness(
+  page: Page,
+  answer: () => ActionsSetupDto | ReturnType<typeof problem>,
+): Promise<{ calls: () => number }> {
   let calls = 0;
   await page.route(SETUP_API, async (route: Route) => {
     calls += 1;
@@ -67,7 +77,13 @@ async function answerReadiness(page: Page, answer: () => ActionsSetupDto | Retur
     }
   });
   await page.route(FILE_API, (route) =>
-    route.fulfill({ json: { text: 'name: Team Console runner\non:\n  workflow_dispatch:\n', sha256: 'a'.repeat(64), version: '0.42.0' } }),
+    route.fulfill({
+      json: {
+        text: 'name: Team Console runner\non:\n  workflow_dispatch:\n',
+        sha256: 'a'.repeat(64),
+        version: '0.42.0',
+      },
+    }),
   );
   return { calls: () => calls };
 }
@@ -86,7 +102,9 @@ test.beforeEach(async ({ stack }) => {
   await seed(stack, [REPO]);
 });
 
-test('the local stack says the console cannot check here; the setup row reads «Не включено» without a check', async ({ page }) => {
+test('the local stack says the console cannot check here; the setup row reads «Не включено» without a check', async ({
+  page,
+}) => {
   const checks: string[] = [];
   page.on('request', (request) => {
     if (request.url().includes('/actions-setup')) {
@@ -104,7 +122,9 @@ test('the local stack says the console cannot check here; the setup row reads «
   await expectAccessible(page, 'GitHub Actions setup, console misconfigured');
 });
 
-test('partial: each step names its fix and links only to github.com; the Copy path and a held switch', async ({ page }, testInfo) => {
+test('partial: each step names its fix and links only to github.com; the Copy path and a held switch', async ({
+  page,
+}, testInfo) => {
   await answerReadiness(page, () =>
     readiness({
       'app-permissions': { status: 'missing', link: INSTALLATION_URL },
@@ -120,7 +140,9 @@ test('partial: each step names its fix and links only to github.com; the Copy pa
   // Permissions not accepted: the installation link, and a secret that is never read as ok.
   await expect(ledger.getByTestId('actions-permissions-link')).toHaveAttribute('href', INSTALLATION_URL);
   await expect(ledger.locator('[data-item="secret"]')).toContainText(ru('actions.env.secret.unknown'));
-  await expect(ledger.locator('[data-item="protection-rules"]')).toContainText(ru('actions.env.rules.warning'));
+  await expect(ledger.locator('[data-item="protection-rules"]')).toContainText(
+    ru('actions.env.rules.warning'),
+  );
   await expect(ledger.getByTestId('workflow-copy-reason')).toHaveText(ru('actions.wf.noPermission'));
   await expect(ledger.getByTestId('workflow-open-pr')).toHaveCount(0);
 
@@ -129,13 +151,17 @@ test('partial: each step names its fix and links only to github.com; the Copy pa
   for (const value of ['team-console', 'TC_INFERENCE_API_KEY']) {
     await expect(ledger.getByRole('button', { name: ru('actions.copyAria', { value }) })).toBeVisible();
   }
-  for (const href of await ledger.locator('a[target="_blank"]').evaluateAll((links) => links.map((link) => link.getAttribute('href')))) {
+  for (const href of await ledger
+    .locator('a[target="_blank"]')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')))) {
     expect(href).toMatch(/^https:\/\/github\.com\//);
   }
 
   // The Copy path: the file, its version and the create link.
   await ledger.getByTestId('workflow-show-file').click();
-  await expect(ledger.getByTestId('workflow-file-meta')).toHaveText(ru('actions.file.meta', { version: '0.42.0', sha: 'a'.repeat(12) }));
+  await expect(ledger.getByTestId('workflow-file-meta')).toHaveText(
+    ru('actions.file.meta', { version: '0.42.0', sha: 'a'.repeat(12) }),
+  );
   await expect(ledger.getByRole('region', { name: ru('actions.file.region') })).toBeVisible();
   await expectAccessible(page, 'GitHub Actions setup, permissions not accepted');
 
@@ -155,7 +181,9 @@ test('partial: each step names its fix and links only to github.com; the Copy pa
 test('Open PR: the PR opens and is focused; a foreign PR is never called mergeable', async ({ page }) => {
   let current = readiness({ workflow: { status: 'missing' } });
   await answerReadiness(page, () => current);
-  await page.route(PR_API, (route) => route.fulfill({ status: 201, json: { number: 42, url: PR_URL, kind: 'setup' } }));
+  await page.route(PR_API, (route) =>
+    route.fulfill({ status: 201, json: { number: 42, url: PR_URL, kind: 'setup' } }),
+  );
   await openPage(page);
   const step = page.getByTestId('workflow-step');
   await step.getByTestId('workflow-open-pr').click();
@@ -164,12 +192,22 @@ test('Open PR: the PR opens and is focused; a foreign PR is never called mergeab
   await expect(link).toHaveAttribute('href', PR_URL);
   await expect(step.getByTestId('workflow-fix')).toHaveText(ru('actions.pr.opened', { n: 42 }));
 
-  current = readiness({ workflow: { status: 'missing', pr: { number: 43, url: `https://github.com/${REPO}/pull/43`, provenance: 'foreign' } } });
+  current = readiness({
+    workflow: {
+      status: 'missing',
+      pr: { number: 43, url: `https://github.com/${REPO}/pull/43`, provenance: 'foreign' },
+    },
+  });
   await page.getByTestId('actions-check-again').click();
   await expect(step.getByTestId('workflow-fix')).toHaveText(ru('actions.pr.foreign', { n: 43 }));
   await expect(step).not.toContainText('Смержите');
 
-  current = readiness({ workflow: { status: 'missing', pr: { number: 44, url: `https://github.com/${REPO}/pull/44`, provenance: 'changed' } } });
+  current = readiness({
+    workflow: {
+      status: 'missing',
+      pr: { number: 44, url: `https://github.com/${REPO}/pull/44`, provenance: 'changed' },
+    },
+  });
   await page.getByTestId('actions-check-again').click();
   await expect(step.getByTestId('workflow-fix')).toHaveText(ru('actions.pr.foreign', { n: 44 }));
 });
@@ -177,11 +215,20 @@ test('Open PR: the PR opens and is focused; a foreign PR is never called mergeab
 test('every answer of the workflow-PR route has its own words', async ({ page }) => {
   await answerReadiness(page, () => readiness({ workflow: { status: 'missing' } }));
   const branches = `https://github.com/${REPO}/branches/all?query=team-console%2Frunner-`;
-  const cases: { answer: ReturnType<typeof problem>; check: (step: ReturnType<Page['getByTestId']>) => Promise<void> }[] = [
+  const cases: {
+    answer: ReturnType<typeof problem>;
+    check: (step: ReturnType<Page['getByTestId']>) => Promise<void>;
+  }[] = [
     {
-      answer: problem(409, 'actions-setup-pr-open', { number: 7, url: `https://github.com/${REPO}/pull/7`, provenance: 'console' }),
+      answer: problem(409, 'actions-setup-pr-open', {
+        number: 7,
+        url: `https://github.com/${REPO}/pull/7`,
+        provenance: 'console',
+      }),
       check: async (step) => {
-        await expect(step.getByTestId('workflow-link-pr')).toHaveText(new RegExp(ru('actions.pr.view', { n: 7 })));
+        await expect(step.getByTestId('workflow-link-pr')).toHaveText(
+          new RegExp(ru('actions.pr.view', { n: 7 })),
+        );
         await expect(step.getByTestId('workflow-link-pr')).toBeFocused();
       },
     },
@@ -195,12 +242,18 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
     },
     {
       answer: problem(409, 'actions-setup-pr-tampered'),
-      check: (step) => expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.tampered')),
+      check: (step) =>
+        expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.tampered')),
     },
     {
-      answer: problem(422, 'actions-permission-missing', { permissions: ['workflows', 'pull_requests'], link: INSTALLATION_URL }),
+      answer: problem(422, 'actions-permission-missing', {
+        permissions: ['workflows', 'pull_requests'],
+        link: INSTALLATION_URL,
+      }),
       check: async (step) => {
-        await expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.permission', { permissions: 'workflows, pull_requests' }));
+        await expect(step.getByTestId('workflow-refusal')).toContainText(
+          ru('actions.pr.err.permission', { permissions: 'workflows, pull_requests' }),
+        );
         await expect(step.getByTestId('workflow-refusal-link')).toHaveAttribute('href', INSTALLATION_URL);
       },
     },
@@ -210,7 +263,10 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
     },
     {
       answer: problem(422, 'actions-setup-downgrade', { pins: ['runner'] }),
-      check: (step) => expect(step.getByTestId('workflow-refusal')).toContainText(ru('actions.pr.err.downgrade', { branch: 'по умолчанию', pins: 'runner' })),
+      check: (step) =>
+        expect(step.getByTestId('workflow-refusal')).toContainText(
+          ru('actions.pr.err.downgrade', { branch: 'по умолчанию', pins: 'runner' }),
+        ),
     },
     {
       answer: problem(503, 'github-write-disabled'),
@@ -221,7 +277,9 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
       },
     },
     {
-      answer: { ...problem(429, 'rate-limited'), headers: { 'Retry-After': '1800' } } as ReturnType<typeof problem>,
+      answer: { ...problem(429, 'rate-limited'), headers: { 'Retry-After': '1800' } } as ReturnType<
+        typeof problem
+      >,
       check: (step) => expect(step.getByTestId('workflow-rate')).toBeVisible(),
     },
   ];
@@ -235,7 +293,9 @@ test('every answer of the workflow-PR route has its own words', async ({ page })
   }
 });
 
-test('ready: «Включить» switches on, focuses the summary; a not-ready refusal names the items', async ({ page }) => {
+test('ready: «Включить» switches on, focuses the summary; a not-ready refusal names the items', async ({
+  page,
+}) => {
   let current = readiness();
   await answerReadiness(page, () => current);
   let refuse = true;
@@ -254,7 +314,10 @@ test('ready: «Включить» switches on, focuses the summary; a not-ready 
   await expect(page.getByTestId('actions-summary')).toContainText(ru('actions.sum.ready'));
   await page.getByTestId('switch-on').click();
   await expect(page.getByTestId('switch-error')).toHaveText(
-    ru('runners.err.actionsNotReady', { project: SLUG, items: `${ru('actions.item.secret')}, ${ru('actions.item.workflow')}` }),
+    ru('runners.err.actionsNotReady', {
+      project: SLUG,
+      items: `${ru('actions.item.secret')}, ${ru('actions.item.workflow')}`,
+    }),
   );
 
   refuse = false;
@@ -271,7 +334,10 @@ test('a member gets no setup row, and no readiness check is made', async ({ page
   await page.route('**/api/v1/accounts', async (route) => {
     const response = await route.fetch();
     const body = (await response.json()) as { accounts: { role: string }[] };
-    await route.fulfill({ response, json: { accounts: body.accounts.map((account) => ({ ...account, role: 'member' })) } });
+    await route.fulfill({
+      response,
+      json: { accounts: body.accounts.map((account) => ({ ...account, role: 'member' })) },
+    });
   });
   const { calls } = await answerReadiness(page, () => problem(403, 'owner-only'));
   const accounts = page.waitForResponse('**/api/v1/accounts');
@@ -301,15 +367,21 @@ test('GitHub unavailable: an error block with Retry, then the steps', async ({ p
   await expect(page.getByTestId('actions-ledger')).toBeVisible();
 });
 
-test('Runners: choosing GitHub Actions shows the readiness line; Save waits and points to the page', async ({ page }) => {
-  const { calls } = await answerReadiness(page, () => readiness({ secret: { status: 'missing' }, workflow: { status: 'missing' } }));
+test('Runners: choosing GitHub Actions shows the readiness line; Save waits and points to the page', async ({
+  page,
+}) => {
+  const { calls } = await answerReadiness(page, () =>
+    readiness({ secret: { status: 'missing' }, workflow: { status: 'missing' } }),
+  );
   await page.goto('/settings/runners');
   await page.getByTestId('runners-policy-pick').selectOption(SLUG);
   const editor = page.getByTestId('runners-dispatch');
   await expect(editor.getByTestId('project-dispatch-form')).toBeVisible();
   expect(calls()).toBe(0);
   await editor.getByRole('radio', { name: ru('runners.dispatch.actions') }).check();
-  await expect(editor.getByTestId('project-dispatch-readiness')).toHaveText(new RegExp('Репозиторий ещё не готов: не хватает 2 шагов'));
+  await expect(editor.getByTestId('project-dispatch-readiness')).toHaveText(
+    new RegExp('Репозиторий ещё не готов: не хватает 2 шагов'),
+  );
   expect(calls()).toBe(1);
   // The radio never navigates (WCAG 3.2.2).
   await expect(page).toHaveURL(/\/settings\/runners$/);
@@ -326,7 +398,9 @@ test('Runners: choosing GitHub Actions shows the readiness line; Save waits and 
 
 test('phone: no horizontal scroll with the file open', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 812 });
-  await answerReadiness(page, () => readiness({ environment: { status: 'missing' }, workflow: { status: 'missing' } }));
+  await answerReadiness(page, () =>
+    readiness({ environment: { status: 'missing' }, workflow: { status: 'missing' } }),
+  );
   await openPage(page);
   await page.getByTestId('workflow-show-file').click();
   await expect(page.getByTestId('workflow-file')).toBeVisible();
@@ -346,7 +420,9 @@ test('copy failed: a refused clipboard says so, and the file stays selectable te
   const step = page.getByTestId('workflow-step');
   await step.getByTestId('copy-code-button').first().click();
   await expect(step.getByRole('status').filter({ hasText: ru('settings.common.copyFailed') })).toBeVisible();
-  await expect(step.getByTestId('copy-code-text').first()).toHaveText('.github/workflows/team-console-runner.yml');
+  await expect(step.getByTestId('copy-code-text').first()).toHaveText(
+    '.github/workflows/team-console-runner.yml',
+  );
   await expectAccessible(page, 'GitHub Actions setup, copy failed');
 });
 
@@ -355,6 +431,9 @@ test('404: an unknown project reads as not found, with no steps and a way back',
   await page.goto(PAGE);
   await expect(page.getByTestId('actions-not-found')).toBeVisible();
   await expect(page.getByTestId('actions-ledger')).toHaveCount(0);
-  await expect(page.getByRole('link', { name: ru('overview.title') }).last()).toHaveAttribute('href', '/overview');
+  await expect(page.getByRole('link', { name: ru('overview.title') }).last()).toHaveAttribute(
+    'href',
+    '/overview',
+  );
   await expectAccessible(page, 'GitHub Actions setup, not found');
 });

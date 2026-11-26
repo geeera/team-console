@@ -35,15 +35,22 @@ async function commandFor(page: Page, name: string): Promise<{ dialog: Locator; 
   await expect(dialog.getByTestId('wizard-name')).toBeFocused();
   await dialog.getByTestId('wizard-name').fill(name);
   await dialog.getByTestId('wizard-submit').click();
-  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.command.title', { name }) })).toBeFocused();
-  const command = (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
+  await expect(
+    dialog.getByRole('heading', { name: ru('runners.wizard.command.title', { name }) }),
+  ).toBeFocused();
+  const command =
+    (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
   const intentId = /--enrolment (\S+)$/.exec(command)?.[1] ?? '';
   expect(isEnrolmentIntentId(intentId), command).toBe(true);
   return { dialog, intentId };
 }
 
 /** The runner's half of `setup`: a fresh key bound to the intent; the console answers the fingerprint. */
-async function bindAsRunner(stack: Stack, intentId: string, machine: 'mac' | 'linux' = 'mac'): Promise<Bound> {
+async function bindAsRunner(
+  stack: Stack,
+  intentId: string,
+  machine: 'mac' | 'linux' = 'mac',
+): Promise<Bound> {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const api = await apiClient(stack);
   try {
@@ -94,11 +101,16 @@ async function withApi<T>(stack: Stack, run: (api: APIRequestContext) => Promise
   }
 }
 
-test('add a Mac runner: the command, the fingerprint compared and approved, then on line', async ({ page, stack }) => {
+test('add a Mac runner: the command, the fingerprint compared and approved, then on line', async ({
+  page,
+  stack,
+}) => {
   const urls: string[] = [];
   page.on('request', (request) => urls.push(request.url()));
   const { dialog, intentId } = await commandFor(page, 'E2E Wizard Mac');
-  await expect(dialog.getByTestId('wizard-step')).toHaveText(ru('runners.wizard.step', { n: 2, name: ru('runners.wizard.steps.command') }));
+  await expect(dialog.getByTestId('wizard-step')).toHaveText(
+    ru('runners.wizard.step', { n: 2, name: ru('runners.wizard.steps.command') }),
+  );
   // S2: no release one-liner on this stack, so the runbook path with the API's `setup` line.
   await expect(dialog.getByTestId('wizard-runbook')).toBeVisible();
   await expect(dialog.getByTestId('wizard-waiting')).toContainText(ru('runners.wizard.waiting'));
@@ -109,7 +121,10 @@ test('add a Mac runner: the command, the fingerprint compared and approved, then
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.confirm.title') })).toBeFocused();
   // #878: the click that landed on the freshly swapped-in button approved nothing.
   await expect(page.locator('body')).toHaveAttribute('data-e2e-mis-click', 'done');
-  const afterMisClick = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  const afterMisClick = await withApi(
+    stack,
+    async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state,
+  );
   expect(afterMisClick).toBe('bound');
   await expect(dialog.getByTestId('wizard-fingerprint')).toHaveText(bound.fingerprint);
   await expect(dialog.getByTestId('wizard-hostname')).toHaveText('e2e-wizard.local');
@@ -121,7 +136,10 @@ test('add a Mac runner: the command, the fingerprint compared and approved, then
   await expect(dialog.getByTestId('wizard-approve')).not.toHaveAttribute('aria-disabled', 'true');
   await dialog.getByTestId('wizard-approve').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.approved.title') })).toBeFocused();
-  const intent = await withApi(stack, async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto);
+  const intent = await withApi(
+    stack,
+    async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto,
+  );
   expect(intent.state).toBe('approved');
   expect(intent.fingerprint).toBe(bound.fingerprint);
 
@@ -153,16 +171,24 @@ test('add a Linux runner: the API’s two commands by image digest, no docker.so
     new RegExp(ru('runners.wizard.platform.linuxHint').replaceAll('.', '\\.')),
   );
   await dialog.getByTestId('wizard-submit').click();
-  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.command.linux.title', { name: 'E2E Linux' }) })).toBeFocused();
+  await expect(
+    dialog.getByRole('heading', { name: ru('runners.wizard.command.linux.title', { name: 'E2E Linux' }) }),
+  ).toBeFocused();
 
   const image = `ghcr.io/geeera/team-console-runner:0.3.0@${E2E_RUNNER_IMAGE_DIGEST}`;
-  const prepare = (await dialog.getByTestId('wizard-linux-prepare').getByTestId('copy-code-text').textContent()) ?? '';
-  const enrol = (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
+  const prepare =
+    (await dialog.getByTestId('wizard-linux-prepare').getByTestId('copy-code-text').textContent()) ?? '';
+  const enrol =
+    (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
   const intentId = /-e TC_ENROLMENT=(\S+) /.exec(enrol)?.[1] ?? '';
   expect(isEnrolmentIntentId(intentId), enrol).toBe(true);
   // R-LNX: by digest only, the local stack's own origin, nothing but the request id passed in, and no docker.sock.
   expect(enrol).toContain(`${image} setup --url ${new URL(stack.baseURL).origin} --image ${image}`);
-  expect([...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1])).toEqual(['HOME', 'TC_RUNNER_HOME', 'TC_ENROLMENT']);
+  expect([...enrol.matchAll(/-e (\S+?)=/g)].map((match) => match[1])).toEqual([
+    'HOME',
+    'TC_RUNNER_HOME',
+    'TC_ENROLMENT',
+  ]);
   expect(`${prepare}\n${enrol}`).not.toMatch(/docker\.sock|tce_|sk-ant/);
   for (const line of ['User=tcrunner', 'ProtectSystem=strict', 'ProtectHome=yes']) {
     expect(prepare.split('\n').filter((unitLine) => unitLine === line)).toHaveLength(2);
@@ -170,9 +196,15 @@ test('add a Linux runner: the API’s two commands by image digest, no docker.so
   // The runner's own unit; rootless podman's unit needs its setuid newuidmap and is capability-bounded instead.
   expect(prepare.split('\n').filter((unitLine) => unitLine === 'NoNewPrivileges=yes')).toHaveLength(1);
   expect(prepare).toContain(`${image} run --loop`);
-  await expect(dialog.getByTestId('wizard-linux-socket')).toContainText('/var/lib/team-console-runner/podman.sock');
-  await expect(dialog.getByRole('region', { name: ru('runners.wizard.command.linux.prepareRegion') })).toBeVisible();
-  await expect(dialog.getByRole('button', { name: ru('runners.wizard.command.linux.enrolCopyAria') })).toBeVisible();
+  await expect(dialog.getByTestId('wizard-linux-socket')).toContainText(
+    '/var/lib/team-console-runner/podman.sock',
+  );
+  await expect(
+    dialog.getByRole('region', { name: ru('runners.wizard.command.linux.prepareRegion') }),
+  ).toBeVisible();
+  await expect(
+    dialog.getByRole('button', { name: ru('runners.wizard.command.linux.enrolCopyAria') }),
+  ).toBeVisible();
   await expectAccessible(page, 'Add runner wizard, Linux command');
 
   const bound = await bindAsRunner(stack, intentId, 'linux');
@@ -183,7 +215,10 @@ test('add a Linux runner: the API’s two commands by image digest, no docker.so
   await dialog.getByTestId('wizard-approve').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.approved.title') })).toBeFocused();
   await expect(dialog).toContainText(ru('runners.wizard.approved.bodyLinux'));
-  const intent = await withApi(stack, async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto);
+  const intent = await withApi(
+    stack,
+    async (api) => (await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto,
+  );
   expect(intent).toMatchObject({ state: 'approved', isolation: 'container' });
 
   await withApi(stack, async (api) => {
@@ -199,17 +234,26 @@ test('reject a machine whose code does not match, then get a new command', async
   await expect(dialog.getByTestId('wizard-fingerprint')).toBeVisible();
   await dialog.getByTestId('wizard-reject').click();
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.rejected.title') })).toBeFocused();
-  const state = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  const state = await withApi(
+    stack,
+    async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state,
+  );
   expect(state).toBe('withdrawn');
   await expectAccessible(page, 'Add runner wizard, rejected');
 
   await dialog.getByTestId('wizard-again').click();
-  await expect(dialog.getByRole('heading', { name: ru('runners.wizard.command.title', { name: 'E2E Reject' }) })).toBeFocused();
-  const command = (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
+  await expect(
+    dialog.getByRole('heading', { name: ru('runners.wizard.command.title', { name: 'E2E Reject' }) }),
+  ).toBeFocused();
+  const command =
+    (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
   expect(command).not.toContain(intentId);
 });
 
-test('a request withdrawn in another tab ends the wizard with a new command offered', async ({ page, stack }) => {
+test('a request withdrawn in another tab ends the wizard with a new command offered', async ({
+  page,
+  stack,
+}) => {
   const { dialog, intentId } = await commandFor(page, 'E2E Withdrawn');
   await withApi(stack, async (api) => {
     const response = await api.post(`${INTENTS}/${intentId}/withdraw`, { data: {} });
@@ -243,11 +287,17 @@ test('closing while the request is live asks first and withdraws it', async ({ p
   const confirm = page.getByRole('alertdialog', { name: ru('runners.wizard.closeConfirm.title') });
   await confirm.getByRole('button', { name: ru('runners.wizard.closeConfirm.confirm') }).click();
   await expect(dialog).toHaveCount(0);
-  const state = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  const state = await withApi(
+    stack,
+    async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state,
+  );
   expect(state).toBe('withdrawn');
 });
 
-test('a 409 "changed" on approve shows the server’s code again and never approves on its own', async ({ page, stack }) => {
+test('a 409 "changed" on approve shows the server’s code again and never approves on its own', async ({
+  page,
+  stack,
+}) => {
   // The first bound read the page sees carries a code the key does not have, so the API's compare-and-set refuses it.
   let tamper = true;
   let approvals = 0;
@@ -268,7 +318,10 @@ test('a 409 "changed" on approve shows the server’s code again and never appro
       return;
     }
     tamper = false;
-    await route.fulfill({ response, json: { ...body, fingerprint: body.fingerprint.split('-').reverse().join('-') } });
+    await route.fulfill({
+      response,
+      json: { ...body, fingerprint: body.fingerprint.split('-').reverse().join('-') },
+    });
   });
   const { dialog, intentId } = await commandFor(page, 'E2E Changed');
   const bound = await bindAsRunner(stack, intentId);
@@ -281,7 +334,10 @@ test('a 409 "changed" on approve shows the server’s code again and never appro
   await expect(dialog.getByTestId('wizard-fingerprint')).toHaveText(bound.fingerprint);
   await expect(dialog.getByRole('heading', { name: ru('runners.wizard.confirm.title') })).toBeFocused();
   expect(approvals).toBe(1);
-  const state = await withApi(stack, async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state);
+  const state = await withApi(
+    stack,
+    async (api) => ((await (await api.get(`${INTENTS}/${intentId}`)).json()) as EnrolmentIntentDto).state,
+  );
   expect(state).toBe('bound');
   await expectAccessible(page, 'Add runner wizard, changed on approve');
 
@@ -292,7 +348,9 @@ test('a 409 "changed" on approve shows the server’s code again and never appro
 });
 
 test('the D3 line keeps its conditional wording while the owner count is unknown', async ({ page }) => {
-  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`, (route) => route.fulfill({ status: 503, json: {} }));
+  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`, (route) =>
+    route.fulfill({ status: 503, json: {} }),
+  );
   await page.goto('/settings/runners');
   await page.getByTestId('runners-empty').getByTestId('runners-enrol').click();
   const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
@@ -302,7 +360,9 @@ test('the D3 line keeps its conditional wording while the owner count is unknown
   await expect(dialog.getByTestId('runner-scope-all')).toHaveAttribute('aria-describedby', /-all-owners/);
 });
 
-test('a 429 while polling says the console asked to slow down and waits out Retry-After (#879)', async ({ page }) => {
+test('a 429 while polling says the console asked to slow down and waits out Retry-After (#879)', async ({
+  page,
+}) => {
   // The real limit is 120 reads a minute (#880); one refused read is enough to see the wizard honour it.
   let refusals = 0;
   let readsAfter = 0;
@@ -316,7 +376,11 @@ test('a 429 while polling says the console asked to slow down and waits out Retr
       await route.fulfill({
         status: 429,
         headers: { 'Content-Type': 'application/problem+json', 'Retry-After': '5' },
-        json: { type: 'https://team-console.dev/problems/rate-limited', title: 'Too Many Requests', status: 429 },
+        json: {
+          type: 'https://team-console.dev/problems/rate-limited',
+          title: 'Too Many Requests',
+          status: 429,
+        },
       });
       return;
     }
@@ -331,4 +395,3 @@ test('a 429 while polling says the console asked to slow down and waits out Retr
   await expect(banner).toHaveCount(0, { timeout: 15_000 });
   expect(readsAfter).toBeGreaterThan(0);
 });
-

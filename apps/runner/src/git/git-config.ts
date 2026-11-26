@@ -75,7 +75,8 @@ export const CLONE_REFSPEC = '+refs/heads/*:refs/remotes/origin/*';
 /** The one filter a partial clone is made with. */
 export const PARTIAL_CLONE_FILTER = 'blob:none';
 
-const isPartialClone = (expected: ExpectedRepository): boolean => expected.kind === 'clone' && expected.partial === true;
+const isPartialClone = (expected: ExpectedRepository): boolean =>
+  expected.kind === 'clone' && expected.partial === true;
 
 /**
  * What `git clone --mirror --template=`, `git fetch`, `git clone` from the mirror and `git remote set-url` write into
@@ -181,7 +182,8 @@ export const ALLOWED_GIT_KEYS: readonly AllowedKeyRule[] = [
     section: 'branch',
     subsection: ANY_SUBSECTION,
     variables: ['merge'],
-    accepts: (value, expected, subsection) => expected.kind === 'clone' && value === `refs/heads/${subsection ?? ''}`,
+    accepts: (value, expected, subsection) =>
+      expected.kind === 'clone' && value === `refs/heads/${subsection ?? ''}`,
   },
 ];
 
@@ -197,7 +199,9 @@ const ruleOf = (key: ConfigKey): AllowedKeyRule | undefined =>
 function refusalOf(entry: GitConfigEntry, expected: ExpectedRepository): string | null {
   const key = parseKey(entry.key);
   if (key.section === 'credential' && key.variable === 'helper') {
-    return expected.allowedHelper !== null && entry.value === expected.allowedHelper ? null : 'foreign credential helper';
+    return expected.allowedHelper !== null && entry.value === expected.allowedHelper
+      ? null
+      : 'foreign credential helper';
   }
   const rule = ruleOf(key);
   if (rule === undefined) {

@@ -128,7 +128,11 @@ function sprint(overrides: Partial<SprintDto> = {}): SprintDto {
 
 @Component({
   imports: [SprintBoard],
-  template: `<tc-sprint-board [project]="project()" [initialTab]="tab()" [sprintActions]="sprintActions()" />`,
+  template: `<tc-sprint-board
+    [project]="project()"
+    [initialTab]="tab()"
+    [sprintActions]="sprintActions()"
+  />`,
 })
 class Host {
   readonly project = signal<SprintBoardProject>(TC);
@@ -194,12 +198,10 @@ describe('SprintBoard', () => {
     };
     const lanes = (): Record<string, number> =>
       Object.fromEntries(
-        [...root.querySelectorAll<HTMLElement>('tc-lanes tc-lane')].map(
-          (lane): [string, number] => [
-            lane.getAttribute('data-status') ?? '',
-            Number(lane.querySelector('.tc-lane__count')?.textContent),
-          ],
-        ),
+        [...root.querySelectorAll<HTMLElement>('tc-lanes tc-lane')].map((lane): [string, number] => [
+          lane.getAttribute('data-status') ?? '',
+          Number(lane.querySelector('.tc-lane__count')?.textContent),
+        ]),
       );
     const text = (selector: string) => root.querySelector(selector)?.textContent?.replace(/\s+/g, ' ').trim();
     return { fixture, root, settle, lanes, text };
@@ -214,7 +216,11 @@ describe('SprintBoard', () => {
   afterEach(() => {
     // #775: every board reads the project's jobs and, for runner names, the accounts; a case about the sprint alone
     // leaves those reads unanswered.
-    http.match((request) => request.method === 'GET' && (/\/jobs$/.test(request.url) || request.url.startsWith('/api/v1/accounts')));
+    http.match(
+      (request) =>
+        request.method === 'GET' &&
+        (/\/jobs$/.test(request.url) || request.url.startsWith('/api/v1/accounts')),
+    );
     http.verify();
     document.body.innerHTML = '';
   });
@@ -1245,7 +1251,17 @@ describe('SprintBoard', () => {
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
       // #556: its sprint and tasks come from the tracker; one open sprint keeps the tiles on screen.
       http.expectOne(sprintsUrl(TC.slug)).flush({
-        sprints: [{ number: 1, title: 'Sprint 01', dueOn: '2026-10-16', state: 'open', description: '', createdAt: '2026-10-01T00:00:00Z', closedAt: null }],
+        sprints: [
+          {
+            number: 1,
+            title: 'Sprint 01',
+            dueOn: '2026-10-16',
+            state: 'open',
+            description: '',
+            createdAt: '2026-10-01T00:00:00Z',
+            closedAt: null,
+          },
+        ],
       });
       await tick();
       http.expectOne((request) => request.url === itemsUrl(TC.slug)).flush({ items: [], next: null });
@@ -1254,7 +1270,12 @@ describe('SprintBoard', () => {
 
     it('shows the job a runner holds with the runner by name and its events; the tile says it runs', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [jobFixture(), queuedJobFixture({ id: JOB_FIXTURE_IDS.second })], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http.expectOne(JOBS).flush({
+        jobs: [jobFixture(), queuedJobFixture({ id: JOB_FIXTURE_IDS.second })],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: true,
+      });
       await answerRunners('owner');
       await settle();
       http
@@ -1269,7 +1290,9 @@ describe('SprintBoard', () => {
       expect(tile.classList.contains('tc-stat--success')).toBe(true);
 
       const lane = root.querySelector('[data-testid="runs"]') as HTMLElement;
-      const cards = [...lane.querySelectorAll<HTMLElement>('[data-testid="jobs-current"] [data-testid="job-card"]')];
+      const cards = [
+        ...lane.querySelectorAll<HTMLElement>('[data-testid="jobs-current"] [data-testid="job-card"]'),
+      ];
       expect(cards.map((card) => card.dataset['state'])).toEqual(['running', 'queued']);
       expect(cards[0]?.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe('E2E Mac');
       expect(cards[0]?.querySelector('[data-testid="job-event"]')?.textContent).toContain('Opened PR #512');
@@ -1281,14 +1304,28 @@ describe('SprintBoard', () => {
     // #891: the project lives in a second owned account; its job's runner is named from that account, not the first.
     it("names the job's runner from the project's own account when that is a second owned account", async () => {
       const SECOND_ACCOUNT_ID = '01M6YSNJ0000000000000000A3';
-      const { root, settle } = await render(false, (host) => host.project.set({ ...CONSOLE, accountId: SECOND_ACCOUNT_ID }));
+      const { root, settle } = await render(false, (host) =>
+        host.project.set({ ...CONSOLE, accountId: SECOND_ACCOUNT_ID }),
+      );
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
       http.expectOne(sprintsUrl(TC.slug)).flush({
-        sprints: [{ number: 1, title: 'Sprint 01', dueOn: '2026-10-16', state: 'open', description: '', createdAt: '2026-10-01T00:00:00Z', closedAt: null }],
+        sprints: [
+          {
+            number: 1,
+            title: 'Sprint 01',
+            dueOn: '2026-10-16',
+            state: 'open',
+            description: '',
+            createdAt: '2026-10-01T00:00:00Z',
+            closedAt: null,
+          },
+        ],
       });
       await tick();
       http.expectOne((request) => request.url === itemsUrl(TC.slug)).flush({ items: [], next: null });
-      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       http.expectOne('/api/v1/accounts').flush({
         accounts: [
           { id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role: 'owner' },
@@ -1298,9 +1335,11 @@ describe('SprintBoard', () => {
       await tick();
       const release = { version: null, minimumVersion: null };
       http.expectOne(RUNNERS).flush({ runners: [], pendingEnrolments: [], release });
-      http
-        .expectOne(`/api/v1/accounts/${SECOND_ACCOUNT_ID}/runners`)
-        .flush({ runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'Second Mac' }], pendingEnrolments: [], release });
+      http.expectOne(`/api/v1/accounts/${SECOND_ACCOUNT_ID}/runners`).flush({
+        runners: [{ ...runnerFixture(), id: JOB_FIXTURE_IDS.runner, name: 'Second Mac' }],
+        pendingEnrolments: [],
+        release,
+      });
       await settle();
       http
         .expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first))
@@ -1315,39 +1354,61 @@ describe('SprintBoard', () => {
     it('says the runner is paused, why and until when, while nothing runs; a running job still reads as running', async () => {
       const until = '2026-11-11T14:30:00.000Z';
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http.expectOne(JOBS).flush({
+        jobs: [queuedJobFixture()],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: true,
+      });
       await answerRunners('owner', { pause: { reason: 'usage-limit', until } });
       await settle();
       const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
       expect(tile.getAttribute('data-jobs')).toBe('paused');
-      expect(tile.querySelector('dd')?.textContent?.trim()).toBe(`Лимит использования до ${localTimeOf(until, 'ru')}`);
+      expect(tile.querySelector('dd')?.textContent?.trim()).toBe(
+        `Лимит использования до ${localTimeOf(until, 'ru')}`,
+      );
       expect(tile.classList.contains('tc-stat--danger')).toBe(false);
     });
 
     it('keeps a running job on the tile over a paused runner', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await answerRunners('owner', { pause: { reason: 'rate-limit', until: '2026-11-11T14:30:00.000Z' } });
       await settle();
-      http.expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first)).flush({ events: [], nextCursor: null });
+      http
+        .expectOne((request) => request.url === jobEventsUrl(TC.slug, JOB_FIXTURE_IDS.first))
+        .flush({ events: [], nextCursor: null });
       await settle();
       expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('running');
     });
 
     it('with no jobs yet says nothing runs and offers Run now; the tile says no runs', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await answerRunners('member');
       await settle();
       expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('Запусков нет');
-      expect(root.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain('Сейчас ничего не выполняется');
+      expect(root.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain(
+        'Сейчас ничего не выполняется',
+      );
       expect(root.querySelector('[data-testid="jobs-recent-empty"]')).not.toBeNull();
     });
 
     it('names an unknown runner by a short id for a member, and shows the last failure on the tile', async () => {
       const { root, settle } = await renderConsole();
-      const failed = jobFixture({ id: JOB_FIXTURE_IDS.second, state: 'failed', finishedAt: '2026-11-11T09:30:00.000Z', result: { summary: 'Tests failed' } });
-      http.expectOne(JOBS).flush({ jobs: [failed], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      const failed = jobFixture({
+        id: JOB_FIXTURE_IDS.second,
+        state: 'failed',
+        finishedAt: '2026-11-11T09:30:00.000Z',
+        result: { summary: 'Tests failed' },
+      });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [failed], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await answerRunners('member');
       await settle();
       const tile = root.querySelector('[data-testid="team-stat"]') as HTMLElement;
@@ -1355,7 +1416,9 @@ describe('SprintBoard', () => {
       expect(tile.querySelector('dd')?.textContent?.trim()).toBe('Сбой: Слот разработки');
       expect(tile.classList.contains('tc-stat--danger')).toBe(true);
       const card = root.querySelector('[data-testid="jobs-recent"] [data-testid="job-card"]') as HTMLElement;
-      expect(card.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe(`…${JOB_FIXTURE_IDS.runner.slice(-6)}`);
+      expect(card.querySelector('[data-testid="job-runner"]')?.textContent?.trim()).toBe(
+        `…${JOB_FIXTURE_IDS.runner.slice(-6)}`,
+      );
       expect(card.querySelector('[data-testid="job-summary"]')?.textContent?.trim()).toBe('Tests failed');
     });
 
@@ -1369,7 +1432,9 @@ describe('SprintBoard', () => {
         );
       await answerRunners('member');
       await settle();
-      expect(root.querySelector('[data-testid="jobs-forbidden"]')?.textContent).toContain('Задачи проекта вам недоступны');
+      expect(root.querySelector('[data-testid="jobs-forbidden"]')?.textContent).toContain(
+        'Задачи проекта вам недоступны',
+      );
       expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-jobs')).toBe('unknown');
       expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('Неизвестно');
     });
@@ -1384,7 +1449,9 @@ describe('SprintBoard', () => {
       // A member gets the error block alone: nothing says they may Run now.
       expect(root.querySelector('[data-testid="run-now"]')).toBeNull();
       (block.querySelector('button') as HTMLButtonElement).click();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await settle();
       expect(root.querySelector('[data-testid="jobs-empty"]')).not.toBeNull();
     });
@@ -1401,20 +1468,32 @@ describe('SprintBoard', () => {
 
     it('shows a job Run now queued at once and reads the queue again', async () => {
       const { root, settle } = await renderConsole();
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
       await answerRunners('member');
       await settle();
       (root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement).click();
-      const post = http.expectOne((request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug));
+      const post = http.expectOne(
+        (request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug),
+      );
       expect(post.request.body).toEqual({ kind: 'slot-pm' });
       post.flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
       await settle();
-      expect(root.querySelector('[data-testid="jobs-current"] [data-testid="job-card"]')?.getAttribute('data-kind')).toBe('slot-pm');
+      expect(
+        root
+          .querySelector('[data-testid="jobs-current"] [data-testid="job-card"]')
+          ?.getAttribute('data-kind'),
+      ).toBe('slot-pm');
       expect(root.querySelector('[data-testid="team-stat"] dd')?.textContent?.trim()).toBe('В очереди: 1');
-      http.expectOne(JOBS).flush({ jobs: [queuedJobFixture({ kind: 'slot-pm' })], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http.expectOne(JOBS).flush({
+        jobs: [queuedJobFixture({ kind: 'slot-pm' })],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: true,
+      });
       await settle();
     });
-
   });
 
   describe('on a GitHub-tracker project (#775): the team jobs above the GitHub run log', () => {
@@ -1433,7 +1512,14 @@ describe('SprintBoard', () => {
           team: options.team ?? {
             state: 'running',
             runLogUrl: 'https://github.com/geeera/team-console/issues/1',
-            recentRuns: [{ slot: 'dev', slotName: 'slot-dev', at: '2026-11-11T09:00:00.000Z', state: 'finished' } satisfies RecentRunDto],
+            recentRuns: [
+              {
+                slot: 'dev',
+                slotName: 'slot-dev',
+                at: '2026-11-11T09:00:00.000Z',
+                state: 'finished',
+              } satisfies RecentRunDto,
+            ],
           },
         }),
       );
@@ -1444,7 +1530,9 @@ describe('SprintBoard', () => {
         .flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role }] });
       if (role === 'owner') {
         await tick();
-        http.expectOne(RUNNERS).flush({ runners, pendingEnrolments: [], release: { version: null, minimumVersion: null } });
+        http
+          .expectOne(RUNNERS)
+          .flush({ runners, pendingEnrolments: [], release: { version: null, minimumVersion: null } });
       }
       await rendered.settle();
       return rendered;
@@ -1471,12 +1559,18 @@ describe('SprintBoard', () => {
     });
 
     it('ready, member: no form and no header Run, one line about the account owner', async () => {
-      const { root } = await renderGitHub({ runnerAvailability: 'ready', canRunNow: false }, [], { role: 'member' });
+      const { root } = await renderGitHub({ runnerAvailability: 'ready', canRunNow: false }, [], {
+        role: 'member',
+      });
       const lane = runsLane(root);
       expect(lane.querySelector('[data-testid="run-now"]')).toBeNull();
-      expect(lane.querySelector('[data-testid="jobs-member-line"]')?.textContent?.trim()).toBe('Запускать задачи может владелец аккаунта.');
+      expect(lane.querySelector('[data-testid="jobs-member-line"]')?.textContent?.trim()).toBe(
+        'Запускать задачи может владелец аккаунта.',
+      );
       expect(root.querySelector('[data-testid="board-run-now"]')).toBeNull();
-      expect(lane.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain('Здесь появятся задачи, которые запустит владелец аккаунта.');
+      expect(lane.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain(
+        'Здесь появятся задачи, которые запустит владелец аккаунта.',
+      );
     });
 
     it('offline, owner: an ochre line with the Runners link, Run stays enabled and says the job waits', async () => {
@@ -1485,7 +1579,9 @@ describe('SprintBoard', () => {
       expect(line.getAttribute('role')).toBe('status');
       expect(line.textContent).toContain('Раннер не в сети.');
       expect(line.textContent).toContain('Задача встанет в очередь');
-      expect(line.querySelector('[data-testid="jobs-availability-runners"]')?.getAttribute('href')).toBe('/settings/runners');
+      expect(line.querySelector('[data-testid="jobs-availability-runners"]')?.getAttribute('href')).toBe(
+        '/settings/runners',
+      );
       const submit = root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement;
       expect(submit.disabled).toBe(false);
       expect(submit.getAttribute('aria-disabled')).not.toBe('true');
@@ -1494,13 +1590,22 @@ describe('SprintBoard', () => {
         .expectOne((request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug))
         .flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
       await settle();
-      expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent).toContain('Слот PM: в очереди. Начнётся, когда раннер вернётся.');
-      http.expectOne(JOBS).flush({ ...LIST, jobs: [queuedJobFixture({ kind: 'slot-pm' })], runnerAvailability: 'offline', canRunNow: true });
+      expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent).toContain(
+        'Слот PM: в очереди. Начнётся, когда раннер вернётся.',
+      );
+      http.expectOne(JOBS).flush({
+        ...LIST,
+        jobs: [queuedJobFixture({ kind: 'slot-pm' })],
+        runnerAvailability: 'offline',
+        canRunNow: true,
+      });
       await settle();
     });
 
     it('offline, member: the member wording, with no Runners link', async () => {
-      const { root } = await renderGitHub({ runnerAvailability: 'offline', canRunNow: false }, [], { role: 'member' });
+      const { root } = await renderGitHub({ runnerAvailability: 'offline', canRunNow: false }, [], {
+        role: 'member',
+      });
       const line = runsLane(root).querySelector('[data-testid="jobs-availability"]') as HTMLElement;
       expect(line.textContent).toContain('Задачи начнутся, когда он снова подключится.');
       expect(line.querySelector('a')).toBeNull();
@@ -1516,26 +1621,37 @@ describe('SprintBoard', () => {
       document.body.innerHTML = '';
       http.match(() => true);
       TestBed.resetTestingModule();
-      const member = await renderGitHub({ runnerAvailability: 'paused', canRunNow: false }, [], { role: 'member' });
-      const text = runsLane(member.root).querySelector('[data-testid="jobs-availability"]')?.textContent ?? '';
+      const member = await renderGitHub({ runnerAvailability: 'paused', canRunNow: false }, [], {
+        role: 'member',
+      });
+      const text =
+        runsLane(member.root).querySelector('[data-testid="jobs-availability"]')?.textContent ?? '';
       expect(text).toContain('Раннер на паузе.');
       expect(text).not.toContain(localTimeOf(until, 'ru'));
     });
 
     it('none, owner: a block instead of the form, naming the project, with the Runners link and no Run button', async () => {
-      const { root } = await renderGitHub({ runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'no-runner' });
+      const { root } = await renderGitHub({
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'no-runner',
+      });
       const lane = runsLane(root);
       const none = lane.querySelector('[data-testid="jobs-none"]') as HTMLElement;
       expect(none.dataset['none']).toBe('owner');
       expect(none.querySelector('h4')?.textContent?.trim()).toBe('Нет раннера для этого проекта');
       expect(none.querySelector('[data-testid="jobs-none-body"]')?.textContent).toContain('Team Console');
-      expect(none.querySelector('[data-testid="jobs-none-runners"]')?.getAttribute('href')).toBe('/settings/runners');
+      expect(none.querySelector('[data-testid="jobs-none-runners"]')?.getAttribute('href')).toBe(
+        '/settings/runners',
+      );
       expect(lane.querySelector('[data-testid="run-now"]')).toBeNull();
       expect(lane.querySelector('[data-testid="run-now-submit"]')).toBeNull();
     });
 
     it('none, member: the generic copy without a name and no action', async () => {
-      const { root } = await renderGitHub({ runnerAvailability: 'none', canRunNow: false }, [], { role: 'member' });
+      const { root } = await renderGitHub({ runnerAvailability: 'none', canRunNow: false }, [], {
+        role: 'member',
+      });
       const none = runsLane(root).querySelector('[data-testid="jobs-none"]') as HTMLElement;
       expect(none.dataset['none']).toBe('member');
       expect(none.textContent).toContain('Подключить раннер может владелец аккаунта.');
@@ -1561,8 +1677,12 @@ describe('SprintBoard', () => {
       const none = runsLane(root).querySelector('[data-testid="jobs-none"]') as HTMLElement;
       expect(none.dataset['none']).toBe('d3');
       expect(none.querySelector('h4')?.textContent?.trim()).toBe('Этот раннер не обслуживает ваши проекты');
-      expect(none.querySelector('[data-testid="jobs-none-body"]')?.textContent).toContain('Раннер «\u2068Mac\u2069» работает по подписке Claude другого владельца аккаунта.');
-      expect(none.querySelector('[data-testid="jobs-none-connect"]')?.getAttribute('href')).toBe('/settings/runners');
+      expect(none.querySelector('[data-testid="jobs-none-body"]')?.textContent).toContain(
+        'Раннер «\u2068Mac\u2069» работает по подписке Claude другого владельца аккаунта.',
+      );
+      expect(none.querySelector('[data-testid="jobs-none-connect"]')?.getAttribute('href')).toBe(
+        '/settings/runners',
+      );
       expect(none.querySelector('details summary')?.textContent?.trim()).toBe('Почему так');
     });
 
@@ -1576,24 +1696,40 @@ describe('SprintBoard', () => {
       expect(none.querySelector('h4')?.textContent?.trim()).toBe('Ваш раннер не обслуживает этот проект');
       // A bidi override in the name is dropped; the name stays isolated.
       expect(none.textContent).not.toContain('\u202E');
-      expect(none.querySelector('[data-testid="jobs-none-runner"]')?.textContent?.trim()).toBe('Открыть раннер «\u2068Mac\u2069»');
+      expect(none.querySelector('[data-testid="jobs-none-runner"]')?.textContent?.trim()).toBe(
+        'Открыть раннер «\u2068Mac\u2069»',
+      );
     });
 
     it('none, D3 reason without a matching runner in the owner’s list: the generic owner copy', async () => {
-      const { root } = await renderGitHub({ runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' });
-      expect((runsLane(root).querySelector('[data-testid="jobs-none"]') as HTMLElement).dataset['none']).toBe('owner');
+      const { root } = await renderGitHub({
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'other-owner-subscription',
+      });
+      expect((runsLane(root).querySelector('[data-testid="jobs-none"]') as HTMLElement).dataset['none']).toBe(
+        'owner',
+      );
     });
 
     // #775 (migration 0038): the owners' display names, when the Worker sends any; isolated, never markup.
     it('names the account owners to a member, on the line and in the «no runner» block', async () => {
-      const ready = await renderGitHub({ runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['Анна', 'Борис'] }, [], { role: 'member' });
-      expect(runsLane(ready.root).querySelector('[data-testid="jobs-member-line"]')?.textContent?.trim()).toBe(
-        'Запускать задачи может владелец аккаунта — \u2068Анна\u2069, \u2068Борис\u2069.',
+      const ready = await renderGitHub(
+        { runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['Анна', 'Борис'] },
+        [],
+        { role: 'member' },
       );
+      expect(
+        runsLane(ready.root).querySelector('[data-testid="jobs-member-line"]')?.textContent?.trim(),
+      ).toBe('Запускать задачи может владелец аккаунта — \u2068Анна\u2069, \u2068Борис\u2069.');
       document.body.innerHTML = '';
       http.match(() => true);
       TestBed.resetTestingModule();
-      const none = await renderGitHub({ runnerAvailability: 'none', canRunNow: false, accountOwnerNames: ['Анна'] }, [], { role: 'member' });
+      const none = await renderGitHub(
+        { runnerAvailability: 'none', canRunNow: false, accountOwnerNames: ['Анна'] },
+        [],
+        { role: 'member' },
+      );
       expect(runsLane(none.root).querySelector('[data-testid="jobs-none-body"]')?.textContent?.trim()).toBe(
         'Ни один раннер аккаунта пока не обслуживает этот проект. Подключить раннер может владелец аккаунта — \u2068Анна\u2069.',
       );
@@ -1611,7 +1747,12 @@ describe('SprintBoard', () => {
       http.match(() => true);
       TestBed.resetTestingModule();
       const mine = await renderGitHub(
-        { runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription', projectCreatorName: 'Борис\u202E' },
+        {
+          runnerAvailability: 'none',
+          canRunNow: true,
+          runnerUnavailableReason: 'other-owner-subscription',
+          projectCreatorName: 'Борис\u202E',
+        },
         [d3Runner({ enrolledByYou: true })],
       );
       const body = runsLane(mine.root).querySelector('[data-testid="jobs-none-body"]')?.textContent ?? '';
@@ -1629,7 +1770,9 @@ describe('SprintBoard', () => {
           { status: 409, statusText: 'Conflict', headers: { 'Content-Type': 'application/problem+json' } },
         );
       await settle();
-      expect(root.querySelector('[data-testid="run-now-error"]')?.textContent).toContain('Задачу этого вида отсюда не запустить');
+      expect(root.querySelector('[data-testid="run-now-error"]')?.textContent).toContain(
+        'Задачу этого вида отсюда не запустить',
+      );
       expect(root.querySelector('[data-testid="jobs-current"]')).toBeNull();
     });
 
@@ -1644,7 +1787,9 @@ describe('SprintBoard', () => {
     });
 
     it('the header Run on the phone opens the runs tab and lands on «What to run»', async () => {
-      const { root, settle } = await renderGitHub({ runnerAvailability: 'ready', canRunNow: true }, [], { phone: true });
+      const { root, settle } = await renderGitHub({ runnerAvailability: 'ready', canRunNow: true }, [], {
+        phone: true,
+      });
       (root.querySelector('[data-testid="board-run-now"]') as HTMLButtonElement).click();
       await settle();
       expect(runsLane(root).hidden).toBe(false);
@@ -1652,7 +1797,11 @@ describe('SprintBoard', () => {
     });
 
     it('the header Run lands on the «no runner» heading when there is no form', async () => {
-      const { root, settle } = await renderGitHub({ runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'no-runner' });
+      const { root, settle } = await renderGitHub({
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'no-runner',
+      });
       (root.querySelector('[data-testid="board-run-now"]') as HTMLButtonElement).click();
       await settle();
       expect(document.activeElement).toBe(root.querySelector('[data-testid="jobs-none"] h4'));
@@ -1663,28 +1812,55 @@ describe('SprintBoard', () => {
     const CONSOLE: SprintBoardProject = { ...TC, isOnConsoleTracker: true };
     const JOBS = `${projectJobsUrl(TC.slug)}?limit=${String(JOBS_PAGE_LIMIT)}`;
 
-    function trackerSprint(number: number, dueOn: string | null, state: 'open' | 'closed' = 'open'): TrackerSprintDto {
+    function trackerSprint(
+      number: number,
+      dueOn: string | null,
+      state: 'open' | 'closed' = 'open',
+    ): TrackerSprintDto {
       const title = `Sprint ${String(number).padStart(2, '0')}`;
-      return { number, title, dueOn, state, description: '', createdAt: '2026-11-01T00:00:00Z', closedAt: null, openCount: 0 };
+      return {
+        number,
+        title,
+        dueOn,
+        state,
+        description: '',
+        createdAt: '2026-11-01T00:00:00Z',
+        closedAt: null,
+        openCount: 0,
+      };
     }
 
     const tracked = (number: number, overrides: Partial<ItemSummaryDto> = {}): ItemSummaryDto =>
-      itemFixture({ key: `TC-${String(number)}`, number, title: `Task ${String(number)}`, sprint: 4, ...overrides });
+      itemFixture({
+        key: `TC-${String(number)}`,
+        number,
+        title: `Task ${String(number)}`,
+        sprint: 4,
+        ...overrides,
+      });
 
     /** Answers everything but the tracker reads: GitHub's `/sprint` (pull requests), the jobs and the accounts. */
     async function renderTracker() {
       const rendered = await render(false, (host) => host.project.set(CONSOLE));
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
-      http.expectOne(JOBS).flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
-      http.expectOne('/api/v1/accounts').flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'o', name: 'O', role: 'member' }] });
+      http
+        .expectOne(JOBS)
+        .flush({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+      http
+        .expectOne('/api/v1/accounts')
+        .flush({ accounts: [{ id: OWNER_ACCOUNT_ID, slug: 'o', name: 'O', role: 'member' }] });
       return rendered;
     }
 
     it('shows the earliest open tracker sprint with its tasks by lane, not the GitHub milestone', async () => {
       const { root, settle, lanes, text } = await renderTracker();
-      http
-        .expectOne(sprintsUrl(TC.slug))
-        .flush({ sprints: [trackerSprint(3, '2026-11-13', 'closed'), trackerSprint(5, '2026-12-11'), trackerSprint(4, '2026-11-27')] });
+      http.expectOne(sprintsUrl(TC.slug)).flush({
+        sprints: [
+          trackerSprint(3, '2026-11-13', 'closed'),
+          trackerSprint(5, '2026-12-11'),
+          trackerSprint(4, '2026-11-27'),
+        ],
+      });
       await settle();
       const read = http.expectOne((request) => request.url === itemsUrl(TC.slug));
       expect(read.request.params.get('sprint')).toBe('4');
@@ -1704,8 +1880,12 @@ describe('SprintBoard', () => {
       expect(lanes()).toEqual({ approved: 0, 'in-progress': 1, qa: 0, blocked: 1, done: 1 });
       expect(root.querySelector('[data-testid="done-stat"] dd')?.textContent?.trim()).toBe('1 из 3');
       // Rows open the console task (#557), not GitHub; the pull requests still come from GitHub.
-      expect(root.querySelector('tc-lane [data-number="11"] a')?.getAttribute('href')).toBe('/p/team-console/t/11');
-      expect(root.querySelector('tc-lane [data-number="12"] [data-testid="kind"]')?.textContent).toBe('Ошибка');
+      expect(root.querySelector('tc-lane [data-number="11"] a')?.getAttribute('href')).toBe(
+        '/p/team-console/t/11',
+      );
+      expect(root.querySelector('tc-lane [data-number="12"] [data-testid="kind"]')?.textContent).toBe(
+        'Ошибка',
+      );
       expect(text('[data-testid="open-count"]')).toBe('2 открытые');
       expect(root.querySelector('[data-testid="pulls"] a')?.getAttribute('href')).toBe(
         'https://github.com/geeera/team-console/pull/45',

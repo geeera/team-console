@@ -132,7 +132,10 @@ describe('isProjectDtoList', () => {
     expect(isProjectDtoList([{ ...project('a'), snooze: { snoozed: false } }])).toBe(true);
     expect(
       isProjectDtoList([
-        { ...project('a'), snooze: { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-05T10:00:00Z' } },
+        {
+          ...project('a'),
+          snooze: { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-05T10:00:00Z' },
+        },
       ]),
     ).toBe(true);
     expect(isProjectDtoList([{ ...project('a'), snooze: { snoozed: true } }])).toBe(false);

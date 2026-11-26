@@ -163,21 +163,28 @@ describe('env-builder against the claim’s access source (ADR 0009 T7)', () => 
   it.each([setupToken, configDir])('api_key: refuses the %o credential by its kind', (credential) => {
     const refusal = refusalOf({ ...base, accessSource: 'api_key', credential });
     expect(refusal.reason).toBe('credential-source-mismatch');
-    expect(refusal.message).toBe(`the ${credential.kind} credential does not match the project's api_key access source`);
+    expect(refusal.message).toBe(
+      `the ${credential.kind} credential does not match the project's api_key access source`,
+    );
     expect(refusal.message).not.toContain(credential.value);
   });
 
   it('api_key: refuses a runner with no credential, which would fall back to the host’s Claude login', () => {
-    expect(refusalOf({ ...base, accessSource: 'api_key', credential: null }).reason).toBe('credential-source-mismatch');
+    expect(refusalOf({ ...base, accessSource: 'api_key', credential: null }).reason).toBe(
+      'credential-source-mismatch',
+    );
   });
 
-  it.each([setupToken, configDir])('subscription: runs on the %o login and strips every API-account variable', (credential) => {
-    const { env } = buildJobEnv({ ...base, accessSource: 'subscription', credential });
-    expect(env[credential.name]).toBe(credential.value);
-    for (const name of API_ACCOUNT) {
-      expect(env).not.toHaveProperty(name);
-    }
-  });
+  it.each([setupToken, configDir])(
+    'subscription: runs on the %o login and strips every API-account variable',
+    (credential) => {
+      const { env } = buildJobEnv({ ...base, accessSource: 'subscription', credential });
+      expect(env[credential.name]).toBe(credential.value);
+      for (const name of API_ACCOUNT) {
+        expect(env).not.toHaveProperty(name);
+      }
+    },
+  );
 
   it('subscription: the host’s own sign-in (no credential) is allowed and gets no API variable', () => {
     const { env } = buildJobEnv({ ...base, accessSource: 'subscription', credential: null });
@@ -189,7 +196,9 @@ describe('env-builder against the claim’s access source (ADR 0009 T7)', () => 
   it('subscription: refuses an API key, naming the kind only (sentinel)', () => {
     const refusal = refusalOf({ ...base, accessSource: 'subscription', credential: apiKey });
     expect(refusal.reason).toBe('credential-source-mismatch');
-    expect(refusal.message).toBe("the api-key credential does not match the project's subscription access source");
+    expect(refusal.message).toBe(
+      "the api-key credential does not match the project's subscription access source",
+    );
     expect(refusal.message).not.toContain(sentinels.anthropicKey);
   });
 

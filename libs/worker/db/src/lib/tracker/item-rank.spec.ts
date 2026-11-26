@@ -1,4 +1,11 @@
-import { initialRankOf, planQueueMove, RANK_GAP, rankBetween, rebalancedRanks, type LaneRow } from './item-rank';
+import {
+  initialRankOf,
+  planQueueMove,
+  RANK_GAP,
+  rankBetween,
+  rebalancedRanks,
+  type LaneRow,
+} from './item-rank';
 
 // #456: the sparse rank model — a new item at the end, swaps that spend no gap, First below the first, a rebalance
 // only when a midpoint has no room.
@@ -29,7 +36,12 @@ describe('the rank model', () => {
   });
 
   it('puts First one gap below the first item, keeping max(rank) ≤ max(number) × gap', () => {
-    expect(planQueueMove(LANE, 3, 'first')).toEqual({ kind: 'move', rank: 0, neighbour: null, rebalance: false });
+    expect(planQueueMove(LANE, 3, 'first')).toEqual({
+      kind: 'move',
+      rank: 0,
+      neighbour: null,
+      rebalance: false,
+    });
     const below = planQueueMove([row(1, 0), row(2, 1024)], 2, 'first');
     expect(below).toMatchObject({ rank: -1024 });
   });

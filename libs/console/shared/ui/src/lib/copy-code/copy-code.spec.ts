@@ -18,7 +18,8 @@ class Host {}
 @Component({
   imports: [CopyCode],
   template: `<tc-copy-code
-    code="on:\n  workflow_dispatch:"
+    code="on:
+  workflow_dispatch:"
     regionLabel="The workflow file"
     copyLabel="Copy"
     copiedLabel="Copied"

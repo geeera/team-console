@@ -94,7 +94,10 @@ test('moves a row to the next sprint at once and Undo puts it back, focus follow
   await button.click();
   const menu = page.getByRole('menu', { name: ru('plan.menuAria', { key: key() }) });
   await expect(page.getByText(ru('plan.inProgressWarn'))).toBeVisible();
-  await expect(menu.getByRole('menuitem', { name: /В Sprint 01 — текущий/ })).toHaveAttribute('aria-disabled', 'true');
+  await expect(menu.getByRole('menuitem', { name: /В Sprint 01 — текущий/ })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   await expectAccessible(page, 'board move menu open');
   await menu.getByRole('menuitem', { name: /В Sprint 02/ }).click();
 
@@ -106,14 +109,21 @@ test('moves a row to the next sprint at once and Undo puts it back, focus follow
   // The row that took its place, or the lane heading when it was the last one.
   await expect(current(page).locator(':focus')).toHaveCount(1);
 
-  await page.getByTestId('undo-toast').getByRole('button', { name: ru('plan.undo') }).click();
+  await page
+    .getByTestId('undo-toast')
+    .getByRole('button', { name: ru('plan.undo') })
+    .click();
   await expect(row(nextFolder(page))).toHaveCount(0);
   await expect(moveButton(current(page))).toBeFocused();
-  await expect(page.getByRole('status').filter({ hasText: `Возвращено: ${key()} снова в Sprint 01` })).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: `Возвращено: ${key()} снова в Sprint 01` }),
+  ).toBeVisible();
   await expect(nextFolder(page).getByTestId('folder-open-count')).toHaveText(counted(nextCount));
 });
 
-test('moves a row to the backlog, its count follows unopened, and ⌘Z / Ctrl+Z undoes it', async ({ page }) => {
+test('moves a row to the backlog, its count follows unopened, and ⌘Z / Ctrl+Z undoes it', async ({
+  page,
+}) => {
   await openBoard(page);
   const backlogCount = await countOf(backlogFolder(page).getByTestId('folder-open-count'));
   await moveButton(current(page)).click();
@@ -126,7 +136,9 @@ test('moves a row to the backlog, its count follows unopened, and ⌘Z / Ctrl+Z 
   await expect(backlogFolder(page).getByTestId('folder-open-count')).toHaveText(counted(backlogCount));
 });
 
-test('a move into a frozen sprint is refused: an alert on top, the row stays, nothing says moved', async ({ page }) => {
+test('a move into a frozen sprint is refused: an alert on top, the row stays, nothing says moved', async ({
+  page,
+}) => {
   await openBoard(page);
   await patchAnswers(page, 409, 'sprint-frozen');
   await moveButton(current(page)).click();

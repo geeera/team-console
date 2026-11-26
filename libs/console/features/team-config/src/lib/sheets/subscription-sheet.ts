@@ -31,7 +31,9 @@ let nextSubscriptionId = 0;
       </label>
       @if (missing()) {
         <p class="subscription__missing" role="alert" [id]="id + '-missing'">
-          <tc-icon name="alert" size="sm" /><span>{{ 'teamConfig.access.understandMissing' | transloco }}</span>
+          <tc-icon name="alert" size="sm" /><span>{{
+            'teamConfig.access.understandMissing' | transloco
+          }}</span>
         </p>
       }
     </form>
@@ -41,7 +43,9 @@ let nextSubscriptionId = 0;
       </button>
     </ng-template>
     <ng-template tcSheetFooter="secondary">
-      <button tc-button type="button" (click)="ref.close(false)">{{ 'teamConfig.common.cancel' | transloco }}</button>
+      <button tc-button type="button" (click)="ref.close(false)">
+        {{ 'teamConfig.common.cancel' | transloco }}
+      </button>
     </ng-template>
   `,
   styles: `
@@ -89,6 +93,8 @@ export class SubscriptionSheet {
       return;
     }
     this.missing.set(true);
-    (event.target as HTMLFormElement | null)?.querySelector<HTMLInputElement>('input[type="checkbox"]')?.focus();
+    (event.target as HTMLFormElement | null)
+      ?.querySelector<HTMLInputElement>('input[type="checkbox"]')
+      ?.focus();
   }
 }

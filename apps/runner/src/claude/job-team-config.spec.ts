@@ -10,7 +10,10 @@ const viewOf = (
   cost: Partial<TeamCost> = {},
   preset: 'economy' | 'recommended' | 'max' = 'economy',
 ): ResolvedTeamConfigDto =>
-  resolveTeamConfig({ schema: 'team-config/v1', preset, access: { source }, cost }, { revision: 3, accessSource: source });
+  resolveTeamConfig(
+    { schema: 'team-config/v1', preset, access: { source }, cost },
+    { revision: 3, accessSource: source },
+  );
 
 function refusalOf(role: string, teamConfig: unknown): LaunchRefusal {
   try {
@@ -66,16 +69,25 @@ describe('launchPlanOf', () => {
 
   it('refuses a model shaped as a second flag', () => {
     const view = viewOf('api_key');
-    const forged = { ...view, roles: { ...view.roles, pm: { ...view.roles.pm, model: 'claude-opus-5-5 --verbose' } } };
+    const forged = {
+      ...view,
+      roles: { ...view.roles, pm: { ...view.roles.pm, model: 'claude-opus-5-5 --verbose' } },
+    };
     expect(refusalOf('pm', forged).reason).toBe('team-config-invalid');
   });
 
   describe('cost levers (api_key only)', () => {
     it('diff context narrows the reviewer’s clone only', () => {
       const view = viewOf('api_key', { reviewer_context: 'diff' });
-      expect(launchPlanOf('reviewer', view)).toMatchObject({ clone: 'diff', cost: { reviewer_context: 'applied' } });
+      expect(launchPlanOf('reviewer', view)).toMatchObject({
+        clone: 'diff',
+        cost: { reviewer_context: 'applied' },
+      });
       for (const role of ['security', 'qa', 'pm', 'orchestrator']) {
-        expect(launchPlanOf(role, view)).toMatchObject({ clone: 'full', cost: { reviewer_context: 'not-applicable' } });
+        expect(launchPlanOf(role, view)).toMatchObject({
+          clone: 'full',
+          cost: { reviewer_context: 'not-applicable' },
+        });
       }
     });
 
@@ -98,7 +110,10 @@ describe('launchPlanOf', () => {
     });
 
     it('a subscription project ignores every lever: full clone, caching untouched', () => {
-      const plan = launchPlanOf('reviewer', viewOf('subscription', { prompt_caching: false, batch_api: true, reviewer_context: 'diff' }));
+      const plan = launchPlanOf(
+        'reviewer',
+        viewOf('subscription', { prompt_caching: false, batch_api: true, reviewer_context: 'diff' }),
+      );
       expect(plan).toMatchObject({
         accessSource: 'subscription',
         clone: 'full',

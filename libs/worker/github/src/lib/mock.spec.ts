@@ -151,7 +151,8 @@ describe('createMockGitHub', () => {
       isObject,
     );
     const items = tree['tree'] as { path: string; sha: string }[];
-    const sha = items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png')?.sha ?? '';
+    const sha =
+      items.find((item) => item.path === 'docs/design/90004-demo-screen/phone-01-list.png')?.sha ?? '';
     const result = await client('geeera/team-console').getBytes(githubPath`/repos/${repo}/git/blobs/${sha}`, {
       accept: 'application/vnd.github.raw+json',
       maxBytes: 1024 * 1024,
@@ -243,7 +244,10 @@ describe('createMockGitHub', () => {
       title: 'Sprint 01',
       due_on: '2027-01-07T00:00:00Z',
     });
-    expect(milestoneAt({ number: 2, due_in_days: -3 }, now)).toEqual({ number: 2, due_on: '2026-12-28T00:00:00Z' });
+    expect(milestoneAt({ number: 2, due_in_days: -3 }, now)).toEqual({
+      number: 2,
+      due_on: '2026-12-28T00:00:00Z',
+    });
     const fixed = { number: 3, due_on: '2026-10-16T00:00:00Z' };
     expect(milestoneAt(fixed, now)).toBe(fixed);
     expect(milestoneAt({ number: 4, due_in_days: 1.5 }, now)).toEqual({ number: 4, due_in_days: 1.5 });

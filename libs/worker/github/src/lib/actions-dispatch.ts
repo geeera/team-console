@@ -3,7 +3,13 @@ import { githubUnexpectedError, mapGitHubResponse } from './errors';
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
 import { assertScopedKind, type ScopedInstallationToken } from './scoped-mint';
-import { discardBody, githubRequest, readGitHubJson, type FetchLike, type GitHubTransportOptions } from './transport';
+import {
+  discardBody,
+  githubRequest,
+  readGitHubJson,
+  type FetchLike,
+  type GitHubTransportOptions,
+} from './transport';
 
 function workflowRunIdOf(body: unknown): string | null {
   if (typeof body !== 'object' || body === null) {

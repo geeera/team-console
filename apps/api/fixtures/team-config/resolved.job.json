@@ -134,11 +134,7 @@
       "gates": {
         "qa": "always",
         "reviewer": "code",
-        "code_paths": [
-          "apps/**",
-          "libs/**",
-          "tools/**"
-        ],
+        "code_paths": ["apps/**", "libs/**", "tools/**"],
         "max_rework_rounds": 1
       },
       "caps": {

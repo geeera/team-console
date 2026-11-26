@@ -435,7 +435,11 @@ describe('GET /api/v1/projects/:slug/sprint', () => {
       return { stub, clock, github: new ApiGitHub({ fetch: stub.fetch, now: () => clock.at }) };
     }
 
-    async function spend(github: ApiGitHub, jobId: string, reads = JOB_SPRINT_READS_PER_WINDOW): Promise<void> {
+    async function spend(
+      github: ApiGitHub,
+      jobId: string,
+      reads = JOB_SPRINT_READS_PER_WINDOW,
+    ): Promise<void> {
       for (let read = 1; read <= reads; read += 1) {
         const response = await fetchApi(PATH, localEnv(), { github, ...asJob(jobId) });
         expect(response.status, `read ${String(read)}`).toBe(200);

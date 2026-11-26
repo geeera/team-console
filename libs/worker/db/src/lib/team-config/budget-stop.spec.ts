@@ -32,7 +32,9 @@ const spend = new ProjectSpendRepo(env.DB);
 // The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
 // range keeps it out of the rules each case is about; the concurrency specs set their own.
 beforeAll(async () => {
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'bs-a', 'A', '{"max_concurrency":32}', ?2)`)
+  await env.DB.prepare(
+    `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'bs-a', 'A', '{"max_concurrency":32}', ?2)`,
+  )
     .bind(ACCOUNT, T0)
     .run();
 });
@@ -169,9 +171,16 @@ const budgetPausesOf = (slug: string): Promise<number> =>
 const resumesOf = (slug: string): Promise<number> =>
   count(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.resumed' AND target = ?1`, slug);
 const resumeThisMonth = (slug: string, at: string) =>
-  teamState.resumeThisMonth(slug, at, { ...auditOf('team.resumed', slug), at }, { ...auditOf('team.budget-waived', slug), at });
+  teamState.resumeThisMonth(
+    slug,
+    at,
+    { ...auditOf('team.resumed', slug), at },
+    { ...auditOf('team.budget-waived', slug), at },
+  );
 async function waivedAtOf(slug: string, month: string): Promise<string | null> {
-  const row = await env.DB.prepare(`SELECT waived_at FROM project_spend WHERE project_slug = ?1 AND month = ?2`)
+  const row = await env.DB.prepare(
+    `SELECT waived_at FROM project_spend WHERE project_slug = ?1 AND month = ?2`,
+  )
     .bind(slug, month)
     .first<{ waived_at: string | null }>();
   return row?.waived_at ?? null;
@@ -291,7 +300,12 @@ describe('the budget stop', () => {
     await enqueue(slug);
     const job = await claimAs(mac);
     expect(await teamState.pause(slug, 'owner', T1, auditOf('team.paused', slug))).toBe(true);
-    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 1.5 }, acted: false };
+    const outcome = {
+      result: 'finished' as const,
+      summary: 's',
+      metrics: { total_cost_usd: 1.5 },
+      acted: false,
+    };
     await jobs.finish(job?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug), spent(1.5, slug));
 
     await save(slug, { budget: { monthly_usd: 25 } });
@@ -391,9 +405,21 @@ describe('the budget stop', () => {
     // December's first job goes over the budget: the team stops again.
     await enqueue(slug);
     const job = await claimAs(mac, DECEMBER, DECEMBER_LEASE);
-    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 2.5 }, acted: false };
+    const outcome = {
+      result: 'finished' as const,
+      summary: 's',
+      metrics: { total_cost_usd: 2.5 },
+      acted: false,
+    };
     expect(
-      await jobs.finish(job?.id ?? '', mac, outcome, DECEMBER_LATER, auditOf('job.finished', slug), spent(2.5, slug)),
+      await jobs.finish(
+        job?.id ?? '',
+        mac,
+        outcome,
+        DECEMBER_LATER,
+        auditOf('job.finished', slug),
+        spent(2.5, slug),
+      ),
     ).toBe(true);
     expect(await teamState.get(slug)).toMatchObject({ pausedBy: BUDGET_PAUSER, pausedAt: DECEMBER_LATER });
     await enqueue(slug);
@@ -457,9 +483,21 @@ describe('the budget stop', () => {
     ]);
     expect(await claimAs(mac)).toBeNull();
 
-    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 100 }, acted: false };
+    const outcome = {
+      result: 'finished' as const,
+      summary: 's',
+      metrics: { total_cost_usd: 100 },
+      acted: false,
+    };
     expect(
-      await jobs.finish(inFlight?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug), spent(100, slug)),
+      await jobs.finish(
+        inFlight?.id ?? '',
+        mac,
+        outcome,
+        T2,
+        auditOf('job.finished', slug),
+        spent(100, slug),
+      ),
     ).toBe(true);
     expect((await teamState.get(slug)).pausedBy).toBe(BUDGET_PAUSER);
     expect(await claimAs(mac)).toBeNull();
@@ -490,7 +528,12 @@ describe('the budget stop', () => {
     const mac = await runner([slug]);
     await enqueue(slug);
     const job = await claimAs(mac);
-    const outcome = { result: 'finished' as const, summary: 's', metrics: { total_cost_usd: 5 }, acted: false };
+    const outcome = {
+      result: 'finished' as const,
+      summary: 's',
+      metrics: { total_cost_usd: 5 },
+      acted: false,
+    };
     expect(await jobs.finish(job?.id ?? '', mac, outcome, T2, auditOf('job.finished', slug))).toBe(true);
     expect(await count(`SELECT COUNT(*) AS n FROM project_spend WHERE project_slug = ?1`, slug)).toBe(0);
     expect((await teamState.get(slug)).pausedAt).toBeNull();
@@ -571,8 +614,11 @@ describe('the run a dispatch recorded (#723 item 2)', () => {
   }
 
   const runOf = async (id: string): Promise<string | null> =>
-    (await env.DB.prepare(`SELECT actions_run_id FROM jobs WHERE id = ?1`).bind(id).first<{ actions_run_id: string | null }>())
-      ?.actions_run_id ?? null;
+    (
+      await env.DB.prepare(`SELECT actions_run_id FROM jobs WHERE id = ?1`)
+        .bind(id)
+        .first<{ actions_run_id: string | null }>()
+    )?.actions_run_id ?? null;
 
   it('records the run on a dispatched job waiting for it, and answers the job as written', async () => {
     const id = await actionsJob();
@@ -592,7 +638,9 @@ describe('the run a dispatch recorded (#723 item 2)', () => {
   it('answers null for a job never dispatched, one no longer queued, and a pulled one', async () => {
     const undispatched = await actionsJob(false);
     const cancelled = await actionsJob();
-    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`).bind(cancelled, T2).run();
+    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`)
+      .bind(cancelled, T2)
+      .run();
     const pulled = await enqueue(await project());
     for (const [id, runId] of [
       [undispatched, '7300000004'],
@@ -623,7 +671,12 @@ describe('the run a dispatch recorded (#723 item 2)', () => {
   it('answers the job as failed from failUndispatched (#725), and null once it no longer waits', async () => {
     const id = await actionsJob();
     const failed = await jobs.failUndispatched(id, T2, 'dispatch-failed', 'dispatch-failed: github error');
-    expect(failed).toMatchObject({ id, state: 'failed', finishedAt: T2, result: { summary: 'dispatch-failed: github error' } });
+    expect(failed).toMatchObject({
+      id,
+      state: 'failed',
+      finishedAt: T2,
+      result: { summary: 'dispatch-failed: github error' },
+    });
     expect(await jobs.failUndispatched(id, T2, 'dispatch-failed', 'again')).toBeNull();
   });
 });

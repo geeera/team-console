@@ -1,11 +1,21 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID } from '@shared/contracts';
 import { sha256Hex } from '@worker/core';
-import { enrolRunner, inOneRateWindow, rateBucketCount, sendAsRunner, withRateBucketAt } from '../testing/runner-kit';
+import {
+  enrolRunner,
+  inOneRateWindow,
+  rateBucketCount,
+  sendAsRunner,
+  withRateBucketAt,
+} from '../testing/runner-kit';
 import { seedMembership, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { send, slugOf } from '../testing/tracker-kit';
 import { RUNNER_RATE_LIMIT_PER_MINUTE } from './runner-auth';
-import { ACCOUNT_READS_PER_WINDOW, ACCOUNT_READ_WINDOW_SECONDS, accountReadKeyOf } from './account-read-limit.middleware';
+import {
+  ACCOUNT_READS_PER_WINDOW,
+  ACCOUNT_READ_WINDOW_SECONDS,
+  accountReadKeyOf,
+} from './account-read-limit.middleware';
 
 // #879: account-scoped GETs are counted per identity per fixed minute; writes, other routes and the runner door
 // keep their own limits.
@@ -15,7 +25,9 @@ const keyOf = (user: SessionUser): string => `account-read:user:${user.userId}`;
 
 describe('accountReadKeyOf', () => {
   it('keys a person by user id, never by account, and the unlinked Access owner as one person', async () => {
-    expect(await accountReadKeyOf({ kind: 'user', door: 'session', userId: 'u1', memberships: [] })).toBe('account-read:user:u1');
+    expect(await accountReadKeyOf({ kind: 'user', door: 'session', userId: 'u1', memberships: [] })).toBe(
+      'account-read:user:u1',
+    );
     expect(await accountReadKeyOf({ kind: 'user', door: 'access', userId: null, memberships: [] })).toBe(
       'account-read:user:access-owner',
     );
@@ -40,7 +52,11 @@ describe('the account read limit (#879)', () => {
     const outcome = await inOneRateWindow(async () => {
       const before = await rateBucketCount(keyOf(owner));
       const statuses: number[] = [];
-      for (const path of ['/api/v1/accounts', runnersPath(owner.account.id), `/api/v1/accounts/${owner.account.id}/settings`]) {
+      for (const path of [
+        '/api/v1/accounts',
+        runnersPath(owner.account.id),
+        `/api/v1/accounts/${owner.account.id}/settings`,
+      ]) {
         statuses.push((await sendAsSession(owner, 'GET', path)).status);
       }
       return { statuses, counted: (await rateBucketCount(keyOf(owner))) - before };
@@ -104,7 +120,11 @@ describe('the account read limit (#879)', () => {
     const owner = await seedSessionUser('owner');
     const outcome = await inOneRateWindow(async () => {
       const before = await rateBucketCount(keyOf(owner));
-      const response = await sendAsSession(owner, 'GET', `/api/v1/accounts/${owner.account.id}/no-such-route`);
+      const response = await sendAsSession(
+        owner,
+        'GET',
+        `/api/v1/accounts/${owner.account.id}/no-such-route`,
+      );
       return { status: response.status, counted: (await rateBucketCount(keyOf(owner))) - before };
     });
     expect(outcome).toEqual({ status: 404, counted: 0 });
@@ -118,15 +138,19 @@ describe('the account read limit (#879)', () => {
         const before = await rateBucketCount(`runner:${runner.id}`);
         const release = await sendAsRunner(runner, 'GET', '/api/v1/runner/release');
         const counted = (await rateBucketCount(`runner:${runner.id}`)) - before;
-        const atDoorLimit = await withRateBucketAt(`runner:${runner.id}`, RUNNER_RATE_LIMIT_PER_MINUTE, async () =>
-          (await sendAsRunner(runner, 'GET', '/api/v1/runner/release')).status,
+        const atDoorLimit = await withRateBucketAt(
+          `runner:${runner.id}`,
+          RUNNER_RATE_LIMIT_PER_MINUTE,
+          async () => (await sendAsRunner(runner, 'GET', '/api/v1/runner/release')).status,
         );
         return { accountRead: accountRead.status, release: release.status, counted, atDoorLimit };
       }),
     );
     // The runner's calls count in its own bucket at its own limit, whatever the account reads did.
     expect(outcome).toEqual({ accountRead: 429, release: 200, counted: 1, atDoorLimit: 429 });
-    const leaked = await env.DB.prepare(`SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'account-read:runner:%'`).first<{
+    const leaked = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM rate_limits WHERE key LIKE 'account-read:runner:%'`,
+    ).first<{
       n: number;
     }>();
     expect(leaked?.n).toBe(0);

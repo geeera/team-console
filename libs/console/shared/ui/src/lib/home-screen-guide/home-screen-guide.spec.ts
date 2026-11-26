@@ -5,7 +5,11 @@ import { HomeScreenGuide } from './home-screen-guide';
 
 @Component({
   imports: [HomeScreenGuide],
-  template: `<tc-home-screen-guide [otherBrowser]="other()" finalStep="Откройте со значка." listId="steps-1" />`,
+  template: `<tc-home-screen-guide
+    [otherBrowser]="other()"
+    finalStep="Откройте со значка."
+    listId="steps-1"
+  />`,
 })
 class Host {
   readonly other = signal(false);
@@ -13,7 +17,10 @@ class Host {
 
 describe('HomeScreenGuide', () => {
   async function render(other: boolean) {
-    await TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(Host);
     fixture.componentInstance.other.set(other);

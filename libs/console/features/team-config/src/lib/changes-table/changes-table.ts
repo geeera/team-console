@@ -22,7 +22,11 @@ export interface ChangeRow {
   template: `
     <table class="changes" data-testid="changes-table">
       @if (caption(); as caption) {
-        <caption class="tc-sr-only">{{ caption }}</caption>
+        <caption class="tc-sr-only">
+          {{
+            caption
+          }}
+        </caption>
       }
       <thead>
         <tr>
@@ -35,7 +39,9 @@ export interface ChangeRow {
         @for (row of rows(); track row.path) {
           <tr [attr.data-path]="row.path">
             <th scope="row">{{ row.label }}</th>
-            <td><s class="changes__old">{{ row.from }}</s></td>
+            <td>
+              <s class="changes__old">{{ row.from }}</s>
+            </td>
             <td class="changes__new">
               {{ row.to }}
               @if (row.note; as note) {

@@ -46,7 +46,12 @@ export interface ClaudeProcess {
 }
 
 /** Starts `claude setup-token`; stdin is the operator's terminal, so the CLI's own prompts work as they would. */
-export type SpawnClaude = (command: string, args: readonly string[], env: Readonly<Record<string, string>>, cwd: string) => ClaudeProcess;
+export type SpawnClaude = (
+  command: string,
+  args: readonly string[],
+  env: Readonly<Record<string, string>>,
+  cwd: string,
+) => ClaudeProcess;
 
 export interface CredentialSetupDeps {
   readonly home: string;
@@ -128,7 +133,10 @@ async function appendOpenRequest(path: string, url: string): Promise<void> {
   }
 }
 
-async function captureSetupToken(deps: CredentialSetupDeps, options: CredentialSetupOptions): Promise<string> {
+async function captureSetupToken(
+  deps: CredentialSetupDeps,
+  options: CredentialSetupOptions,
+): Promise<string> {
   const cliHome = await mkdtemp(join(deps.tmpRoot, 'tcr-claude-'));
   try {
     const env: Record<string, string> = { HOME: cliHome, PATH: options.path };
@@ -144,7 +152,9 @@ async function captureSetupToken(deps: CredentialSetupDeps, options: CredentialS
               await appendOpenRequest(deps.openRequests ?? '', url);
             } catch (error: unknown) {
               // Opening the page is a convenience: the CLI printed the URL, so the sign-in goes on without it.
-              deps.log(`credential: could not ask setup to open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`);
+              deps.log(
+                `credential: could not ask setup to open the sign-in page (${error instanceof Error ? error.message : 'unknown error'}); open the URL above by hand`,
+              );
             }
           });
     const filter = new SetupTokenFilter({
@@ -156,7 +166,12 @@ async function captureSetupToken(deps: CredentialSetupDeps, options: CredentialS
       },
       stderr: (text) => deps.terminal.stderr(text),
     });
-    const child = deps.spawnClaude('/bin/sh', [...NO_CORE_LAUNCHER, options.claude, 'setup-token'], env, cliHome);
+    const child = deps.spawnClaude(
+      '/bin/sh',
+      [...NO_CORE_LAUNCHER, options.claude, 'setup-token'],
+      env,
+      cliHome,
+    );
     const drained = Promise.all(
       (['stdout', 'stderr'] as const).map(
         (name) =>
@@ -188,7 +203,9 @@ async function readApiKey(deps: CredentialSetupDeps): Promise<string> {
   }
   const value = (await deps.readHiddenLine('Anthropic API key (not shown as you type): ')).trim();
   if (value.startsWith(ANTHROPIC_OAUTH_TOKEN_PREFIX)) {
-    throw new CredentialSetupError('that is a Claude subscription login, not an API key; nothing was written');
+    throw new CredentialSetupError(
+      'that is a Claude subscription login, not an API key; nothing was written',
+    );
   }
   if (!API_KEY.test(value)) {
     throw new CredentialSetupError('that is not an Anthropic API key (sk-ant-api…); nothing was written');
@@ -210,7 +227,8 @@ function nextCredential(
   }
   const wanted = { kind, file: CREDENTIAL_FILE_OF[kind] } as FileCredential;
   const current = config.credential;
-  const same = current !== undefined && current.kind === kind && 'file' in current && current.file === wanted.file;
+  const same =
+    current !== undefined && current.kind === kind && 'file' in current && current.file === wanted.file;
   if (current !== undefined && !same && !replace) {
     throw new CredentialSetupError(
       `config.json names a ${current.kind} credential; run again with --replace to switch this runner to ${kind}`,
@@ -220,7 +238,10 @@ function nextCredential(
 }
 
 /** Sets up the credential and returns how many bytes were written; the value itself never leaves this function. */
-export async function setUpCredential(deps: CredentialSetupDeps, options: CredentialSetupOptions): Promise<number> {
+export async function setUpCredential(
+  deps: CredentialSetupDeps,
+  options: CredentialSetupOptions,
+): Promise<number> {
   const { credential, changed } = nextCredential(deps.config, options.kind, options.replace);
   const credentials = join(deps.home, CREDENTIALS_DIR);
   await ensurePrivateDir(credentials);
@@ -231,7 +252,8 @@ export async function setUpCredential(deps: CredentialSetupDeps, options: Creden
       `${credential.file} exists; run again with --replace to replace it (revoke the old one first, see the runbook)`,
     );
   }
-  const value = options.kind === 'setup-token' ? await captureSetupToken(deps, options) : await readApiKey(deps);
+  const value =
+    options.kind === 'setup-token' ? await captureSetupToken(deps, options) : await readApiKey(deps);
   const content = `${value}\n`;
   await replacePrivateFile(target, content, { replace: options.replace });
   const bytes = Buffer.byteLength(content);

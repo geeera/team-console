@@ -4,7 +4,10 @@ const lines = (css: string) => findGridsWithoutColumns(css).map((found) => `${fo
 
 describe('findGridsWithoutColumns', () => {
   it('flags a grid rule with no column template', () => {
-    expect(lines('.a {\n  display: grid;\n  gap: 1px;\n}\n.b { display: inline-grid }')).toEqual(['1:.a', '5:.b']);
+    expect(lines('.a {\n  display: grid;\n  gap: 1px;\n}\n.b { display: inline-grid }')).toEqual([
+      '1:.a',
+      '5:.b',
+    ]);
   });
 
   it('passes grid-template-columns, grid-template and the grid shorthand', () => {
@@ -21,13 +24,15 @@ describe('findGridsWithoutColumns', () => {
   });
 
   it('passes a rule that explains the implicit columns', () => {
-    expect(lines('.a { display: grid; /* grid-columns-ok: one column of icons, sized by content */ }')).toEqual([]);
+    expect(
+      lines('.a { display: grid; /* grid-columns-ok: one column of icons, sized by content */ }'),
+    ).toEqual([]);
   });
 
   it('ignores a commented-out grid, other displays and grid-like names', () => {
-    expect(lines('.a { /* display: grid; */ color: red; }\n.b { display: flex; }\n.grid { display: block; }')).toEqual(
-      [],
-    );
+    expect(
+      lines('.a { /* display: grid; */ color: red; }\n.b { display: flex; }\n.grid { display: block; }'),
+    ).toEqual([]);
   });
 
   it('reads a style attribute without a rule around it', () => {
@@ -38,10 +43,9 @@ describe('findGridsWithoutColumns', () => {
 
 describe('gridFilesOverBaseline', () => {
   it('flags a file with more findings than its baseline, or any finding in an unlisted file', () => {
-    expect(gridFilesOverBaseline({ 'a.css': 2, 'b.css': 1, 'c.css': 1 }, { 'a.css': 2, 'b.css': 0 })).toEqual([
-      'b.css',
-      'c.css',
-    ]);
+    expect(gridFilesOverBaseline({ 'a.css': 2, 'b.css': 1, 'c.css': 1 }, { 'a.css': 2, 'b.css': 0 })).toEqual(
+      ['b.css', 'c.css'],
+    );
   });
 
   it('lets a file with fewer findings than its baseline pass', () => {
@@ -73,7 +77,9 @@ describe('findGridsWithoutColumns with nested CSS', () => {
   });
 
   it('judges the parent and the nested rule separately', () => {
-    expect(lines('.a { display: grid; grid-template-columns: 1fr; .b { display: grid; } }')).toEqual(['1:.b']);
+    expect(lines('.a { display: grid; grid-template-columns: 1fr; .b { display: grid; } }')).toEqual([
+      '1:.b',
+    ]);
     expect(lines('.a { display: grid; .b { grid-template-columns: 1fr; } }')).toEqual(['1:.a']);
   });
 

@@ -12,10 +12,12 @@ import { RELEASE_REPOSITORY } from './runner-release';
 export const RUNNER_IMAGE = `ghcr.io/${RELEASE_REPOSITORY}-runner`;
 
 const IMAGE_DIGEST = /^sha256:[0-9a-f]{64}$/;
-export const isImageDigest = (value: unknown): value is string => typeof value === 'string' && IMAGE_DIGEST.test(value);
+export const isImageDigest = (value: unknown): value is string =>
+  typeof value === 'string' && IMAGE_DIGEST.test(value);
 
 /** `ghcr.io/geeera/team-console-runner:<version>@sha256:<digest>`: the tag is a label, the digest is what is pulled. */
-export const runnerImageRefOf = (version: string, digest: string): string => `${RUNNER_IMAGE}:${version}@${digest}`;
+export const runnerImageRefOf = (version: string, digest: string): string =>
+  `${RUNNER_IMAGE}:${version}@${digest}`;
 
 /**
  * The first release whose image holds the podman client and the container `setup` (#634 PR 7). The console offers

@@ -127,7 +127,7 @@ describe('GET /api/v1/overview', () => {
     });
   });
 
-  it('carries each project\'s snooze from the registry row, an expired one as not snoozed (#222)', async () => {
+  it("carries each project's snooze from the registry row, an expired one as not snoozed (#222)", async () => {
     const repos = {
       'geeera/alpha': activeRepo(),
       'geeera/beta': activeRepo(),

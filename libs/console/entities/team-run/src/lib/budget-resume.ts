@@ -9,8 +9,7 @@ import { firstValueFrom } from 'rxjs';
 export type BudgetActionFailure = 'forbidden' | 'stale' | 'offline' | 'failed';
 
 export type BudgetActionResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly failure: BudgetActionFailure };
+  { readonly ok: true } | { readonly ok: false; readonly failure: BudgetActionFailure };
 
 export function teamResumeUrl(slug: string): string {
   return `/api/v1/projects/${encodeURIComponent(slug)}/team/resume`;
@@ -90,7 +89,9 @@ export class BudgetResume {
       return { ok: true };
     } catch (error: unknown) {
       // Resumed meanwhile (another device, or a raised budget): what the owner asked for already holds.
-      return httpProblemOf(error).slug === 'team-not-paused' ? { ok: true } : { ok: false, failure: budgetFailureOf(error) };
+      return httpProblemOf(error).slug === 'team-not-paused'
+        ? { ok: true }
+        : { ok: false, failure: budgetFailureOf(error) };
     }
   }
 
@@ -110,5 +111,6 @@ export class BudgetResume {
     return isDone;
   }
 
-  private readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+  private readonly t = (key: string, params?: Record<string, unknown>): string =>
+    this.transloco.translate(key, params);
 }

@@ -46,11 +46,7 @@ function isHttpsUrl(value: unknown): value is string {
 }
 
 function isInteractive(value: unknown): value is DesignInteractiveDto {
-  return (
-    isRecord(value) &&
-    isRepoPath(value['path']) &&
-    isHttpsUrl(value['url'])
-  );
+  return isRecord(value) && isRepoPath(value['path']) && isHttpsUrl(value['url']);
 }
 
 /**
@@ -85,7 +81,9 @@ export function designManifestOf(body: unknown): DesignManifest | null {
 
 /** The devices the screens were drawn for, in the order the device control shows them. */
 export function devicesOf(manifest: DesignManifest): readonly DesignDevice[] {
-  const found = new Set(manifest.screens.flatMap((screen) => (screen.device === null ? [] : [screen.device])));
+  const found = new Set(
+    manifest.screens.flatMap((screen) => (screen.device === null ? [] : [screen.device])),
+  );
   return (['phone', 'mac'] as const).filter((device) => found.has(device));
 }
 
@@ -100,7 +98,10 @@ export function screensFor(manifest: DesignManifest, device: DesignDevice | null
  */
 export function previewScreensOf(manifest: DesignManifest): readonly DesignScreen[] {
   const shown = manifest.screens.filter((screen) => !screen.tooLarge);
-  return [...shown.filter((screen) => screen.device === 'phone'), ...shown.filter((screen) => screen.device !== 'phone')];
+  return [
+    ...shown.filter((screen) => screen.device === 'phone'),
+    ...shown.filter((screen) => screen.device !== 'phone'),
+  ];
 }
 
 /** The screen a list row shows: the first one that can be shown, preferring the phone's. */

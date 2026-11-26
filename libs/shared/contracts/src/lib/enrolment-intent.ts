@@ -17,7 +17,12 @@ import {
   type RunnerProjectScopeDto,
 } from './runner';
 import { RUNNER_IMAGE, isImageDigest } from './runner-linux';
-import { MAC_RELEASE_PLATFORMS, RUNNER_INSTALLED_LAUNCHER, isReleaseVersion, type MacReleasePlatform } from './runner-release';
+import {
+  MAC_RELEASE_PLATFORMS,
+  RUNNER_INSTALLED_LAUNCHER,
+  isReleaseVersion,
+  type MacReleasePlatform,
+} from './runner-release';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
 /**
@@ -31,7 +36,14 @@ import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } f
  * What the owner sees. `expired` is the reader's answer for a pending or bound intent past `expiresAt`; the row never
  * stores it (migration 0037).
  */
-export const ENROLMENT_INTENT_STATES = ['pending', 'bound', 'approved', 'used', 'expired', 'withdrawn'] as const;
+export const ENROLMENT_INTENT_STATES = [
+  'pending',
+  'bound',
+  'approved',
+  'used',
+  'expired',
+  'withdrawn',
+] as const;
 export type EnrolmentIntentState = (typeof ENROLMENT_INTENT_STATES)[number];
 export const isEnrolmentIntentState = (value: unknown): value is EnrolmentIntentState =>
   (ENROLMENT_INTENT_STATES as readonly unknown[]).includes(value);
@@ -95,7 +107,9 @@ export interface CreateEnrolmentIntentInput extends RunnerProjectScopeDto {
  * The verified-download one-liner per Mac processor (#634 PR 5, R-ONE-1): download the named release, check it
  * against the sum the console names, then `setup` as root from a root-owned copy. Built by the API only.
  */
-export type RunnerInstallCommandsDto = { readonly version: string } & Readonly<Record<MacReleasePlatform, string>>;
+export type RunnerInstallCommandsDto = { readonly version: string } & Readonly<
+  Record<MacReleasePlatform, string>
+>;
 
 /**
  * The Linux one command (#634 PR 7, R-LNX), both parts built by the API from constants and the attested image digest:
@@ -259,7 +273,10 @@ export function checkStartEnrolmentInput(body: unknown): InputCheck<StartEnrolme
 export function checkPollEnrolmentInput(body: unknown): InputCheck<PollEnrolmentInput> {
   return checked(() => {
     const fields = record(body, ['intentId', 'pollToken']);
-    return { intentId: intentId(fields['intentId']), pollToken: text('pollToken', fields['pollToken'], 128, 1) };
+    return {
+      intentId: intentId(fields['intentId']),
+      pollToken: text('pollToken', fields['pollToken'], 128, 1),
+    };
   });
 }
 
@@ -284,7 +301,8 @@ function isShownHost(value: unknown): value is RunnerHostDto {
     isRecord(value) &&
     [value['os'], value['arch'], value['hostname']].every(
       // The bound is code points at the door; a UTF-16 length is at most twice that.
-      (field) => isString(field) && field.length <= RUNNER_HOST_FIELD_MAX_LENGTH * 2 && !UNSAFE_HOST_TEXT.test(field),
+      (field) =>
+        isString(field) && field.length <= RUNNER_HOST_FIELD_MAX_LENGTH * 2 && !UNSAFE_HOST_TEXT.test(field),
     )
   );
 }
@@ -306,7 +324,10 @@ export function isEnrolmentIntentDto(value: unknown): value is EnrolmentIntentDt
     isNullable(value['version'], isRunnerVersion) &&
     isNullable(value['fingerprint'], isRunnerKeyFingerprint) &&
     isNullable(value['boundAt'], isTimestamp) &&
-    isNullable(value['boundCountry'], (country): country is string => isString(country) && COUNTRY.test(country)) &&
+    isNullable(
+      value['boundCountry'],
+      (country): country is string => isString(country) && COUNTRY.test(country),
+    ) &&
     isNullable(value['runnerId'], isUlid)
   );
 }

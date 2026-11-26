@@ -71,12 +71,17 @@ describe('ProjectSetupPage', () => {
 
   function answerDispatch(): void {
     for (const request of http.match((req) => req.url === ACCOUNTS_URL)) {
-      request.flush({ accounts: [{ id: '01M6YSNJ0000000000000000A1', slug: 'geeera', name: 'geeera', role: accountRole }] });
+      request.flush({
+        accounts: [{ id: '01M6YSNJ0000000000000000A1', slug: 'geeera', name: 'geeera', role: accountRole }],
+      });
     }
     for (const request of http.match((req) => req.url === ACTIONS_URL)) {
       // The Worker's answer to a member: owner-only, before any GitHub call.
       if (accountRole === 'member') {
-        request.flush({ type: 'https://team-console/problems/owner-only', title: 'x', status: 403 }, { status: 403, statusText: 'Forbidden' });
+        request.flush(
+          { type: 'https://team-console/problems/owner-only', title: 'x', status: 403 },
+          { status: 403, statusText: 'Forbidden' },
+        );
       }
     }
     for (const request of http.match((req) => req.url === DISPATCH_URL)) {
@@ -158,7 +163,8 @@ describe('ProjectSetupPage', () => {
   });
 
   describe('the GitHub Actions row (#759)', () => {
-    const chip = (): string => root().querySelector('[data-testid="project-actions-chip"]')?.textContent?.trim() ?? '';
+    const chip = (): string =>
+      root().querySelector('[data-testid="project-actions-chip"]')?.textContent?.trim() ?? '';
 
     it('reads «Не включено» for a pull project and spends no readiness check', async () => {
       accountRole = 'owner';
@@ -221,7 +227,9 @@ describe('ProjectSetupPage', () => {
       expect(entry.textContent).toContain('Окружение проекта');
       expect(entry.textContent).toContain('production · секреты проекта');
       // The optional token never counts.
-      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe('Не задано: 1');
+      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe(
+        'Не задано: 1',
+      );
       const link = root().querySelector('[data-step="routine"] [data-testid="step-environment-link"]');
       expect(link?.getAttribute('href')).toBe('/settings/projects/fieldnote/environment');
       expect(link?.textContent).toContain('Открыть окружение проекта');
@@ -232,7 +240,9 @@ describe('ProjectSetupPage', () => {
       await open();
       setupRequest().flush(MISSING_APP);
       await settle();
-      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe('Не проверено');
+      expect(root().querySelector('[data-testid="project-env-chip"]')?.textContent?.trim()).toBe(
+        'Не проверено',
+      );
     });
 
     it('is not there for a sign-in the status refuses (403), and step 5 has no link', async () => {

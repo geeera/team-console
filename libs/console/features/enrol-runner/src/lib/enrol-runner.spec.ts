@@ -83,7 +83,9 @@ describe('EnrolRunnerDialog (#464)', () => {
       await fixture.whenStable();
     };
     const submit = async (): Promise<void> => {
-      (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { cancelable: true }),
+      );
       await settle();
     };
     const hold = (): void => {
@@ -96,7 +98,6 @@ describe('EnrolRunnerDialog (#464)', () => {
     };
     return { root, find, type, pick, tick, submit, calls, close, ref, hold, resume };
   }
-
 
   it('opens filled in with what the add-runner wizard asked, and sends exactly that (#634 decision 1)', async () => {
     const { find, calls, submit } = await render(undefined, {
@@ -120,20 +121,25 @@ describe('EnrolRunnerDialog (#464)', () => {
     await tick('team-console');
     await submit();
     expect(calls).toEqual([
-      { accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] } },
+      {
+        accountId: OWNER_ACCOUNT_ID,
+        input: { name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] },
+      },
     ]);
     expect(find('enrol-code')).not.toBeNull();
     expect(root.querySelector('form')).toBeNull();
-    expect(root.querySelector('[data-testid="enrol-command"] [data-testid="copy-code-text"]')?.textContent).toBe(
-      `TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://team-console-dev.example.dev`,
-    );
+    expect(
+      root.querySelector('[data-testid="enrol-command"] [data-testid="copy-code-text"]')?.textContent,
+    ).toBe(`TC_ENROL_CODE=${CODE} team-console-runner enrol --url https://team-console-dev.example.dev`);
     // #772: the bare code too, for the `--code -` prompt, with its own copy button named for what it copies.
     const codeOnly = find('enrol-code-only');
     expect(codeOnly?.querySelector('[data-testid="copy-code-text"]')?.textContent).toBe(CODE);
     expect(codeOnly?.querySelector('button')?.getAttribute('aria-label')).toBe(
       'Копировать только код подключения раннера',
     );
-    expect(root.textContent).toContain('Если команда попросит код (например, с --code -), вставьте только его:');
+    expect(root.textContent).toContain(
+      'Если команда попросит код (например, с --code -), вставьте только его:',
+    );
     expect(root.textContent).toContain('Код показывается только один раз');
     expect(find('enrol-expiry')?.textContent).toMatch(/Код действует до \d{2}:\d{2} \(10 минут\)/);
     expect(root.textContent).toContain('Проекты: team-console');
@@ -149,11 +155,18 @@ describe('EnrolRunnerDialog (#464)', () => {
 
   // #775: the default scope is every project of the account, sent as `all` with an empty list, and said in plain words.
   it('issues a code for all projects of the account by default and says what that covers', async () => {
-    const { find, type, submit, calls } = await render(() => ({ ok: true, value: { ...ISSUED, projectScope: 'all', allowedProjects: [] } }));
+    const { find, type, submit, calls } = await render(() => ({
+      ok: true,
+      value: { ...ISSUED, projectScope: 'all', allowedProjects: [] },
+    }));
     await type('Mac');
     await submit();
-    expect(calls).toEqual([{ accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', projectScope: 'all', allowedProjects: [] } }]);
-    expect(find('enrol-scope')?.textContent).toContain('Проекты: все проекты аккаунта, включая те, что появятся позже.');
+    expect(calls).toEqual([
+      { accountId: OWNER_ACCOUNT_ID, input: { name: 'Mac', projectScope: 'all', allowedProjects: [] } },
+    ]);
+    expect(find('enrol-scope')?.textContent).toContain(
+      'Проекты: все проекты аккаунта, включая те, что появятся позже.',
+    );
   });
 
   it('refuses an empty name and sends nothing', async () => {
@@ -166,18 +179,27 @@ describe('EnrolRunnerDialog (#464)', () => {
   });
 
   it.each([
-    [{ kind: 'invalid', slug: 'allowed-projects-invalid', field: 'allowedProjects' }, 'Среди проектов есть архивный или чужой.'],
-    [{ kind: 'forbidden', slug: 'account-owner-only', field: null }, 'Это может сделать только владелец аккаунта.'],
+    [
+      { kind: 'invalid', slug: 'allowed-projects-invalid', field: 'allowedProjects' },
+      'Среди проектов есть архивный или чужой.',
+    ],
+    [
+      { kind: 'forbidden', slug: 'account-owner-only', field: null },
+      'Это может сделать только владелец аккаунта.',
+    ],
     [{ kind: 'offline', slug: null, field: null }, 'Нет сети.'],
     [{ kind: 'rate-limited', slug: 'rate-limited', field: null }, 'Слишком много запросов.'],
-  ] satisfies [RunnerFailure, string][])('keeps the form with the reason for %j', async (failure, message) => {
-    const { find, type, submit } = await render(() => ({ ok: false, failure }));
-    await type('Mac');
-    await submit();
-    expect(find('enrol-code')).toBeNull();
-    expect(find('enrol-error')?.textContent).toContain(message);
-    expect(find('enrol-submit')?.textContent?.trim()).toBe('Повторить');
-  });
+  ] satisfies [RunnerFailure, string][])(
+    'keeps the form with the reason for %j',
+    async (failure, message) => {
+      const { find, type, submit } = await render(() => ({ ok: false, failure }));
+      await type('Mac');
+      await submit();
+      expect(find('enrol-code')).toBeNull();
+      expect(find('enrol-error')?.textContent).toContain(message);
+      expect(find('enrol-submit')?.textContent?.trim()).toBe('Повторить');
+    },
+  );
 
   it('shows no command for an answer it would not offer for a terminal', async () => {
     const { find, type, submit } = await render(() => ({
@@ -210,7 +232,9 @@ describe('EnrolRunnerDialog (#464)', () => {
 describe('EnrolRunner', () => {
   it('opens the dialog for the account and resolves whether a code was issued', async () => {
     const sheet = { open: vi.fn(() => ({ closed: of(true) })) };
-    TestBed.configureTestingModule({ providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }] });
+    TestBed.configureTestingModule({
+      providers: [provideConsoleI18n(), { provide: Sheet, useValue: sheet }],
+    });
     const projects = [{ slug: 'team-console', displayName: 'Team Console' }];
     expect(await TestBed.inject(EnrolRunner).open({ accountId: OWNER_ACCOUNT_ID, projects })).toBe(true);
     expect(sheet.open).toHaveBeenCalledWith(

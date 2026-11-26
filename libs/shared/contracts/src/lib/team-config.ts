@@ -35,7 +35,8 @@ export const TEAM_ROLES = [
   'ui-designer',
 ] as const;
 export type TeamRole = (typeof TEAM_ROLES)[number];
-export const isTeamRole = (value: unknown): value is TeamRole => (TEAM_ROLES as readonly unknown[]).includes(value);
+export const isTeamRole = (value: unknown): value is TeamRole =>
+  (TEAM_ROLES as readonly unknown[]).includes(value);
 
 /** The four pinned ids of `reference/schedule-and-models.md`; no alias, so no value can name another model or a flag. */
 export const MODEL_ALLOW_LIST = [
@@ -299,17 +300,18 @@ export function effortOfModel(model: TeamModel): TeamEffort {
  * Per-role limits, the same in every preset until #631's data says otherwise. `max_parallel` is the bound's top for
  * every role: today nothing caps a role's parallel jobs on a project, and `recommended` must change no behaviour.
  */
-const ROLE_LIMITS: Readonly<Record<TeamRole, Pick<TeamRoleSettings, 'max_parallel' | 'max_minutes' | 'max_turns'>>> =
-  Object.fromEntries(
-    TEAM_ROLES.map((role) => [
-      role,
-      {
-        max_parallel: TEAM_CONFIG_BOUNDS.maxParallel.max,
-        max_minutes: role === 'dev-heavy' ? 120 : role === 'scribe' ? 15 : 90,
-        max_turns: role === 'scribe' ? 40 : 400,
-      },
-    ]),
-  ) as Record<TeamRole, Pick<TeamRoleSettings, 'max_parallel' | 'max_minutes' | 'max_turns'>>;
+const ROLE_LIMITS: Readonly<
+  Record<TeamRole, Pick<TeamRoleSettings, 'max_parallel' | 'max_minutes' | 'max_turns'>>
+> = Object.fromEntries(
+  TEAM_ROLES.map((role) => [
+    role,
+    {
+      max_parallel: TEAM_CONFIG_BOUNDS.maxParallel.max,
+      max_minutes: role === 'dev-heavy' ? 120 : role === 'scribe' ? 15 : 90,
+      max_turns: role === 'scribe' ? 40 : 400,
+    },
+  ]),
+) as Record<TeamRole, Pick<TeamRoleSettings, 'max_parallel' | 'max_minutes' | 'max_turns'>>;
 
 /** ADR 0009 "Presets": `recommended` is exactly today's table (`ROLE_MODELS`, the agent frontmatter). */
 const PRESET_MODELS: Readonly<Record<TeamConfigPreset, Readonly<Record<TeamRole, TeamModel>>>> = {
@@ -390,7 +392,12 @@ export const TEAM_CONFIG_DEFAULTS: Readonly<{
   budget: TeamBudget;
   cost: TeamCost;
 }> = {
-  gates: { qa: 'always', reviewer: 'code', code_paths: ['apps/**', 'libs/**', 'tools/**'], max_rework_rounds: 1 },
+  gates: {
+    qa: 'always',
+    reviewer: 'code',
+    code_paths: ['apps/**', 'libs/**', 'tools/**'],
+    max_rework_rounds: 1,
+  },
   caps: {
     normal: { dev_tasks: 2, parallel_devs: 2 },
     burn: { dev_tasks: 5, parallel_devs: 3 },
@@ -416,7 +423,9 @@ export const SUGGESTED_MONTHLY_BUDGET_USD: Readonly<Record<TeamConfigPreset, num
 
 /** The models a role may run on: `security` never Fable (plugin SPEC decision 13); only `scribe` runs on Haiku. */
 export function allowedModelsOf(role: TeamRole): readonly TeamModel[] {
-  return MODEL_ALLOW_LIST.filter((model) => (model !== HAIKU || role === 'scribe') && (model !== FABLE || role !== 'security'));
+  return MODEL_ALLOW_LIST.filter(
+    (model) => (model !== HAIKU || role === 'scribe') && (model !== FABLE || role !== 'security'),
+  );
 }
 
 // ── The guard ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -448,11 +457,17 @@ const joined = (path: string, key: string): string => (path === '' ? key : `${pa
 /** A plain JSON object: no array, no `null`, no prototype but `Object.prototype` or none (a forged `__proto__`). */
 function plainObject(value: unknown, path: string): Readonly<Record<string, unknown>> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-    throw new ConfigError(path === '' ? 'config' : path, `${path === '' ? 'The document' : path} must be an object`);
+    throw new ConfigError(
+      path === '' ? 'config' : path,
+      `${path === '' ? 'The document' : path} must be an object`,
+    );
   }
   const prototype: unknown = Object.getPrototypeOf(value);
   if (prototype !== Object.prototype && prototype !== null) {
-    throw new ConfigError(path === '' ? 'config' : path, `${path === '' ? 'The document' : path} must be a plain object`);
+    throw new ConfigError(
+      path === '' ? 'config' : path,
+      `${path === '' ? 'The document' : path} must be a plain object`,
+    );
   }
   return value as Readonly<Record<string, unknown>>;
 }
@@ -488,7 +503,10 @@ const integerIn =
   (value, path) => {
     // `Number.isInteger` refuses NaN, ±Infinity, fractions; `typeof` refuses numeric strings.
     if (typeof value !== 'number' || !Number.isInteger(value) || value < bound.min || value > bound.max) {
-      throw new ConfigError(path, `${path} must be a whole number from ${String(bound.min)} to ${String(bound.max)}`);
+      throw new ConfigError(
+        path,
+        `${path} must be a whole number from ${String(bound.min)} to ${String(bound.max)}`,
+      );
     }
   };
 
@@ -518,7 +536,10 @@ function hasControlCharacter(text: string): boolean {
 const codePaths: FieldCheck = (value, path) => {
   const { codePaths: count, codePathLength: length } = TEAM_CONFIG_BOUNDS;
   if (!Array.isArray(value) || value.length < count.min || value.length > count.max) {
-    throw new ConfigError(path, `${path} must be a list of ${String(count.min)} to ${String(count.max)} globs`);
+    throw new ConfigError(
+      path,
+      `${path} must be a list of ${String(count.min)} to ${String(count.max)} globs`,
+    );
   }
   value.forEach((glob: unknown, index) => {
     const at = `${path}[${String(index)}]`;
@@ -561,7 +582,11 @@ function roleFields(role: TeamRole, mode: Mode): Readonly<Record<string, FieldCh
 
 function rolesCheck(mode: Mode): FieldCheck {
   const fields = Object.fromEntries(
-    TEAM_ROLES.map((role) => [role, (value: unknown, path: string) => void section(value, path, roleFields(role, mode), mode === 'resolved')]),
+    TEAM_ROLES.map((role) => [
+      role,
+      (value: unknown, path: string) =>
+        void section(value, path, roleFields(role, mode), mode === 'resolved'),
+    ]),
   );
   return (value, path) => void section(value, path, fields, mode === 'resolved');
 }
@@ -591,7 +616,10 @@ function documentFields(mode: Mode): Readonly<Record<string, FieldCheck>> {
     ),
     caps: nested(Object.fromEntries(CAP_MODES.map((cap) => [cap, nested(capFields, mode)])), mode),
     sprint: nested(
-      { length_days: integerIn(TEAM_CONFIG_BOUNDS.lengthDays), freeze_days: integerIn(TEAM_CONFIG_BOUNDS.freezeDays) },
+      {
+        length_days: integerIn(TEAM_CONFIG_BOUNDS.lengthDays),
+        freeze_days: integerIn(TEAM_CONFIG_BOUNDS.freezeDays),
+      },
       mode,
     ),
     language: oneOf(TEAM_LANGUAGES),
@@ -601,7 +629,11 @@ function documentFields(mode: Mode): Readonly<Record<string, FieldCheck>> {
     ),
   };
   if (mode === 'resolved') {
-    return { schema: () => undefined, revision: integerIn({ min: 0, max: Number.MAX_SAFE_INTEGER }), ...common };
+    return {
+      schema: () => undefined,
+      revision: integerIn({ min: 0, max: Number.MAX_SAFE_INTEGER }),
+      ...common,
+    };
   }
   return {
     schema: () => undefined,

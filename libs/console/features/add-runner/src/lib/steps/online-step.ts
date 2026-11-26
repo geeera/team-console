@@ -26,7 +26,9 @@ import {
           {{ 'runners.wizard.online.title' | transloco }}
         </h3>
       </tc-receipt>
-      <p class="step__lead" data-testid="wizard-online">{{ 'runners.wizard.online.body' | transloco: { name: name() } }}</p>
+      <p class="step__lead" data-testid="wizard-online">
+        {{ 'runners.wizard.online.body' | transloco: { name: name() } }}
+      </p>
       <p class="step__meta" data-testid="wizard-online-scope">
         @if (projectScope() === 'all') {
           {{ 'runners.enrol.scopeAll' | transloco }}
@@ -40,7 +42,10 @@ import {
       @if (runner()?.belowMinimum) {
         <section tc-callout tone="warning" data-testid="wizard-behind">
           <p>
-            {{ 'runners.wizard.online.behind' | transloco: { version: runner()?.version, minimum: minimumVersion() ?? '' } }}
+            {{
+              'runners.wizard.online.behind'
+                | transloco: { version: runner()?.version, minimum: minimumVersion() ?? '' }
+            }}
           </p>
           <p>
             <a [href]="updateUrl" target="_blank" rel="noopener noreferrer"
@@ -52,9 +57,14 @@ import {
         </section>
       }
     } @else {
-      <h3 class="step__heading" tabindex="-1" data-step-heading>{{ 'runners.wizard.approved.title' | transloco }}</h3>
+      <h3 class="step__heading" tabindex="-1" data-step-heading>
+        {{ 'runners.wizard.approved.title' | transloco }}
+      </h3>
       <p class="step__lead">
-        {{ (platform() === 'linux' ? 'runners.wizard.approved.bodyLinux' : 'runners.wizard.approved.body') | transloco }}
+        {{
+          (platform() === 'linux' ? 'runners.wizard.approved.bodyLinux' : 'runners.wizard.approved.body')
+            | transloco
+        }}
       </p>
       @if (!gaveUp()) {
         <div class="step__wait" data-testid="wizard-approved-waiting">
@@ -120,7 +130,11 @@ export class AddRunnerOnlineStep {
   /** Linux (#634 PR 7) checks both services with systemd; the Mac runs `self-check`. */
   readonly platform = input<RunnerPlatform>('mac');
 
-  protected readonly selfCheck = computed(() => (this.platform() === 'linux' ? LINUX_STATUS_COMMAND : SELF_CHECK_COMMAND));
-  protected readonly logPath = computed(() => (this.platform() === 'linux' ? LINUX_LOG_COMMAND : RUNNER_LOG_PATH));
+  protected readonly selfCheck = computed(() =>
+    this.platform() === 'linux' ? LINUX_STATUS_COMMAND : SELF_CHECK_COMMAND,
+  );
+  protected readonly logPath = computed(() =>
+    this.platform() === 'linux' ? LINUX_LOG_COMMAND : RUNNER_LOG_PATH,
+  );
   protected readonly updateUrl = RUNBOOK_UPDATE_URL;
 }
