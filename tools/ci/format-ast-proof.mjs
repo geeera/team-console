@@ -62,13 +62,21 @@ const listFile = opt('--list');
 const reportFile = opt('--write-report');
 
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 1 << 26 });
-const files = baseRef
+const changed = baseRef
   ? git('diff', '--name-only', '--diff-filter=M', baseRef, headRef).split('\n').filter(Boolean)
   : listFile
     ? readFileSync(listFile, 'utf8').split('\n').filter(Boolean)
     : execFileSync('npx', ['prettier', '--list-different', '.'], { encoding: 'utf8' })
         .split('\n')
         .filter(Boolean);
+
+// Files Prettier does not format (ignored paths, no parser) cannot be proven; --between skips them.
+const files = [];
+const skipped = [];
+for (const file of changed) {
+  const info = await prettier.getFileInfo(file, { ignorePath: '.prettierignore' });
+  (!baseRef || (!info.ignored && info.inferredParser) ? files : skipped).push(file);
+}
 
 const readBefore = (file) => (baseRef ? git('show', `${baseRef}:${file}`) : readFileSync(file, 'utf8'));
 
@@ -185,6 +193,7 @@ function stripPositions(key, value) {
 const bad = rows.filter((r) => !r.ok);
 const report = [
   `files checked: ${rows.length}`,
+  `not Prettier-formatted, skipped: ${skipped.length}`,
   `AST identical: ${rows.length - bad.length}`,
   `  of which identical only modulo Angular inline-template edge whitespace: ${rows.filter((r) => r.ok && r.tier).length}`,
   `AST changed or unparsable: ${bad.length}`,
