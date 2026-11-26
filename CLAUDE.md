@@ -61,6 +61,12 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   created, the one workflow file, a pull request; never the default branch, never a `PATCH`/`DELETE` of a ref, never a
   merge, nothing from the request. It runs only while `ALLOW_ACTIONS_SETUP_WRITE` is `true` in `wrangler.jsonc` (never
   `--var`, a secret or a dashboard edit) and no `operator_stops` row stops it; no Worker code writes that table.
+- Console-driven orchestration (#1039, ADR 0010, migration 0045): a run is a chain of short `orchestrate` step jobs,
+  never one long one; the run lock is `team_state.orchestrate_run_id`, cleared by a hard-cancel Stop. A step mints
+  `task` children only through `POST …/jobs/:id/children`, for `TASK_ROLES` (`dev`/`dev-light`/`dev-heavy`) only —
+  never a verdict role. Never touch the claim code (`JobsRepo.claim`, `claim-admission.ts`, `access-source.ts`) for
+  this: the one-orchestrator-per-project rule is the existing dedupe index, not a claim term. `ORCHESTRATE_MAX_STEPS`
+  (20) ends a run that would loop.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
@@ -677,7 +683,8 @@ for held jobs; `jobsTileOf`; `JobCard`, runner text interpolated as one plain li
 `@console/features/run-now` (`RunNow`: `RUN_NOW_KINDS`, the kinds the API runs from the kind alone). Runner names come
 from `RunnersStore` (a member sees a short id).
 Jobs and job tokens (#467, ADR 0008 row 2-A part 3, migration `0022_jobs`: `jobs` (ULID id, `account_id` copied from the
-project and kept equal by trigger, `kind`, `role`, `payload` (`items`), `state` with final states kept by trigger,
+project and kept equal by trigger, `kind` (migration 0045, #1039: a reference to the `job_kinds` lookup table, not a
+CHECK — a new kind is one `INSERT`, not a rebuild), `role`, `payload` (`items`), `state` with final states kept by trigger,
 `dedupe_key` unique while live, `dispatch`, `runner_id`, `token_hash`, `attempt`, lease and timing columns, the hosted
 and Actions columns for H-2/2-B), `job_events` (append-only, `seq` per job, ≤ 16 KB payloads, 5000 per job),
 `team_state`, `projects.runner_policy`, `accounts.default_runner_policy`). Owner routes behind the matrix (`routes/jobs.ts`):
