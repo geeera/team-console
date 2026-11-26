@@ -1,17 +1,18 @@
-import type { NeedsYouDto } from '@shared/contracts';
+import { problemTypeOf, type NeedsYouDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { seed } from './support/stack';
 import { meetsMinTap } from './support/tap-target';
 
 /**
- * The «Ждут вас» row of a project whose inbox could not be read (#214). The problem is real, not mocked: the fake
- * GitHub's `geeera/mock-rate-limited` repository answers every read with a 403 rate limit, so the api reports
- * `problem` for it. It is the only project, so no question exists and the row has to stand in for the empty state.
+ * The «Ждут вас» row of a project whose inbox could not be read (#214). The stack cannot cause the problem for real:
+ * the api's mock GitHub is static, and a repository without the app installed is refused when the project is added,
+ * so a registered project never fails to read afterwards. The real needs-you answer is therefore fetched and given
+ * the one thing the stack cannot produce, a `problem` on the only project (and no questions): everything the owner
+ * sees (row, link, summary, empty state, axe) is the real console on top of it.
  */
 
-const SLUG = 'mock-rate-limited';
-const NAME = 'mock-rate-limited';
+const SLUG = 'team-console';
 
 // The phone width of the demo, whichever project runs the spec.
 test.use({ viewport: { width: 390, height: 844 } });
@@ -27,12 +28,23 @@ for (const colorScheme of ['light', 'dark'] as const) {
 
     test('a project whose inbox could not be read is a row that says why, links to its settings and replaces the empty state', async ({
       page,
-      request,
     }) => {
-      const needsYou = (await (await request.get('/api/v1/needs-you')).json()) as NeedsYouDto;
-      expect(needsYou.items, 'the only project has no questions').toHaveLength(0);
-      const project = needsYou.projects.find((entry) => entry.slug === SLUG);
-      expect(project?.problem, 'the fake GitHub really made the read fail').not.toBeNull();
+      await page.route('**/api/v1/needs-you', async (route) => {
+        const real = (await (await route.fetch()).json()) as NeedsYouDto;
+        const unreadable: NeedsYouDto = {
+          items: [],
+          omittedProjects: [],
+          projects: real.projects.map((project) => ({
+            ...project,
+            problem: {
+              type: problemTypeOf('github-app-not-installed'),
+              title: 'The console app is not installed on the repository',
+              status: 409,
+            },
+          })),
+        };
+        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(unreadable) });
+      });
 
       await page.goto('/needs-you');
       await expect(page.locator('html')).toHaveCSS('color-scheme', colorScheme);
@@ -42,12 +54,15 @@ for (const colorScheme of ['light', 'dark'] as const) {
       await expect(row).toHaveAttribute('data-project', SLUG);
       // Names the project and the reason in plain words.
       await expect(row).toContainText(
-        ru('questions.projectProblem', { name: NAME, reason: ru('questions.problem.github-rate-limit') }),
+        ru('questions.projectProblem', {
+          name: SLUG,
+          reason: ru('questions.problem.github-app-not-installed'),
+        }),
       );
       await expect(row).toHaveAttribute('href', `/settings/projects/${SLUG}`);
       expect(meetsMinTap((await row.boundingBox())?.height)).toBe(true);
 
-      // Counted in the summary line: no questions, one project needing the owner.
+      // Counted in the summary line: no questions, one project that needs the owner.
       await expect(page.getByTestId('lead')).toHaveText(ru('needsYou.leadNoQuestions', { k: 1 }));
       // The row stands in for the clear desk.
       await expect(page.getByTestId('empty')).toHaveCount(0);
