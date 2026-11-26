@@ -358,31 +358,61 @@ jobs:
       # lines are data in guard-probe.txt and not commands of this file). Printed bare, before and after, they
       # must arrive, so the probe can fail (each costs a deprecation warning on the run); printed through the
       # guard, in either of its modes, they must not.
+      # Whatever the runner does with `set-output`, the guard's own part is checked here too (#1019): what it
+      # printed is the probe text, unchanged, between the two markers of one token. Once GitHub disables
+      # `set-output`, the runner fails this step on the bare lines (as it did for `set-env`) and no probe output
+      # arrives; `continue-on-error` keeps the job going so that the next step can tell that from a leak. It
+      # decides from `held`, which only this script, run to its end, writes, and through the environment file,
+      # not through the command it probes.
       - name: Probe the output guard with both forms of a workflow command
         id: guard
+        continue-on-error: true
         run: |
           set -euo pipefail
           probe() {
             sed "s/PROBE/$1/" tools/runtime-image/guard-probe.txt
           }
+          held() {
+            local open token
+            open=$(head -n 1 "$1")
+            [[ "${open}" =~ ^::stop-commands::([0-9a-f]{32})$ ]] || return 1
+            token=${BASH_REMATCH[1]}
+            [ "$(tail -n 1 "$1")" = "::${token}::" ] || return 1
+            cmp --silent <(sed '1d;$d' "$1") <(probe "$2")
+          }
+          printed="${RUNNER_TEMP}/guard-probe"
           probe control
-          probe guarded | node tools/runtime-image/guard-output.mjs
-          probe stream | node tools/runtime-image/guard-output.mjs --stream
+          probe guarded | node tools/runtime-image/guard-output.mjs | tee "${printed}.guarded"
+          probe stream | node tools/runtime-image/guard-output.mjs --stream | tee "${printed}.stream"
           probe after
+          if ! held "${printed}.guarded" guarded || ! held "${printed}.stream" stream; then
+            echo "::error::the guard did not print the probe between the markers of one token"
+            exit 1
+          fi
+          echo "held=true" >> "$GITHUB_OUTPUT"
 
       - name: The guard held both forms, and commands work again after it
         env:
+          HELD: ${{ steps.guard.outputs.held }}
+          OUTCOME: ${{ steps.guard.outcome }}
           CONTROL: ${{ steps.guard.outputs.control_colon }}/${{ steps.guard.outputs.control_bracket }}
           AFTER: ${{ steps.guard.outputs.after_colon }}/${{ steps.guard.outputs.after_bracket }}
           GUARDED: ${{ steps.guard.outputs.guarded_colon }}/${{ steps.guard.outputs.guarded_bracket }}
           STREAM: ${{ steps.guard.outputs.stream_colon }}/${{ steps.guard.outputs.stream_bracket }}
         run: |
           set -euo pipefail
-          echo "bare: ${CONTROL} before, ${AFTER} after; guarded: ${GUARDED}; stream: ${STREAM}"
-          [ "${CONTROL} ${AFTER}" = "on/on on/on" ] \
-            || { echo "::error::a bare probe command did not arrive, so the probe proves nothing"; exit 1; }
+          echo "markers: ${HELD:-not checked}; bare: ${CONTROL} before, ${AFTER} after; guarded: ${GUARDED}; stream: ${STREAM}"
+          [ "${HELD}" = "true" ] \
+            || { echo "::error::the probe did not run to its end, or the guard's markers were wrong"; exit 1; }
           [ "${GUARDED} ${STREAM}" = "/ /" ] \
             || { echo "::error::a workflow command got through the output guard"; exit 1; }
+          case "${CONTROL} ${AFTER} ${OUTCOME}" in
+            "on/on on/on success") ;;
+            "/ / "*)
+              echo "::warning::the runner no longer runs set-output: the guard's markers were checked, the runner's reading of them was not; replace the probe command"
+              ;;
+            *) echo "::error::the bare probe commands arrived only in part, so the probe proves nothing"; exit 1 ;;
+          esac
 
       # The two `--target` builds add no work: they stop at stages the first build has just cached, and only
       # give those stages a name to list files from. `--stream`: the build is watched while it runs.
@@ -428,21 +458,34 @@ jobs:
       # serves the Worker, so a healthz answer means both happened. The image's own HEALTHCHECK must agree, the
       # process must be `node`'s, and wrangler, asked again from inside, must find no migration left to apply.
       # Whatever the container answers, on stdout or stderr (#1013), is captured and printed by `show`: through
-      # the guard, with a token made on the runner for that one print after the text is known. The `::error::`
-      # lines below carry constant text only.
+      # the guard, with a token made on the runner for that one print after the text is known. So is what the
+      # tools print about it (#1019): `captured` runs a command whose stdout the step reads and prints its stderr
+      # (curl's errors, jq's, docker's) through `show`, and the container id `docker run --detach` answers goes
+      # there too. `show` writes to the step's own stdout (fd 3), also from inside `$(…)`. The `::error::` lines
+      # below carry constant text only.
       # Last, the container must end on `docker stop` (#1013): its PID 1 is wrangler's launcher, which has to
       # pass SIGTERM on. Exit code 143 is that signal; 137 would be the SIGKILL Docker sends after the 20 s,
       # and `timeout` bounds the stop itself.
       - name: Start the container, wait for /api/v1/healthz and stop it
         run: |
           set -euo pipefail
+          exec 3>&1
           show() {
-            printf '%s\n' "$1" | node tools/runtime-image/guard-output.mjs
+            printf '%s\n' "$1" | node tools/runtime-image/guard-output.mjs >&3
           }
-          docker run --detach --name "${CONTAINER}" --publish 127.0.0.1:8787:8787 "${IMAGE}"
+          captured() {
+            local errors status=0
+            errors=$(mktemp -p "${RUNNER_TEMP}")
+            "$@" 2>"${errors}" || status=$?
+            [ ! -s "${errors}" ] || show "$(cat "${errors}")"
+            rm -f "${errors}"
+            return "${status}"
+          }
+          started=$(captured docker run --detach --name "${CONTAINER}" --publish 127.0.0.1:8787:8787 "${IMAGE}")
+          show "started: ${started}"
           state=starting
           for _ in $(seq 1 90); do
-            state=$(docker inspect --format '{{.State.Status}}/{{.State.Health.Status}}' "${CONTAINER}")
+            state=$(captured docker inspect --format '{{.State.Status}}/{{.State.Health.Status}}' "${CONTAINER}")
             case "${state}" in
               running/healthy) break ;;
               running/starting) sleep 2 ;;
@@ -450,14 +493,15 @@ jobs:
             esac
           done
           if [ "${state}" != "running/healthy" ]; then
-            echo "::error::the container is '${state}', expected running/healthy"
+            show "state: ${state}"
+            echo "::error::the container is not running/healthy"
             exit 1
           fi
-          body=$(curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8787/api/v1/healthz)
+          body=$(captured curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8787/api/v1/healthz)
           show "healthz: ${body}"
-          health=$(jq --raw-output '.status' <<<"${body}")
+          health=$(captured jq --raw-output '.status' <<<"${body}")
           [ "${health}" = "ok" ] || { echo "::error::healthz did not answer status ok"; exit 1; }
-          curl --fail --silent --show-error --max-time 10 --output /dev/null http://127.0.0.1:8787/
+          captured curl --fail --silent --show-error --max-time 10 --output /dev/null http://127.0.0.1:8787/
           user=$(docker exec "${CONTAINER}" id -un 2>&1)
           show "user: ${user}"
           [ "${user}" = "node" ] || { echo "::error::the container does not run as node"; exit 1; }
@@ -467,7 +511,7 @@ jobs:
             || { echo "::error::the running container still has migrations to apply"; exit 1; }
           stopped=$(timeout 40 docker stop -t 20 "${CONTAINER}" 2>&1) \
             || { show "${stopped}"; echo "::error::docker stop failed or did not return in 40 s"; exit 1; }
-          ended=$(docker inspect --format '{{.State.Status}}/{{.State.ExitCode}}/{{.State.OOMKilled}}' "${CONTAINER}")
+          ended=$(captured docker inspect --format '{{.State.Status}}/{{.State.ExitCode}}/{{.State.OOMKilled}}' "${CONTAINER}")
           show "stopped: ${ended}"
           [ "${ended}" = "exited/143/false" ] \
             || { echo "::error::the container did not end on SIGTERM (exited/143/false expected)"; exit 1; }

@@ -26,8 +26,13 @@ import { fileURLToPath } from 'node:url';
 export const MIN_COMPARED = 30;
 /** The `miniflare.sharp` override exists for a fix that landed in 0.35.5; an older sharp means it was dropped. */
 export const SHARP_FLOOR = '0.35.5';
-/** What the workspace's `overrides` exist to pin in this tree (#263); the Dockerfile lists both with `npm ls`. */
-export const PINNED_BY_OVERRIDE = ['sharp', 'undici'];
+/**
+ * What the workspace's `overrides` exist to pin in this tree (#263), each with the package that depends on it in
+ * wrangler's tree. The Dockerfile lists the pinned names with `npm ls`; check-runtime-tree.spec.ts holds both
+ * sides to that line and to the lockfile.
+ * @type {Readonly<Record<string, string>>}
+ */
+export const PINNED_BY_OVERRIDE = { sharp: 'miniflare', undici: 'miniflare' };
 const WRANGLER = 'node_modules/wrangler';
 /** Where npm links executables: `.bin/<name>` of the top node_modules or of a package's own. */
 const BIN_LINK = /^node_modules\/(?:(?:@[^/]+\/[^/.][^/]*|[^/.@][^/]*)\/node_modules\/)*\.bin\/[^/]+$/;
@@ -204,12 +209,20 @@ function undeclaredExecutable(modules, name, target) {
     lstatSync(join(modules, packageName), { throwIfNoEntry: false })?.isDirectory() === true &&
     lstatSync(manifestPath, { throwIfNoEntry: false })?.isFile() === true;
   if (!isReadable) return `links into ${packageName}, which has no package.json`;
+  // Drift either way, not a check that could not be made: the link is on disk and nothing readable declares it.
+  /** @type {string} */
+  let text;
+  try {
+    text = readFileSync(manifestPath, 'utf8');
+  } catch (error) {
+    const code = isRecord(error) && typeof error['code'] === 'string' ? error['code'] : 'a read error';
+    return `links into ${packageName}, whose package.json cannot be read (${code})`;
+  }
   /** @type {unknown} */
   let manifest;
   try {
-    manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    manifest = JSON.parse(text);
   } catch {
-    // Drift, not a check that could not be made: the link is on disk and nothing readable declares it.
     return `links into ${packageName}, whose package.json is not JSON`;
   }
   const bin = isRecord(manifest) ? manifest['bin'] : undefined;
@@ -287,8 +300,12 @@ export function specialFiles(root) {
  * What is wrong with the `overrides` of the manifest the tree was pruned under. npm's shape: a map of package
  * names to a version, or to a map of the same for that package's own dependencies (`.` being the package
  * itself). A non-empty map of anything else passed before (#1013), though npm would not read it as these pins.
+ * A pin counts only where npm applies it to the copy the Dockerfile's `npm ls` names (#1019): at the top, for
+ * every copy, or directly under the package that depends on it. Deeper, or under another package, it pins a
+ * copy this tree may not have.
  * @param {unknown} manifest the parsed runtime package.json
- * @param {readonly string[]} [pinned] packages some override must name with a version
+ * @param {Readonly<Record<string, string>>} [pinned] packages some override must pin, each to the package
+ *   that depends on it
  * @returns {string[]}
  */
 export function overrideProblems(manifest, pinned = PINNED_BY_OVERRIDE) {
@@ -298,27 +315,38 @@ export function overrideProblems(manifest, pinned = PINNED_BY_OVERRIDE) {
   }
   /** @type {string[]} */
   const problems = [];
-  /** @type {Set<string>} */
-  const versioned = new Set();
+  /** @type {{ name: string, under: string[], path: string }[]} */
+  const pins = [];
   /**
    * @param {Record<string, unknown>} map
    * @param {string} at
-   * @param {string | undefined} owner the package this map is the overrides of
+   * @param {string[]} owners the packages this map is nested under, outermost first; the last owns the map
    */
-  const visit = (map, at, owner) => {
+  const visit = (map, at, owners) => {
     for (const [key, value] of Object.entries(map)) {
       const path = `${at}.${JSON.stringify(key)}`;
       // A key may carry a range (`sharp@^0.34`), and `.` is the package the map belongs to.
-      const name = key === '.' ? owner : key.replace(/(?!^)@.*$/, '');
+      const name = key === '.' ? owners.at(-1) : key.replace(/(?!^)@.*$/, '');
+      const under = key === '.' ? owners.slice(0, -1) : owners;
       if (name === undefined || name === '') problems.push(`package.json: ${path} names no package`);
-      else if (typeof value === 'string' && value !== '') versioned.add(name);
-      else if (isRecord(value) && Object.keys(value).length > 0) visit(value, path, name);
+      else if (typeof value === 'string' && value !== '') pins.push({ name, under, path });
+      else if (isRecord(value) && Object.keys(value).length > 0) visit(value, path, [...owners, name]);
       else problems.push(`package.json: ${path} is neither a version nor a map of overrides`);
     }
   };
-  visit(overrides, 'overrides', undefined);
-  for (const name of pinned) {
-    if (!versioned.has(name)) problems.push(`package.json: no override pins ${name}`);
+  visit(overrides, 'overrides', []);
+  for (const [name, dependent] of Object.entries(pinned)) {
+    const named = pins.filter((pin) => pin.name === name);
+    const applies = (/** @type {{ under: string[] }} */ pin) =>
+      pin.under.length === 0 || (pin.under.length === 1 && pin.under[0] === dependent);
+    if (named.length === 0) problems.push(`package.json: no override pins ${name}`);
+    else if (!named.some(applies)) {
+      for (const pin of named) {
+        problems.push(
+          `package.json: ${pin.path} does not pin ${dependent}'s ${name}; only a pin at the top or under ${dependent} does`,
+        );
+      }
+    }
   }
   return problems;
 }
@@ -471,18 +499,21 @@ function main(argv) {
 }
 
 /**
- * Whether Node was started with this file. Both sides go through realpath: Node resolves a symlinked entry
- * before it sets `import.meta.url` (unless `--preserve-symlinks-main`), while `argv[1]` keeps the path as typed,
- * so comparing them as-is skipped `main()` and exited 0 without checking (#998). A path that cannot be resolved
- * throws, so that case fails the build too.
+ * Whether Node was started with the module at `moduleUrl`. Both sides go through realpath: Node resolves a
+ * symlinked entry before it sets `import.meta.url` (unless `--preserve-symlinks-main`), while `argv[1]` keeps the
+ * path as typed, so comparing them as-is skipped `main()` and exited 0 without checking (#998). A path that
+ * cannot be resolved throws, so that case fails the build too. Exported for guard-output.mjs, which runs from
+ * the checkout; this file and the two the image build copies alone (runtime-package.mjs, image-files.mjs)
+ * cannot import a sibling, so they keep their own copy.
+ * @param {string} moduleUrl the caller's `import.meta.url`
+ * @param {string} name the script's file name, for the message
  */
-function isEntryPoint() {
+export function isEntryPoint(moduleUrl, name) {
   const entry = process.argv[1];
   // No script path (`node -e`, a script piped to stdin): nothing says this file was meant to run, and guessing
   // "imported" would end 0 without doing the work.
-  if (entry === undefined)
-    throw new Error(`check-runtime-tree.mjs must be started as a file: node check-runtime-tree.mjs …`);
-  return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url));
+  if (entry === undefined) throw new Error(`${name} must be started as a file: node ${name} …`);
+  return realpathSync(entry) === realpathSync(fileURLToPath(moduleUrl));
 }
 
-if (isEntryPoint()) process.exitCode = main(process.argv.slice(2));
+if (isEntryPoint(import.meta.url, 'check-runtime-tree.mjs')) process.exitCode = main(process.argv.slice(2));
