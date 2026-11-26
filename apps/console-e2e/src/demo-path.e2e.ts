@@ -3,6 +3,7 @@ import { commandLines } from '@shared/owner-grammar';
 import type { Page, Request } from '@playwright/test';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { press } from './support/press';
 import { apiClient, connectOwner, fakeComments, routeGitHubToFake, seed, type Stack } from './support/stack';
 
 /**
@@ -98,7 +99,7 @@ test('connects GitHub through the OAuth round trip', async ({
   await page.goto('/settings');
   await expect(page.getByTestId('gh-none')).toBeVisible();
 
-  await page.getByRole('button', { name: ru('settings.gh.connect') }).click();
+  await press(page.getByRole('button', { name: ru('settings.gh.connect') }));
 
   await expect(page.getByTestId('gh-connected')).toContainText(
     ru('settings.gh.connected', { login: 'geeera' }),
@@ -151,7 +152,7 @@ test('answers #72 with /approve in one tap — exactly one comment', async ({ pa
   await openNeedsYou(page);
   await expectAccessible(page, 'needs you');
 
-  await answerButton(page, 72, 'approve').click();
+  await press(answerButton(page, 72, 'approve'));
 
   await expect(item(page, 72).locator('tc-receipt')).toBeVisible();
   expect(posts).toHaveLength(1);
@@ -174,7 +175,7 @@ test('a reason cannot smuggle a second command', async ({ page, stack }) => {
   const before = await fakeComments(stack, 90002);
   await openNeedsYou(page);
 
-  await answerButton(page, 90002, 'reject').click();
+  await press(answerButton(page, 90002, 'reject'));
   const sheet = page.getByRole('dialog');
   await expect(sheet).toBeVisible();
   await expectAccessible(page, 'reason sheet');
@@ -195,7 +196,7 @@ test('an item from outside the team needs a confirmation first', async ({ page, 
   await openNeedsYou(page);
   await expect(item(page, 90001).getByTestId('untrusted')).toBeVisible();
 
-  await answerButton(page, 90001, 'approve').click();
+  await press(answerButton(page, 90001, 'approve'));
   const warning = page.getByRole('alertdialog');
   await expect(warning).toContainText(ru('answer.confirm.untrustedTitle'));
   await expectAccessible(page, 'untrusted item warning');
@@ -236,7 +237,7 @@ test('a lost response shows offline without a reload, and Retry posts once', asy
   });
   const posts = recordAnswerPosts(page);
 
-  await answerButton(page, issue, 'done').click();
+  await press(answerButton(page, issue, 'done'));
 
   const error = item(page, issue).getByTestId('answer-error');
   await expect(error).toHaveAttribute('data-kind', 'offline');
@@ -298,7 +299,7 @@ test('a Retry past the replay window finds the answer already on GitHub and post
     }
   });
 
-  await answerButton(page, issue, 'done').click();
+  await press(answerButton(page, issue, 'done'));
   const error = item(page, issue).getByTestId('answer-error');
   await expect(error).toHaveAttribute('data-kind', 'offline');
   expect(await fakeComments(stack, issue)).toHaveLength(before.length + 1);
@@ -328,7 +329,7 @@ test('a Retry past the replay window on an item still waiting posts the answer o
   await dropFirstAnswer(page, false);
   const posts = recordAnswerPosts(page);
 
-  await answerButton(page, issue, 'approve').click();
+  await press(answerButton(page, issue, 'approve'));
   const error = item(page, issue).getByTestId('answer-error');
   await expect(error).toHaveAttribute('data-kind', 'offline');
   expect(await fakeComments(stack, issue)).toHaveLength(before.length);
@@ -384,7 +385,7 @@ test('Retries under 60 s apart re-read once the first attempt is past the window
   const error = item(page, issue).getByTestId('answer-error');
   const retry = error.getByRole('button', { name: ru('answer.error.retry') });
 
-  await answerButton(page, issue, 'done').click();
+  await press(answerButton(page, issue, 'done'));
   await expect(error).toHaveAttribute('data-kind', 'offline');
   expect(await fakeComments(stack, issue)).toHaveLength(before.length + 1);
 
