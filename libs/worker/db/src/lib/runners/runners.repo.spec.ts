@@ -381,6 +381,170 @@ describe('RunnersRepo', () => {
     expect((await repo.findById(legacy.id))?.allowedProjects).toEqual(['p1']);
   });
 
+  // #824: #795 judges the declaration at write time; an entry another owner added while the runner declared `api_key`
+  // only must not be served by the enroller's subscription once the runner declares one on a later claim poll.
+  describe('entries another owner added before a switch to subscription', () => {
+    const ACCOUNT_D = '01M6YSNJ00000000000000RND4';
+    const OWNER_2 = 'owner-2';
+    const inD = (target: string, actor = 'owner-1') => ({ ...audit(SCOPE_AUDIT, ACCOUNT_D), target, actor });
+    const servedSlugs = async (runnerId: string): Promise<string[]> =>
+      (await repo.servedProjectsOf(ACCOUNT_D, runnerId)).map((row) => row.slug);
+    const nonEnrollerOf = async (runnerId: string): Promise<unknown> =>
+      JSON.parse(
+        (await env.DB.prepare(`SELECT non_enroller_projects FROM runners WHERE id = ?1`)
+          .bind(runnerId)
+          .first<string>('non_enroller_projects')) ?? 'null',
+      );
+
+    beforeAll(async () => {
+      const project = (slug: string, createdBy: string) =>
+        env.DB.prepare(
+          `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at, account_id, created_by) VALUES (?1, ?2, ?1, 0, ?3, ?4, ?5)`,
+        ).bind(slug, `acme/${slug}`, T0, ACCOUNT_D, createdBy);
+      const owner = (userId: string, n: number) => [
+        env.DB.prepare(
+          `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+        ).bind(userId, String(824000 + n), `rn-824-${String(n)}`, T0),
+        env.DB.prepare(
+          `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`,
+        ).bind(ACCOUNT_D, userId, T0),
+      ];
+      await env.DB.batch([
+        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-d', 'D', ?2)`).bind(
+          ACCOUNT_D,
+          T0,
+        ),
+        ...owner('01M6YSNJ00000000000000W824', 1),
+        ...owner('01M6YSNJ00000000000000W825', 2),
+        project('d824-mine', 'owner-1'),
+        project('d824-theirs', OWNER_2),
+      ]);
+    });
+
+    it('holds the entry back under subscription, gives it back under api_key, and lets the enroller adopt it', async () => {
+      const runner = await enrolled({
+        accountId: ACCOUNT_D,
+        enrolledBy: 'owner-1',
+        allowedProjects: ['d824-mine'],
+        capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] },
+      });
+      expect(
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-mine', 'd824-theirs']),
+          OWNER_2,
+          inD(runner.id, OWNER_2),
+        ),
+      ).toBe('changed');
+      expect(await nonEnrollerOf(runner.id)).toEqual(['d824-theirs']);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine', 'd824-theirs']);
+
+      // The switch the claim poll records: the entry stays listed, D3 holds it back.
+      expect(await repo.setAccessSources(runner.id, ['api_key', 'subscription'])).toBe(true);
+      expect((await repo.findById(runner.id))?.allowedProjects).toEqual(['d824-mine', 'd824-theirs']);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine']);
+      expect(await repo.unavailableReasonOf('d824-theirs', T1)).toBe('other-owner-subscription');
+      expect(await repo.setAccessSources(runner.id, ['api_key'])).toBe(true);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine', 'd824-theirs']);
+      expect(await repo.setAccessSources(runner.id, ['subscription'])).toBe(true);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine']);
+
+      // The other owner may narrow and keep the held-back entry; keeping it never makes it served.
+      expect(
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-theirs']),
+          OWNER_2,
+          inD(runner.id, OWNER_2),
+        ),
+      ).toBe('changed');
+      expect(await nonEnrollerOf(runner.id)).toEqual(['d824-theirs']);
+      expect(await servedSlugs(runner.id)).toEqual([]);
+      // Nor may they add the enroller's project back now: it is neither served nor listed (#795).
+      expect(
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-theirs', 'd824-mine']),
+          OWNER_2,
+          inD(runner.id, OWNER_2),
+        ),
+      ).toBe('enroller-only');
+
+      // The enroller keeping the entry does not adopt it; removing and adding it does.
+      expect(
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-theirs', 'd824-mine']),
+          'owner-1',
+          inD(runner.id),
+        ),
+      ).toBe('changed');
+      expect(await nonEnrollerOf(runner.id)).toEqual(['d824-theirs']);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine']);
+      expect(
+        await repo.setScope(ACCOUNT_D, runner.id, selected(['d824-mine']), 'owner-1', inD(runner.id)),
+      ).toBe('changed');
+      expect(
+        await repo.setScope(
+          ACCOUNT_D,
+          runner.id,
+          selected(['d824-mine', 'd824-theirs']),
+          'owner-1',
+          inD(runner.id),
+        ),
+      ).toBe('changed');
+      expect(await nonEnrollerOf(runner.id)).toEqual([]);
+      expect(await servedSlugs(runner.id)).toEqual(['d824-mine', 'd824-theirs']);
+
+      // `all` keeps no list, so no attribution either.
+      expect(await repo.setScope(ACCOUNT_D, runner.id, ALL, 'owner-1', inD(runner.id))).toBe('changed');
+      expect(await nonEnrollerOf(runner.id)).toEqual([]);
+      await expect(
+        env.DB.prepare(`UPDATE runners SET non_enroller_projects = '["d824-theirs"]' WHERE id = ?1`)
+          .bind(runner.id)
+          .run(),
+      ).rejects.toThrow(/CHECK constraint failed/u);
+    });
+
+    it('migration 0046 marks the entries whose latest addition another actor audited', async () => {
+      const runner = await enrolled({
+        accountId: ACCOUNT_D,
+        enrolledBy: 'owner-1',
+        allowedProjects: ['d824-mine'],
+        capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] },
+      });
+      const change = (actor: string, from: readonly string[], to: readonly string[]) =>
+        repo.setScope(ACCOUNT_D, runner.id, selected(to), actor, {
+          ...inD(runner.id, actor),
+          details: {
+            from: { projectScope: 'selected', allowedProjects: from },
+            to: { projectScope: 'selected', allowedProjects: to },
+          },
+        });
+      // The other owner adds `theirs`; the enroller drops `mine` and adds it back, so its latest addition is theirs.
+      expect(await change(OWNER_2, ['d824-mine'], ['d824-mine', 'd824-theirs'])).toBe('changed');
+      expect(await change('owner-1', ['d824-mine', 'd824-theirs'], ['d824-theirs'])).toBe('changed');
+      expect(await change('owner-1', ['d824-theirs'], ['d824-theirs', 'd824-mine'])).toBe('changed');
+      // The row as it was before 0046 recorded who added what.
+      await env.DB.prepare(`UPDATE runners SET non_enroller_projects = '[]' WHERE id = ?1`)
+        .bind(runner.id)
+        .run();
+
+      const backfill = env.TEST_MIGRATIONS.find((m) => m.name.startsWith('0046_'))?.queries.find((query) =>
+        query.trimStart().startsWith('UPDATE runners'),
+      );
+      if (backfill === undefined) {
+        throw new Error('the backfill of migration 0046 is missing');
+      }
+      await env.DB.prepare(backfill).run();
+      expect(await nonEnrollerOf(runner.id)).toEqual(['d824-theirs']);
+    });
+  });
+
   // R-SCOPE-4: a hosted identity keeps the scope the server gave it, whatever the owner's write says.
   it('never widens a hosted runner, and a hosted enrolment declares api_key for it', async () => {
     const codeHash = hash('h1');

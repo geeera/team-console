@@ -108,6 +108,7 @@ describe('migrations on a fresh D1', () => {
       '0043_scrub_scope.sql',
       '0044_access_owner_link_member_and_intents.sql',
       '0045_job_kinds_orchestration.sql',
+      '0046_runner_non_enroller_projects.sql',
     ]);
   });
 

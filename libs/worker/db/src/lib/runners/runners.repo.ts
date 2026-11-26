@@ -36,20 +36,43 @@ import {
 export type ScopeWrite = 'changed' | 'unchanged' | 'enroller-only';
 
 /**
+ * The writer `by` (an SQL expression: their audit actor) counts as the enroller of the row aliased `runner` (#795): it
+ * names them, or it is from before `enrolled_by` (NULL, migration 0036) and the account has one owner, its writer.
+ */
+function writerIsEnrollerSql(runner: string, by: string): string {
+  return `((${runner}.enrolled_by IS NOT NULL AND ${runner}.enrolled_by = ${by})
+    OR (${runner}.enrolled_by IS NULL AND ${runnerAccountHasOneOwnerSql(runner)}))`;
+}
+
+/**
  * The scope write bound as `setScope` binds it (?3 the new list, ?4 the new scope, ?5 the writer's audit actor) may
- * go ahead on the stored row aliased `runner` (#795): the runner cannot serve a subscription, or the writer enrolled
- * it, or the write adds nothing it does not serve now — a `selected` list of projects it serves already, or `all` on
- * a runner that is `all` already. A row from before `enrolled_by` (NULL, migration 0036) counts as its sole owner's
- * while the account has one; with a second owner nobody may add to it until it is enrolled again.
+ * go ahead on the stored row aliased `runner` (#795): the runner cannot serve a subscription, or the writer counts as
+ * its enroller, or the write adds nothing it does not serve now — a `selected` list of projects it serves already or
+ * holds already (an entry D3 holds back stays held back, #824), or `all` on a runner that is `all` already. A row
+ * from before `enrolled_by` is nobody's to add to once the account has a second owner, until it is enrolled again.
  */
 function scopeWriteAllowedSql(runner: string): string {
   return `(
     NOT ${runnerTakesSubscriptionSql(runner)}
-    OR (${runner}.enrolled_by IS NOT NULL AND ${runner}.enrolled_by = ?5)
-    OR (${runner}.enrolled_by IS NULL AND ${runnerAccountHasOneOwnerSql(runner)})
-    OR (?4 = 'selected' AND NOT EXISTS (SELECT 1 FROM json_each(?3) added WHERE NOT ${runnerServesSql(runner, 'added.value')}))
+    OR ${writerIsEnrollerSql(runner, '?5')}
+    OR (?4 = 'selected' AND NOT EXISTS (
+      SELECT 1 FROM json_each(?3) added
+      WHERE NOT ${runnerServesSql(runner, 'added.value')}
+        AND added.value NOT IN (SELECT value FROM json_each(${runner}.allowed_projects))))
     OR (?4 = 'all' AND ${runner}.project_scope = 'all')
   )`;
+}
+
+/**
+ * The `non_enroller_projects` a `setScope` write stores (#824, migration 0046), bound as `setScope` binds it: of the
+ * new list, the entries a non-enroller added before and keeps, and, when the writer does not count as the enroller,
+ * the entries this write adds. Every SET term reads the row as it was, so "adds" means "not in the stored list".
+ */
+function nonEnrollerProjectsAfterWriteSql(runner: string): string {
+  return `(SELECT json_group_array(n.value) FROM json_each(?3) n
+    WHERE n.value IN (SELECT value FROM json_each(${runner}.non_enroller_projects))
+      OR (NOT ${writerIsEnrollerSql(runner, '?5')}
+          AND n.value NOT IN (SELECT value FROM json_each(${runner}.allowed_projects))))`;
 }
 
 /** What `claimEnroller` did (#827); everything but `claimed` wrote and audited nothing. */
@@ -606,7 +629,8 @@ export class RunnersRepo {
         this.db,
         this.db
           .prepare(
-            `UPDATE runners SET project_scope = ?4, allowed_projects = ?3
+            `UPDATE runners SET project_scope = ?4, allowed_projects = ?3,
+               non_enroller_projects = ${nonEnrollerProjectsAfterWriteSql('runners')}
              WHERE id = ?1 AND account_id = ?2 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND (
                project_scope <> ?4
                OR EXISTS (SELECT 1 FROM json_each(?3) n WHERE n.value NOT IN (SELECT value FROM json_each(runners.allowed_projects)))
@@ -709,18 +733,28 @@ export class RunnersRepo {
    * Self-hosted, unrevoked runners only: a hosted or `actions-ephemeral` identity keeps the server's value whatever it
    * sends. `false` when nothing changed. The declaration only narrows the claim, so the runner's own say-so costs at
    * most the runner's own jobs.
+   *
+   * A switch to a subscription narrows what D3 lets the runner serve (#824: `all`, and the entries another owner
+   * added), so `alsoInBatch` carries the cancel of the live jobs it no longer serves, as a scope write does (#533).
+   * Those statements read `changes()` of this write, so they run only for a declaration that changed the row.
    */
-  async setAccessSources(id: string, accessSources: readonly AccessSource[]): Promise<boolean> {
+  async setAccessSources(
+    id: string,
+    accessSources: readonly AccessSource[],
+    alsoInBatch: readonly D1PreparedStatement[] = [],
+  ): Promise<boolean> {
     const declared = JSON.stringify([...accessSources].sort());
-    const result = await this.db
-      .prepare(
-        `UPDATE runners SET capabilities = json_set(capabilities, '$.accessSources', json(?2))
-         WHERE id = ?1 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND revoked_at IS NULL
-           AND (json_type(capabilities, '$.accessSources') IS NULL OR json_extract(capabilities, '$.accessSources') <> json(?2))`,
-      )
-      .bind(id, declared)
-      .run();
-    return result.meta.changes === 1;
+    const [update] = await this.db.batch([
+      this.db
+        .prepare(
+          `UPDATE runners SET capabilities = json_set(capabilities, '$.accessSources', json(?2))
+           WHERE id = ?1 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND revoked_at IS NULL
+             AND (json_type(capabilities, '$.accessSources') IS NULL OR json_extract(capabilities, '$.accessSources') <> json(?2))`,
+        )
+        .bind(id, declared),
+      ...alsoInBatch,
+    ]);
+    return (update?.meta.changes ?? 0) === 1;
   }
 
   /**
