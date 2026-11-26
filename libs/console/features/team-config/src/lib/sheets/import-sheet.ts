@@ -32,7 +32,12 @@ type Phase = 'loading' | 'ready' | 'failed';
     <div class="import" data-testid="import-sheet" [attr.aria-busy]="phase() === 'loading' ? 'true' : null">
       @switch (phase()) {
         @case ('loading') {
-          <tc-state-block kind="loading" compact data-testid="import-loading" [title]="'teamConfig.import.loading' | transloco" />
+          <tc-state-block
+            kind="loading"
+            compact
+            data-testid="import-loading"
+            [title]="'teamConfig.import.loading' | transloco"
+          />
         }
         @case ('failed') {
           <tc-state-block
@@ -51,10 +56,17 @@ type Phase = 'loading' | 'ready' | 'failed';
             @if (rows().length > 0) {
               <tc-changes-table [rows]="rows()" [caption]="'teamConfig.import.values' | transloco" />
             } @else {
-              <p class="import__muted" data-testid="import-same">{{ 'teamConfig.import.same' | transloco }}</p>
+              <p class="import__muted" data-testid="import-same">
+                {{ 'teamConfig.import.same' | transloco }}
+              </p>
             }
             @if (lossy().length > 0) {
-              <section tc-callout tone="warning" data-testid="import-notes" [attr.aria-labelledby]="'tc-import-notes'">
+              <section
+                tc-callout
+                tone="warning"
+                data-testid="import-notes"
+                [attr.aria-labelledby]="'tc-import-notes'"
+              >
                 <h3 tc-callout-title id="tc-import-notes">{{ 'teamConfig.import.notes' | transloco }}</h3>
                 <ul class="import__list">
                   @for (note of lossy(); track note.path) {
@@ -64,8 +76,14 @@ type Phase = 'loading' | 'ready' | 'failed';
               </section>
             }
             @if (ignored().length > 0) {
-              <section class="import__ignored" data-testid="import-ignored" aria-labelledby="tc-import-ignored">
-                <h3 class="import__heading" id="tc-import-ignored">{{ 'teamConfig.import.ignored' | transloco }}</h3>
+              <section
+                class="import__ignored"
+                data-testid="import-ignored"
+                aria-labelledby="tc-import-ignored"
+              >
+                <h3 class="import__heading" id="tc-import-ignored">
+                  {{ 'teamConfig.import.ignored' | transloco }}
+                </h3>
                 <ul class="import__list">
                   @for (note of ignored(); track note.path) {
                     <li>
@@ -161,7 +179,9 @@ export class ImportSheet {
   private readonly client = inject(TeamConfigClient);
   private readonly transloco = inject(TranslocoService);
   private readonly announcer = inject(LiveAnnouncer);
-  private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  private readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   protected readonly phase = signal<Phase>('loading');
   protected readonly failure = signal<TeamImportFailure>('failed');
@@ -178,8 +198,12 @@ export class ImportSheet {
     const result = this.result();
     return result === null ? 0 : importedSectionCountOf(result.draft);
   });
-  protected readonly lossy = computed(() => (this.result()?.notes ?? []).filter((note) => note.code === 'never-as-code'));
-  protected readonly ignored = computed(() => (this.result()?.notes ?? []).filter((note) => note.code !== 'never-as-code'));
+  protected readonly lossy = computed(() =>
+    (this.result()?.notes ?? []).filter((note) => note.code === 'never-as-code'),
+  );
+  protected readonly ignored = computed(() =>
+    (this.result()?.notes ?? []).filter((note) => note.code !== 'never-as-code'),
+  );
 
   constructor() {
     void this.load();
@@ -214,5 +238,6 @@ export class ImportSheet {
     this.ref.close();
   }
 
-  private readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+  private readonly t = (key: string, params?: Record<string, unknown>): string =>
+    this.transloco.translate(key, params);
 }

@@ -35,15 +35,26 @@ async function roleKey(runnerId: string, role = 'dev', revokedAt: string | null 
   return row.id;
 }
 
-const keyOf = (id: number): Promise<{ role: string; public_key_jwk: string; revoked_at: string | null } | null> =>
+const keyOf = (
+  id: number,
+): Promise<{ role: string; public_key_jwk: string; revoked_at: string | null } | null> =>
   env.DB.prepare(`SELECT role, public_key_jwk, revoked_at FROM role_keys WHERE id = ?1`)
     .bind(id)
     .first<{ role: string; public_key_jwk: string; revoked_at: string | null }>();
 
-const audit: NewAuditEvent = { accountId: ACCOUNT, at: T1, actorKind: 'user', actor: 'owner', kind: 'runner.revoked', target: null };
+const audit: NewAuditEvent = {
+  accountId: ACCOUNT,
+  at: T1,
+  actorKind: 'user',
+  actor: 'owner',
+  kind: 'runner.revoked',
+  target: null,
+};
 
 beforeAll(async () => {
-  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rk-a', 'A', ?2)`).bind(ACCOUNT, T0).run();
+  await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rk-a', 'A', ?2)`)
+    .bind(ACCOUNT, T0)
+    .run();
 });
 
 describe('role_keys guards (0023, 0024)', () => {
@@ -53,18 +64,18 @@ describe('role_keys guards (0023, 0024)', () => {
     ['the creation time', `created_at = '${T1}'`],
   ])('refuses a change of %s', async (_, assignment) => {
     const id = await roleKey(await runner());
-    await expect(env.DB.prepare(`UPDATE role_keys SET ${assignment} WHERE id = ?1`).bind(id).run()).rejects.toThrow(
-      /role keys keep their identity/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE role_keys SET ${assignment} WHERE id = ?1`).bind(id).run(),
+    ).rejects.toThrow(/role keys keep their identity/);
     expect(await keyOf(id)).toMatchObject({ role: 'dev', public_key_jwk: KEY });
   });
 
   it('refuses moving a key to another runner', async () => {
     const id = await roleKey(await runner());
     const other = await runner();
-    await expect(env.DB.prepare(`UPDATE role_keys SET runner_id = ?2 WHERE id = ?1`).bind(id, other).run()).rejects.toThrow(
-      /role keys keep their identity/,
-    );
+    await expect(
+      env.DB.prepare(`UPDATE role_keys SET runner_id = ?2 WHERE id = ?1`).bind(id, other).run(),
+    ).rejects.toThrow(/role keys keep their identity/);
   });
 
   it('revokes a key once: neither un-revoked nor re-dated', async () => {
@@ -89,7 +100,9 @@ describe('role_keys guards (0023, 0024)', () => {
         .run(),
     ).rejects.toThrow(/role keys are never replaced/);
     await expect(
-      env.DB.prepare(`INSERT OR REPLACE INTO role_keys (runner_id, role, public_key_jwk, created_at) VALUES (?1, 'dev', ?2, ?3)`)
+      env.DB.prepare(
+        `INSERT OR REPLACE INTO role_keys (runner_id, role, public_key_jwk, created_at) VALUES (?1, 'dev', ?2, ?3)`,
+      )
         .bind(owner, OTHER_KEY, T1)
         .run(),
     ).rejects.toThrow(/role keys are never replaced/);
@@ -121,9 +134,9 @@ describe('role_keys guards (0023, 0024)', () => {
         /role keys are never deleted/,
       );
     }
-    await expect(env.DB.prepare(`DELETE FROM role_keys WHERE runner_id = ?1`).bind(owner).run()).rejects.toThrow(
-      /role keys are never deleted/,
-    );
+    await expect(
+      env.DB.prepare(`DELETE FROM role_keys WHERE runner_id = ?1`).bind(owner).run(),
+    ).rejects.toThrow(/role keys are never deleted/);
     expect(await keyOf(live)).toMatchObject({ role: 'dev', revoked_at: null });
     expect(await keyOf(revoked)).toMatchObject({ role: 'qa', revoked_at: T0 });
   });
@@ -140,7 +153,9 @@ describe('role_keys guards (0023, 0024)', () => {
     expect(await new RunnersRepo(env.DB).revoke(ACCOUNT, owner, T1, { ...audit, target: owner })).toBe(true);
     // #531: the trigger's role-key rows do not count as the revoke's own; its audit row is written once.
     expect(
-      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.revoked' AND target = ?1`)
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.revoked' AND target = ?1`,
+      )
         .bind(owner)
         .first<number>('n'),
     ).toBe(1);

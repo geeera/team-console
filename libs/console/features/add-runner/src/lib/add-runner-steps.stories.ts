@@ -58,7 +58,9 @@ export const Params: Story = {
 export const ParamsSeveralOwners: Story = {
   render: () => ({
     props: { projects: PROJECTS },
-    template: frame(`<tc-add-runner-params-step formId="story-owners" [projects]="projects" [ownerCount]="2" />`),
+    template: frame(
+      `<tc-add-runner-params-step formId="story-owners" [projects]="projects" [ownerCount]="2" />`,
+    ),
   }),
 };
 
@@ -66,7 +68,9 @@ export const ParamsSeveralOwners: Story = {
 export const ParamsSoleOwner: Story = {
   render: () => ({
     props: { projects: PROJECTS },
-    template: frame(`<tc-add-runner-params-step formId="story-sole" [projects]="projects" [ownerCount]="1" />`),
+    template: frame(
+      `<tc-add-runner-params-step formId="story-sole" [projects]="projects" [ownerCount]="1" />`,
+    ),
   }),
 };
 
@@ -172,7 +176,11 @@ export const ConfirmLongHost: Story = {
   render: () => ({
     props: {
       intent: enrolmentIntentFixture({
-        host: { os: 'darwin', arch: 'x64', hostname: 'a-very-long-hostname-of-the-build-machine-in-the-office.example.local' },
+        host: {
+          os: 'darwin',
+          arch: 'x64',
+          hostname: 'a-very-long-hostname-of-the-build-machine-in-the-office.example.local',
+        },
         boundCountry: null,
       }),
       now: NOW,
@@ -193,13 +201,17 @@ export const ApprovedSlow: Story = {
 
 /** Step 4a after fifteen minutes (#878): polling stopped, the owner re-checks by hand. */
 export const ApprovedStopped: Story = {
-  render: () => ({ template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" />`) }),
+  render: () => ({
+    template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" />`),
+  }),
 };
 
 /** Step 4a while a re-check runs. */
 export const ApprovedRechecking: Story = {
   render: () => ({
-    template: frame(`<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" [rechecking]="true" />`),
+    template: frame(
+      `<tc-add-runner-online-step name="Mac mini" [slow]="true" [gaveUp]="true" [rechecking]="true" />`,
+    ),
   }),
 };
 

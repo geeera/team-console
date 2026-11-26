@@ -30,7 +30,8 @@ const RELEASE_WORKFLOW_PATH = '.github/workflows/release-runner.yml';
 const RELEASE_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
 const RELEASE_PREDICATE_TYPE = 'https://slsa.dev/provenance/v1';
 const PLATFORMS = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64'];
-const RELEASE_VERSION = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+const RELEASE_VERSION =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 const SUMS_LINE = /^[0-9a-f]{64} {2}(\S+)$/;
 // `RUNNER_IMAGE` of libs/shared/contracts/src/lib/runner-linux.ts and `IMAGE` of release-runner.yml.
 const RUNNER_IMAGE = `ghcr.io/${RELEASE_REPOSITORY}-runner`;
@@ -63,7 +64,17 @@ function attestationArgs(asset, version) {
 }
 
 function downloadArgs(version, dir) {
-  return ['release', 'download', `v${version}`, '--repo', `${RELEASE_HOST}/${RELEASE_REPOSITORY}`, '--pattern', 'SHA256SUMS', '--dir', dir];
+  return [
+    'release',
+    'download',
+    `v${version}`,
+    '--repo',
+    `${RELEASE_HOST}/${RELEASE_REPOSITORY}`,
+    '--pattern',
+    'SHA256SUMS',
+    '--dir',
+    dir,
+  ];
 }
 
 /** The tarball names `SHA256SUMS` lists for `version`, in `sha256sum -- *.tar.gz` order. */
@@ -94,22 +105,30 @@ function releaseVarsOf(source, envName) {
  */
 function namedRelease({ version, sums, imageDigest = '' }) {
   if (imageDigest !== '' && !IMAGE_DIGEST.test(imageDigest)) {
-    throw new Error(`RUNNER_RELEASE_IMAGE_DIGEST ${JSON.stringify(imageDigest)} must be sha256:<64 lower-case hex>, the digest the release notes name`);
+    throw new Error(
+      `RUNNER_RELEASE_IMAGE_DIGEST ${JSON.stringify(imageDigest)} must be sha256:<64 lower-case hex>, the digest the release notes name`,
+    );
   }
   if (version === '' && sums === '') {
     if (imageDigest !== '') {
-      throw new Error('RUNNER_RELEASE_IMAGE_DIGEST is set but RUNNER_RELEASE_VERSION is empty: clear it or name its release');
+      throw new Error(
+        'RUNNER_RELEASE_IMAGE_DIGEST is set but RUNNER_RELEASE_VERSION is empty: clear it or name its release',
+      );
     }
     return null;
   }
   if (version === '') {
-    throw new Error('RUNNER_RELEASE_SHA256SUMS is set but RUNNER_RELEASE_VERSION is empty: clear both or set both');
+    throw new Error(
+      'RUNNER_RELEASE_SHA256SUMS is set but RUNNER_RELEASE_VERSION is empty: clear both or set both',
+    );
   }
   if (!RELEASE_VERSION.test(version)) {
     throw new Error(`RUNNER_RELEASE_VERSION ${JSON.stringify(version)} is not a release version`);
   }
   if (sums === '') {
-    throw new Error(`RUNNER_RELEASE_VERSION is ${version} but RUNNER_RELEASE_SHA256SUMS is empty: paste that release's SHA256SUMS`);
+    throw new Error(
+      `RUNNER_RELEASE_VERSION is ${version} but RUNNER_RELEASE_SHA256SUMS is empty: paste that release's SHA256SUMS`,
+    );
   }
   const lines = sums.endsWith('\n') ? sums.slice(0, -1).split('\n') : null;
   const names = tarballNamesOf(version);
@@ -173,15 +192,23 @@ if (require.main === module) {
     if (version === null) {
       console.log(`::notice::${envName}: no runner release named; the console offers no install one-liner`);
     } else if (formatOnly) {
-      console.log(`${envName}: runner release ${version} and its sums are well formed (attestation is checked at deploy)`);
+      console.log(
+        `${envName}: runner release ${version} and its sums are well formed (attestation is checked at deploy)`,
+      );
     } else {
       verifyAgainstRelease(version, vars.sums);
-      console.log(`::notice::${envName}: RUNNER_RELEASE_SHA256SUMS is the attested SHA256SUMS of v${version}`);
+      console.log(
+        `::notice::${envName}: RUNNER_RELEASE_SHA256SUMS is the attested SHA256SUMS of v${version}`,
+      );
       if (vars.imageDigest === '') {
-        console.log(`::notice::${envName}: no runner image digest named; the console offers no Linux command`);
+        console.log(
+          `::notice::${envName}: no runner image digest named; the console offers no Linux command`,
+        );
       } else {
         verifyImage(version, vars.imageDigest);
-        console.log(`::notice::${envName}: RUNNER_RELEASE_IMAGE_DIGEST is the attested runner image of v${version}`);
+        console.log(
+          `::notice::${envName}: RUNNER_RELEASE_IMAGE_DIGEST is the attested runner image of v${version}`,
+        );
       }
     }
   } catch (error) {

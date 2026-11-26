@@ -72,9 +72,13 @@
   (pointerup)="onPointerUp($event)"
 >
   @switch (manifestState().kind) { @case ('loading') {
-  <tc-state-block kind="loading" data-testid="viewer-loading" [title]="'designs.viewer.loading' | transloco" />
-  } @case ('failed') { @if (manifestState(); as state) { @if (state.kind === 'failed') { @switch (state.failure) {
-  @case ('no-access') {
+  <tc-state-block
+    kind="loading"
+    data-testid="viewer-loading"
+    [title]="'designs.viewer.loading' | transloco"
+  />
+  } @case ('failed') { @if (manifestState(); as state) { @if (state.kind === 'failed') { @switch
+  (state.failure) { @case ('no-access') {
   <tc-state-block
     kind="error"
     data-testid="viewer-no-access"
@@ -202,8 +206,7 @@
       (error)="onFailed(screen)"
     />
   </div>
-  }
-  } } } @case ('grid') {
+  } } } } @case ('grid') {
   <h3 class="tc-sr-only" [id]="id + '-grid'">{{ 'designs.viewer.gridTitle' | transloco }}</h3>
   @if (screens().length === 0) {
   <tc-state-block
@@ -245,7 +248,8 @@
     </li>
     }
   </ul>
-  } } @case ('interactive') { @if (manifest()?.interactive; as interactive) { @if (origins().kind !== 'ready') {
+  } } @case ('interactive') { @if (manifest()?.interactive; as interactive) { @if (origins().kind !== 'ready')
+  {
   <tc-state-block kind="loading" [title]="'designs.viewer.loading' | transloco" />
   } @else if (frameSrc() !== null) {
   <tc-frame
@@ -304,9 +308,10 @@
     >
       {{ 'designs.viewer.prev' | transloco }}
     </button>
-    <span class="viewer__position" aria-live="polite" data-testid="viewer-position">{{
-      'designs.viewer.position' | transloco: { i: index() + 1, n: screens().length, caption: current()?.caption ?? '' }
-    }}</span>
+    <span class="viewer__position" aria-live="polite" data-testid="viewer-position"
+      >{{ 'designs.viewer.position' | transloco: { i: index() + 1, n: screens().length, caption:
+      current()?.caption ?? '' } }}</span
+    >
     <button
       tc-button
       size="sm"

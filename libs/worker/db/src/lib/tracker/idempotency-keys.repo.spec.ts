@@ -80,7 +80,9 @@ describe('IdempotencyKeysRepo', () => {
       NOW + DAY,
       { tokenHash: 'f'.repeat(64), jobId: 'no-such-job', at: new Date(NOW).toISOString() },
     );
-    await expect(env.DB.batch([statement])).rejects.toThrow(/NOT NULL constraint failed: idempotency_keys\.request_hash/);
+    await expect(env.DB.batch([statement])).rejects.toThrow(
+      /NOT NULL constraint failed: idempotency_keys\.request_hash/,
+    );
     expect(await keys().claim('k-7', 'h', NOW + 1, HOLD)).toEqual({ state: 'in-flight' });
   });
 
@@ -105,8 +107,12 @@ describe('IdempotencyKeysRepo', () => {
         NOW + DAY,
         { tokenHash: 'f'.repeat(64), jobId: 'no-such-job', at: new Date(NOW).toISOString() },
       );
-      await expect(env.DB.batch([statement])).rejects.toThrow(/NOT NULL constraint failed: idempotency_keys\.request_hash/);
-      expect(await env.DB.prepare('SELECT * FROM idempotency_keys WHERE key = ?1').bind(key).first()).toEqual(before);
+      await expect(env.DB.batch([statement])).rejects.toThrow(
+        /NOT NULL constraint failed: idempotency_keys\.request_hash/,
+      );
+      expect(await env.DB.prepare('SELECT * FROM idempotency_keys WHERE key = ?1').bind(key).first()).toEqual(
+        before,
+      );
     },
   );
 });

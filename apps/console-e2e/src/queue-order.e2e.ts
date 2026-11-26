@@ -65,9 +65,14 @@ test('First in the queue: the row goes first, focus stays on its ⋯, the place 
 
   await moveButton(page, 2).click();
   const open = menu(page, 2);
-  await expect(open.getByRole('group', { name: ru('plan.queueGroup', { lane: ru('board.status.in-progress') }) })).toBeVisible();
+  await expect(
+    open.getByRole('group', { name: ru('plan.queueGroup', { lane: ru('board.status.in-progress') }) }),
+  ).toBeVisible();
   await expect(open.getByRole('menuitem', { name: ru('plan.first') })).toBeFocused();
-  await expect(open.getByRole('menuitem', { name: ru('plan.up') })).not.toHaveAttribute('aria-disabled', 'true');
+  await expect(open.getByRole('menuitem', { name: ru('plan.up') })).not.toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
   const down = open.getByRole('menuitem', { name: new RegExp(`^${ru('plan.down')}`) });
   await expect(down).toHaveAttribute('aria-disabled', 'true');
   await expect(down).toHaveAccessibleDescription(ru('plan.alreadyLast'));
@@ -93,7 +98,9 @@ test('Up and Down swap with the neighbour; an off item keeps focus and says why'
   await expectOrder(page, [2, 0, 1]);
 
   await moveButton(page, 0).click();
-  await menu(page, 0).getByRole('menuitem', { name: ru('plan.up') }).click();
+  await menu(page, 0)
+    .getByRole('menuitem', { name: ru('plan.up') })
+    .click();
   await expectOrder(page, [0, 2, 1]);
   await expect(moveButton(page, 0)).toBeFocused();
   await expect(page.getByTestId('task-queue')).toHaveCount(0);
@@ -116,15 +123,21 @@ test('Up and Down swap with the neighbour; an off item keeps focus and says why'
   );
 });
 
-test('the task screen’s Sprint ▾ offers the same queue group and its Queue line follows a move', async ({ page }) => {
+test('the task screen’s Sprint ▾ offers the same queue group and its Queue line follows a move', async ({
+  page,
+}) => {
   await page.goto(`/p/${SLUG}/t/${String(numbers[1])}`);
   const laneName = ru('board.status.in-progress');
-  await expect(page.getByTestId('task-queue')).toHaveText(ru('item.queueVal', { pos: 3, total: 3, lane: laneName }));
+  await expect(page.getByTestId('task-queue')).toHaveText(
+    ru('item.queueVal', { pos: 3, total: 3, lane: laneName }),
+  );
   await page.getByTestId('pick-sprint').click();
   const open = page.getByRole('menu', { name: ru('plan.menuAria', { key: key(1) }) });
   await expect(open.getByRole('group', { name: ru('plan.queueGroup', { lane: laneName }) })).toBeVisible();
   await open.getByRole('menuitem', { name: ru('plan.first') }).click();
-  await expect(page.getByTestId('task-queue')).toHaveText(ru('item.queueVal', { pos: 1, total: 3, lane: laneName }));
+  await expect(page.getByTestId('task-queue')).toHaveText(
+    ru('item.queueVal', { pos: 1, total: 3, lane: laneName }),
+  );
   await expect(page.getByTestId('pick-sprint')).toBeFocused();
   await expect(page.getByTestId('task-history')).toContainText(ru('item.ev.reordered'));
 
@@ -143,12 +156,14 @@ test.describe('in English', () => {
     // After the tests above the lane reads B, C, A: A is last.
     await moveButton(page, 0, en).click();
     const open = menu(page, 0, en);
-    await expect(open.getByRole('group', { name: en('plan.queueGroup', { lane: en('board.status.in-progress') }) })).toBeVisible();
+    await expect(
+      open.getByRole('group', { name: en('plan.queueGroup', { lane: en('board.status.in-progress') }) }),
+    ).toBeVisible();
     await expect(open.getByRole('menuitem', { name: en('plan.first') })).toBeVisible();
     await expect(open.getByRole('menuitem', { name: en('plan.up') })).toBeVisible();
-    await expect(open.getByRole('menuitem', { name: new RegExp(`^${en('plan.down')}`) })).toHaveAccessibleDescription(
-      en('plan.alreadyLast'),
-    );
+    await expect(
+      open.getByRole('menuitem', { name: new RegExp(`^${en('plan.down')}`) }),
+    ).toHaveAccessibleDescription(en('plan.alreadyLast'));
     await expectAccessible(page, 'queue menu open, in English');
   });
 });

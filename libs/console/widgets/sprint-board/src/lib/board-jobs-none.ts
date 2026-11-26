@@ -21,15 +21,29 @@ let nextNoneId = 0;
   selector: 'tc-board-jobs-none',
   imports: [Button, Icon, RouterLink, TranslocoPipe],
   template: `
-    <section class="jobs-none" data-testid="jobs-none" [attr.data-none]="kind()" [attr.aria-labelledby]="titleId">
+    <section
+      class="jobs-none"
+      data-testid="jobs-none"
+      [attr.data-none]="kind()"
+      [attr.aria-labelledby]="titleId"
+    >
       <span class="jobs-none__mark" aria-hidden="true"><tc-icon name="offline" size="sm" /></span>
       <h4 #title class="jobs-none__title" tabindex="-1" [id]="titleId">{{ titleKey() | transloco }}</h4>
       <p class="jobs-none__body" dir="auto" data-testid="jobs-none-body">
-        {{ bodyKey() | transloco: { project: projectName(), runner: runnerName(), owner: people(), owners: people() } }}
+        {{
+          bodyKey()
+            | transloco: { project: projectName(), runner: runnerName(), owner: people(), owners: people() }
+        }}
       </p>
       @switch (kind()) {
         @case ('owner') {
-          <a tc-button wrap class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runners">
+          <a
+            tc-button
+            wrap
+            class="jobs-none__action"
+            routerLink="/settings/runners"
+            data-testid="jobs-none-runners"
+          >
             <tc-icon name="settings" size="sm" />
             {{ 'jobs.none.open' | transloco }}
           </a>
@@ -48,7 +62,13 @@ let nextNoneId = 0;
           </a>
         }
         @case ('d3-mine') {
-          <a tc-button wrap class="jobs-none__action" routerLink="/settings/runners" data-testid="jobs-none-runner">
+          <a
+            tc-button
+            wrap
+            class="jobs-none__action"
+            routerLink="/settings/runners"
+            data-testid="jobs-none-runner"
+          >
             <tc-icon name="settings" size="sm" />
             {{ 'jobs.none.d3MineOpen' | transloco: { runner: runnerName() } }}
           </a>

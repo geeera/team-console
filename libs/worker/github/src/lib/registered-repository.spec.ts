@@ -14,7 +14,12 @@ const TEAM_CONSOLE = parseRepoName('geeera/team-console');
 const TEAM_CONSOLE_ID = 900001;
 
 function fixedTokens(): InstallationTokenSource {
-  return { kind: 'installation', repo: TEAM_CONSOLE, getToken: async () => installationToken('fixed'), invalidate: () => undefined };
+  return {
+    kind: 'installation',
+    repo: TEAM_CONSOLE,
+    getToken: async () => installationToken('fixed'),
+    invalidate: () => undefined,
+  };
 }
 
 function answering(body: unknown): GitHubClient {
@@ -64,7 +69,10 @@ describe('readRegisteredRepository', () => {
   it.each([
     ['no id', { full_name: 'geeera/team-console', default_branch: 'dev' }],
     ['no full_name', { id: TEAM_CONSOLE_ID, default_branch: 'dev' }],
-    ['an empty default branch', { id: TEAM_CONSOLE_ID, full_name: 'geeera/team-console', default_branch: '' }],
+    [
+      'an empty default branch',
+      { id: TEAM_CONSOLE_ID, full_name: 'geeera/team-console', default_branch: '' },
+    ],
     ['no object at all', ['geeera/team-console']],
   ])('refuses an answer with %s as 502 github-unexpected', async (_label, body) => {
     const error = await rejection(readRegisteredRepository(answering(body), TEAM_CONSOLE, TEAM_CONSOLE_ID));

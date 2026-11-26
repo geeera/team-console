@@ -73,7 +73,9 @@ export class InstallSettings {
   protected readonly hasCopyFailed = signal(false);
 
   protected readonly path = computed(() => this.prompt.path());
-  protected readonly isInstalled = computed(() => this.path() === 'standalone' || this.path() === 'installed');
+  protected readonly isInstalled = computed(
+    () => this.path() === 'standalone' || this.path() === 'installed',
+  );
   protected readonly isIos = computed(() => this.path() === 'ios' || this.path() === 'ios-other');
   protected readonly subtitleKey = computed(() => SUBTITLES[this.path()]);
   protected readonly chip = computed<'on' | 'off' | null>(() => {

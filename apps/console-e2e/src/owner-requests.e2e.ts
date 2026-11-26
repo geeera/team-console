@@ -139,9 +139,7 @@ test('asks the PM for the next sprint: one owner comment, nothing else written, 
   const openIssue = dialog(page).getByTestId('request-open-issue');
   await expect(openIssue).toHaveAttribute('href', `https://github.com/${REPO}/issues/${ISSUE}`);
   await expect(openIssue).toHaveAttribute('target', '_blank');
-  await expect(openIssue).toHaveAccessibleName(
-    `${ru('commands.request.open')} ${ru('ui.frame.newTab')}`,
-  );
+  await expect(openIssue).toHaveAccessibleName(`${ru('commands.request.open')} ${ru('ui.frame.newTab')}`);
   await expect(openIssue.locator('xpath=preceding-sibling::*[1]')).toHaveAttribute(
     'data-testid',
     'request-previous',

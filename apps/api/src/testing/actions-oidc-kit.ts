@@ -82,7 +82,11 @@ export async function seedActionsProject(
 }
 
 /** Saves revision `expectedRevision + 1` of the project's team configuration with `source`; returns the outcome kind. */
-export async function saveAccessSource(project: ActionsProject, source: AccessSource, expectedRevision: number): Promise<string> {
+export async function saveAccessSource(
+  project: ActionsProject,
+  source: AccessSource,
+  expectedRevision: number,
+): Promise<string> {
   const at = new Date().toISOString();
   const outcome = await new TeamConfigRepo(env.DB).save({
     projectSlug: project.slug,
@@ -100,7 +104,11 @@ export async function saveAccessSource(project: ActionsProject, source: AccessSo
       actor: 'owner',
       kind: 'team-config.changed',
       target: project.slug,
-      details: { revision_from: expectedRevision, revision_to: expectedRevision + 1, paths: ['access.source'] },
+      details: {
+        revision_from: expectedRevision,
+        revision_to: expectedRevision + 1,
+        paths: ['access.source'],
+      },
     },
   });
   return outcome.kind;

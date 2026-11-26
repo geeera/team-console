@@ -371,7 +371,11 @@ describe('the job column off the tracker (#444)', () => {
       expect.arrayContaining(['GET /api/v1/projects', 'POST /api/v1/projects/:slug/issues/:number/answer']),
     );
     expect(runnerDoor).toEqual(
-      expect.arrayContaining(['POST /api/v1/runner/enrol', 'POST /api/v1/runner/oidc-exchange', 'GET /api/v1/runner/release']),
+      expect.arrayContaining([
+        'POST /api/v1/runner/enrol',
+        'POST /api/v1/runner/oidc-exchange',
+        'GET /api/v1/runner/release',
+      ]),
     );
     expect(apiRoutes).toEqual(expect.arrayContaining([...JOB_READ_MODEL_ROUTES]));
   });

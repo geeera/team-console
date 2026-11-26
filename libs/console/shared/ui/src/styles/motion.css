@@ -74,11 +74,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  :root:not([data-motion='full']) :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
+  :root:not([data-motion='full'])
+    :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
     animation-duration: var(--dur-fade);
   }
 }
 
-:root[data-motion='reduce'] :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
+:root[data-motion='reduce']
+  :is(.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)) {
   animation-duration: var(--dur-fade);
 }

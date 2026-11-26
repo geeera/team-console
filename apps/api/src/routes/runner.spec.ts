@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:test';
-import { OWNER_ACCOUNT_ID, runnerAudienceOf, type EnrolRunnerResponse, type RunnerReleaseDto } from '@shared/contracts';
+import {
+  OWNER_ACCOUNT_ID,
+  runnerAudienceOf,
+  type EnrolRunnerResponse,
+  type RunnerReleaseDto,
+} from '@shared/contracts';
 import { ENROLMENT_CODE_PREFIX } from '@shared/redaction';
 import { sha256Hex } from '@worker/core';
 import { RunnersRepo } from '@worker/db';
@@ -19,7 +24,11 @@ import {
 } from '../testing/runner-kit';
 import { seedSessionUser, sendAsSession } from '../testing/session-kit';
 import { send, slugOf } from '../testing/tracker-kit';
-import { ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE, ENROL_RATE_LIMIT_PER_MINUTE, ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE } from './runner';
+import {
+  ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE,
+  ENROL_RATE_LIMIT_PER_MINUTE,
+  ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE,
+} from './runner';
 
 // #467, ADR 0008 row 2-A: enrolment by a one-time code (threat model C4 "Brute force or theft of an enrolment
 // code"), then the runner JWT alone on `/api/v1/runner/*` (ADR 0008 "Customer runner authentication without Access";
@@ -28,9 +37,7 @@ import { ENROL_RATE_LIMIT_GLOBAL_PER_MINUTE, ENROL_RATE_LIMIT_PER_MINUTE, ENROL_
 const RELEASE = '/api/v1/runner/release';
 
 async function auditKinds(accountId: string): Promise<string[]> {
-  const { results } = await env.DB.prepare(
-    `SELECT kind FROM audit_events WHERE account_id = ?1 ORDER BY id`,
-  )
+  const { results } = await env.DB.prepare(`SELECT kind FROM audit_events WHERE account_id = ?1 ORDER BY id`)
     .bind(accountId)
     .all<{ kind: string }>();
   return results.map((row) => row.kind);
@@ -61,8 +68,19 @@ describe('POST /api/v1/runner/enrol', () => {
       `SELECT account_id, name, isolation, public_key_jwk, revoked_at FROM runners WHERE id = ?1`,
     )
       .bind(body.runnerId)
-      .first<{ account_id: string; name: string; isolation: string; public_key_jwk: string; revoked_at: null }>();
-    expect(row).toMatchObject({ account_id: OWNER_ACCOUNT_ID, name: 'Mac mini', isolation: 'container', revoked_at: null });
+      .first<{
+        account_id: string;
+        name: string;
+        isolation: string;
+        public_key_jwk: string;
+        revoked_at: null;
+      }>();
+    expect(row).toMatchObject({
+      account_id: OWNER_ACCOUNT_ID,
+      name: 'Mac mini',
+      isolation: 'container',
+      revoked_at: null,
+    });
     expect(JSON.parse(row?.public_key_jwk ?? '{}')).toEqual(key.publicKeyJwk);
     expect(await auditKinds(OWNER_ACCOUNT_ID)).toEqual(
       expect.arrayContaining(['enrolment-code.created', 'runner.enrolled']),
@@ -116,11 +134,19 @@ describe('POST /api/v1/runner/enrol', () => {
   });
 
   it.each([
-    ['a private key member', { publicKey: { kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43), d: 'y'.repeat(43) } }, 'publicKey'],
+    [
+      'a private key member',
+      { publicKey: { kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43), d: 'y'.repeat(43) } },
+      'publicKey',
+    ],
     ['another curve', { publicKey: { kty: 'EC', crv: 'P-256', x: 'x'.repeat(43) } }, 'publicKey'],
     ['an unknown backend', { isolation: 'vm' }, 'isolation'],
     ['a version that is not a release label', { version: 'v 1' }, 'version'],
-    ['a concurrency of zero', { capabilities: { local: true, maxConcurrency: 0 } }, 'capabilities.maxConcurrency'],
+    [
+      'a concurrency of zero',
+      { capabilities: { local: true, maxConcurrency: 0 } },
+      'capabilities.maxConcurrency',
+    ],
     ['an extra member', { extra: 1 }, 'body'],
   ])('refuses %s with 422 and the field', async (_, overrides, field) => {
     const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
@@ -130,15 +156,17 @@ describe('POST /api/v1/runner/enrol', () => {
     expect(await slugOf(response)).toBe('enrol-invalid');
     expect(((await response.json()) as { field: string }).field).toBe(field);
     // The code stays usable: a malformed request spent nothing.
-    expect(
-      (await postEnrol(enrolBodyOf(code, (await generateRunnerKey()).publicKeyJwk))).status,
-    ).toBe(201);
+    expect((await postEnrol(enrolBodyOf(code, (await generateRunnerKey()).publicKeyJwk))).status).toBe(201);
   });
 
   it('refuses the none backend on production (ADR 0008 decision 8) and admits it elsewhere', async () => {
     const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
     const body = enrolBodyOf(code, (await generateRunnerKey()).publicKeyJwk, { isolation: 'none' });
-    const production = await postEnrol(body, {}, localEnv({ ENVIRONMENT: 'production', AUTH_MODE: undefined }));
+    const production = await postEnrol(
+      body,
+      {},
+      localEnv({ ENVIRONMENT: 'production', AUTH_MODE: undefined }),
+    );
     expect(production.status).toBe(422);
     expect(await slugOf(production)).toBe('runner-isolation-none');
     expect((await postEnrol(body)).status).toBe(201);
@@ -180,9 +208,17 @@ describe('POST /api/v1/runner/enrol', () => {
       const prefix = uniqueIpv6Prefix();
       const statuses: number[] = [];
       for (let attempt = 1; attempt <= ENROL_RATE_LIMIT_PER_MINUTE + 1; attempt += 1) {
-        statuses.push((await postEnrol(unknownCode, { headers: { 'CF-Connecting-IP': `${prefix}::${attempt.toString(16)}` } })).status);
+        statuses.push(
+          (
+            await postEnrol(unknownCode, {
+              headers: { 'CF-Connecting-IP': `${prefix}::${attempt.toString(16)}` },
+            })
+          ).status,
+        );
       }
-      const otherRange = await postEnrol(unknownCode, { headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` } });
+      const otherRange = await postEnrol(unknownCode, {
+        headers: { 'CF-Connecting-IP': `${uniqueIpv6Prefix()}::1` },
+      });
       return { statuses, otherRange: otherRange.status };
     });
     expect(outcome.statuses).toEqual([...new Array<number>(ENROL_RATE_LIMIT_PER_MINUTE).fill(401), 429]);
@@ -205,7 +241,10 @@ describe('POST /api/v1/runner/enrol', () => {
           await postEnrol(enrolBodyOf(used, key)),
         ];
         const real = await postEnrol(enrolBodyOf(code, key));
-        return { junk: await Promise.all(junk.map(async (response) => [response.status, await slugOf(response)])), real: real.status };
+        return {
+          junk: await Promise.all(junk.map(async (response) => [response.status, await slugOf(response)])),
+          real: real.status,
+        };
       });
     });
     expect(outcome.junk).toEqual(new Array(4).fill([429, 'rate-limited']));
@@ -228,7 +267,9 @@ describe('POST /api/v1/runner/enrol', () => {
     const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
     const key = await generateRunnerKey();
     const lines: string[] = [];
-    const response = await postEnrol(enrolBodyOf(code, key.publicKeyJwk), { logSink: (line) => lines.push(line) });
+    const response = await postEnrol(enrolBodyOf(code, key.publicKeyJwk), {
+      logSink: (line) => lines.push(line),
+    });
     expect(response.status).toBe(201);
     const output = lines.join('\n');
     expect(output).not.toContain(code);
@@ -239,7 +280,10 @@ describe('POST /api/v1/runner/enrol', () => {
   it('is open to the enrolment identity only: a cookie or the local owner carries nothing there', async () => {
     // The route scope admits `enrolment` alone; the auth seam mints it on this path whatever else is sent, so a
     // browser cannot enrol on the owner's behalf through a cross-site POST either (no Sec-Fetch-Site needed, no gain).
-    const response = await postEnrol({}, { headers: { Cookie: '__Host-tc_session=x', 'Sec-Fetch-Site': 'cross-site' } });
+    const response = await postEnrol(
+      {},
+      { headers: { Cookie: '__Host-tc_session=x', 'Sec-Fetch-Site': 'cross-site' } },
+    );
     expect(response.status).toBe(422);
   });
 });
@@ -251,7 +295,10 @@ describe('the runner JWT on /api/v1/runner/*', () => {
       bindings: localEnv({ RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_MINIMUM_VERSION: '0.1.0' }),
     });
     expect(response.status).toBe(200);
-    expect((await response.json()) as RunnerReleaseDto).toEqual({ version: '0.2.0', minimumVersion: '0.1.0' });
+    expect((await response.json()) as RunnerReleaseDto).toEqual({
+      version: '0.2.0',
+      minimumVersion: '0.1.0',
+    });
     const seen = await env.DB.prepare(`SELECT last_seen_at FROM runners WHERE id = ?1`)
       .bind(runner.id)
       .first<{ last_seen_at: string | null }>();
@@ -293,11 +340,27 @@ describe('the runner JWT on /api/v1/runner/*', () => {
     ['a lifetime over five minutes', { lifetimeSeconds: 301 }, 'runner-jwt-invalid'],
     ['no jti', { omit: ['jti'] as const }, 'runner-jwt-invalid'],
     ['no exp', { omit: ['exp'] as const }, 'runner-jwt-invalid'],
-    ['an expired token', { issuedAt: Math.floor(Date.now() / 1000) - 600, lifetimeSeconds: 200 }, 'runner-jwt-expired'],
+    [
+      'an expired token',
+      { issuedAt: Math.floor(Date.now() / 1000) - 600, lifetimeSeconds: 200 },
+      'runner-jwt-expired',
+    ],
     // #489 review: a future `iat` with `exp = iat + 300` would otherwise be a token good for as long as it says.
-    ['a future iat (an hour ahead)', { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 }, 'runner-jwt-invalid'],
-    ['a future iat just past the tolerance', { issuedAt: Math.floor(Date.now() / 1000) + 120, lifetimeSeconds: 300 }, 'runner-jwt-invalid'],
-    ['a stale iat (six minutes old, exp still ahead by the clock tolerance)', { issuedAt: Math.floor(Date.now() / 1000) - 360, lifetimeSeconds: 300 }, 'runner-jwt-expired'],
+    [
+      'a future iat (an hour ahead)',
+      { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 },
+      'runner-jwt-invalid',
+    ],
+    [
+      'a future iat just past the tolerance',
+      { issuedAt: Math.floor(Date.now() / 1000) + 120, lifetimeSeconds: 300 },
+      'runner-jwt-invalid',
+    ],
+    [
+      'a stale iat (six minutes old, exp still ahead by the clock tolerance)',
+      { issuedAt: Math.floor(Date.now() / 1000) - 360, lifetimeSeconds: 300 },
+      'runner-jwt-expired',
+    ],
   ])('refuses %s', async (_, jwt, slug) => {
     const runner = await enrolRunner(OWNER_ACCOUNT_ID);
     const response = await sendAsRunner(runner, 'GET', RELEASE, undefined, { jwt });
@@ -306,7 +369,9 @@ describe('the runner JWT on /api/v1/runner/*', () => {
   });
 
   it('refuses a token that is not a JWT at all', async () => {
-    const response = await send('GET', RELEASE, undefined, { headers: { Authorization: 'Bearer not.a.jwt' } });
+    const response = await send('GET', RELEASE, undefined, {
+      headers: { Authorization: 'Bearer not.a.jwt' },
+    });
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-jwt-invalid');
   });
@@ -366,9 +431,15 @@ describe('the runner JWT on /api/v1/runner/*', () => {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(response.status).toBe(200);
-    const bad = await sendAsRunner({ id: runner.id, privateKey: (await generateRunnerKey()).privateKey }, 'GET', RELEASE, undefined, {
-      logSink: (line) => lines.push(line),
-    });
+    const bad = await sendAsRunner(
+      { id: runner.id, privateKey: (await generateRunnerKey()).privateKey },
+      'GET',
+      RELEASE,
+      undefined,
+      {
+        logSink: (line) => lines.push(line),
+      },
+    );
     expect(bad.status).toBe(401);
     expect(lines.join('\n')).not.toContain('eyJ');
     expect(lines.join('\n')).toContain('runner-jwt-invalid');
@@ -394,7 +465,11 @@ describe('the runner JWT on /api/v1/runner/*', () => {
         .bind(runner.id)
         .first<{ details: string; actor_kind: string; actor: string }>();
       expect(audit).toMatchObject({ actor_kind: 'runner', actor: runner.id });
-      expect(JSON.parse(audit?.details ?? '{}')).toEqual({ reason: 'new-country', country: 'DE', previousCountry: 'UA' });
+      expect(JSON.parse(audit?.details ?? '{}')).toEqual({
+        reason: 'new-country',
+        country: 'DE',
+        previousCountry: 'UA',
+      });
     });
 
     it('marks a runner suspect when two source addresses use its id inside one lease window', async () => {

@@ -22,10 +22,7 @@
           "tier": null,
           "sprint": null,
           "title": "Export to CSV",
-          "labels": [
-            "status:proposed",
-            "kind:feature"
-          ],
+          "labels": ["status:proposed", "kind:feature"],
           "flags": [],
           "state": "open",
           "closedAt": null,
@@ -49,10 +46,7 @@
           "tier": null,
           "sprint": null,
           "title": "Dark mode",
-          "labels": [
-            "status:approved",
-            "kind:feature"
-          ],
+          "labels": ["status:approved", "kind:feature"],
           "flags": [],
           "state": "open",
           "closedAt": null,

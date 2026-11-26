@@ -37,7 +37,9 @@ interface Frame {
 function readRuleBlocks(blanked: string): RuleBlock[] {
   const blocks: RuleBlock[] = [];
   // Frame 0 is the top level; it is never judged because it is not returned in `blocks`.
-  const stack: Frame[] = [{ block: { prelude: '', preludeStart: 0, ownRanges: [] }, ownStart: 0, segmentStart: 0 }];
+  const stack: Frame[] = [
+    { block: { prelude: '', preludeStart: 0, ownRanges: [] }, ownStart: 0, segmentStart: 0 },
+  ];
   for (let index = 0; index < blanked.length; index += 1) {
     const char = blanked[index];
     const top = stack[stack.length - 1];
@@ -78,7 +80,10 @@ export function findGridsWithoutColumns(css: string): GridWithoutColumns[] {
     if (!DISPLAY_GRID.test(body) || COLUMNS.test(body) || ANNOTATION.test(ownText(block, source))) {
       continue;
     }
-    found.push({ line: source.slice(0, block.preludeStart).split('\n').length, selector: block.prelude.trim() });
+    found.push({
+      line: source.slice(0, block.preludeStart).split('\n').length,
+      selector: block.prelude.trim(),
+    });
   }
   return found;
 }

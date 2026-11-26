@@ -10,16 +10,40 @@ const SELF = '/api/v1/runner/self';
 describe('GET /api/v1/runner/self', () => {
   it('answers the exact key set with the scope and the served projects, and follows a scope change without a re-enrol', async () => {
     const project = await seedTrackerProject();
-    const runner = await enrolRunner(OWNER_ACCOUNT_ID, { projectScope: 'selected', allowedProjects: [project.slug], name: 'Mac' });
+    const runner = await enrolRunner(OWNER_ACCOUNT_ID, {
+      projectScope: 'selected',
+      allowedProjects: [project.slug],
+      name: 'Mac',
+    });
     const first = await sendAsRunner(runner, 'GET', SELF, undefined, { headers: { 'CF-IPCountry': 'UA' } });
     expect(first.status).toBe(200);
     const body = (await first.json()) as RunnerSelfDto;
     expect(isRunnerSelfDto(body)).toBe(true);
     expect(Object.keys(body).sort()).toEqual(['projects', 'runner']);
     expect(Object.keys(body.runner).sort()).toEqual(
-      ['accountId', 'allowedProjects', 'belowMinimum', 'id', 'isolation', 'lastSeenAt', 'name', 'pausedUntil', 'projectScope', 'version'].sort(),
+      [
+        'accountId',
+        'allowedProjects',
+        'belowMinimum',
+        'id',
+        'isolation',
+        'lastSeenAt',
+        'name',
+        'pausedUntil',
+        'projectScope',
+        'version',
+      ].sort(),
     );
-    expect(body.runner).toMatchObject({ id: runner.id, name: 'Mac', accountId: OWNER_ACCOUNT_ID, projectScope: 'selected', allowedProjects: [project.slug], isolation: 'user', version: '0.1.0', pausedUntil: null });
+    expect(body.runner).toMatchObject({
+      id: runner.id,
+      name: 'Mac',
+      accountId: OWNER_ACCOUNT_ID,
+      projectScope: 'selected',
+      allowedProjects: [project.slug],
+      isolation: 'user',
+      version: '0.1.0',
+      pausedUntil: null,
+    });
     expect(body.projects).toEqual([{ slug: project.slug, accessSource: 'subscription' }]);
     const text = JSON.stringify(body);
     for (const absent of ['suspect', 'country', 'publicKey', 'ipHash', 'policy', 'hosted']) {
@@ -28,11 +52,16 @@ describe('GET /api/v1/runner/self', () => {
 
     // The owner widens the scope on Settings › Runners: the next read serves every project, a new one included.
     const later = await seedTrackerProject();
-    const widened = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, { projectScope: 'all', allowedProjects: [] });
+    const widened = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, {
+      projectScope: 'all',
+      allowedProjects: [],
+    });
     expect(widened.status).toBe(200);
     const second = (await (await sendAsRunner(runner, 'GET', SELF)).json()) as RunnerSelfDto;
     expect(second.runner).toMatchObject({ projectScope: 'all', allowedProjects: [] });
-    expect(second.projects.map((row) => row.slug)).toEqual(expect.arrayContaining([project.slug, later.slug]));
+    expect(second.projects.map((row) => row.slug)).toEqual(
+      expect.arrayContaining([project.slug, later.slug]),
+    );
   });
 
   it('lists nothing of another account, and answers 401 once the runner is revoked', async () => {

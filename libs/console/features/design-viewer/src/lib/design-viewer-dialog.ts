@@ -180,9 +180,7 @@ export class DesignViewerDialog {
       untracked(() => {
         if (devices.length === 2 && this.device() === null) {
           const start = this.startScreen();
-          this.device.set(
-            start?.device ?? (this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac'),
-          );
+          this.device.set(start?.device ?? (this.breakpoints.isMatched(BREAKPOINTS.phone) ? 'phone' : 'mac'));
         }
       });
     });
@@ -252,7 +250,11 @@ export class DesignViewerDialog {
    */
   protected async onFailed(screen: DesignScreen): Promise<void> {
     const sha = this.sha();
-    if (sha !== null && (await this.manifests.recover(this.data.slug, this.data.issue, sha)) && this.sha() !== sha) {
+    if (
+      sha !== null &&
+      (await this.manifests.recover(this.data.slug, this.data.issue, sha)) &&
+      this.sha() !== sha
+    ) {
       return;
     }
     if (this.sha() === sha) {

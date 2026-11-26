@@ -417,7 +417,12 @@ class MockGitHubServer {
     }
 
     // #759: one installation as the app sees it, with the permissions its installer accepted.
-    if (method === 'GET' && segments.length === 3 && segments[0] === 'app' && segments[1] === 'installations') {
+    if (
+      method === 'GET' &&
+      segments.length === 3 &&
+      segments[0] === 'app' &&
+      segments[1] === 'installations'
+    ) {
       return (await this.isValidJwt(bearer))
         ? this.installation(Number(segments[2]))
         : json(401, { message: 'A JSON web token could not be decoded' });
@@ -463,7 +468,9 @@ class MockGitHubServer {
         return notFound();
       }
       // #723: GitHub names the run it created when asked to (`return_run_details`), and answers 204 otherwise.
-      return dispatchBodyAsksForRun(init.body) ? json(200, { workflow_run_id: mockRunId() }) : new Response(null, { status: 204 });
+      return dispatchBodyAsksForRun(init.body)
+        ? json(200, { workflow_run_id: mockRunId() })
+        : new Response(null, { status: 204 });
     }
 
     // #723: an installation token revokes itself; any later use of it is 401, as at GitHub.
@@ -476,7 +483,12 @@ class MockGitHubServer {
       return new Response(null, { status: 204 });
     }
 
-    if (method === 'GET' && segments[0] === 'repos' && segments.length >= 5 && segments[3] === 'environments') {
+    if (
+      method === 'GET' &&
+      segments[0] === 'repos' &&
+      segments.length >= 5 &&
+      segments[3] === 'environments'
+    ) {
       return this.environmentRead(bearer, segments);
     }
 
@@ -539,14 +551,23 @@ class MockGitHubServer {
       if (fixtureFound === undefined || fixtureFound.name.toLowerCase() !== token.repo.toLowerCase()) {
         return notFound();
       }
-      const found = { name: fixtureFound.name, fixture: this.withWrites(fixtureFound.name, fixtureFound.fixture) };
+      const found = {
+        name: fixtureFound.name,
+        fixture: this.withWrites(fixtureFound.name, fixtureFound.fixture),
+      };
       const reply = found.fixture.reply;
       if (reply !== undefined) {
         return json(reply.status, { message: 'mock reply' }, { ...reply.headers });
       }
       if (isContentsRead) {
         const accept = new Headers(init.headers).get('accept') ?? '';
-        return this.file(found.fixture, segments.slice(4).join('/'), found.name, accept, url.searchParams.get('ref'));
+        return this.file(
+          found.fixture,
+          segments.slice(4).join('/'),
+          found.name,
+          accept,
+          url.searchParams.get('ref'),
+        );
       }
       if (isListRead) {
         const items = listOf(found.fixture, listed, url.searchParams);
@@ -781,7 +802,8 @@ class MockGitHubServer {
     const refFiles: Record<string, Readonly<Record<string, string>>> = { ...fixture.refFiles };
     for (const pull of state.pulls) {
       const head = pull['head'];
-      const branch = isRecord(head) && typeof head['ref'] === 'string' ? state.branches.get(head['ref']) : undefined;
+      const branch =
+        isRecord(head) && typeof head['ref'] === 'string' ? state.branches.get(head['ref']) : undefined;
       if (branch === undefined) {
         continue;
       }
@@ -922,7 +944,9 @@ class MockGitHubServer {
    * the read set always, `actions: write`, `environments: read` and the setup write set by its flags.
    */
   private installation(installationId: number): Response {
-    const fixture = Object.values(this.fixtures.repositories).find((entry) => entry.installationId === installationId);
+    const fixture = Object.values(this.fixtures.repositories).find(
+      (entry) => entry.installationId === installationId,
+    );
     if (fixture === undefined) {
       return notFound();
     }
@@ -1040,7 +1064,9 @@ class MockGitHubServer {
       const found = onInstallation.find(([, fixture]) => fixture.repository?.['id'] === wanted);
       const kind = scopedKindOf(request['permissions']);
       if (found === undefined || wanted === undefined || kind === undefined) {
-        return json(422, { message: 'The console must mint one named permission set for exactly one repository' });
+        return json(422, {
+          message: 'The console must mint one named permission set for exactly one repository',
+        });
       }
       if (!isGranted(found[1], kind)) {
         return json(422, { message: 'The permissions requested are not granted to this installation.' });

@@ -24,10 +24,7 @@
       "tier": null,
       "sprint": null,
       "title": "Dark mode",
-      "labels": [
-        "status:approved",
-        "kind:feature"
-      ],
+      "labels": ["status:approved", "kind:feature"],
       "flags": [],
       "state": "open",
       "closedAt": null,

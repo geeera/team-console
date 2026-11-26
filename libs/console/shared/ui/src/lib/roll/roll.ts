@@ -17,9 +17,12 @@ import { ChangeDetectionStrategy, Component, effect, input, signal, untracked } 
       @if (previous(); as old) {
         <span class="tc-roll__out" aria-hidden="true">{{ old }}</span>
       }
-      <span class="tc-roll__in" [class.tc-roll__in--rolling]="previous() !== null" (animationend)="settle()">{{
-        text()
-      }}</span>
+      <span
+        class="tc-roll__in"
+        [class.tc-roll__in--rolling]="previous() !== null"
+        (animationend)="settle()"
+        >{{ text() }}</span
+      >
     }
   `,
   styleUrl: './roll.css',

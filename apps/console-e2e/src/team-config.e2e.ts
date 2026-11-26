@@ -100,7 +100,9 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
     await tabTo(page, designer, page.getByTestId('role-ux-designer').getByTestId('role-limits'));
     await page.keyboard.press('Space');
     await expect(designer).toHaveAttribute('aria-checked', 'false');
-    await expect(page.getByTestId('role-ui-designer').getByTestId('role-reason')).toHaveText(ru('teamConfig.role.off'));
+    await expect(page.getByTestId('role-ui-designer').getByTestId('role-reason')).toHaveText(
+      ru('teamConfig.role.off'),
+    );
 
     // Developer on Fable 5.1 through the picker: only the allowed models, Haiku named as not available.
     const devModel = page.getByTestId('role-dev').getByTestId('role-model');
@@ -117,7 +119,9 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
     await page.keyboard.press('Enter');
     await expect(picker).toHaveCount(0);
     await expect(devModel).toBeFocused();
-    await expect(page.getByTestId('role-dev').getByTestId('role-override')).toHaveText(ru('teamConfig.role.override'));
+    await expect(page.getByTestId('role-dev').getByTestId('role-override')).toHaveText(
+      ru('teamConfig.role.override'),
+    );
 
     const budget = page.getByTestId('input-budget.monthly_usd');
     await tabTo(page, budget, page.getByTestId('role-ui-designer').getByTestId('role-limits'));
@@ -141,7 +145,10 @@ test('the owner opens Team, edits roles, a model and the budget by keyboard alon
     await tabTo(page, review.getByTestId('review-save'));
     await page.keyboard.press('Enter');
 
-    const toast = page.getByRole('status').filter({ hasText: ru('teamConfig.saved', { n: 1 }) }).first();
+    const toast = page
+      .getByRole('status')
+      .filter({ hasText: ru('teamConfig.saved', { n: 1 }) })
+      .first();
     await expect(toast).toBeVisible();
     // The kit toast (inverse --text on --bg) fades in over --dur-fade; once in, it is fully opaque.
     await expect(toast).toHaveCSS('opacity', '1');
@@ -183,7 +190,9 @@ test('a revision saved meanwhile shows the conflict, never overwritten; keep my 
 
     const banner = page.getByTestId('team-conflict');
     await expect(banner.getByRole('heading')).toBeFocused();
-    await expect(banner.getByRole('heading')).toHaveText(ru('teamConfig.conflict.title', { who: ru('teamConfig.owner'), n: 1 }));
+    await expect(banner.getByRole('heading')).toHaveText(
+      ru('teamConfig.conflict.title', { who: ru('teamConfig.owner'), n: 1 }),
+    );
     expect((await stored(api)).budget.monthly_usd).toBeNull();
     await expectAccessible(page, 'Settings › Team, conflict');
 
@@ -210,7 +219,10 @@ test('a revision saved meanwhile shows the conflict, never overwritten; keep my 
   }
 });
 
-test('a 422 marks and focuses the named field; 403 and a dropped network keep the edits', async ({ page, stack }, testInfo) => {
+test('a 422 marks and focuses the named field; 403 and a dropped network keep the edits', async ({
+  page,
+  stack,
+}, testInfo) => {
   const api = await prepared(stack, testInfo.workerIndex);
   try {
     await openTeam(page);
@@ -230,7 +242,12 @@ test('a 422 marks and focuses the named field; 403 and a dropped network keep th
       await route.fulfill({
         status,
         contentType: 'application/problem+json',
-        json: { type: problemTypeOf(type), title: 'x', status, ...(answer === 'invalid' ? { field: 'roles.dev.max_turns' } : {}) },
+        json: {
+          type: problemTypeOf(type),
+          title: 'x',
+          status,
+          ...(answer === 'invalid' ? { field: 'roles.dev.max_turns' } : {}),
+        },
       });
     });
     const save = async (): Promise<void> => {
@@ -242,7 +259,9 @@ test('a 422 marks and focuses the named field; 403 and a dropped network keep th
     const limits = page.getByTestId('role-dev').getByTestId('role-limits');
     await expect(limits).toBeFocused();
     await expect(limits).toHaveAttribute('aria-invalid', 'true');
-    await expect(page.getByTestId('role-dev').getByRole('alert')).toContainText(ru('teamConfig.field.role.max_turns'));
+    await expect(page.getByTestId('role-dev').getByRole('alert')).toContainText(
+      ru('teamConfig.field.role.max_turns'),
+    );
 
     answer = 'abort';
     await save();
@@ -310,7 +329,9 @@ test('choosing the subscription needs its warning ticked; with an API key it is 
     });
     expect(start.status(), await start.text()).toBe(200);
     await openTeam(page);
-    await expect(page.getByTestId('access-subscription')).toHaveAccessibleDescription(new RegExp(ru('teamConfig.access.risk').slice(0, 40)));
+    await expect(page.getByTestId('access-subscription')).toHaveAccessibleDescription(
+      new RegExp(ru('teamConfig.access.risk').slice(0, 40)),
+    );
     await page.getByTestId('access-subscription').click();
     const dialog = page.getByRole('alertdialog', { name: ru('teamConfig.access.confirmTitle') });
     await dialog.getByTestId('subscription-ok').click();
@@ -343,7 +364,9 @@ test('on a 375 px phone the sections fold, nothing scrolls sideways and every ta
     await expect(page.getByTestId('section-toggle-roles')).toHaveAttribute('aria-expanded', 'true');
     // The three presets stack in one column, each name whole (the approved phone wireframe), never truncated.
     const presets = page.getByTestId('preset-group').locator('label');
-    const tops = await presets.evaluateAll((labels) => labels.map((label) => label.getBoundingClientRect().top));
+    const tops = await presets.evaluateAll((labels) =>
+      labels.map((label) => label.getBoundingClientRect().top),
+    );
     expect(new Set(tops).size).toBe(3);
     const truncated = await presets.evaluateAll((labels) =>
       labels.some((label) => {
@@ -358,7 +381,10 @@ test('on a 375 px phone the sections fold, nothing scrolls sideways and every ta
     await editBudget(page, '120');
     await expect(page.getByTestId('save-bar')).toBeVisible();
     const overflow = await page.evaluate(() => {
-      const scrollers = [document.documentElement, ...document.querySelectorAll<HTMLElement>('.tc-page-scroll')];
+      const scrollers = [
+        document.documentElement,
+        ...document.querySelectorAll<HTMLElement>('.tc-page-scroll'),
+      ];
       return scrollers.some((element) => element.scrollWidth > element.clientWidth + 1);
     });
     expect(overflow).toBe(false);
@@ -367,10 +393,15 @@ test('on a 375 px phone the sections fold, nothing scrolls sideways and every ta
     );
     for (const target of await targets.all()) {
       const box = await target.boundingBox();
-      expect(meetsMinTap(box?.height), `${spaced(await target.textContent())} is ${String(box?.height)} px high`).toBe(true);
+      expect(
+        meetsMinTap(box?.height),
+        `${spaced(await target.textContent())} is ${String(box?.height)} px high`,
+      ).toBe(true);
     }
     // Reduced motion: the save bar does not slide in.
-    const duration = await page.getByTestId('save-bar').evaluate((element) => getComputedStyle(element).animationDuration);
+    const duration = await page
+      .getByTestId('save-bar')
+      .evaluate((element) => getComputedStyle(element).animationDuration);
     expect(Number.parseFloat(duration)).toBeLessThanOrEqual(0.001);
     await expectAccessible(page, 'Settings › Team, phone');
   } finally {
@@ -378,13 +409,19 @@ test('on a 375 px phone the sections fold, nothing scrolls sideways and every ta
   }
 });
 
-test('leaving with unsaved edits asks first; a failed load offers Try again', async ({ page, stack }, testInfo) => {
+test('leaving with unsaved edits asks first; a failed load offers Try again', async ({
+  page,
+  stack,
+}, testInfo) => {
   const api = await prepared(stack, testInfo.workerIndex);
   try {
     let failing = true;
     await page.route(`**${API}`, async (route: Route) => {
       if (failing) {
-        await route.fulfill({ status: 503, json: { type: problemTypeOf('unavailable'), title: 'x', status: 503 } });
+        await route.fulfill({
+          status: 503,
+          json: { type: problemTypeOf('unavailable'), title: 'x', status: 503 },
+        });
         return;
       }
       await route.fallback();
@@ -405,7 +442,10 @@ test('leaving with unsaved edits asks first; a failed load offers Try again', as
     await expect(page).toHaveURL(new RegExp(`${URL}$`));
     await expect(page.getByTestId('input-budget.monthly_usd')).toHaveValue('90');
     await page.getByTestId('team-back').click();
-    await page.getByRole('alertdialog').getByRole('button', { name: ru('teamConfig.leave.go') }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: ru('teamConfig.leave.go') })
+      .click();
     await expect(page).toHaveURL(new RegExp(`/settings/projects/${SLUG}$`));
     expect((await stored(api)).budget.monthly_usd).toBeNull();
   } finally {

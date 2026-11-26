@@ -19,7 +19,11 @@ export function waiverEndOf(month: string): Date | null {
 
 /** "1 декабря" / "1 December" of a UTC instant, in UTC: the month ends at UTC midnight, wherever the owner is. */
 export function utcDayOf(at: Date, lang: string): string {
-  return new Intl.DateTimeFormat(intlLocaleOf(lang), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(at);
+  return new Intl.DateTimeFormat(intlLocaleOf(lang), {
+    day: 'numeric',
+    month: 'long',
+    timeZone: 'UTC',
+  }).format(at);
 }
 
 const capitalised = (text: string): string => text.charAt(0).toLocaleUpperCase() + text.slice(1);
@@ -41,14 +45,21 @@ const capitalised = (text: string): string => text.charAt(0).toLocaleUpperCase()
       [tone]="editing() === null ? 'warning' : 'success'"
       [attr.data-editing]="editing() === null ? null : 'true'"
     >
-      <h3 tc-callout-title id="tc-team-waived-title">{{ 'teamConfig.budget.waivedTitle' | transloco: { month: words().month } }}</h3>
-      <p class="waived__text" data-testid="team-waived-body">{{ 'teamConfig.budget.waivedBody' | transloco: words() }}</p>
+      <h3 tc-callout-title id="tc-team-waived-title">
+        {{ 'teamConfig.budget.waivedTitle' | transloco: { month: words().month } }}
+      </h3>
+      <p class="waived__text" data-testid="team-waived-body">
+        {{ 'teamConfig.budget.waivedBody' | transloco: words() }}
+      </p>
       <p class="waived__text waived__ends" data-testid="team-waived-ends" aria-live="polite">
         @if (editing(); as edit) {
           @if (edit.usd === null) {
             {{ 'teamConfig.budget.waivedEditingNone' | transloco }}
           } @else {
-            {{ 'teamConfig.budget.waivedEditing' | transloco: { month: words().monthLower, budget: moneyOf(edit.usd) } }}
+            {{
+              'teamConfig.budget.waivedEditing'
+                | transloco: { month: words().monthLower, budget: moneyOf(edit.usd) }
+            }}
           }
         } @else {
           {{ 'teamConfig.budget.waivedEnds' | transloco }}
@@ -70,7 +81,9 @@ const capitalised = (text: string): string => text.charAt(0).toLocaleUpperCase()
 })
 export class WaivedMonth {
   private readonly transloco = inject(TranslocoService);
-  private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  private readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   readonly month = input.required<WaivedMonthDto>();
   /** The budget the owner is typing, while it differs from the stored one; `null` when it is not being changed. */

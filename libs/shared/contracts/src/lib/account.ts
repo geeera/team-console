@@ -330,5 +330,7 @@ export function isAccountMembershipDto(value: unknown): value is AccountMembersh
 }
 
 export function isAccountMembershipListDto(value: unknown): value is AccountMembershipListDto {
-  return isRecord(value) && Array.isArray(value['accounts']) && value['accounts'].every(isAccountMembershipDto);
+  return (
+    isRecord(value) && Array.isArray(value['accounts']) && value['accounts'].every(isAccountMembershipDto)
+  );
 }

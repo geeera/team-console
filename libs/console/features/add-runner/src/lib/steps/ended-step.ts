@@ -8,7 +8,11 @@ import type { WizardEnd } from '../add-runner.model';
   selector: 'tc-add-runner-ended-step',
   imports: [Callout, TranslocoPipe],
   template: `
-    <section tc-callout [tone]="reason() === 'expired' ? 'warning' : 'neutral'" [attr.data-testid]="'wizard-' + reason()">
+    <section
+      tc-callout
+      [tone]="reason() === 'expired' ? 'warning' : 'neutral'"
+      [attr.data-testid]="'wizard-' + reason()"
+    >
       <h3 tc-callout-title class="step__heading" tabindex="-1" data-step-heading>
         {{ 'runners.wizard.' + reason() + '.title' | transloco }}
       </h3>

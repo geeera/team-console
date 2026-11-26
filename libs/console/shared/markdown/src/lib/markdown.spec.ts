@@ -15,7 +15,10 @@ class Host {
 
 describe('Markdown', () => {
   async function render() {
-    await TestBed.configureTestingModule({ imports: [Host], providers: [provideConsoleI18n()] }).compileComponents();
+    await TestBed.configureTestingModule({
+      imports: [Host],
+      providers: [provideConsoleI18n()],
+    }).compileComponents();
     await TestBed.inject(ApplicationInitStatus).donePromise;
     const fixture = TestBed.createComponent(Host);
     await fixture.whenStable();

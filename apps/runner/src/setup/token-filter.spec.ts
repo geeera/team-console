@@ -3,7 +3,8 @@ import { SetupTokenFilter, cleanTerminalText, type StreamName } from './token-fi
 const TOKEN = `sk-ant-oat01-${'Ab3_-'.repeat(20)}xyz`;
 const OTHER = `sk-ant-oat01-${'Zq9_-'.repeat(20)}xyz`;
 const API_KEY = `sk-ant-api03-${'Ab3_-'.repeat(20)}`;
-const URL_LINE = 'Browser didn’t open? Use the url below to sign in:\nhttps://claude.ai/oauth/authorize?code=true\n';
+const URL_LINE =
+  'Browser didn’t open? Use the url below to sign in:\nhttps://claude.ai/oauth/authorize?code=true\n';
 
 function run(chunks: readonly (readonly [StreamName, string | Buffer])[]): {
   forwarded: string;
@@ -32,7 +33,10 @@ describe('SetupTokenFilter', () => {
     const { forwarded, outcome } = run([
       ['stdout', URL_LINE],
       ['stdout', 'Paste code here if prompted > '],
-      ['stdout', `\n✓ Long-lived authentication token created successfully!\n\nYour OAuth token:\n\n${TOKEN}\n\nStore this token securely.\n`],
+      [
+        'stdout',
+        `\n✓ Long-lived authentication token created successfully!\n\nYour OAuth token:\n\n${TOKEN}\n\nStore this token securely.\n`,
+      ],
     ]);
     expect(outcome).toEqual({ kind: 'token', value: TOKEN });
     expect(forwarded).toContain('https://claude.ai/oauth/authorize?code=true');
@@ -42,7 +46,9 @@ describe('SetupTokenFilter', () => {
   });
 
   it('refuses a token wrapped across two lines and forwards neither half', () => {
-    const { forwarded, outcome } = run([['stdout', `Your OAuth token:\n${TOKEN.slice(0, 60)}\n${TOKEN.slice(60)}\nDone and dusted.\n`]]);
+    const { forwarded, outcome } = run([
+      ['stdout', `Your OAuth token:\n${TOKEN.slice(0, 60)}\n${TOKEN.slice(60)}\nDone and dusted.\n`],
+    ]);
     expect(outcome).toEqual({ kind: 'refused', reason: 'wrapped' });
     expectNoFragment(forwarded, TOKEN);
   });
@@ -63,7 +69,10 @@ describe('SetupTokenFilter', () => {
 
   it('holds a trailing "s" or "sk" across a chunk boundary instead of flushing it', () => {
     const forwardedChunks: string[] = [];
-    const filter = new SetupTokenFilter({ stdout: (text) => forwardedChunks.push(text), stderr: () => undefined });
+    const filter = new SetupTokenFilter({
+      stdout: (text) => forwardedChunks.push(text),
+      stderr: () => undefined,
+    });
     filter.write('stdout', 'Paste code > s');
     expect(forwardedChunks.join('')).toBe('Paste code > ');
     filter.write('stdout', 'k');
@@ -74,13 +83,19 @@ describe('SetupTokenFilter', () => {
   });
 
   it('flushes a held "s" that turns out to be ordinary text', () => {
-    const { forwarded } = run([['stdout', 'yes'], ['stdout', ' please\n']]);
+    const { forwarded } = run([
+      ['stdout', 'yes'],
+      ['stdout', ' please\n'],
+    ]);
     expect(forwarded).toBe('yes please\n');
   });
 
   it('splits a token over byte chunks inside a multi-byte character and an escape', () => {
     const bytes = Buffer.from(`✓ ok\n\x1b[2m${TOKEN}\x1b[0m\n`, 'utf8');
-    const chunks = Array.from({ length: bytes.length }, (_, index) => ['stdout', bytes.subarray(index, index + 1)] as const);
+    const chunks = Array.from(
+      { length: bytes.length },
+      (_, index) => ['stdout', bytes.subarray(index, index + 1)] as const,
+    );
     const { forwarded, outcome } = run(chunks);
     expect(outcome).toEqual({ kind: 'token', value: TOKEN });
     expect(forwarded).toBe('✓ ok\n');
@@ -117,11 +132,17 @@ describe('SetupTokenFilter', () => {
   });
 
   it('refuses a token next to an API key', () => {
-    expect(run([['stdout', `${TOKEN}\n${API_KEY}\n`]]).outcome).toEqual({ kind: 'refused', reason: 'api-key' });
+    expect(run([['stdout', `${TOKEN}\n${API_KEY}\n`]]).outcome).toEqual({
+      kind: 'refused',
+      reason: 'api-key',
+    });
   });
 
   it('refuses a key start that is no well-formed token', () => {
-    expect(run([['stdout', 'sk-ant-oat01-short\n']]).outcome).toEqual({ kind: 'refused', reason: 'malformed' });
+    expect(run([['stdout', 'sk-ant-oat01-short\n']]).outcome).toEqual({
+      kind: 'refused',
+      reason: 'malformed',
+    });
     expect(run([['stdout', `"${TOKEN}"\n`]]).outcome).toEqual({ kind: 'refused', reason: 'malformed' });
   });
 
@@ -132,7 +153,10 @@ describe('SetupTokenFilter', () => {
   });
 
   it('refuses when the output after the key start is beyond any CLI', () => {
-    expect(run([['stdout', `${TOKEN}\n${'x'.repeat(70 * 1024)}`]]).outcome).toEqual({ kind: 'refused', reason: 'overflow' });
+    expect(run([['stdout', `${TOKEN}\n${'x'.repeat(70 * 1024)}`]]).outcome).toEqual({
+      kind: 'refused',
+      reason: 'overflow',
+    });
   });
 
   it('does not let a zero-width or backspace character hide the key start', () => {

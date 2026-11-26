@@ -29,7 +29,10 @@ async function settle(fixture: ComponentFixture<unknown>): Promise<void> {
 
 const testId = (el: HTMLElement, id: string): HTMLElement | null => el.querySelector(`[data-testid="${id}"]`);
 
-function summary(revision: number, extras: Partial<TeamConfigRevisionSummaryDto> = {}): TeamConfigRevisionSummaryDto {
+function summary(
+  revision: number,
+  extras: Partial<TeamConfigRevisionSummaryDto> = {},
+): TeamConfigRevisionSummaryDto {
   return {
     revision,
     createdAt: '2026-11-14T16:20:00.000Z',
@@ -43,7 +46,11 @@ function summary(revision: number, extras: Partial<TeamConfigRevisionSummaryDto>
 
 const revisionNine: TeamConfigRevisionDto = {
   revision: 9,
-  config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, roles: { qa: { model: 'claude-sonnet-5' } } },
+  config: {
+    schema: TEAM_CONFIG_SCHEMA,
+    access: { source: 'api_key' },
+    roles: { qa: { model: 'claude-sonnet-5' } },
+  },
   diff: [
     { path: 'roles.qa.model', from: 'claude-opus-5-5', to: 'claude-sonnet-5' },
     { path: 'budget.monthly_usd', to: 200 },
@@ -54,7 +61,10 @@ const revisionNine: TeamConfigRevisionDto = {
   reason: SCRIPT,
 };
 
-function setup<T>(component: Type<T>, data: unknown): {
+function setup<T>(
+  component: Type<T>,
+  data: unknown,
+): {
   fixture: ComponentFixture<T>;
   http: HttpTestingController;
   el: HTMLElement;
@@ -85,10 +95,17 @@ function setup<T>(component: Type<T>, data: unknown): {
 
 describe('HistorySheet', () => {
   it('lists revisions newest first with author, settings and the reason as text, never markup (T4)', async () => {
-    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
+    const { fixture, http, el, t } = setup(HistorySheet, {
+      slug: 'acme',
+      canUseDraft: true,
+      latestRevision: 9,
+    });
     http
       .expectOne((req) => req.url === REVISIONS && req.params.get('after') === '0')
-      .flush({ revisions: [summary(8), summary(9, { createdByName: 'anna', reason: SCRIPT })], nextCursor: null });
+      .flush({
+        revisions: [summary(8), summary(9, { createdByName: 'anna', reason: SCRIPT })],
+        nextCursor: null,
+      });
     await settle(fixture);
     const rows = [...el.querySelectorAll('[data-testid^="history-row-"]')];
     expect(rows.map((row) => row.getAttribute('data-testid'))).toEqual(['history-row-9', 'history-row-8']);
@@ -97,26 +114,40 @@ describe('HistorySheet', () => {
     expect(nine.textContent).toContain(t('teamConfig.history.settings.one', { n: '1' }));
     expect(testId(nine, 'history-reason')?.textContent?.trim()).toBe(SCRIPT);
     expect(el.querySelector('img')).toBeNull();
-    expect(testId(rows[1] as HTMLElement, 'history-reason')?.textContent).toContain(t('teamConfig.history.noReason'));
+    expect(testId(rows[1] as HTMLElement, 'history-reason')?.textContent).toContain(
+      t('teamConfig.history.noReason'),
+    );
     expect(rows[1]?.textContent).toContain(t('teamConfig.owner'));
   });
 
   it('reads every page and shows more on request', async () => {
-    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false, latestRevision: 9 });
+    const { fixture, http, el } = setup(HistorySheet, {
+      slug: 'acme',
+      canUseDraft: false,
+      latestRevision: 9,
+    });
     const first = Array.from({ length: 100 }, (_, at) => summary(at + 1));
     http.expectOne((req) => req.params.get('after') === '0').flush({ revisions: first, nextCursor: 100 });
     await settle(fixture);
-    http.expectOne((req) => req.params.get('after') === '100').flush({ revisions: [summary(101)], nextCursor: null });
+    http
+      .expectOne((req) => req.params.get('after') === '100')
+      .flush({ revisions: [summary(101)], nextCursor: null });
     await settle(fixture);
     expect(el.querySelectorAll('[data-testid^="history-row-"]').length).toBe(HISTORY_SHOWN_STEP);
-    expect(el.querySelector('[data-testid^="history-row-"]')?.getAttribute('data-testid')).toBe('history-row-101');
+    expect(el.querySelector('[data-testid^="history-row-"]')?.getAttribute('data-testid')).toBe(
+      'history-row-101',
+    );
     testId(el, 'history-more')?.click();
     fixture.detectChanges();
     expect(el.querySelectorAll('[data-testid^="history-row-"]').length).toBe(HISTORY_SHOWN_STEP * 2);
   });
 
   it('is the partial state when the list fails: its own error and Try again, then the list', async () => {
-    const { fixture, http, el, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
+    const { fixture, http, el, t } = setup(HistorySheet, {
+      slug: 'acme',
+      canUseDraft: true,
+      latestRevision: 9,
+    });
     http.expectOne((req) => req.url === REVISIONS).flush('down', { status: 503, statusText: 'x' });
     await settle(fixture);
     expect(testId(el, 'history-error')?.textContent).toContain(t('teamConfig.history.failedTitle'));
@@ -129,13 +160,21 @@ describe('HistorySheet', () => {
   });
 
   it('opens a revision as a diff in words, the reason as text, the raw JSON behind Show raw, and Use as draft', async () => {
-    const { fixture, http, el, close, t } = setup(HistorySheet, { slug: 'acme', canUseDraft: true, latestRevision: 9 });
-    http.expectOne((req) => req.url === REVISIONS).flush({ revisions: [summary(9, { reason: SCRIPT })], nextCursor: null });
+    const { fixture, http, el, close, t } = setup(HistorySheet, {
+      slug: 'acme',
+      canUseDraft: true,
+      latestRevision: 9,
+    });
+    http
+      .expectOne((req) => req.url === REVISIONS)
+      .flush({ revisions: [summary(9, { reason: SCRIPT })], nextCursor: null });
     await settle(fixture);
     (testId(el, 'history-row-9')?.querySelector('button') as HTMLButtonElement).click();
     http.expectOne(`${REVISIONS}/9`).flush(revisionNine);
     await settle(fixture);
-    expect(testId(el, 'revision')?.querySelector('h3')?.textContent).toContain(t('teamConfig.history.revision', { n: 9 }));
+    expect(testId(el, 'revision')?.querySelector('h3')?.textContent).toContain(
+      t('teamConfig.history.revision', { n: 9 }),
+    );
     expect(testId(el, 'revision-meta')?.textContent).toContain('anna');
     expect(testId(el, 'revision-reason')?.textContent?.trim()).toBe(SCRIPT);
     expect(el.querySelector('img')).toBeNull();
@@ -161,7 +200,11 @@ describe('HistorySheet', () => {
   });
 
   it('gives a member the diff but no Use as draft, and a failed revision its own Try again', async () => {
-    const { fixture, http, el } = setup(HistorySheet, { slug: 'acme', canUseDraft: false, latestRevision: 9 });
+    const { fixture, http, el } = setup(HistorySheet, {
+      slug: 'acme',
+      canUseDraft: false,
+      latestRevision: 9,
+    });
     http.expectOne((req) => req.url === REVISIONS).flush({ revisions: [summary(9)], nextCursor: null });
     await settle(fixture);
     (testId(el, 'history-row-9')?.querySelector('button') as HTMLButtonElement).click();
@@ -180,7 +223,10 @@ describe('HistorySheet', () => {
 });
 
 describe('ImportSheet', () => {
-  const draft = { ...draftOf(teamConfigViewOf({ schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' } })), monthlyUsd: 200 };
+  const draft = {
+    ...draftOf(teamConfigViewOf({ schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' } })),
+    monthlyUsd: 200,
+  };
   const imported: TeamConfigImportDto = {
     draft: {
       schema: TEAM_CONFIG_SCHEMA,
@@ -205,7 +251,9 @@ describe('ImportSheet', () => {
     await settle(fixture);
     expect(testId(el, 'import-source')?.textContent).toContain('main');
     const table = testId(el, 'changes-table') as HTMLElement;
-    expect(table.querySelector('[data-path="gates.qa"]')?.textContent).toContain(t('teamConfig.rules.gate.code'));
+    expect(table.querySelector('[data-path="gates.qa"]')?.textContent).toContain(
+      t('teamConfig.rules.gate.code'),
+    );
     expect(table.querySelector('[data-path="gates.max_rework_rounds"]')?.textContent).toContain('2');
     expect(table.querySelector('[data-path="budget.monthly_usd"]')).toBeNull();
     expect(testId(el, 'import-notes')?.textContent).toContain(

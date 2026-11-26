@@ -2,7 +2,15 @@ import type { Locator, Page } from '@playwright/test';
 import type { TeamStatusDto } from '@shared/contracts';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
-import { apiClient, fakeComments, fakePost, RUN_LOG_ISSUE, seed, seedFakeRunLog, type Stack } from './support/stack';
+import {
+  apiClient,
+  fakeComments,
+  fakePost,
+  RUN_LOG_ISSUE,
+  seed,
+  seedFakeRunLog,
+  type Stack,
+} from './support/stack';
 
 /**
  * A run log past 1000 comments (#143): GitHub lists comments oldest first, and the console reads the newest pages,

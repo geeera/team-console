@@ -12,7 +12,11 @@ import { localD1, switchToConsoleTracker } from './support/tracker-seed';
 const SLUG = 'team-console';
 
 /** Fixed spec constants, never input. */
-async function storeJudgement(workerIndex: number, dispatch: 'pull' | 'actions', status: 'modified' | 'ok'): Promise<void> {
+async function storeJudgement(
+  workerIndex: number,
+  dispatch: 'pull' | 'actions',
+  status: 'modified' | 'ok',
+): Promise<void> {
   await localD1(
     workerIndex,
     `UPDATE projects SET dispatch = '${dispatch}', actions_workflow_status = '${status}', actions_workflow_sha256 = NULL,
@@ -23,7 +27,10 @@ async function storeJudgement(workerIndex: number, dispatch: 'pull' | 'actions',
 async function displayNameOf(stack: Parameters<typeof apiClient>[0]): Promise<string> {
   const api = await apiClient(stack);
   try {
-    const projects = (await (await api.get('/api/v1/projects')).json()) as { slug: string; displayName: string }[];
+    const projects = (await (await api.get('/api/v1/projects')).json()) as {
+      slug: string;
+      displayName: string;
+    }[];
     return projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG;
   } finally {
     await api.dispose();
@@ -50,7 +57,9 @@ test('a drifted workflow is one row on Needs you, with when it was checked, to t
   await expect(row.getByTestId('actions-drift-checked')).toHaveText(/^Проверено 20 ноября в \d{2}:\d{2}$/);
   await expect(page.getByTestId('empty')).toHaveCount(0);
   await expectAccessible(page, 'Needs you, Actions workflow drift');
-  await page.getByTestId('project-attention').screenshot({ path: testInfo.outputPath('needs-you-actions-drift.png') });
+  await page
+    .getByTestId('project-attention')
+    .screenshot({ path: testInfo.outputPath('needs-you-actions-drift.png') });
 
   await row.click();
   await expect(page).toHaveURL(new RegExp(`/settings/projects/${SLUG}/actions$`));

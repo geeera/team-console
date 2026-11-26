@@ -22,7 +22,13 @@ import {
 } from '@shared/contracts';
 import { withoutInvisibles } from '@shared/plain-text';
 import { redactSecrets } from '@shared/redaction';
-import { newUlid, problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
+import {
+  newUlid,
+  problem,
+  type ProblemExtensionValue,
+  type WorkerContext,
+  type WorkerHonoEnv,
+} from '@worker/core';
 import {
   JobsRepo,
   RateLimitsRepo,
@@ -37,7 +43,11 @@ import {
 } from '@worker/db';
 import { GitHubVcsAdapter } from '@worker/vcs-github';
 import { auditActorOf } from '../auth/scope';
-import { policyActorOfContext, trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
+import {
+  policyActorOfContext,
+  trackerAccess,
+  trackerProjectOfContext,
+} from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
@@ -45,7 +55,11 @@ import { canManageProject, repoOf } from '../projects/lookup';
 import type { OwnerConnectionSource } from '../projects/owner-connection';
 import { repoIdOf } from '../read-models/repo-id';
 import { SubrequestBudget } from '../read-models/subrequest-budget';
-import { TEAM_CONFIG_IMPORT_MAX_BYTES, TEAM_CONFIG_IMPORT_PATH, teamConfigDraftOf } from '../team-config/import-draft';
+import {
+  TEAM_CONFIG_IMPORT_MAX_BYTES,
+  TEAM_CONFIG_IMPORT_PATH,
+  teamConfigDraftOf,
+} from '../team-config/import-draft';
 import { resolvedViewOf } from '../team-config/resolved';
 import { SMALL_WRITE_MAX_BYTES, pageOf, writeLimit } from '../tracker/http';
 import { jobAuditOf } from './jobs';
@@ -103,7 +117,11 @@ function versionRequired(c: Context): Response {
 }
 
 /** The scoped project's access source: the column the claim reads, which only `TeamConfigRepo` writes. */
-async function accessSourceOf(c: Context, row: ProjectRow, repo = new TeamConfigRepo(c.env.DB)): Promise<AccessSource> {
+async function accessSourceOf(
+  c: Context,
+  row: ProjectRow,
+  repo = new TeamConfigRepo(c.env.DB),
+): Promise<AccessSource> {
   return (await repo.accessSourceOf(row.slug)) ?? 'subscription';
 }
 
@@ -116,9 +134,14 @@ async function authorNameOf(c: Context, actor: string | null): Promise<string | 
 }
 
 /** `authorNameOf` once per distinct author of a page: a history is a handful of people over many revisions. */
-async function authorNamesOf(c: Context, actors: readonly string[]): Promise<ReadonlyMap<string, string | null>> {
+async function authorNamesOf(
+  c: Context,
+  actors: readonly string[],
+): Promise<ReadonlyMap<string, string | null>> {
   const unique = [...new Set(actors)];
-  const names = await Promise.all(unique.map(async (actor) => [actor, await authorNameOf(c, actor)] as const));
+  const names = await Promise.all(
+    unique.map(async (actor) => [actor, await authorNameOf(c, actor)] as const),
+  );
   return new Map(names);
 }
 
@@ -160,7 +183,9 @@ export function auditPathsOf(diff: readonly TeamConfigChange[]): string[] {
 }
 
 /** `reason`: plain text, redacted, 1..500 characters after trimming; blank is none. */
-function reasonOf(value: unknown): { readonly ok: true; readonly reason: string | null } | { readonly ok: false } {
+function reasonOf(
+  value: unknown,
+): { readonly ok: true; readonly reason: string | null } | { readonly ok: false } {
   if (value === undefined || value === null) {
     return { ok: true, reason: null };
   }
@@ -202,8 +227,11 @@ async function save(
   const actor = auditActorOf(c.get('identity'));
   const repo = new TeamConfigRepo(c.env.DB);
   // R-SCOPE-2 (#775): a project switching to a subscription names the `all` runners whose sign-in now serves it.
-  const toSubscription = config.access.source === 'subscription' && current?.config.access?.source !== 'subscription';
-  const serving = toSubscription ? await new RunnersRepo(c.env.DB).allScopeRunnersServing(row.account_id, row.slug) : [];
+  const toSubscription =
+    config.access.source === 'subscription' && current?.config.access?.source !== 'subscription';
+  const serving = toSubscription
+    ? await new RunnersRepo(c.env.DB).allScopeRunnersServing(row.account_id, row.slug)
+    : [];
   const servedByRunners = serving.length > 0 ? serving : null;
   const outcome = await repo.save({
     projectSlug: row.slug,
@@ -226,7 +254,12 @@ async function save(
       c.get('logger').info('team config saved', { slug: row.slug, revision: outcome.revision });
       return respondView(c, await viewOf(c, row, await repo.findCurrent(row.slug)));
     case 'stale':
-      return teamConfigProblem(c, 'team-config-stale', 412, 'Read the team configuration again and apply the change to its current revision');
+      return teamConfigProblem(
+        c,
+        'team-config-stale',
+        412,
+        'Read the team configuration again and apply the change to its current revision',
+      );
     case 'access-source-hosted':
       return teamConfigProblem(
         c,
@@ -238,7 +271,10 @@ async function save(
   }
 }
 
-function summaryOf(row: TeamConfigRevisionRecord, names: ReadonlyMap<string, string | null>): TeamConfigRevisionSummaryDto {
+function summaryOf(
+  row: TeamConfigRevisionRecord,
+  names: ReadonlyMap<string, string | null>,
+): TeamConfigRevisionSummaryDto {
   return {
     revision: row.revision,
     createdAt: row.createdAt,
@@ -255,106 +291,164 @@ function summaryOf(row: TeamConfigRevisionRecord, names: ReadonlyMap<string, str
  * the reads are the account's, and a job reaches `…/resolved` alone (403 `owner-only` on the rest). The project is
  * the scoped lookup's, so another account's slug is 404 `project-not-found`.
  */
-export function createTeamConfigRoutes(github: ApiGitHub, owners: OwnerConnectionSource): Hono<WorkerHonoEnv<ApiEnv>> {
+export function createTeamConfigRoutes(
+  github: ApiGitHub,
+  owners: OwnerConnectionSource,
+): Hono<WorkerHonoEnv<ApiEnv>> {
   return new Hono<WorkerHonoEnv<ApiEnv>>()
     .get('/:slug/team-config', trackerAccess(`GET ${P}/team-config`), async (c) => {
       const row = trackerProjectOfContext(c);
       return respondView(c, await viewOf(c, row, await new TeamConfigRepo(c.env.DB).findCurrent(row.slug)));
     })
 
-    .put('/:slug/team-config', trackerAccess(`PUT ${P}/team-config`), writeLimit(PUT_MAX_BYTES), async (c) => {
-      const row = trackerProjectOfContext(c);
-      const expected = expectedRevisionOf(c);
-      if (expected === null) {
-        return versionRequired(c);
-      }
-      const body = bodyOf(await jsonBody(c), ['config', 'reason']);
-      if (body === null || !Object.hasOwn(body, 'config')) {
-        return teamConfigProblem(c, 'team-config-invalid', 422, 'The body is { config, reason? }', 'body');
-      }
-      const check = checkTeamConfig(body['config']);
-      if (!check.ok) {
-        return teamConfigProblem(c, check.type, 422, check.detail, check.field);
-      }
-      const reason = reasonOf(body['reason']);
-      if (!reason.ok) {
-        return teamConfigProblem(c, 'team-config-invalid', 422, `reason is text of at most ${String(TEAM_CONFIG_REASON_MAX_LENGTH)} characters`, 'reason');
-      }
-      const current = await new TeamConfigRepo(c.env.DB).findCurrent(row.slug);
-      return save(c, row, expected, check.value, reason.reason, current);
-    })
+    .put(
+      '/:slug/team-config',
+      trackerAccess(`PUT ${P}/team-config`),
+      writeLimit(PUT_MAX_BYTES),
+      async (c) => {
+        const row = trackerProjectOfContext(c);
+        const expected = expectedRevisionOf(c);
+        if (expected === null) {
+          return versionRequired(c);
+        }
+        const body = bodyOf(await jsonBody(c), ['config', 'reason']);
+        if (body === null || !Object.hasOwn(body, 'config')) {
+          return teamConfigProblem(c, 'team-config-invalid', 422, 'The body is { config, reason? }', 'body');
+        }
+        const check = checkTeamConfig(body['config']);
+        if (!check.ok) {
+          return teamConfigProblem(c, check.type, 422, check.detail, check.field);
+        }
+        const reason = reasonOf(body['reason']);
+        if (!reason.ok) {
+          return teamConfigProblem(
+            c,
+            'team-config-invalid',
+            422,
+            `reason is text of at most ${String(TEAM_CONFIG_REASON_MAX_LENGTH)} characters`,
+            'reason',
+          );
+        }
+        const current = await new TeamConfigRepo(c.env.DB).findCurrent(row.slug);
+        return save(c, row, expected, check.value, reason.reason, current);
+      },
+    )
 
-    .post('/:slug/team-config/reset', trackerAccess(`POST ${P}/team-config/reset`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const row = trackerProjectOfContext(c);
-      const expected = expectedRevisionOf(c);
-      if (expected === null) {
-        return versionRequired(c);
-      }
-      const body = bodyOf(await jsonBody(c), ['preset']);
-      const preset = body?.['preset'] ?? defaultPresetOf(await accessSourceOf(c, row));
-      if (body === null || !isTeamConfigPreset(preset)) {
-        return teamConfigProblem(c, 'team-config-invalid', 422, 'The body is { preset?: economy | recommended | max }', body === null ? 'body' : 'preset');
-      }
-      const current = await new TeamConfigRepo(c.env.DB).findCurrent(row.slug);
-      // A reset applies the preset to every role: the role overrides go, the rest of the document stays.
-      const kept = Object.fromEntries(
-        Object.entries(current?.config ?? { schema: TEAM_CONFIG_SCHEMA }).filter(([key]) => key !== 'roles'),
-      ) as TeamConfig;
-      return save(c, row, expected, { ...kept, preset }, null, current);
-    })
+    .post(
+      '/:slug/team-config/reset',
+      trackerAccess(`POST ${P}/team-config/reset`),
+      writeLimit(SMALL_WRITE_MAX_BYTES),
+      async (c) => {
+        const row = trackerProjectOfContext(c);
+        const expected = expectedRevisionOf(c);
+        if (expected === null) {
+          return versionRequired(c);
+        }
+        const body = bodyOf(await jsonBody(c), ['preset']);
+        const preset = body?.['preset'] ?? defaultPresetOf(await accessSourceOf(c, row));
+        if (body === null || !isTeamConfigPreset(preset)) {
+          return teamConfigProblem(
+            c,
+            'team-config-invalid',
+            422,
+            'The body is { preset?: economy | recommended | max }',
+            body === null ? 'body' : 'preset',
+          );
+        }
+        const current = await new TeamConfigRepo(c.env.DB).findCurrent(row.slug);
+        // A reset applies the preset to every role: the role overrides go, the rest of the document stays.
+        const kept = Object.fromEntries(
+          Object.entries(current?.config ?? { schema: TEAM_CONFIG_SCHEMA }).filter(
+            ([key]) => key !== 'roles',
+          ),
+        ) as TeamConfig;
+        return save(c, row, expected, { ...kept, preset }, null, current);
+      },
+    )
 
-    .post('/:slug/team-config/import', trackerAccess(`POST ${P}/team-config/import`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const row = trackerProjectOfContext(c);
-      // Never a repository named by the request: the project's own, by its recorded id (threat model C9, C12).
-      if (bodyOf(await jsonBody(c), []) === null) {
-        return teamConfigProblem(c, 'team-config-invalid', 422, 'The import takes no body: it reads the project’s own repository', 'body');
-      }
-      const at = github.now();
-      const limit = await new RateLimitsRepo(c.env.DB).hit(
-        `team-config-import:${row.slug}`,
-        rateWindowOf(at, IMPORT_WINDOW_SECONDS),
-        IMPORTS_PER_WINDOW,
-      );
-      if (!limit.allowed) {
-        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: retryAfterOf(at, IMPORT_WINDOW_SECONDS) });
-      }
-      if (row.provider !== 'github') {
-        return teamConfigProblem(c, 'team-config-import-provider', 409, 'Only GitHub repositories are imported until the VCS adapter covers this provider');
-      }
-      const repo = repoOf(c, row);
-      if (repo instanceof Response) {
-        return repo;
-      }
-      const repoId = await repoIdOf(c, github, owners, row, repo);
-      if (repoId instanceof Response) {
-        return repoId;
-      }
-      const budget = new SubrequestBudget(IMPORT_BUDGET);
-      const vcs = new GitHubVcsAdapter(await budget.connectionFor(await github.connect(c.env), repo));
-      const ref = { provider: 'github', owner: repo.owner, name: repo.name, externalId: String(repoId) } as const;
-      const repository = await vcs.repository(ref);
-      const file = await vcs.files.read(ref, TEAM_CONFIG_IMPORT_PATH, repository.defaultBranch, TEAM_CONFIG_IMPORT_MAX_BYTES);
-      if (file === 'not-found' || file === 'too-large' || file.text === null) {
-        const detail =
-          file === 'not-found'
-            ? `${TEAM_CONFIG_IMPORT_PATH} is not on the default branch`
-            : file === 'too-large'
-              ? `${TEAM_CONFIG_IMPORT_PATH} is larger than ${String(TEAM_CONFIG_IMPORT_MAX_BYTES)} bytes`
-              : `${TEAM_CONFIG_IMPORT_PATH} is not UTF-8 text`;
-        return teamConfigProblem(c, 'team-config-import-invalid', 422, detail, 'project.yml');
-      }
-      const draft = teamConfigDraftOf(file.text);
-      if (!draft.ok) {
-        return teamConfigProblem(c, 'team-config-import-invalid', 422, draft.detail, draft.field);
-      }
-      const body: TeamConfigImportDto = {
-        draft: draft.draft,
-        notes: draft.notes,
-        source: { path: TEAM_CONFIG_IMPORT_PATH, ref: repository.defaultBranch, sha: file.sha },
-      };
-      c.header('Cache-Control', 'no-store');
-      return c.json(body);
-    })
+    .post(
+      '/:slug/team-config/import',
+      trackerAccess(`POST ${P}/team-config/import`),
+      writeLimit(SMALL_WRITE_MAX_BYTES),
+      async (c) => {
+        const row = trackerProjectOfContext(c);
+        // Never a repository named by the request: the project's own, by its recorded id (threat model C9, C12).
+        if (bodyOf(await jsonBody(c), []) === null) {
+          return teamConfigProblem(
+            c,
+            'team-config-invalid',
+            422,
+            'The import takes no body: it reads the project’s own repository',
+            'body',
+          );
+        }
+        const at = github.now();
+        const limit = await new RateLimitsRepo(c.env.DB).hit(
+          `team-config-import:${row.slug}`,
+          rateWindowOf(at, IMPORT_WINDOW_SECONDS),
+          IMPORTS_PER_WINDOW,
+        );
+        if (!limit.allowed) {
+          return problem(c, {
+            type: 'rate-limited',
+            title: 'Too Many Requests',
+            status: 429,
+            retryAfter: retryAfterOf(at, IMPORT_WINDOW_SECONDS),
+          });
+        }
+        if (row.provider !== 'github') {
+          return teamConfigProblem(
+            c,
+            'team-config-import-provider',
+            409,
+            'Only GitHub repositories are imported until the VCS adapter covers this provider',
+          );
+        }
+        const repo = repoOf(c, row);
+        if (repo instanceof Response) {
+          return repo;
+        }
+        const repoId = await repoIdOf(c, github, owners, row, repo);
+        if (repoId instanceof Response) {
+          return repoId;
+        }
+        const budget = new SubrequestBudget(IMPORT_BUDGET);
+        const vcs = new GitHubVcsAdapter(await budget.connectionFor(await github.connect(c.env), repo));
+        const ref = {
+          provider: 'github',
+          owner: repo.owner,
+          name: repo.name,
+          externalId: String(repoId),
+        } as const;
+        const repository = await vcs.repository(ref);
+        const file = await vcs.files.read(
+          ref,
+          TEAM_CONFIG_IMPORT_PATH,
+          repository.defaultBranch,
+          TEAM_CONFIG_IMPORT_MAX_BYTES,
+        );
+        if (file === 'not-found' || file === 'too-large' || file.text === null) {
+          const detail =
+            file === 'not-found'
+              ? `${TEAM_CONFIG_IMPORT_PATH} is not on the default branch`
+              : file === 'too-large'
+                ? `${TEAM_CONFIG_IMPORT_PATH} is larger than ${String(TEAM_CONFIG_IMPORT_MAX_BYTES)} bytes`
+                : `${TEAM_CONFIG_IMPORT_PATH} is not UTF-8 text`;
+          return teamConfigProblem(c, 'team-config-import-invalid', 422, detail, 'project.yml');
+        }
+        const draft = teamConfigDraftOf(file.text);
+        if (!draft.ok) {
+          return teamConfigProblem(c, 'team-config-import-invalid', 422, draft.detail, draft.field);
+        }
+        const body: TeamConfigImportDto = {
+          draft: draft.draft,
+          notes: draft.notes,
+          source: { path: TEAM_CONFIG_IMPORT_PATH, ref: repository.defaultBranch, sha: file.sha },
+        };
+        c.header('Cache-Control', 'no-store');
+        return c.json(body);
+      },
+    )
 
     .get('/:slug/team-config/revisions', trackerAccess(`GET ${P}/team-config/revisions`), async (c) => {
       const row = trackerProjectOfContext(c);
@@ -364,7 +458,10 @@ export function createTeamConfigRoutes(github: ApiGitHub, owners: OwnerConnectio
       }
       const rows = await new TeamConfigRepo(c.env.DB).listRevisions(row.slug, page.after, page.limit);
       const shown = rows.slice(0, page.limit);
-      const names = await authorNamesOf(c, shown.map((revision) => revision.createdBy));
+      const names = await authorNamesOf(
+        c,
+        shown.map((revision) => revision.createdBy),
+      );
       const body: TeamConfigRevisionListDto = {
         revisions: shown.map((revision) => summaryOf(revision, names)),
         nextCursor: rows.length > page.limit ? (shown.at(-1)?.revision ?? null) : null,
@@ -376,9 +473,16 @@ export function createTeamConfigRoutes(github: ApiGitHub, owners: OwnerConnectio
       const row = trackerProjectOfContext(c);
       const n = c.req.param('n');
       // By (project, revision) only: the revision row's ULID is never a key a request can name (threat model C12).
-      const found = REVISION.test(n) ? await new TeamConfigRepo(c.env.DB).findRevision(row.slug, Number(n)) : null;
+      const found = REVISION.test(n)
+        ? await new TeamConfigRepo(c.env.DB).findRevision(row.slug, Number(n))
+        : null;
       if (found === null) {
-        return teamConfigProblem(c, 'team-config-revision-not-found', 404, 'The project has no such revision');
+        return teamConfigProblem(
+          c,
+          'team-config-revision-not-found',
+          404,
+          'The project has no such revision',
+        );
       }
       const body: TeamConfigRevisionDto = {
         revision: found.revision,

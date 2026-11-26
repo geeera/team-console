@@ -18,10 +18,11 @@ interface Part {
   selector: 'tc-design-summary',
   imports: [TranslocoPipe, TranslocoPluralPipe],
   template: `<span data-testid="design-summary"
-    >#{{ issue() }}@for (part of parts(); track part.key) {
+    >#{{ issue() }}
+    @for (part of parts(); track part.key) {
       · {{ part.count === null ? (part.key | transloco) : (part.key | translocoPlural: part.count) }}
-    }</span
-  >`,
+    }
+  </span>`,
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DesignSummary {
@@ -37,11 +38,17 @@ export class DesignSummary {
     }
     const { manifest } = state;
     if (manifest.screens.length === 0) {
-      return [{ key: manifest.interactive === null ? 'designs.row.none' : 'designs.row.htmlOnly', count: null }];
+      return [
+        { key: manifest.interactive === null ? 'designs.row.none' : 'designs.row.htmlOnly', count: null },
+      ];
     }
     const devices = devicesOf(manifest);
     const deviceKey =
-      devices.length === 2 ? 'designs.row.devices' : devices.length === 1 ? `designs.row.device.${devices[0]}` : null;
+      devices.length === 2
+        ? 'designs.row.devices'
+        : devices.length === 1
+          ? `designs.row.device.${devices[0]}`
+          : null;
     return [
       { key: 'designs.row.screens', count: manifest.screens.length },
       ...(deviceKey === null ? [] : [{ key: deviceKey, count: null }]),

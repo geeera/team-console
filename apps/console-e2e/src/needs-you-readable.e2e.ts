@@ -25,7 +25,9 @@ test('the team recommendation reads as a sentence, not command syntax', async ({
   await expect(recommendation).toContainText(ru('questions.recommends'));
   // #276: the recommended answer as a verb; the option's own words are what approving leads to.
   await expect(recommendation).toContainText(ru('questions.recommend.approve'));
-  await expect(item(page, 72).getByTestId('outcomes')).toContainText('Начинаем разработку по плану к демо 16 октября');
+  await expect(item(page, 72).getByTestId('outcomes')).toContainText(
+    'Начинаем разработку по плану к демо 16 октября',
+  );
   for (const raw of ['/approve', 'рекомендую', '·']) {
     await expect(recommendation).not.toContainText(raw);
     await expect(item(page, 72).getByTestId('outcomes')).not.toContainText(raw);

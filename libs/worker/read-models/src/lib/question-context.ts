@@ -128,7 +128,10 @@ function firstParagraphOf(lines: readonly string[]): string[] {
       }
       continue;
     }
-    if (paragraph.length === 0 && (trimmed.startsWith('#') || trimmed.startsWith('|') || RULE.test(trimmed))) {
+    if (
+      paragraph.length === 0 &&
+      (trimmed.startsWith('#') || trimmed.startsWith('|') || RULE.test(trimmed))
+    ) {
       continue;
     }
     paragraph.push(line);

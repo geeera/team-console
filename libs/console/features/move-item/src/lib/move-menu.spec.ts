@@ -1,5 +1,12 @@
 import type { ItemSummaryDto, TrackerSprintDto } from '@shared/contracts';
-import { moveMenuOf, moveTargetOf, queueItemsOf, queueMoveOf, SPRINT_CAP, type MoveMenuCopy } from './move-menu';
+import {
+  moveMenuOf,
+  moveTargetOf,
+  queueItemsOf,
+  queueMoveOf,
+  SPRINT_CAP,
+  type MoveMenuCopy,
+} from './move-menu';
 
 const sprint = (number: number, dueOn: string): TrackerSprintDto => ({
   number,
@@ -84,7 +91,14 @@ describe('moveMenuOf', () => {
   it("freezes by the project's own freeze_days, not the plugin's default (#457)", () => {
     const menu = (freezeDays: number) =>
       moveMenuOf(
-        { item: { ...ITEM, sprint: null }, queue: null, sprints, counts: new Map(), today: '2026-11-09', freezeDays },
+        {
+          item: { ...ITEM, sprint: null },
+          queue: null,
+          sprints,
+          counts: new Map(),
+          today: '2026-11-09',
+          freezeDays,
+        },
         COPY,
       ).groups[0]?.items[0]?.off;
     // Demo on the 13th: two freeze days start on the 11th, five on the 8th.
@@ -101,7 +115,14 @@ describe('moveMenuOf', () => {
   // #456: the queue group leads, named after the lane; already first / last stay in the list with their reason.
   it('puts First / Up / Down first, under the lane, when the task is on a board', () => {
     const spec = moveMenuOf(
-      { item: ITEM, queue: { position: 2, total: 3 }, sprints, counts: new Map(), today: '2026-11-05', freezeDays: 2 },
+      {
+        item: ITEM,
+        queue: { position: 2, total: 3 },
+        sprints,
+        counts: new Map(),
+        today: '2026-11-05',
+        freezeDays: 2,
+      },
       COPY,
     );
     expect(spec.groups[0]).toEqual({

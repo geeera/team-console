@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { ActionsSetupStatuses, missingStepsOf } from '@console/entities/actions-setup';
 import { projectActionsRouteOf, ProjectsStore } from '@console/entities/project';
 import { projectAccountRoleOf, RunnersApi } from '@console/entities/runner';
@@ -36,11 +45,21 @@ export type ActionsEntryChip =
           </span>
           <tc-chip tc-row-trailing data-testid="project-actions-chip" [tone]="tone()">
             @switch (chip().kind) {
-              @case ('off') { {{ 'actions.row.chip.off' | transloco }} }
-              @case ('on') { {{ 'actions.row.chip.on' | transloco }} }
-              @case ('not-ready') { {{ 'actions.row.chip.notReady' | transloco: { n: missing() } }} }
-              @case ('checking') { {{ 'actions.row.chip.checking' | transloco }} }
-              @default { {{ 'actions.row.chip.unknown' | transloco }} }
+              @case ('off') {
+                {{ 'actions.row.chip.off' | transloco }}
+              }
+              @case ('on') {
+                {{ 'actions.row.chip.on' | transloco }}
+              }
+              @case ('not-ready') {
+                {{ 'actions.row.chip.notReady' | transloco: { n: missing() } }}
+              }
+              @case ('checking') {
+                {{ 'actions.row.chip.checking' | transloco }}
+              }
+              @default {
+                {{ 'actions.row.chip.unknown' | transloco }}
+              }
             }
           </tc-chip>
         </tc-list-row>
@@ -69,7 +88,9 @@ export class ProjectActionsEntry {
     if (snapshot === null) {
       return status.state() === 'error' ? { kind: 'unknown' } : { kind: 'checking' };
     }
-    return snapshot.ready ? { kind: 'on' } : { kind: 'not-ready', n: Math.max(1, missingStepsOf(snapshot).length) };
+    return snapshot.ready
+      ? { kind: 'on' }
+      : { kind: 'not-ready', n: Math.max(1, missingStepsOf(snapshot).length) };
   });
   protected readonly missing = computed(() => {
     const chip = this.chip();

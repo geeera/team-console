@@ -65,7 +65,9 @@
     <!-- #506 "project-to-project switch": the shell persists across projects, so the name is keyed on the
          project (or the cross-project screen) to replay the crossfade instead of the text changing in place. -->
     @for (key of [currentProject()?.slug ?? titleKey()]; track key) {
-      <span class="shell__switch-name m-fade">{{ currentProject()?.displayName ?? (titleKey() | transloco) }}</span>
+    <span class="shell__switch-name m-fade"
+      >{{ currentProject()?.displayName ?? (titleKey() | transloco) }}</span
+    >
     }
     <tc-icon name="chevron-down" size="sm" />
   </button>

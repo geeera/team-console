@@ -67,7 +67,9 @@ export function policyOfForm(form: PolicyForm): PolicyFormCheck {
     case 'any':
       return { ok: true, policy: { mode: 'any' } };
     case 'pinned':
-      return form.pinned === '' ? { ok: false, error: 'pinned' } : { ok: true, policy: { mode: 'pinned', runner: form.pinned } };
+      return form.pinned === ''
+        ? { ok: false, error: 'pinned' }
+        : { ok: true, policy: { mode: 'pinned', runner: form.pinned } };
     case 'failover': {
       if (form.preferred === '') {
         return { ok: false, error: 'preferred' };

@@ -75,7 +75,11 @@ export class ManageRunner {
     const confirmed = await this.sheet.confirm({
       title: this.t('runners.revoke.title', { name: target.runner.name }),
       message: this.t('runners.revoke.message'),
-      items: [this.t('runners.revoke.itemKey'), this.t('runners.revoke.itemJobs'), this.t('runners.revoke.itemAgain')],
+      items: [
+        this.t('runners.revoke.itemKey'),
+        this.t('runners.revoke.itemJobs'),
+        this.t('runners.revoke.itemAgain'),
+      ],
       confirmLabel: this.t('runners.revoke.confirm'),
       busyLabel: this.t('runners.revoke.busy'),
       tone: 'danger',
@@ -103,7 +107,11 @@ export class ManageRunner {
     const confirmed = await this.sheet.confirm({
       title: this.t('runners.suspect.title', { name: target.runner.name }),
       message: this.t('runners.suspect.message'),
-      items: [this.t('runners.suspect.itemYours'), this.t('runners.suspect.itemAgain'), this.t('runners.suspect.itemRevoke')],
+      items: [
+        this.t('runners.suspect.itemYours'),
+        this.t('runners.suspect.itemAgain'),
+        this.t('runners.suspect.itemRevoke'),
+      ],
       confirmLabel: this.t('runners.suspect.confirm'),
       busyLabel: this.t('runners.suspect.busy'),
       action: async () => {

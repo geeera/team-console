@@ -22,7 +22,11 @@ export async function generateReceiverKeys(): Promise<ReceiverKeys> {
 }
 
 /** Imports a receiver from the RFC 8291 Appendix A style base64url values. */
-export async function importReceiverKeys(publicKey: string, privateKey: string, authSecret: string): Promise<ReceiverKeys> {
+export async function importReceiverKeys(
+  publicKey: string,
+  privateKey: string,
+  authSecret: string,
+): Promise<ReceiverKeys> {
   const point = bytesOf(publicKey);
   const jwk: JsonWebKey = {
     kty: 'EC',
@@ -56,12 +60,19 @@ function concat(...parts: readonly Uint8Array[]): Uint8Array {
 }
 
 async function hmac(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const imported = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  const imported = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, [
+    'sign',
+  ]);
   return new Uint8Array(await crypto.subtle.sign('HMAC', imported, data));
 }
 
 /** HKDF (RFC 5869) for outputs of at most 32 bytes: one expand block is all RFC 8291 needs. */
-async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, length: number): Promise<Uint8Array> {
+async function hkdf(
+  salt: Uint8Array,
+  ikm: Uint8Array,
+  info: Uint8Array,
+  length: number,
+): Promise<Uint8Array> {
   const prk = await hmac(salt, ikm);
   return (await hmac(prk, concat(info, new Uint8Array([1])))).slice(0, length);
 }
@@ -91,7 +102,13 @@ export async function decryptPushPayload(body: Uint8Array, receiver: ReceiverKey
   if (ciphertext.length > recordSize) {
     throw new PushDecryptError('more than one record');
   }
-  const senderKey = await crypto.subtle.importKey('raw', senderPublic, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  const senderKey = await crypto.subtle.importKey(
+    'raw',
+    senderPublic,
+    { name: 'ECDH', namedCurve: 'P-256' },
+    false,
+    [],
+  );
   // workers-types spells the WebCrypto member `public` as `$public`; workerd itself takes the standard name.
   const ecdh = { name: 'ECDH', public: senderKey } as unknown as SubtleCryptoDeriveKeyAlgorithm;
   const ecdhSecret = new Uint8Array(await crypto.subtle.deriveBits(ecdh, receiver.privateKey, 256));

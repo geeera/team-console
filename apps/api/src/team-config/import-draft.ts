@@ -43,7 +43,12 @@ function plainCopyOf<T>(value: T): T {
 }
 
 /** The own members of `value` named in `keys`, into an object with no prototype; the rest are noted as ignored. */
-export function pick(value: unknown, keys: readonly string[], path: string, notes: TeamConfigImportNote[]): Plain | undefined {
+export function pick(
+  value: unknown,
+  keys: readonly string[],
+  path: string,
+  notes: TeamConfigImportNote[],
+): Plain | undefined {
   if (!isPlain(value)) {
     return undefined;
   }
@@ -92,7 +97,8 @@ function capsOf(caps: unknown, notes: TeamConfigImportNote[]): Plain | undefined
   const copy = Object.create(null) as Plain;
   for (const key of Object.keys(caps)) {
     if ((CAP_MODES as readonly string[]).includes(key)) {
-      copy[key] = pick(caps[key], ['dev_tasks', 'parallel_devs'], `caps.${key}`, notes) ?? Object.create(null);
+      copy[key] =
+        pick(caps[key], ['dev_tasks', 'parallel_devs'], `caps.${key}`, notes) ?? Object.create(null);
     } else {
       notes.push({ path: `caps.${key}`, code: 'key-ignored' });
     }
@@ -108,7 +114,8 @@ function filePathOf(field: string): string {
   return field === 'language' ? 'owner.language' : field;
 }
 
-const member = (value: unknown, key: string): unknown => (isPlain(value) && Object.hasOwn(value, key) ? value[key] : undefined);
+const member = (value: unknown, key: string): unknown =>
+  isPlain(value) && Object.hasOwn(value, key) ? value[key] : undefined;
 
 /** The draft of `text` (project.yml), or the path of the first value the schema refuses. */
 export function teamConfigDraftOf(text: string): ImportDraftOutcome {

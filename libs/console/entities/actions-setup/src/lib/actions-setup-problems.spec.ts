@@ -4,14 +4,25 @@ import { actionsCheckProblemOf, workflowPrRefusalOf } from './actions-setup-prob
 
 const NOW = Date.parse('2026-11-21T12:00:00.000Z');
 
-function problem(status: number, slug: string | null, extensions: Record<string, unknown> = {}, retryAfter?: string): HttpErrorResponse {
+function problem(
+  status: number,
+  slug: string | null,
+  extensions: Record<string, unknown> = {},
+  retryAfter?: string,
+): HttpErrorResponse {
   return new HttpErrorResponse({
     status,
     headers: retryAfter === undefined ? new HttpHeaders() : new HttpHeaders({ 'Retry-After': retryAfter }),
     error:
       slug === null
         ? null
-        : { type: `https://team-console/problems/${slug}`, title: 't', status, detail: 'never shown', ...extensions },
+        : {
+            type: `https://team-console/problems/${slug}`,
+            title: 't',
+            status,
+            detail: 'never shown',
+            ...extensions,
+          },
   });
 }
 
@@ -34,7 +45,10 @@ describe('actionsCheckProblemOf', () => {
       kind: 'rate',
       retryAt: '2026-11-21T12:02:00.000Z',
     });
-    expect(actionsCheckProblemOf(problem(429, 'rate-limited'), NOW)).toEqual({ kind: 'rate', retryAt: '2026-11-21T12:01:00.000Z' });
+    expect(actionsCheckProblemOf(problem(429, 'rate-limited'), NOW)).toEqual({
+      kind: 'rate',
+      retryAt: '2026-11-21T12:01:00.000Z',
+    });
   });
 
   it('treats a timeout or a non-HTTP error as failed', () => {
@@ -48,25 +62,50 @@ describe('workflowPrRefusalOf', () => {
   const BRANCH_URL = 'https://github.com/geeera/storify/branches/all?query=team-console%2Frunner-';
 
   it('keeps the open PR with its provenance', () => {
-    expect(workflowPrRefusalOf(problem(409, 'actions-setup-pr-open', { number: 42, url: PR_URL, provenance: 'foreign' }))).toEqual({
+    expect(
+      workflowPrRefusalOf(
+        problem(409, 'actions-setup-pr-open', { number: 42, url: PR_URL, provenance: 'foreign' }),
+      ),
+    ).toEqual({
       kind: 'pr-open',
       pr: { number: 42, url: PR_URL, provenance: 'foreign' },
     });
   });
 
   it('drops a PR that is not on github.com or has an unknown provenance', () => {
-    expect(workflowPrRefusalOf(problem(409, 'actions-setup-pr-open', { number: 42, url: 'https://evil.example/pr', provenance: 'console' }))).toEqual({ kind: 'pr-open', pr: null });
-    expect(workflowPrRefusalOf(problem(409, 'actions-setup-pr-open', { number: 42, url: PR_URL, provenance: 'mine' }))).toEqual({ kind: 'pr-open', pr: null });
+    expect(
+      workflowPrRefusalOf(
+        problem(409, 'actions-setup-pr-open', {
+          number: 42,
+          url: 'https://evil.example/pr',
+          provenance: 'console',
+        }),
+      ),
+    ).toEqual({ kind: 'pr-open', pr: null });
+    expect(
+      workflowPrRefusalOf(
+        problem(409, 'actions-setup-pr-open', { number: 42, url: PR_URL, provenance: 'mine' }),
+      ),
+    ).toEqual({ kind: 'pr-open', pr: null });
   });
 
   it('keeps the branch link of branch-exists only on github.com (#844)', () => {
-    expect(workflowPrRefusalOf(problem(409, 'actions-setup-branch-exists', { link: BRANCH_URL }))).toEqual({ kind: 'branch-exists', link: BRANCH_URL });
-    expect(workflowPrRefusalOf(problem(409, 'actions-setup-branch-exists', { link: 'javascript:alert(1)' }))).toEqual({ kind: 'branch-exists', link: null });
+    expect(workflowPrRefusalOf(problem(409, 'actions-setup-branch-exists', { link: BRANCH_URL }))).toEqual({
+      kind: 'branch-exists',
+      link: BRANCH_URL,
+    });
+    expect(
+      workflowPrRefusalOf(problem(409, 'actions-setup-branch-exists', { link: 'javascript:alert(1)' })),
+    ).toEqual({ kind: 'branch-exists', link: null });
   });
 
   it('names the missing permissions and the installation link', () => {
     const link = 'https://github.com/settings/installations/7';
-    expect(workflowPrRefusalOf(problem(422, 'actions-permission-missing', { permissions: ['workflows', '<b>x</b>', 3], link }))).toEqual({
+    expect(
+      workflowPrRefusalOf(
+        problem(422, 'actions-permission-missing', { permissions: ['workflows', '<b>x</b>', 3], link }),
+      ),
+    ).toEqual({
       kind: 'permission-missing',
       permissions: ['workflows'],
       link,
@@ -74,7 +113,9 @@ describe('workflowPrRefusalOf', () => {
   });
 
   it('names the pins a downgrade would lower', () => {
-    expect(workflowPrRefusalOf(problem(422, 'actions-setup-downgrade', { pins: ['runner', 'node'] }))).toEqual({ kind: 'downgrade', pins: ['runner', 'node'] });
+    expect(
+      workflowPrRefusalOf(problem(422, 'actions-setup-downgrade', { pins: ['runner', 'node'] })),
+    ).toEqual({ kind: 'downgrade', pins: ['runner', 'node'] });
   });
 
   it.each([
@@ -92,6 +133,9 @@ describe('workflowPrRefusalOf', () => {
   });
 
   it('maps 429 to a retry time', () => {
-    expect(workflowPrRefusalOf(problem(429, 'rate-limited', {}, '3600'), NOW)).toEqual({ kind: 'rate', retryAt: '2026-11-21T13:00:00.000Z' });
+    expect(workflowPrRefusalOf(problem(429, 'rate-limited', {}, '3600'), NOW)).toEqual({
+      kind: 'rate',
+      retryAt: '2026-11-21T13:00:00.000Z',
+    });
   });
 });

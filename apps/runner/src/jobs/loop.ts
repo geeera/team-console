@@ -2,7 +2,13 @@ import type { ClaimRunnerInput, PauseRunnerInput, RunnerSelfDto } from '@shared/
 import { redactSecrets } from '@shared/redaction';
 import type { IsolationBackend } from '../backends/backend';
 import { MAX_PAUSE_MS } from '../budget/detect';
-import { activePause, loadRunnerState, saveRunnerState, type RunnerPause, type RunnerState } from '../budget/state';
+import {
+  activePause,
+  loadRunnerState,
+  saveRunnerState,
+  type RunnerPause,
+  type RunnerState,
+} from '../budget/state';
 import type { ClaimOutcome } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { accessSourcesOf } from '../env/credential';
@@ -126,10 +132,14 @@ async function startingScope(deps: LoopDeps, log: (line: string) => void): Promi
   try {
     const self = await deps.client.self();
     const scope = scopeOfSelf(self);
-    log(`scope from the console: ${scope.projectScope}${scope.projects.length === 0 ? ' (no project yet)' : ` (${scope.projects.join(', ')})`}`);
+    log(
+      `scope from the console: ${scope.projectScope}${scope.projects.length === 0 ? ' (no project yet)' : ` (${scope.projects.join(', ')})`}`,
+    );
     return scope;
   } catch (error: unknown) {
-    log(`could not read the scope from the console, using config.json until the first claim: ${error instanceof Error ? error.message : 'unknown error'}`);
+    log(
+      `could not read the scope from the console, using config.json until the first claim: ${error instanceof Error ? error.message : 'unknown error'}`,
+    );
     return scopeOfConfig(deps.config);
   }
 }
@@ -180,23 +190,28 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
     if (claim.scope !== undefined) {
       scope = scopeOfClaim(claim.scope);
     }
-    const report = await runJob(claim.job, claim.jobToken, {
-      home: deps.home,
-      config: deps.config,
-      client: deps.client,
-      backend: deps.backend,
-      registry,
-      sourceEnv: deps.sourceEnv,
-      log: deps.log,
-      now: deps.now,
-      shutdown: deps.shutdown,
-      limitStreak: state.limitStreak,
-      scope,
-      announcePause: async (limitPause) => {
-        mirrored = await mirrorPause(deps, limitPause, mirrored);
+    const report = await runJob(
+      claim.job,
+      claim.jobToken,
+      {
+        home: deps.home,
+        config: deps.config,
+        client: deps.client,
+        backend: deps.backend,
+        registry,
+        sourceEnv: deps.sourceEnv,
+        log: deps.log,
+        now: deps.now,
+        shutdown: deps.shutdown,
+        limitStreak: state.limitStreak,
+        scope,
+        announcePause: async (limitPause) => {
+          mirrored = await mirrorPause(deps, limitPause, mirrored);
+        },
+        ...deps.timing,
       },
-      ...deps.timing,
-    }, claim.teamConfig);
+      claim.teamConfig,
+    );
     state = stateAfter(state, report);
     await saveRunnerState(deps.home, state);
     mirrored = await mirrorPause(deps, activePause(state, deps.now()), mirrored);

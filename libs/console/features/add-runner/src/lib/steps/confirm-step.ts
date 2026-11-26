@@ -14,7 +14,9 @@ import { countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from '../add-runne
   imports: [Callout, Ledger, LedgerRow, LocalTimePipe, TranslocoPipe],
   template: `
     @let bound = intent();
-    <h3 class="step__heading" tabindex="-1" data-step-heading>{{ 'runners.wizard.confirm.title' | transloco }}</h3>
+    <h3 class="step__heading" tabindex="-1" data-step-heading>
+      {{ 'runners.wizard.confirm.title' | transloco }}
+    </h3>
     <section tc-callout tone="warning">
       <p tc-callout-title>{{ 'runners.wizard.confirm.compareTitle' | transloco }}</p>
       <p>{{ 'runners.wizard.confirm.compareBody' | transloco }}</p>
@@ -45,7 +47,9 @@ import { countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from '../add-runne
         }}</bdi>
       </div>
       @if (bound.boundAt; as boundAt) {
-        <div tc-ledger-row [label]="'runners.wizard.confirm.boundAt' | transloco">{{ boundAt | localTime }}</div>
+        <div tc-ledger-row [label]="'runners.wizard.confirm.boundAt' | transloco">
+          {{ boundAt | localTime }}
+        </div>
       }
     </dl>
     <details>
@@ -53,7 +57,9 @@ import { countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from '../add-runne
       <p class="step__meta">{{ 'runners.wizard.confirm.takenA' | transloco }}</p>
     </details>
     <p class="step__meta" data-testid="wizard-expiry">
-      {{ 'runners.wizard.expires' | transloco: { time: bound.expiresAt | localTime, minutes: minutesLeft() } }}
+      {{
+        'runners.wizard.expires' | transloco: { time: bound.expiresAt | localTime, minutes: minutesLeft() }
+      }}
     </p>
   `,
   styleUrl: './add-runner-step.css',

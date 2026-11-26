@@ -237,7 +237,9 @@ function composePastAnswer(prepared: PreparedAnswer): ComposedAnswer | null {
   const section =
     live !== null && allowedAnswers(live).includes(request.command)
       ? live
-      : (Object.keys(ANSWERS) as Section[]).find((candidate) => allowedAnswers(candidate).includes(request.command));
+      : (Object.keys(ANSWERS) as Section[]).find((candidate) =>
+          allowedAnswers(candidate).includes(request.command),
+        );
   if (section === undefined) {
     return null;
   }

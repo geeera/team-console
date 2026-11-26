@@ -2,7 +2,12 @@ import { chmod, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TeamEffort } from '@shared/contracts';
-import { MANAGED_SETTINGS, jobSettingsOf, managedSettingsPathOf, writeManagedSettings } from './managed-settings';
+import {
+  MANAGED_SETTINGS,
+  jobSettingsOf,
+  managedSettingsPathOf,
+  writeManagedSettings,
+} from './managed-settings';
 
 /** Threat model C3 cross-job row (a), the hook refusal (ADR 0008 decision 8). */
 
@@ -51,7 +56,10 @@ describe('managed settings', () => {
       env: { DISABLE_AUTOUPDATER: '1', DISABLE_PROMPT_CACHING: '1' },
       effortLevel: 'low',
     });
-    expect(jobSettingsOf({ effort: 'high', promptCaching: true })).toEqual({ ...MANAGED_SETTINGS, effortLevel: 'high' });
+    expect(jobSettingsOf({ effort: 'high', promptCaching: true })).toEqual({
+      ...MANAGED_SETTINGS,
+      effortLevel: 'high',
+    });
   });
 
   it('writes the effort only from the enum, whatever string reached it', () => {

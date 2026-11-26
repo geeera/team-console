@@ -69,7 +69,9 @@ async function offerNativeInstall(page: Page, outcome: 'accepted' | 'dismissed' 
 }
 
 const promptedTimes = (page: Page): Promise<number> =>
-  page.evaluate(() => (window as unknown as { tcInstallRecord?: { prompted: number } }).tcInstallRecord?.prompted ?? 0);
+  page.evaluate(
+    () => (window as unknown as { tcInstallRecord?: { prompted: number } }).tcInstallRecord?.prompted ?? 0,
+  );
 
 async function expectTapTargets(targets: readonly Locator[]): Promise<void> {
   for (const target of targets) {
@@ -91,13 +93,19 @@ test.describe('Chromium: one tap to the native dialog', () => {
     const name = await appName(page, request);
 
     await expect(card(page)).toBeVisible();
-    await expect(card(page).getByRole('heading', { level: 2 })).toHaveText(ru('install.card.title', { app: name }));
+    await expect(card(page).getByRole('heading', { level: 2 })).toHaveText(
+      ru('install.card.title', { app: name }),
+    );
     await expect(page.getByTestId('push-nudge')).toHaveCount(0);
     expect(await card(page).evaluate((element) => getComputedStyle(element).position)).toBe('static');
     const install = card(page).getByTestId('install-card-install');
     await expect(install).toHaveAccessibleName(ru('install.card.installAria', { app: name }));
     if (testInfo.project.name === 'iphone') {
-      await expectTapTargets([install, card(page).getByTestId('install-card-later'), card(page).getByTestId('install-card-never')]);
+      await expectTapTargets([
+        install,
+        card(page).getByTestId('install-card-later'),
+        card(page).getByTestId('install-card-never'),
+      ]);
     }
     await expectAccessible(page, 'Needs you with the install card (Chromium)');
     expect(await stored(page)).toEqual({ ignored: 1 });
@@ -155,7 +163,9 @@ test.describe('Chromium: one tap to the native dialog', () => {
 test.describe('Chromium: a late install event', () => {
   test.use({ userAgent: MAC_CHROME });
 
-  test('is not inserted above the screen being read; it shows on the next screen opened', async ({ page }, testInfo) => {
+  test('is not inserted above the screen being read; it shows on the next screen opened', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'desktop', 'the sidebar is the wide-screen way to the next screen');
     await page.goto('/needs-you');
     await expect(page.locator('li[data-number]').first()).toBeVisible();
@@ -203,7 +213,11 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     await expect(guide).toHaveAttribute('id', (await how.getAttribute('aria-controls')) ?? 'missing');
     await expect(guide.locator('li')).toHaveCount(3);
     await expect(guide.locator('li').nth(2)).toContainText(ru('install.guide.s3', { app: name }));
-    await expectTapTargets([how, card(page).getByTestId('install-card-later'), card(page).getByTestId('install-card-never')]);
+    await expectTapTargets([
+      how,
+      card(page).getByTestId('install-card-later'),
+      card(page).getByTestId('install-card-never'),
+    ]);
     await expectAccessible(page, 'Needs you, iPhone steps open');
 
     await card(page).getByTestId('install-card-later').click();
@@ -263,7 +277,9 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     expect(await stored(page)).toMatchObject({ choice: 'snoozed', auto: true });
   });
 
-  test('with storage refusing writes nothing breaks and Not now holds until the reload', async ({ page }, testInfo) => {
+  test('with storage refusing writes nothing breaks and Not now holds until the reload', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.addInitScript(() => {
       Storage.prototype.setItem = () => {
@@ -286,9 +302,9 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
       await page.setViewportSize({ width, height: 844 });
       await page.goto('/p/team-console/board');
       await expect(card(page)).toBeVisible();
-      expect(await card(page).evaluate((element) => getComputedStyle(element.parentElement ?? element).position)).toBe(
-        'static',
-      );
+      expect(
+        await card(page).evaluate((element) => getComputedStyle(element.parentElement ?? element).position),
+      ).toBe('static');
       expect(await card(page).evaluate((element) => getComputedStyle(element).position)).toBe('static');
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 
@@ -312,7 +328,9 @@ test.describe('iPhone Safari: the Home Screen guide', () => {
     test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/needs-you');
-    const duration = await card(page).evaluate((element) => parseFloat(getComputedStyle(element).animationDuration) * 1000);
+    const duration = await card(page).evaluate(
+      (element) => parseFloat(getComputedStyle(element).animationDuration) * 1000,
+    );
     expect(duration).toBeLessThanOrEqual(1);
   });
 
@@ -348,7 +366,9 @@ test.describe('the installed app', () => {
 });
 
 test.describe('Settings › App', () => {
-  test('sits between GitHub and Notifications; on iPhone Safari the steps live there only once', async ({ page }, testInfo) => {
+  test('sits between GitHub and Notifications; on iPhone Safari the steps live there only once', async ({
+    page,
+  }, testInfo) => {
     test.skip(testInfo.project.name !== 'iphone', 'the iPhone Safari agent');
     await page.goto('/settings');
     await expect(page.getByTestId('push-section')).toBeVisible();
@@ -391,7 +411,9 @@ test.describe('Settings › App', () => {
       await section.getByTestId('install-settings-install').click();
 
       const name = await appName(page, request);
-      await expect(section.getByTestId('install-entry-sub')).toHaveText(ru('settings.app.subJustInstalled', { app: name }));
+      await expect(section.getByTestId('install-entry-sub')).toHaveText(
+        ru('settings.app.subJustInstalled', { app: name }),
+      );
       await expect(section.getByTestId('install-entry-chip')).toHaveText(ru('settings.app.chipOn'));
       await expect(page.getByRole('heading', { level: 2, name: ru('settings.app.title') })).toBeFocused();
     });

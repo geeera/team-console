@@ -20,7 +20,7 @@ import type { FetchLike } from './transport';
 const REVIEWER_SENTINEL = ['reviewer', 'SENTINEL', 'login'].join('-');
 const OTHER_SECRET_SENTINEL = ['OTHER', 'SECRET', 'SENTINEL'].join('_');
 const WORKFLOW_PATH = '.github/workflows/team-console-runner.yml';
-const WORKFLOW_TEXT = "name: team-console-runner\non:\n  workflow_dispatch:\n# rendering — byte for byte\n";
+const WORKFLOW_TEXT = 'name: team-console-runner\non:\n  workflow_dispatch:\n# rendering — byte for byte\n';
 
 const STRICT = { installationId: 2001, repositoryId: 910001, repo: 'acme/strict' };
 const BARE = { installationId: 2001, repositoryId: 910002, repo: 'acme/bare' };
@@ -48,14 +48,21 @@ const FIXTURES: MockFixtures = {
             id: 1,
             created_at: '2026-11-01T00:00:00Z',
             protection_rules: [
-              { id: 2, type: 'required_reviewers', reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }] },
+              {
+                id: 2,
+                type: 'required_reviewers',
+                reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }],
+              },
               { id: 3, type: 'wait_timer', wait_timer: 0 },
               { id: 4, type: 'branch_policy' },
               { id: 5, type: 'required_reviewers', reviewers: [] },
             ],
             deployment_branch_policy: { protected_branches: false, custom_branch_policies: true },
           },
-          branchPolicies: [{ id: 6, name: 'main', type: 'branch' }, { id: 7, name: 'release-*' }],
+          branchPolicies: [
+            { id: 6, name: 'main', type: 'branch' },
+            { id: 7, name: 'release-*' },
+          ],
           secrets: ['TC_INFERENCE_API_KEY', OTHER_SECRET_SENTINEL],
         },
         staging: { environment: { deployment_branch_policy: null } },
@@ -67,7 +74,10 @@ const FIXTURES: MockFixtures = {
       repository: repository(BARE.repositoryId, BARE.repo),
       environments: {
         'team-console': {
-          environment: { protection_rules: [{ id: 8, type: 'wait_timer', wait_timer: 30 }], deployment_branch_policy: null },
+          environment: {
+            protection_rules: [{ id: 8, type: 'wait_timer', wait_timer: 30 }],
+            deployment_branch_policy: null,
+          },
           secrets: [OTHER_SECRET_SENTINEL],
         },
       },
@@ -148,7 +158,9 @@ describe('Actions setup readiness reads (#759)', () => {
     it('refuses a body that is not the team-console Environment with 502 github-unexpected', async () => {
       const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
       const odd: FetchLike = async () => Response.json({ name: 'production', protection_rules: [] });
-      const error = await readActionsEnvironment(odd, token, parseRepoName(STRICT.repo)).catch((caught: unknown) => caught);
+      const error = await readActionsEnvironment(odd, token, parseRepoName(STRICT.repo)).catch(
+        (caught: unknown) => caught,
+      );
       expect((error as GitHubError).problem.type).toBe('github-unexpected');
     });
   });
@@ -163,19 +175,26 @@ describe('Actions setup readiness reads (#759)', () => {
         ],
         complete: true,
       });
-      expect(paths.at(-1)).toBe('GET /repos/acme/strict/environments/team-console/deployment-branch-policies');
+      expect(paths.at(-1)).toBe(
+        'GET /repos/acme/strict/environments/team-console/deployment-branch-policies',
+      );
     });
 
     it('answers null when GitHub has no policy list (404)', async () => {
       const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
       const missing: FetchLike = async () => Response.json({ message: 'Not Found' }, { status: 404 });
-      await expect(readDeploymentBranchPolicies(missing, token, parseRepoName(STRICT.repo))).resolves.toBeNull();
+      await expect(
+        readDeploymentBranchPolicies(missing, token, parseRepoName(STRICT.repo)),
+      ).resolves.toBeNull();
     });
 
     it('marks a list longer than one page as incomplete', async () => {
       const token = new ScopedInstallationToken('environment-read', 1, 1, installationToken('x'));
-      const paged: FetchLike = async () => Response.json({ total_count: 101, branch_policies: [{ name: 'main', type: 'branch' }] });
-      await expect(readDeploymentBranchPolicies(paged, token, parseRepoName(STRICT.repo))).resolves.toMatchObject({
+      const paged: FetchLike = async () =>
+        Response.json({ total_count: 101, branch_policies: [{ name: 'main', type: 'branch' }] });
+      await expect(
+        readDeploymentBranchPolicies(paged, token, parseRepoName(STRICT.repo)),
+      ).resolves.toMatchObject({
         complete: false,
       });
     });
@@ -185,7 +204,9 @@ describe('Actions setup readiness reads (#759)', () => {
     it('reads the one secret by name, never the list, and passes on a boolean alone', async () => {
       const token = await readToken(STRICT);
       await expect(hasInferenceKeySecret(fetch, token, parseRepoName(STRICT.repo))).resolves.toBe(true);
-      expect(paths.at(-1)).toBe('GET /repos/acme/strict/environments/team-console/secrets/TC_INFERENCE_API_KEY');
+      expect(paths.at(-1)).toBe(
+        'GET /repos/acme/strict/environments/team-console/secrets/TC_INFERENCE_API_KEY',
+      );
       expect(paths.some((path) => /\/secrets$|\/variables/.test(path))).toBe(false);
     });
 
@@ -196,8 +217,15 @@ describe('Actions setup readiness reads (#759)', () => {
 
     it('is refused for the cached read token, which holds no Environments permission', async () => {
       const read = await auth.tokenSourceFor(parseRepoName(STRICT.repo)).getToken();
-      const forged = new ScopedInstallationToken('environment-read', STRICT.installationId, STRICT.repositoryId, read);
-      const error = await hasInferenceKeySecret(fetch, forged, parseRepoName(STRICT.repo)).catch((caught: unknown) => caught);
+      const forged = new ScopedInstallationToken(
+        'environment-read',
+        STRICT.installationId,
+        STRICT.repositoryId,
+        read,
+      );
+      const error = await hasInferenceKeySecret(fetch, forged, parseRepoName(STRICT.repo)).catch(
+        (caught: unknown) => caught,
+      );
       expect((error as GitHubError).githubStatus).toBe(403);
     });
   });
@@ -206,17 +234,24 @@ describe('Actions setup readiness reads (#759)', () => {
     const dispatch = new ScopedInstallationToken('actions-dispatch', 1, 1, installationToken('x'));
     const forged = dispatch as unknown as ScopedInstallationToken<'environment-read'>;
     await expect(hasInferenceKeySecret(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(TypeError);
-    await expect(readActionsEnvironment(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(TypeError);
-    await expect(readDeploymentBranchPolicies(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(TypeError);
+    await expect(readActionsEnvironment(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(
+      TypeError,
+    );
+    await expect(readDeploymentBranchPolicies(fetch, forged, parseRepoName(STRICT.repo))).rejects.toThrow(
+      TypeError,
+    );
     expect(paths).toEqual([]);
   });
 
   it('spends the environment-read token on these three reads only (the mock refuses it elsewhere)', async () => {
     const token = await readToken(STRICT);
-    const response = await mock.fetch('https://api.github.com/repos/acme/strict/environments/team-console/variables', {
-      method: 'GET',
-      headers: { authorization: `Bearer ${token.bearer()}` },
-    });
+    const response = await mock.fetch(
+      'https://api.github.com/repos/acme/strict/environments/team-console/variables',
+      {
+        method: 'GET',
+        headers: { authorization: `Bearer ${token.bearer()}` },
+      },
+    );
     expect(response.status).toBe(403);
     const contents = await mock.fetch(`https://api.github.com/repos/acme/strict/contents/${WORKFLOW_PATH}`, {
       method: 'GET',
@@ -236,13 +271,17 @@ describe('Actions setup readiness reads (#759)', () => {
     });
 
     it('answers missing when the repository has no such file', async () => {
-      await expect(readRunnerWorkflowFile(client(BARE.repo), parseRepoName(BARE.repo), 'main')).resolves.toEqual({
+      await expect(
+        readRunnerWorkflowFile(client(BARE.repo), parseRepoName(BARE.repo), 'main'),
+      ).resolves.toEqual({
         kind: 'missing',
       });
     });
 
     it('stops at RUNNER_WORKFLOW_MAX_BYTES', async () => {
-      await expect(readRunnerWorkflowFile(client(BIG.repo), parseRepoName(BIG.repo), 'main')).resolves.toEqual({
+      await expect(
+        readRunnerWorkflowFile(client(BIG.repo), parseRepoName(BIG.repo), 'main'),
+      ).resolves.toEqual({
         kind: 'too-large',
       });
     });

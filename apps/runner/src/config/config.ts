@@ -1,6 +1,19 @@
 import { isAbsolute, join } from 'node:path';
-import { isRunnerId, isRunnerProjectScope, isUlid, isValidSlug, type RunnerIsolation, type RunnerProjectScope } from '@shared/contracts';
-import { RunnerFileError, assertPrivateDir, readPrivateFile, replacePrivateFile, writePrivateFile } from './private-files';
+import {
+  isRunnerId,
+  isRunnerProjectScope,
+  isUlid,
+  isValidSlug,
+  type RunnerIsolation,
+  type RunnerProjectScope,
+} from '@shared/contracts';
+import {
+  RunnerFileError,
+  assertPrivateDir,
+  readPrivateFile,
+  replacePrivateFile,
+  writePrivateFile,
+} from './private-files';
 import { isCredentialAllowed, parseCredentialConfig, type CredentialConfig } from '../env/credential';
 
 /**
@@ -302,7 +315,7 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   }
   if (Object.hasOwn(value, REMOVED_ROLES_KEY)) {
     throw invalid(
-      'roles is no longer read: each role\'s model comes from the project\'s team configuration in the console ' +
+      "roles is no longer read: each role's model comes from the project's team configuration in the console " +
         '(Settings › Team, ADR 0009); remove the key',
     );
   }
@@ -310,8 +323,18 @@ export function parseRunnerConfig(value: unknown): RunnerConfig {
   if (unknownKey !== undefined) {
     throw invalid(`unknown key "${unknownKey}"`);
   }
-  const { schema, apiUrl, runnerId, accountId, name, audience, projectScope, allowedProjects, pollSeconds, backend } =
-    value;
+  const {
+    schema,
+    apiUrl,
+    runnerId,
+    accountId,
+    name,
+    audience,
+    projectScope,
+    allowedProjects,
+    pollSeconds,
+    backend,
+  } = value;
   if (schema !== CONFIG_SCHEMA_VERSION) {
     throw invalid(`schema must be ${String(CONFIG_SCHEMA_VERSION)}`);
   }

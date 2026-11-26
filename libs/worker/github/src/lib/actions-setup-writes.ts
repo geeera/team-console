@@ -4,7 +4,13 @@ import { RUNNER_WORKFLOW_PATH } from './actions-setup-pull';
 import { githubContentsPath, githubPath, type GitHubPath } from './github-path';
 import type { RepoName } from './repo-name';
 import { assertScopedKind, type ScopedInstallationToken } from './scoped-mint';
-import { discardBody, githubRequest, readGitHubJson, type FetchLike, type GitHubTransportOptions } from './transport';
+import {
+  discardBody,
+  githubRequest,
+  readGitHubJson,
+  type FetchLike,
+  type GitHubTransportOptions,
+} from './transport';
 
 /**
  * The GitHub writes of the Actions setup (#759 PR 4; security note rows "The console writes outside its own branch"
@@ -53,7 +59,11 @@ function assertCreated(created: CreatedSetupBranch, token: WriteToken): void {
 async function send(
   fetcher: FetchLike,
   token: WriteToken,
-  request: { readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH'; readonly path: GitHubPath; readonly body?: unknown },
+  request: {
+    readonly method: 'GET' | 'POST' | 'PUT' | 'PATCH';
+    readonly path: GitHubPath;
+    readonly body?: unknown;
+  },
   options: ActionsSetupWriteOptions,
 ): Promise<Response> {
   return githubRequest(
@@ -110,7 +120,12 @@ export async function createSetupBranch(
   ) {
     throw new RangeError('the setup branch is team-console/runner-<12 hex> and never the default branch');
   }
-  const head = await send(fetcher, token, { method: 'GET', path: githubPath`/repos/${repo}/branches/${defaultBranch}` }, options);
+  const head = await send(
+    fetcher,
+    token,
+    { method: 'GET', path: githubPath`/repos/${repo}/branches/${defaultBranch}` },
+    options,
+  );
   if (!head.ok) {
     throw await refused(head, options);
   }
@@ -220,7 +235,11 @@ export async function putRunnerWorkflow(
   const response = await send(
     fetcher,
     token,
-    { method: 'PUT', path: githubContentsPath(repo, RUNNER_WORKFLOW_PATH), body: contentsBodyOf(created, write) },
+    {
+      method: 'PUT',
+      path: githubContentsPath(repo, RUNNER_WORKFLOW_PATH),
+      body: contentsBodyOf(created, write),
+    },
     options,
   );
   if (!response.ok) {
@@ -230,7 +249,12 @@ export async function putRunnerWorkflow(
   const commit = isRecord(body) ? body['commit'] : undefined;
   const content = isRecord(body) ? body['content'] : undefined;
   const sha = isRecord(commit) ? commit['sha'] : undefined;
-  if (typeof sha !== 'string' || !SHA.test(sha) || !isRecord(content) || content['path'] !== RUNNER_WORKFLOW_PATH) {
+  if (
+    typeof sha !== 'string' ||
+    !SHA.test(sha) ||
+    !isRecord(content) ||
+    content['path'] !== RUNNER_WORKFLOW_PATH
+  ) {
     throw githubUnexpectedError('GitHub committed something other than the workflow file', response.status);
   }
   return sha;
@@ -267,7 +291,13 @@ export async function openSetupPull(
     {
       method: 'POST',
       path: githubPath`/repos/${repo}/pulls`,
-      body: { title: text.title, body: text.body, head: created.branch, base: created.base, maintainer_can_modify: false },
+      body: {
+        title: text.title,
+        body: text.body,
+        head: created.branch,
+        base: created.base,
+        maintainer_can_modify: false,
+      },
     },
     options,
   );

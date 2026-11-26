@@ -52,7 +52,12 @@ async function itemPlantedIn(project: SeededProject, sprint: TrackerSprintDto): 
   return { ...item, sprint: sprint.number };
 }
 
-function move(project: SeededProject, item: ItemDto, sprint: number | null, github: ApiGitHub): Promise<Response> {
+function move(
+  project: SeededProject,
+  item: ItemDto,
+  sprint: number | null,
+  github: ApiGitHub,
+): Promise<Response> {
   return send(
     'PATCH',
     `${itemsPath(project.slug)}/${item.key}`,
@@ -68,7 +73,12 @@ describe('PATCH /projects/:slug/items/:key {sprint} and the freeze (#556)', () =
     const item = await itemIn(project, null);
     const events = await countRows('item_events', project.slug);
 
-    const response = await move(project, item, frozen.number, githubWith(project.slug, 'sprint:\n  freeze_days: 3\n'));
+    const response = await move(
+      project,
+      item,
+      frozen.number,
+      githubWith(project.slug, 'sprint:\n  freeze_days: 3\n'),
+    );
 
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('sprint-frozen');
@@ -82,7 +92,12 @@ describe('PATCH /projects/:slug/items/:key {sprint} and the freeze (#556)', () =
     const sprint = await sprintDueIn(project, 2);
     const item = await itemIn(project, null);
 
-    const response = await move(project, item, sprint.number, githubWith(project.slug, 'sprint:\n  freeze_days: 1\n'));
+    const response = await move(
+      project,
+      item,
+      sprint.number,
+      githubWith(project.slug, 'sprint:\n  freeze_days: 1\n'),
+    );
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ sprint: sprint.number, version: item.version + 1 });
@@ -123,7 +138,11 @@ describe('POST /projects/:slug/items {sprint} and the freeze (#560)', () => {
     const items = await countRows('items', project.slug);
     const events = await countRows('item_events', project.slug);
 
-    const response = await create(project, frozen.number, githubWith(project.slug, 'sprint:\n  freeze_days: 3\n'));
+    const response = await create(
+      project,
+      frozen.number,
+      githubWith(project.slug, 'sprint:\n  freeze_days: 3\n'),
+    );
 
     expect(response.status).toBe(409);
     expect(await slugOf(response)).toBe('sprint-frozen');
@@ -135,7 +154,11 @@ describe('POST /projects/:slug/items {sprint} and the freeze (#560)', () => {
     const project = await seedTrackerProject();
     const sprint = await sprintDueIn(project, 2);
 
-    const response = await create(project, sprint.number, githubWith(project.slug, 'sprint:\n  freeze_days: 1\n'));
+    const response = await create(
+      project,
+      sprint.number,
+      githubWith(project.slug, 'sprint:\n  freeze_days: 1\n'),
+    );
 
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ sprint: sprint.number });

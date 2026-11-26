@@ -33,7 +33,9 @@ import { ACTIONS_NOT_READY, type ActionsSetupDto, type ProjectDispatchDto } from
           <p tc-banner-text>{{ message }}</p>
         </div>
         @if (isAccessSourceRefusal() && teamUrl(); as url) {
-          <a tc-button size="sm" data-testid="switch-team" [routerLink]="url">{{ 'runners.err.openTeam' | transloco }}</a>
+          <a tc-button size="sm" data-testid="switch-team" [routerLink]="url">{{
+            'runners.err.openTeam' | transloco
+          }}</a>
         }
       }
       <div class="switch__actions">
@@ -117,8 +119,12 @@ export class ActionsSwitchOn {
   protected readonly saving = signal(false);
   private readonly lastFailure = signal<RunnerFailure | null>(null);
 
-  protected readonly isBlocked = computed(() => !this.setup().ready || this.saving() || !this.network.online());
-  protected readonly isAccessSourceRefusal = computed(() => this.lastFailure()?.slug === 'access-source-hosted');
+  protected readonly isBlocked = computed(
+    () => !this.setup().ready || this.saving() || !this.network.online(),
+  );
+  protected readonly isAccessSourceRefusal = computed(
+    () => this.lastFailure()?.slug === 'access-source-hosted',
+  );
   protected readonly failure = computed(() => {
     const failure = this.lastFailure();
     if (failure === null) {

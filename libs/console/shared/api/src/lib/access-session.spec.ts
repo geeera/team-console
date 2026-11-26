@@ -60,7 +60,9 @@ describe('isAccessSessionExpired', () => {
   });
 
   it('is false for a 403 with an HTML body that is not from Access (a Cloudflare WAF or rate-limit page)', () => {
-    expect(expired(failure({ status: 403, contentType: HTML, body: '<!doctype html>Access denied' }))).toBe(false);
+    expect(expired(failure({ status: 403, contentType: HTML, body: '<!doctype html>Access denied' }))).toBe(
+      false,
+    );
   });
 
   it.each(['access-missing', 'access-unverified'])('is true for our 401 %s', (slug) => {

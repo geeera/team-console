@@ -1,5 +1,9 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting, type TestRequest } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  provideHttpClientTesting,
+  type TestRequest,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { TEAM_CONFIG_SCHEMA, problemTypeOf, type TeamConfig } from '@shared/contracts';
 import { isTeamConfigView, teamConfigUrlOf } from './team-config.client';
@@ -7,7 +11,11 @@ import { SLOW_LOAD_MS, TeamConfigStore } from './team-config.store';
 import { teamConfigViewOf } from './testing';
 
 const URL = teamConfigUrlOf('acme');
-const stored: TeamConfig = { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, budget: { monthly_usd: 200 } };
+const stored: TeamConfig = {
+  schema: TEAM_CONFIG_SCHEMA,
+  access: { source: 'api_key' },
+  budget: { monthly_usd: 200 },
+};
 
 const flush = async (): Promise<void> => {
   for (let i = 0; i < 3; i += 1) {
@@ -33,7 +41,11 @@ async function loaded(view = teamConfigViewOf(stored, { revision: 12 })): Promis
   return context;
 }
 
-function problem(status: number, type: string, field?: string): { body: object; init: { status: number; statusText: string } } {
+function problem(
+  status: number,
+  type: string,
+  field?: string,
+): { body: object; init: { status: number; statusText: string } } {
   return {
     body: { type: problemTypeOf(type), title: 'x', status, ...(field === undefined ? {} : { field }) },
     init: { status, statusText: 'x' },
@@ -111,12 +123,16 @@ describe('TeamConfigStore', () => {
   it('marks the field a 422 names, and access.source on access-source-hosted', async () => {
     const { store, http } = await loaded();
     store.edit('roles.dev.max_turns', 999);
-    expect(await saveAnswering(store, http, problem(422, 'team-config-invalid', 'roles.dev.max_turns'))).toEqual({
+    expect(
+      await saveAnswering(store, http, problem(422, 'team-config-invalid', 'roles.dev.max_turns')),
+    ).toEqual({
       kind: 'invalid',
       field: 'roles.dev.max_turns',
     });
     expect(store.errors().get('roles.dev.max_turns')).toEqual({ key: 'teamConfig.error.invalid' });
-    expect(await saveAnswering(store, http, problem(422, 'access-source-hosted', 'access.source'))).toEqual({ kind: 'hosted' });
+    expect(await saveAnswering(store, http, problem(422, 'access-source-hosted', 'access.source'))).toEqual({
+      kind: 'hosted',
+    });
     expect(store.errors().has('access.source')).toBe(true);
     expect(store.isDirty()).toBe(true);
   });
@@ -124,10 +140,16 @@ describe('TeamConfigStore', () => {
   it('on 412 reads the revision that won, never overwrites it, and can keep my edits on top', async () => {
     const { store, http } = await loaded();
     store.edit('budget.monthly_usd', 250);
-    const theirs = teamConfigViewOf({ ...stored, sprint: { length_days: 21 } }, { revision: 13, updatedByName: 'anna' });
+    const theirs = teamConfigViewOf(
+      { ...stored, sprint: { length_days: 21 } },
+      { revision: 13, updatedByName: 'anna' },
+    );
     const saving = store.save('');
     await flush();
-    answer(http.expectOne((req) => req.method === 'PUT'), problem(412, 'team-config-stale'));
+    answer(
+      http.expectOne((req) => req.method === 'PUT'),
+      problem(412, 'team-config-stale'),
+    );
     await flush();
     http.expectOne((req) => req.method === 'GET' && req.url === URL).flush(theirs);
     expect((await saving).kind).toBe('stale');
@@ -145,9 +167,14 @@ describe('TeamConfigStore', () => {
     store.edit('budget.monthly_usd', 250);
     const saving = store.save('');
     await flush();
-    answer(http.expectOne((req) => req.method === 'PUT'), problem(412, 'team-config-stale'));
+    answer(
+      http.expectOne((req) => req.method === 'PUT'),
+      problem(412, 'team-config-stale'),
+    );
     await flush();
-    http.expectOne((req) => req.method === 'GET' && req.url === URL).flush(teamConfigViewOf(stored, { revision: 13 }));
+    http
+      .expectOne((req) => req.method === 'GET' && req.url === URL)
+      .flush(teamConfigViewOf(stored, { revision: 13 }));
     await saving;
     store.discardMine();
     expect(store.banner()).toBeNull();

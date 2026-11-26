@@ -37,7 +37,9 @@ describe('sudoRulesOf', () => {
       '    (_tcjob)   NOPASSWD: /usr/local/lib/team-console-runner/bin/job-exec',
       '',
     ].join('\n');
-    expect(sudoRulesOf(listing)).toEqual(['(_tcjob) NOPASSWD: /usr/local/lib/team-console-runner/bin/job-exec']);
+    expect(sudoRulesOf(listing)).toEqual([
+      '(_tcjob) NOPASSWD: /usr/local/lib/team-console-runner/bin/job-exec',
+    ]);
     expect(sudoRulesOf('User _tcrunner is not allowed to run sudo on mac.')).toEqual([]);
   });
 });
@@ -53,7 +55,11 @@ describe('parseRunnerHalfReport', () => {
       credential: { kind: 'setup-token', file: 'credentials/claude-setup-token' },
       toolchain: { path: '/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' },
     },
-    self: { belowMinimum: false, pausedUntil: null, projects: [{ slug: 'team-console', accessSource: 'subscription' }] },
+    self: {
+      belowMinimum: false,
+      pausedUntil: null,
+      projects: [{ slug: 'team-console', accessSource: 'subscription' }],
+    },
   };
 
   it('takes the runner half’s one JSON line', () => {
@@ -62,8 +68,14 @@ describe('parseRunnerHalfReport', () => {
 
   it.each<[string, unknown]>([
     ['text that is not JSON', 'Enrolled …'],
-    ['an unknown credential kind', { ...report, config: { ...report.config, credential: { kind: 'oauth', file: null } } }],
-    ['an unknown access source', { ...report, self: { ...report.self, projects: [{ slug: 'x', accessSource: 'free' }] } }],
+    [
+      'an unknown credential kind',
+      { ...report, config: { ...report.config, credential: { kind: 'oauth', file: null } } },
+    ],
+    [
+      'an unknown access source',
+      { ...report, self: { ...report.self, projects: [{ slug: 'x', accessSource: 'free' }] } },
+    ],
     ['an unknown failure stage', { ...report, failure: { stage: 'other', message: 'x' } }],
   ])('refuses %s', (_case, value) => {
     expect(parseRunnerHalfReport(typeof value === 'string' ? value : JSON.stringify(value))).toBeNull();

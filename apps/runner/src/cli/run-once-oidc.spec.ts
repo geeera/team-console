@@ -14,7 +14,15 @@ import {
   makeBareRepository,
   shortTempDir,
 } from '../testing/actions-run';
-import { JOB_ID, RUNNER_ID, fakeConsole, jobFixture, json, problem, type RecordedRequest } from '../testing/fake-console';
+import {
+  JOB_ID,
+  RUNNER_ID,
+  fakeConsole,
+  jobFixture,
+  json,
+  problem,
+  type RecordedRequest,
+} from '../testing/fake-console';
 import { basicAuthorizationOf, startGitHttpServer, type GitHttpServer } from '../testing/git-http-server';
 import { removeTree } from '../git/workspace';
 import { SCENARIO } from '../testing/job-fixture';
@@ -139,155 +147,200 @@ describe('run-once --oidc', () => {
       stdout: (line) => out.push(line),
       stderr: (line) => err.push(line),
       nodeDir: NODE_DIR,
-      ...(options.readRequestTokenLine === undefined ? {} : { readRequestTokenLine: options.readRequestTokenLine }),
+      ...(options.readRequestTokenLine === undefined
+        ? {}
+        : { readRequestTokenLine: options.readRequestTokenLine }),
     });
     return { exit, wire: { requests: fake.requests, events, finished } };
   }
 
-  const tokenRequests = (wire: Wire) => wire.requests.filter((request) => request.url.startsWith('http://127.0.0.1:1/'));
+  const tokenRequests = (wire: Wire) =>
+    wire.requests.filter((request) => request.url.startsWith('http://127.0.0.1:1/'));
   const exchanges = (wire: Wire) => wire.requests.filter((request) => request.url.endsWith('/oidc-exchange'));
 
-  it('exchanges the run’s OIDC token and runs the job on actions-ephemeral, printing only the job id', async () => {
-    const { exit, wire } = run();
-    expect(await exit).toBe(EXIT_OK);
+  it(
+    'exchanges the run’s OIDC token and runs the job on actions-ephemeral, printing only the job id',
+    async () => {
+      const { exit, wire } = run();
+      expect(await exit).toBe(EXIT_OK);
 
-    expect(out).toEqual([JOB_ID]);
-    // The token request: GitHub's URL with the console's audience, the request token as the bearer, no redirects.
-    const [tokenRequest] = tokenRequests(wire);
-    const tokenUrl = new URL(tokenRequest?.url ?? '');
-    expect(tokenUrl.searchParams.get('audience')).toBe('team-console:local');
-    expect(tokenUrl.searchParams.get('api-version')).toBe('2.0');
-    expect(tokenRequest?.headers['authorization']).toBe(`Bearer ${actionsSecrets.idTokenRequestToken}`);
-    expect(tokenRequest?.redirect).toBe('manual');
-    // The exchange: the token, the job, a fresh Ed25519 public key (no private part), the host.
-    const [exchange] = exchanges(wire);
-    const body = JSON.parse(exchange?.body ?? '{}') as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['host', 'idToken', 'jobId', 'publicKey', 'version']);
-    expect(body).toMatchObject({ idToken: ID_TOKEN, jobId: JOB_ID, host: { os: 'linux', hostname: 'fv-az123-456' } });
-    expect(isEd25519PublicJwk(body['publicKey'])).toBe(true);
-    expect(body['publicKey']).not.toHaveProperty('d');
-    expect(exchange?.headers['authorization']).toBeUndefined();
-    // The job's own calls carry runner JWTs of the exchanged identity: EdDSA, `sub` the runner, `aud` the console's.
-    const jobCalls = wire.requests.filter((request) => request.url.includes(`/runner/jobs/${JOB_ID}/`));
-    expect(jobCalls.length).toBeGreaterThan(0);
-    for (const call of jobCalls) {
-      const jwt = (call.headers['authorization'] ?? '').replace(/^Bearer /, '');
-      const claims = JSON.parse(Buffer.from(jwt.split('.')[1] ?? '', 'base64url').toString()) as Record<string, unknown>;
-      expect(claims).toMatchObject({ sub: RUNNER_ID, aud: 'team-console:local' });
-    }
-    expect(wire.requests.some((request) => request.url.endsWith('/jobs/claim'))).toBe(false);
+      expect(out).toEqual([JOB_ID]);
+      // The token request: GitHub's URL with the console's audience, the request token as the bearer, no redirects.
+      const [tokenRequest] = tokenRequests(wire);
+      const tokenUrl = new URL(tokenRequest?.url ?? '');
+      expect(tokenUrl.searchParams.get('audience')).toBe('team-console:local');
+      expect(tokenUrl.searchParams.get('api-version')).toBe('2.0');
+      expect(tokenRequest?.headers['authorization']).toBe(`Bearer ${actionsSecrets.idTokenRequestToken}`);
+      expect(tokenRequest?.redirect).toBe('manual');
+      // The exchange: the token, the job, a fresh Ed25519 public key (no private part), the host.
+      const [exchange] = exchanges(wire);
+      const body = JSON.parse(exchange?.body ?? '{}') as Record<string, unknown>;
+      expect(Object.keys(body).sort()).toEqual(['host', 'idToken', 'jobId', 'publicKey', 'version']);
+      expect(body).toMatchObject({
+        idToken: ID_TOKEN,
+        jobId: JOB_ID,
+        host: { os: 'linux', hostname: 'fv-az123-456' },
+      });
+      expect(isEd25519PublicJwk(body['publicKey'])).toBe(true);
+      expect(body['publicKey']).not.toHaveProperty('d');
+      expect(exchange?.headers['authorization']).toBeUndefined();
+      // The job's own calls carry runner JWTs of the exchanged identity: EdDSA, `sub` the runner, `aud` the console's.
+      const jobCalls = wire.requests.filter((request) => request.url.includes(`/runner/jobs/${JOB_ID}/`));
+      expect(jobCalls.length).toBeGreaterThan(0);
+      for (const call of jobCalls) {
+        const jwt = (call.headers['authorization'] ?? '').replace(/^Bearer /, '');
+        const claims = JSON.parse(Buffer.from(jwt.split('.')[1] ?? '', 'base64url').toString()) as Record<
+          string,
+          unknown
+        >;
+        expect(claims).toMatchObject({ sub: RUNNER_ID, aud: 'team-console:local' });
+      }
+      expect(wire.requests.some((request) => request.url.endsWith('/jobs/claim'))).toBe(false);
 
-    expect(wire.events.find((event) => event.kind === 'started')?.payload).toMatchObject({ backend: 'actions-ephemeral' });
-    expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished', summary: 'Done: nothing to do' })]);
-  }, E2E_TIMEOUT_MS);
+      expect(wire.events.find((event) => event.kind === 'started')?.payload).toMatchObject({
+        backend: 'actions-ephemeral',
+      });
+      expect(wire.finished).toEqual([
+        expect.objectContaining({ result: 'finished', summary: 'Done: nothing to do' }),
+      ]);
+    },
+    E2E_TIMEOUT_MS,
+  );
 
-  it('builds the job env from nothing: the key as ANTHROPIC_API_KEY, none of the run’s own variables', async () => {
-    const { exit, wire } = run();
-    expect(await exit).toBe(EXIT_OK);
-    const envLine = wire.events
-      .map((event) => JSON.stringify(event.payload))
-      .find((payload) => payload.includes('env: '));
-    const names = /env: ([A-Z0-9_,]+)/.exec(envLine ?? '')?.[1]?.split(',') ?? [];
-    expect(names).toContain('ANTHROPIC_API_KEY');
-    expect(names).toContain('TC_JOB_TOKEN');
-    for (const name of [
-      'TC_INFERENCE_API_KEY',
-      'ACTIONS_ID_TOKEN_REQUEST_URL',
-      'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
-      'GITHUB_TOKEN',
-      'GITHUB_REPOSITORY',
-      'GITHUB_RUN_ID',
-      'RUNNER_TEMP',
-      'TC_CONSOLE_AUDIENCE',
-      'CLAUDE_CODE_OAUTH_TOKEN',
-      'CLAUDE_CONFIG_DIR',
-    ]) {
-      expect(names).not.toContain(name);
-    }
-  }, E2E_TIMEOUT_MS);
+  it(
+    'builds the job env from nothing: the key as ANTHROPIC_API_KEY, none of the run’s own variables',
+    async () => {
+      const { exit, wire } = run();
+      expect(await exit).toBe(EXIT_OK);
+      const envLine = wire.events
+        .map((event) => JSON.stringify(event.payload))
+        .find((payload) => payload.includes('env: '));
+      const names = /env: ([A-Z0-9_,]+)/.exec(envLine ?? '')?.[1]?.split(',') ?? [];
+      expect(names).toContain('ANTHROPIC_API_KEY');
+      expect(names).toContain('TC_JOB_TOKEN');
+      for (const name of [
+        'TC_INFERENCE_API_KEY',
+        'ACTIONS_ID_TOKEN_REQUEST_URL',
+        'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
+        'GITHUB_TOKEN',
+        'GITHUB_REPOSITORY',
+        'GITHUB_RUN_ID',
+        'RUNNER_TEMP',
+        'TC_CONSOLE_AUDIENCE',
+        'CLAUDE_CODE_OAUTH_TOKEN',
+        'CLAUDE_CONFIG_DIR',
+      ]) {
+        expect(names).not.toContain(name);
+      }
+    },
+    E2E_TIMEOUT_MS,
+  );
 
-  it('clones with the read token through git’s env config, and keeps nothing behind', async () => {
-    const seen = git.authorizations.length;
-    const { exit } = run();
-    expect(await exit).toBe(EXIT_OK);
-    // The server refuses a request without the token, so the mirror was fetched with it.
-    expect(git.authorizations.slice(seen)).toContain(basicAuthorizationOf(actionsSecrets.readToken));
-    // Nothing persisted: no config, key, state or credential file; the job's sandbox is wiped.
-    const home = join(temp, 'tc');
-    const left = await readdir(home);
-    for (const name of ['config.json', 'keys', 'state.json', 'credentials']) {
-      expect(left).not.toContain(name);
-    }
-    expect(await readdir(join(home, 'jobs'))).toEqual([]);
-    // The mirror's config never holds the token (it travelled in the env of git's process only).
-    const mirrorConfig = await readFile(join(home, 'work', 'team-console', 'mirror', 'config'), 'utf8');
-    expect(mirrorConfig).toContain(`${git.origin}/${ACTIONS_REPOSITORY}.git`);
-    expect(mirrorConfig).not.toContain('extraheader');
-    expect(mirrorConfig).not.toContain(actionsSecrets.readToken);
-  }, E2E_TIMEOUT_MS);
+  it(
+    'clones with the read token through git’s env config, and keeps nothing behind',
+    async () => {
+      const seen = git.authorizations.length;
+      const { exit } = run();
+      expect(await exit).toBe(EXIT_OK);
+      // The server refuses a request without the token, so the mirror was fetched with it.
+      expect(git.authorizations.slice(seen)).toContain(basicAuthorizationOf(actionsSecrets.readToken));
+      // Nothing persisted: no config, key, state or credential file; the job's sandbox is wiped.
+      const home = join(temp, 'tc');
+      const left = await readdir(home);
+      for (const name of ['config.json', 'keys', 'state.json', 'credentials']) {
+        expect(left).not.toContain(name);
+      }
+      expect(await readdir(join(home, 'jobs'))).toEqual([]);
+      // The mirror's config never holds the token (it travelled in the env of git's process only).
+      const mirrorConfig = await readFile(join(home, 'work', 'team-console', 'mirror', 'config'), 'utf8');
+      expect(mirrorConfig).toContain(`${git.origin}/${ACTIONS_REPOSITORY}.git`);
+      expect(mirrorConfig).not.toContain('extraheader');
+      expect(mirrorConfig).not.toContain(actionsSecrets.readToken);
+    },
+    E2E_TIMEOUT_MS,
+  );
 
-  it('without the read token the mirror fetch is refused and the job finishes failed, still through the console', async () => {
-    const { exit, wire } = run({ env: { GITHUB_TOKEN: undefined } });
-    expect(await exit).toBe(EXIT_OK);
-    expect(out).toEqual([JOB_ID]);
-    expect(wire.finished).toEqual([
-      expect.objectContaining({ result: 'failed', metrics: expect.objectContaining({ reason: 'runner-error' }) }),
-    ]);
-    expect(err.join('\n')).toContain('GitError: git clone failed');
-  }, E2E_TIMEOUT_MS);
+  it(
+    'without the read token the mirror fetch is refused and the job finishes failed, still through the console',
+    async () => {
+      const { exit, wire } = run({ env: { GITHUB_TOKEN: undefined } });
+      expect(await exit).toBe(EXIT_OK);
+      expect(out).toEqual([JOB_ID]);
+      expect(wire.finished).toEqual([
+        expect.objectContaining({
+          result: 'failed',
+          metrics: expect.objectContaining({ reason: 'runner-error' }),
+        }),
+      ]);
+      expect(err.join('\n')).toContain('GitError: git clone failed');
+    },
+    E2E_TIMEOUT_MS,
+  );
 
-  it('sentinel: the key, the OIDC token and the run’s tokens never reach stdout, stderr or a body', async () => {
-    // The sentinel scenario prints secret shapes, the inference key's among them, on the CLI's stdout and stderr.
-    const { exit, wire } = run({ exchange: () => exchangeAnswer([SCENARIO.sentinel]) });
-    expect(await exit).toBe(EXIT_OK);
-    const output = [...out, ...err].join('\n');
-    const bodies = wire.requests
-      .filter((request) => !request.url.endsWith('/oidc-exchange'))
-      .map((request) => request.body ?? '')
-      .join('\n');
-    const tokenSegments = ID_TOKEN.split('.');
-    for (const secret of [
-      actionsSecrets.inferenceKey,
-      actionsSecrets.idTokenRequestToken,
-      actionsSecrets.readToken,
-      ID_TOKEN,
-      ...tokenSegments,
-      JOB_TOKEN,
-      basicAuthorizationOf(actionsSecrets.readToken),
-    ]) {
-      expect(output).not.toContain(secret);
-      expect(bodies).not.toContain(secret);
-    }
-    expect(bodies).toContain('[redacted:');
-    // The OIDC token goes to the exchange and nowhere else; the request token to GitHub's endpoint only.
-    const carrying = wire.requests.filter((request) => JSON.stringify(request).includes(ID_TOKEN));
-    expect(carrying.map((request) => request.url)).toEqual([`${CONSOLE}/api/v1/runner/oidc-exchange`]);
-    const bearing = wire.requests.filter((request) => JSON.stringify(request).includes(actionsSecrets.idTokenRequestToken));
-    expect(bearing).toEqual(tokenRequests(wire));
-    expect(out).toEqual([JOB_ID]);
-  }, E2E_TIMEOUT_MS);
+  it(
+    'sentinel: the key, the OIDC token and the run’s tokens never reach stdout, stderr or a body',
+    async () => {
+      // The sentinel scenario prints secret shapes, the inference key's among them, on the CLI's stdout and stderr.
+      const { exit, wire } = run({ exchange: () => exchangeAnswer([SCENARIO.sentinel]) });
+      expect(await exit).toBe(EXIT_OK);
+      const output = [...out, ...err].join('\n');
+      const bodies = wire.requests
+        .filter((request) => !request.url.endsWith('/oidc-exchange'))
+        .map((request) => request.body ?? '')
+        .join('\n');
+      const tokenSegments = ID_TOKEN.split('.');
+      for (const secret of [
+        actionsSecrets.inferenceKey,
+        actionsSecrets.idTokenRequestToken,
+        actionsSecrets.readToken,
+        ID_TOKEN,
+        ...tokenSegments,
+        JOB_TOKEN,
+        basicAuthorizationOf(actionsSecrets.readToken),
+      ]) {
+        expect(output).not.toContain(secret);
+        expect(bodies).not.toContain(secret);
+      }
+      expect(bodies).toContain('[redacted:');
+      // The OIDC token goes to the exchange and nowhere else; the request token to GitHub's endpoint only.
+      const carrying = wire.requests.filter((request) => JSON.stringify(request).includes(ID_TOKEN));
+      expect(carrying.map((request) => request.url)).toEqual([`${CONSOLE}/api/v1/runner/oidc-exchange`]);
+      const bearing = wire.requests.filter((request) =>
+        JSON.stringify(request).includes(actionsSecrets.idTokenRequestToken),
+      );
+      expect(bearing).toEqual(tokenRequests(wire));
+      expect(out).toEqual([JOB_ID]);
+    },
+    E2E_TIMEOUT_MS,
+  );
 
   describe('--request-token - (the request token on stdin, #712)', () => {
     const STDIN_ARGV = ['run-once', '--oidc', '--request-token', '-'] as const;
 
-    it('reads the request token from stdin, so the env of the process that supervises the job never holds it', async () => {
-      const reads: number[] = [];
-      const { exit, wire } = run({
-        argv: STDIN_ARGV,
-        env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined },
-        readRequestTokenLine: async () => {
-          reads.push(1);
-          return actionsSecrets.idTokenRequestToken;
-        },
-      });
-      expect(await exit).toBe(EXIT_OK);
-      expect(reads).toHaveLength(1);
-      expect(out).toEqual([JOB_ID]);
-      expect(tokenRequests(wire)[0]?.headers['authorization']).toBe(`Bearer ${actionsSecrets.idTokenRequestToken}`);
-      expect(exchanges(wire)).toHaveLength(1);
-      expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished' })]);
-      expect([...out, ...err].join('\n')).not.toContain(actionsSecrets.idTokenRequestToken);
-    }, E2E_TIMEOUT_MS);
+    it(
+      'reads the request token from stdin, so the env of the process that supervises the job never holds it',
+      async () => {
+        const reads: number[] = [];
+        const { exit, wire } = run({
+          argv: STDIN_ARGV,
+          env: { ACTIONS_ID_TOKEN_REQUEST_TOKEN: undefined },
+          readRequestTokenLine: async () => {
+            reads.push(1);
+            return actionsSecrets.idTokenRequestToken;
+          },
+        });
+        expect(await exit).toBe(EXIT_OK);
+        expect(reads).toHaveLength(1);
+        expect(out).toEqual([JOB_ID]);
+        expect(tokenRequests(wire)[0]?.headers['authorization']).toBe(
+          `Bearer ${actionsSecrets.idTokenRequestToken}`,
+        );
+        expect(exchanges(wire)).toHaveLength(1);
+        expect(wire.finished).toEqual([expect.objectContaining({ result: 'finished' })]);
+        expect([...out, ...err].join('\n')).not.toContain(actionsSecrets.idTokenRequestToken);
+      },
+      E2E_TIMEOUT_MS,
+    );
 
     it('refuses the token on stdin and in the env at once, before any request', async () => {
       const { exit, wire } = run({
@@ -323,14 +376,14 @@ describe('run-once --oidc', () => {
       expect(wire.requests).toEqual([]);
     });
 
-    it.each([[['run-once', '--oidc', '--request-token', 'tok']], [['run-once', '--oidc', '--request-token']]])(
-      'never takes the token as an argument: %j is a usage error',
-      async (argv) => {
-        const { exit, wire } = run({ argv });
-        expect(await exit).toBe(EXIT_USAGE);
-        expect(wire.requests).toEqual([]);
-      },
-    );
+    it.each([
+      [['run-once', '--oidc', '--request-token', 'tok']],
+      [['run-once', '--oidc', '--request-token']],
+    ])('never takes the token as an argument: %j is a usage error', async (argv) => {
+      const { exit, wire } = run({ argv });
+      expect(await exit).toBe(EXIT_USAGE);
+      expect(wire.requests).toEqual([]);
+    });
   });
 
   describe('refusals exit non-zero with a plain message', () => {
@@ -355,7 +408,11 @@ describe('run-once --oidc', () => {
       ['TC_JOB_ID', '../../x', 'TC_JOB_ID must be a job id'],
       ['TC_CONSOLE_AUDIENCE', 'prod', 'TC_CONSOLE_AUDIENCE must be team-console:<environment>'],
       ['RUNNER_TEMP', 'relative/dir', 'RUNNER_TEMP must be an absolute path'],
-      ['ACTIONS_ID_TOKEN_REQUEST_URL', 'http://evil.example/token', 'ACTIONS_ID_TOKEN_REQUEST_URL must be an https URL'],
+      [
+        'ACTIONS_ID_TOKEN_REQUEST_URL',
+        'http://evil.example/token',
+        'ACTIONS_ID_TOKEN_REQUEST_URL must be an https URL',
+      ],
       ['GITHUB_SERVER_URL', 'http://github.example', 'GITHUB_SERVER_URL must be an https origin'],
       ['GITHUB_REPOSITORY', 'acme/../x', 'GITHUB_REPOSITORY must be <owner>/<name>'],
       ['TC_CLAUDE_COMMAND', 'claude', 'TC_CLAUDE_COMMAND must be an absolute path'],
@@ -370,7 +427,11 @@ describe('run-once --oidc', () => {
 
     it('missing env vars: one refusal prefix, not two (#715)', async () => {
       const { exit, wire } = run({
-        env: { TC_CONSOLE_URL: undefined, TC_CONSOLE_AUDIENCE: undefined, ACTIONS_ID_TOKEN_REQUEST_URL: undefined },
+        env: {
+          TC_CONSOLE_URL: undefined,
+          TC_CONSOLE_AUDIENCE: undefined,
+          ACTIONS_ID_TOKEN_REQUEST_URL: undefined,
+        },
       });
       expect(await exit).toBe(EXIT_FAILED);
       expect(err).toEqual([
@@ -433,7 +494,9 @@ describe('run-once --oidc', () => {
       });
       expect(await exit).toBe(EXIT_FAILED);
       expect(err).toHaveLength(1);
-      expect(err[0]).toMatch(/^run-once --oidc refused: The console refused this run's OIDC exchange: the console answered 401 \(oidc-exchange-refused, claim environment\)/);
+      expect(err[0]).toMatch(
+        /^run-once --oidc refused: The console refused this run's OIDC exchange: the console answered 401 \(oidc-exchange-refused, claim environment\)/,
+      );
       expect(err[0]).not.toContain(ID_TOKEN.split('.')[1]);
       expect(out).toEqual([]);
     });
@@ -444,33 +507,40 @@ describe('run-once --oidc', () => {
       expect(err.join('\n')).toContain('409 (oidc-exchange-refused)');
     });
 
-    it('an exchange answer whose teamConfig names a model outside the allow-list finishes the job team-config-invalid, with no CLI launched (#741)', async () => {
-      const { exit, wire } = run({
-        exchange: () =>
-          json(200, {
-            job: jobFixture({ dispatch: 'actions', maxMinutes: 5 }),
-            jobToken: JOB_TOKEN,
-            leaseSeconds: 300,
-            teamConfig: {
-              ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }),
-              roles: {
-                ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }).roles,
-                developer: { model: 'claude-not-allow-listed', max_turns: 20, effort: 'medium' },
+    it(
+      'an exchange answer whose teamConfig names a model outside the allow-list finishes the job team-config-invalid, with no CLI launched (#741)',
+      async () => {
+        const { exit, wire } = run({
+          exchange: () =>
+            json(200, {
+              job: jobFixture({ dispatch: 'actions', maxMinutes: 5 }),
+              jobToken: JOB_TOKEN,
+              leaseSeconds: 300,
+              teamConfig: {
+                ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }),
+                roles: {
+                  ...resolveTeamConfig(null, { revision: 0, accessSource: 'api_key' }).roles,
+                  developer: { model: 'claude-not-allow-listed', max_turns: 20, effort: 'medium' },
+                },
               },
-            },
-            teamConfigRevision: 3,
-            runner: { id: RUNNER_ID, audience: 'team-console:local' },
+              teamConfigRevision: 3,
+              runner: { id: RUNNER_ID, audience: 'team-console:local' },
+            }),
+        });
+        // The exchange still succeeds and runs the job loop; the claim is already held by the time the console's
+        // teamConfig is judged, so `runJob` finishes it instead of the exchange throwing on a strict guard (#741).
+        expect(await exit).toBe(EXIT_OK);
+        expect(out).toEqual([JOB_ID]);
+        expect(wire.finished).toEqual([
+          expect.objectContaining({
+            result: 'failed',
+            metrics: expect.objectContaining({ reason: 'team-config-invalid' }),
           }),
-      });
-      // The exchange still succeeds and runs the job loop; the claim is already held by the time the console's
-      // teamConfig is judged, so `runJob` finishes it instead of the exchange throwing on a strict guard (#741).
-      expect(await exit).toBe(EXIT_OK);
-      expect(out).toEqual([JOB_ID]);
-      expect(wire.finished).toEqual([
-        expect.objectContaining({ result: 'failed', metrics: expect.objectContaining({ reason: 'team-config-invalid' }) }),
-      ]);
-      expect(wire.events.some((event) => event.kind === 'notice' && 'refused' in event.payload)).toBe(true);
-    }, E2E_TIMEOUT_MS);
+        ]);
+        expect(wire.events.some((event) => event.kind === 'notice' && 'refused' in event.payload)).toBe(true);
+      },
+      E2E_TIMEOUT_MS,
+    );
 
     it('a malformed job, jobToken or runner in the exchange answer still throws before any job runs (#741)', async () => {
       const { exit, wire } = run({
@@ -548,7 +618,10 @@ describe('run-once --oidc', () => {
       home: '/home/runner/work/_temp/tc',
       upstream: `https://github.com/${ACTIONS_REPOSITORY}.git`,
       readToken: null,
-      toolchain: { path: '/opt/hostedtoolcache/node/22.0.0/x64/bin:/usr/local/bin:/usr/bin:/bin', claude: 'claude' },
+      toolchain: {
+        path: '/opt/hostedtoolcache/node/22.0.0/x64/bin:/usr/local/bin:/usr/bin:/bin',
+        claude: 'claude',
+      },
     });
   });
 });

@@ -242,7 +242,10 @@ describe('runner key store (#585)', () => {
 
     it('refuses an item that is not an Ed25519 PKCS#8 key, without quoting it', async () => {
       const mac = macWith();
-      mac.items.set(itemKey(await keychainAccountOf(home)), Buffer.from('not a key at all').toString('base64'));
+      mac.items.set(
+        itemKey(await keychainAccountOf(home)),
+        Buffer.from('not a key at all').toString('base64'),
+      );
       const failure = loadRunnerKey(home, mac.deps);
 
       await expect(failure).rejects.toMatchObject({ problem: 'file-unsafe' });

@@ -3,9 +3,7 @@
   "as": {
     "kind": "job",
     "role": "dev",
-    "items": [
-      1
-    ]
+    "items": [1]
   },
   "request": {
     "method": "POST",

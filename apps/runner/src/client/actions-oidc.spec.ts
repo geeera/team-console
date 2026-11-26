@@ -1,7 +1,12 @@
 import { generateKeyPairSync } from 'node:crypto';
 import { JOB_ID, fakeConsole, jobFixture, json } from '../testing/fake-console';
 import { publicJwkOf } from '../config/runner-key';
-import { ActionsRunError, idTokenRequestUrlOf, postOidcExchange, requestActionsIdToken } from './actions-oidc';
+import {
+  ActionsRunError,
+  idTokenRequestUrlOf,
+  postOidcExchange,
+  requestActionsIdToken,
+} from './actions-oidc';
 import { RunnerApiError } from './runner-client';
 
 /** #669: GitHub's token request and the console's exchange, as the run makes them, and what their refusals say. */
@@ -12,17 +17,21 @@ const ID_TOKEN = `eyJ${'h'.repeat(20)}.eyJ${'p'.repeat(60)}.${'s'.repeat(86)}`;
 describe('idTokenRequestUrlOf', () => {
   it('takes GitHub’s https URL with its query, and loopback http for the local stack', () => {
     expect(
-      idTokenRequestUrlOf('https://pipelines.actions.githubusercontent.com/x/_apis/token?api-version=2.0')?.toString(),
+      idTokenRequestUrlOf(
+        'https://pipelines.actions.githubusercontent.com/x/_apis/token?api-version=2.0',
+      )?.toString(),
     ).toBe('https://pipelines.actions.githubusercontent.com/x/_apis/token?api-version=2.0');
     expect(idTokenRequestUrlOf('http://127.0.0.1:4000/token')).not.toBeNull();
   });
 
-  it.each(['http://pipelines.example/token', 'https://user:pass@pipelines.example/', 'https://p.example/#x', 'not a url'])(
-    'refuses %s',
-    (value) => {
-      expect(idTokenRequestUrlOf(value)).toBeNull();
-    },
-  );
+  it.each([
+    'http://pipelines.example/token',
+    'https://user:pass@pipelines.example/',
+    'https://p.example/#x',
+    'not a url',
+  ])('refuses %s', (value) => {
+    expect(idTokenRequestUrlOf(value)).toBeNull();
+  });
 });
 
 describe('requestActionsIdToken', () => {
@@ -44,7 +53,9 @@ describe('requestActionsIdToken', () => {
   it('replaces an audience already in the URL instead of sending two', async () => {
     const fake = fakeConsole(() => json(200, { value: ID_TOKEN }));
     await requestActionsIdToken(request('https://pipelines.example/token?audience=other'), fake.fetch);
-    expect(new URL(fake.requests[0]?.url ?? '').searchParams.getAll('audience')).toEqual(['team-console:prod']);
+    expect(new URL(fake.requests[0]?.url ?? '').searchParams.getAll('audience')).toEqual([
+      'team-console:prod',
+    ]);
   });
 
   it.each([
@@ -80,7 +91,9 @@ describe('postOidcExchange', () => {
 
   it('posts the body as is to the console’s exchange route, without a bearer and without following redirects', async () => {
     const fake = fakeConsole(() => json(500, {}));
-    await expect(postOidcExchange('https://console.example', input, fake.fetch)).rejects.toThrow(RunnerApiError);
+    await expect(postOidcExchange('https://console.example', input, fake.fetch)).rejects.toThrow(
+      RunnerApiError,
+    );
     const [sent] = fake.requests;
     expect(sent?.url).toBe('https://console.example/api/v1/runner/oidc-exchange');
     expect(JSON.parse(sent?.body ?? '{}')).toEqual(input);
@@ -90,12 +103,21 @@ describe('postOidcExchange', () => {
 
   it('names the problem and the claim of a refusal, and never an unknown claim value', async () => {
     const refusal = (claim: unknown) => () =>
-      json(401, { type: 'https://team-console/problems/oidc-exchange-refused', title: 'Unauthorized', status: 401, claim });
-    await expect(postOidcExchange('https://console.example', input, fakeConsole(refusal('ref')).fetch)).rejects.toThrow(
-      /^the console answered 401 \(oidc-exchange-refused, claim ref\)$/,
-    );
+      json(401, {
+        type: 'https://team-console/problems/oidc-exchange-refused',
+        title: 'Unauthorized',
+        status: 401,
+        claim,
+      });
     await expect(
-      postOidcExchange('https://console.example', input, fakeConsole(refusal(`${ID_TOKEN} sneaked in`)).fetch),
+      postOidcExchange('https://console.example', input, fakeConsole(refusal('ref')).fetch),
+    ).rejects.toThrow(/^the console answered 401 \(oidc-exchange-refused, claim ref\)$/);
+    await expect(
+      postOidcExchange(
+        'https://console.example',
+        input,
+        fakeConsole(refusal(`${ID_TOKEN} sneaked in`)).fetch,
+      ),
     ).rejects.toThrow(/^the console answered 401 \(oidc-exchange-refused\)$/);
   });
 

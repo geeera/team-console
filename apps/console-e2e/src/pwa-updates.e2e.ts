@@ -129,7 +129,10 @@ test.describe('PWA updates', () => {
     await expectBuildB(page);
 
     await expect(page.getByTestId('updated-note'), 'no note when the build did not change').toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem('tc.updated-from.v1')), 'the mark is consumed').toBeNull();
+    expect(
+      await page.evaluate(() => localStorage.getItem('tc.updated-from.v1')),
+      'the mark is consumed',
+    ).toBeNull();
     await expectAccessible(page, 'the page after a same-build switch');
 
     await page.reload();

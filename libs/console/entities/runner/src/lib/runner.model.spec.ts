@@ -30,9 +30,15 @@ describe('d3RunnerOf', () => {
   });
 
   it.each([
-    ['serves the project already', { servedProjects: [{ slug: SLUG, accessSource: 'subscription', fit: true }] }],
+    [
+      'serves the project already',
+      { servedProjects: [{ slug: SLUG, accessSource: 'subscription', fit: true }] },
+    ],
     ['is on a selected list', { projectScope: 'selected', allowedProjects: ['team-console'] }],
-    ['declares an API key only', { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } }],
+    [
+      'declares an API key only',
+      { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
+    ],
     ['is revoked', { revokedAt: '2026-11-11T00:00:00.000Z' }],
     ['is hosted', { hosted: true }],
     ['is an Actions identity', { isolation: 'actions-ephemeral' }],
@@ -42,7 +48,12 @@ describe('d3RunnerOf', () => {
 });
 
 describe('projectAccountRoleOf (#759, #848)', () => {
-  const account = (id: string, role: AccountMembershipDto['role']): AccountMembershipDto => ({ id, slug: id, name: id, role });
+  const account = (id: string, role: AccountMembershipDto['role']): AccountMembershipDto => ({
+    id,
+    slug: id,
+    name: id,
+    role,
+  });
 
   it('is the one role every account gives', () => {
     expect(projectAccountRoleOf([account('a', 'owner')])).toBe('owner');

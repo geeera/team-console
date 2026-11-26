@@ -143,7 +143,9 @@ export const TRACKER_MATRIX = {
   [`POST ${P}/actions-setup/workflow-pr`]: OWNER_ONLY('Opening the workflow pull request is the owner’s'),
   // #687 (ADR 0009 d.9, threat model C12): the account reads the document and its history; a job reads only its own
   // resolved view; every write is the owner's.
-  [`GET ${P}/team-config`]: ACCOUNT_READ('The team configuration is read by the account; a job reads its resolved view'),
+  [`GET ${P}/team-config`]: ACCOUNT_READ(
+    'The team configuration is read by the account; a job reads its resolved view',
+  ),
   [`GET ${P}/team-config/revisions`]: ACCOUNT_READ('The configuration history is read by the account'),
   [`GET ${P}/team-config/revisions/:n`]: ACCOUNT_READ('The configuration history is read by the account'),
   [`GET ${P}/team-config/resolved`]: READ,

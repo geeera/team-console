@@ -26,7 +26,10 @@ export function sprintIssueOf(item: ItemSummaryDto): SprintIssue {
 }
 
 /** The part of #18's board a console-tracker project reads from the tracker; pull requests and runs stay as they are. */
-export type TrackerSprintPart = Pick<SprintBoard, 'milestone' | 'issues' | 'planned' | 'shipped' | 'carriedOver'>;
+export type TrackerSprintPart = Pick<
+  SprintBoard,
+  'milestone' | 'issues' | 'planned' | 'shipped' | 'carriedOver'
+>;
 
 /**
  * The current sprint and its items, open and closed (Done is a lane), counted as the GitHub read model counts. Rows

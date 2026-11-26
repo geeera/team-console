@@ -23,9 +23,10 @@ export function actionsSetupFixture(
     readonly versions?: Partial<ActionsSetupVersionsDto>;
   } = {},
 ): ActionsSetupDto {
-  const items = ACTIONS_SETUP_ITEMS.map(
-    (id): ActionsSetupItemDto => ({ id, ...(overrides.items?.[id] ?? { status: 'ok' }) }),
-  );
+  const items = ACTIONS_SETUP_ITEMS.map((id): ActionsSetupItemDto => ({
+    id,
+    ...(overrides.items?.[id] ?? { status: 'ok' }),
+  }));
   return {
     dispatch: overrides.dispatch ?? 'pull',
     accessSource: overrides.accessSource ?? 'api_key',
@@ -34,6 +35,12 @@ export function actionsSetupFixture(
     items,
     defaultBranch: overrides.defaultBranch === undefined ? 'main' : overrides.defaultBranch,
     workflowPr: overrides.workflowPr ?? 'enabled',
-    versions: { expected: PINS, current: PINS, minRunner: null, runnerSupport: 'supported', ...overrides.versions },
+    versions: {
+      expected: PINS,
+      current: PINS,
+      minRunner: null,
+      runnerSupport: 'supported',
+      ...overrides.versions,
+    },
   };
 }

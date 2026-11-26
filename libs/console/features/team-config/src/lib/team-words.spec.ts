@@ -8,7 +8,9 @@ describe('fieldLabelOf', () => {
   it('names a role setting by the role and the setting, and the switch by the role alone', () => {
     expect(fieldLabelOf(t, 'roles.dev.model')).toBe('teamConfig.role.name.dev · teamConfig.field.role.model');
     expect(fieldLabelOf(t, 'roles.ui-designer.enabled')).toBe('teamConfig.role.name.ui-designer');
-    expect(fieldLabelOf(t, 'caps.burn.dev_tasks')).toBe('teamConfig.rules.caps.burn: teamConfig.field.caps.dev_tasks');
+    expect(fieldLabelOf(t, 'caps.burn.dev_tasks')).toBe(
+      'teamConfig.rules.caps.burn: teamConfig.field.caps.dev_tasks',
+    );
     expect(fieldLabelOf(t, 'gates.code_paths[2]')).toBe('teamConfig.field.gates.code_paths');
   });
 });
@@ -25,7 +27,9 @@ describe('valueTextOf', () => {
   });
 
   it('keeps markup a value might carry as plain text (threat model T4)', () => {
-    expect(valueTextOf(t, 'en', 'gates.code_paths', ['<img src=x onerror=alert(1)>'])).toBe('<img src=x onerror=alert(1)>');
+    expect(valueTextOf(t, 'en', 'gates.code_paths', ['<img src=x onerror=alert(1)>'])).toBe(
+      '<img src=x onerror=alert(1)>',
+    );
   });
 });
 

@@ -91,7 +91,11 @@ function push(
   url: string,
   input?: Omit<CopyInput, 'project'>,
 ): MapResult {
-  return { kind: 'push', notification: linkNotificationOf(project, kind, url, input), urgent: URGENT_KINDS.has(kind) };
+  return {
+    kind: 'push',
+    notification: linkNotificationOf(project, kind, url, input),
+    urgent: URGENT_KINDS.has(kind),
+  };
 }
 
 /** Row 1: an issue that now waits for the owner — opened that way, or the label just added made it so. */

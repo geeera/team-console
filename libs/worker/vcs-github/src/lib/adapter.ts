@@ -276,7 +276,13 @@ export class GitHubVcsAdapter implements VcsAdapter {
     // narrower one `implements` happens to allow structurally.
     create: async (
       _ref: RepoRef,
-      _input: { readonly head: string; readonly base: string; readonly title: string; readonly body: string; readonly draft?: boolean },
+      _input: {
+        readonly head: string;
+        readonly base: string;
+        readonly title: string;
+        readonly body: string;
+        readonly draft?: boolean;
+      },
     ): Promise<PullRequest> => {
       throw vcsWriteForbidden('pullRequests.create');
     },

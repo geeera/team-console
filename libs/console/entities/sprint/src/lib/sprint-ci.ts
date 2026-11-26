@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, IconName } from '@console/shared/ui';
 import type { SprintCiState } from '@shared/contracts';

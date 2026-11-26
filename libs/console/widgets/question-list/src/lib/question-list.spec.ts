@@ -367,13 +367,12 @@ describe('QuestionList', () => {
     http.expectOne(NEEDS_YOU_ITEMS_URL).flush(needsYouBody([]));
     await settle();
 
-    expect(root.querySelector('[data-testid="empty"]')?.textContent).toContain(
-      'Стол чист. Команда работает',
-    );
+    expect(root.querySelector('[data-testid="empty"]')?.textContent).toContain('Стол чист. Команда работает');
   });
 
   describe('clear desk (#354)', () => {
-    const stampOf = (root: HTMLElement): HTMLElement | null => root.querySelector('[data-testid="desk-stamp"]');
+    const stampOf = (root: HTMLElement): HTMLElement | null =>
+      root.querySelector('[data-testid="desk-stamp"]');
 
     it('an inbox that opens empty shows the stamp already there, with the one serif line', async () => {
       const { settle, root } = await render(null);

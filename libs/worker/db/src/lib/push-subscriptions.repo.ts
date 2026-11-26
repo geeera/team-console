@@ -90,7 +90,10 @@ export class PushSubscriptionsRepo {
 
   /** Returns whether a row was removed. */
   async remove(endpoint: string): Promise<boolean> {
-    const result = await this.db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?1').bind(endpoint).run();
+    const result = await this.db
+      .prepare('DELETE FROM push_subscriptions WHERE endpoint = ?1')
+      .bind(endpoint)
+      .run();
     return result.meta.changes > 0;
   }
 
@@ -108,7 +111,9 @@ export class PushSubscriptionsRepo {
   async markFailure(endpoint: string, pruneAt: number): Promise<number | null> {
     const [updated] = await this.db.batch<{ failures: number }>([
       this.db
-        .prepare('UPDATE push_subscriptions SET failures = failures + 1 WHERE endpoint = ?1 RETURNING failures')
+        .prepare(
+          'UPDATE push_subscriptions SET failures = failures + 1 WHERE endpoint = ?1 RETURNING failures',
+        )
         .bind(endpoint),
       this.db
         .prepare('DELETE FROM push_subscriptions WHERE endpoint = ?1 AND failures >= ?2')
@@ -119,7 +124,8 @@ export class PushSubscriptionsRepo {
   }
 }
 
-export type PushTestClaim = { readonly claimed: true } | { readonly claimed: false; readonly retryAfterMs: number };
+export type PushTestClaim =
+  { readonly claimed: true } | { readonly claimed: false; readonly retryAfterMs: number };
 
 /** The once-per-interval lock of "Send a test" (`push_test_sends`, migration 0009). */
 export class PushTestSendsRepo {
@@ -138,7 +144,9 @@ export class PushTestSendsRepo {
     if (claimed !== null) {
       return { claimed: true };
     }
-    const last = await this.db.prepare('SELECT sent_at FROM push_test_sends WHERE id = 1').first<{ sent_at: number }>();
+    const last = await this.db
+      .prepare('SELECT sent_at FROM push_test_sends WHERE id = 1')
+      .first<{ sent_at: number }>();
     const retryAfterMs = last === null ? intervalMs : Math.max(0, last.sent_at + intervalMs - nowMs);
     return { claimed: false, retryAfterMs };
   }

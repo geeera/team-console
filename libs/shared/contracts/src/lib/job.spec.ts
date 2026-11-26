@@ -82,26 +82,117 @@ describe('job guards', () => {
   });
 
   it('checks every job of a list, its cursor and the runner availability', () => {
-    expect(isJobListDto({ jobs: [JOB], nextCursor: null, runnerAvailability: 'ready', canRunNow: true })).toBe(true);
-    expect(isJobListDto({ jobs: [JOB], nextCursor: JOB.id, runnerAvailability: 'none', canRunNow: true })).toBe(true);
-    expect(isJobListDto({ jobs: [{ ...JOB, dispatch: 'cron' }], nextCursor: null, runnerAvailability: 'ready', canRunNow: true })).toBe(false);
+    expect(
+      isJobListDto({ jobs: [JOB], nextCursor: null, runnerAvailability: 'ready', canRunNow: true }),
+    ).toBe(true);
+    expect(
+      isJobListDto({ jobs: [JOB], nextCursor: JOB.id, runnerAvailability: 'none', canRunNow: true }),
+    ).toBe(true);
+    expect(
+      isJobListDto({
+        jobs: [{ ...JOB, dispatch: 'cron' }],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: true,
+      }),
+    ).toBe(false);
     expect(isJobListDto({ jobs: [], runnerAvailability: 'ready', canRunNow: true })).toBe(false);
     expect(isJobListDto({ jobs: [], nextCursor: null })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'busy', canRunNow: true })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'access-mismatch' })).toBe(true);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: true, runnerUnavailableReason: 'no-runner' })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'stolen' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'busy', canRunNow: true })).toBe(
+      false,
+    );
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'access-mismatch',
+      }),
+    ).toBe(true);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: true,
+        runnerUnavailableReason: 'no-runner',
+      }),
+    ).toBe(false);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'stolen',
+      }),
+    ).toBe(false);
     expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready' })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: 'yes' })).toBe(false);
+    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: 'yes' })).toBe(
+      false,
+    );
     // #775: owners' names for a member, the creator's name with the D3 reason only.
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['Анна'] })).toBe(true);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: [''] })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: [{ login: 'x' }] })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'ready', canRunNow: false, accountOwnerNames: ['А'.repeat(256)] })).toBe(false);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription', projectCreatorName: 'Вера' })).toBe(true);
-    expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'no-runner', projectCreatorName: 'Вера' })).toBe(false);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: false,
+        accountOwnerNames: ['Анна'],
+      }),
+    ).toBe(true);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: false,
+        accountOwnerNames: [''],
+      }),
+    ).toBe(false);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: false,
+        accountOwnerNames: [{ login: 'x' }],
+      }),
+    ).toBe(false);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'ready',
+        canRunNow: false,
+        accountOwnerNames: ['А'.repeat(256)],
+      }),
+    ).toBe(false);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'other-owner-subscription',
+        projectCreatorName: 'Вера',
+      }),
+    ).toBe(true);
+    expect(
+      isJobListDto({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'no-runner',
+        projectCreatorName: 'Вера',
+      }),
+    ).toBe(false);
     for (const availability of RUNNER_AVAILABILITIES) {
-      expect(isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability, canRunNow: false })).toBe(true);
+      expect(
+        isJobListDto({ jobs: [], nextCursor: null, runnerAvailability: availability, canRunNow: false }),
+      ).toBe(true);
     }
   });
 
@@ -146,7 +237,9 @@ describe('checkRequestReviewsInput', () => {
   });
 
   it('accepts a note at the bound', () => {
-    expect(checkRequestReviewsInput({ roles: ['qa'], note: 'я'.repeat(REVIEW_NOTE_MAX_LENGTH) }).ok).toBe(true);
+    expect(checkRequestReviewsInput({ roles: ['qa'], note: 'я'.repeat(REVIEW_NOTE_MAX_LENGTH) }).ok).toBe(
+      true,
+    );
   });
 });
 
@@ -195,7 +288,9 @@ describe('JOB_KINDS_BEFORE_CUTOVER', () => {
   });
 
   it('is a subset of JOB_KINDS that leaves the console-tracker kinds out', () => {
-    expect(JOB_KINDS_BEFORE_CUTOVER.every((kind) => (JOB_KINDS as readonly string[]).includes(kind))).toBe(true);
+    expect(JOB_KINDS_BEFORE_CUTOVER.every((kind) => (JOB_KINDS as readonly string[]).includes(kind))).toBe(
+      true,
+    );
     expect(isJobKindBeforeCutover('import')).toBe(false);
     expect(isJobKindBeforeCutover('kickoff')).toBe(false);
   });

@@ -4,7 +4,13 @@ import { GitHubError, githubUnexpectedError, mapGitHubResponse } from './errors'
 import { githubContentsPath, githubPath, type GitHubPath } from './github-path';
 import type { RepoName } from './repo-name';
 import { assertScopedKind, type ScopedInstallationToken } from './scoped-mint';
-import { discardBody, githubRequest, readGitHubJson, type FetchLike, type GitHubTransportOptions } from './transport';
+import {
+  discardBody,
+  githubRequest,
+  readGitHubJson,
+  type FetchLike,
+  type GitHubTransportOptions,
+} from './transport';
 
 /**
  * The GitHub reads of the Actions setup's readiness check (#759; architect note §4, security note rows "Readiness
@@ -22,7 +28,10 @@ export interface ActionsEnvironment {
   /** GitHub's id of the Environment, for the link to its settings page; `null` when the answer carries none. */
   readonly id: number | null;
   /** GitHub's `deployment_branch_policy`; `null` when every branch may deploy to the Environment. */
-  readonly branchPolicy: { readonly protectedBranches: boolean; readonly customBranchPolicies: boolean } | null;
+  readonly branchPolicy: {
+    readonly protectedBranches: boolean;
+    readonly customBranchPolicies: boolean;
+  } | null;
   /** The rule types present, each once, in GitHub's order. A wait timer of 0 minutes is no rule. */
   readonly protectionRules: readonly EnvironmentProtectionRule[];
 }
@@ -117,7 +126,11 @@ function environmentOf(body: unknown, status: number): ActionsEnvironment {
     }
   }
   const id = body['id'];
-  return { id: Number.isSafeInteger(id) && (id as number) > 0 ? (id as number) : null, branchPolicy, protectionRules };
+  return {
+    id: Number.isSafeInteger(id) && (id as number) > 0 ? (id as number) : null,
+    branchPolicy,
+    protectionRules,
+  };
 }
 
 /**
@@ -132,7 +145,12 @@ export async function readActionsEnvironment(
 ): Promise<ActionsEnvironment | null> {
   assertScopedKind(token, 'environment-read');
   try {
-    const response = await scopedGet(fetcher, token, githubPath`/repos/${repo}/environments/${ACTIONS_ENVIRONMENT}`, options);
+    const response = await scopedGet(
+      fetcher,
+      token,
+      githubPath`/repos/${repo}/environments/${ACTIONS_ENVIRONMENT}`,
+      options,
+    );
     return environmentOf(await readGitHubJson(response), response.status);
   } catch (error: unknown) {
     if (isNotFound(error)) {

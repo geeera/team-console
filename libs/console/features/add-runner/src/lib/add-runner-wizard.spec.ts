@@ -72,7 +72,9 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       createEnrolmentIntent: vi.fn(async (_account: string, _input: CreateEnrolmentIntentInput) => created()),
       approveEnrolmentIntent: vi.fn(async (_account: string, _id: string, _fingerprint: string) => approve()),
       enrolmentIntent: vi.fn(async () => reread()),
-      withdrawEnrolmentIntent: vi.fn(async (_account: string, _id: string, _options?: { keepalive?: boolean }) => withdraw()),
+      withdrawEnrolmentIntent: vi.fn(
+        async (_account: string, _id: string, _options?: { keepalive?: boolean }) => withdraw(),
+      ),
     };
     const sheet = { confirm: vi.fn(async () => confirm) };
     const toaster = { show: vi.fn() };
@@ -86,11 +88,17 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
         { provide: RunnersApi, useValue: api },
         {
           provide: DIALOG_DATA,
-          useValue: { accountId: OWNER_ACCOUNT_ID, projects: PROJECTS, releaseVersion: '0.3.0' } satisfies AddRunnerData,
+          useValue: {
+            accountId: OWNER_ACCOUNT_ID,
+            projects: PROJECTS,
+            releaseVersion: '0.3.0',
+          } satisfies AddRunnerData,
         },
       ],
     });
-    TestBed.overrideComponent(AddRunnerWizard, { set: { providers: [{ provide: EnrolmentWatch, useValue: watch }] } });
+    TestBed.overrideComponent(AddRunnerWizard, {
+      set: { providers: [{ provide: EnrolmentWatch, useValue: watch }] },
+    });
     const fixture = TestBed.createComponent(AddRunnerWizard);
     document.body.appendChild(fixture.nativeElement);
     const root = fixture.nativeElement as HTMLElement;
@@ -109,7 +117,9 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       await settle();
     };
     const submit = async (): Promise<void> => {
-      (root.querySelector('form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      (root.querySelector('form') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { cancelable: true }),
+      );
       await settle();
     };
     const click = async (id: string): Promise<void> => {
@@ -134,11 +144,33 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       await flip(enrolmentIntentFixture());
       await arm();
     };
-    return { fixture, root, find, type, submit, click, flip, arm, toCommand, toConfirm, settle, api, watch, close, ref, guard, sheet, toaster };
+    return {
+      fixture,
+      root,
+      find,
+      type,
+      submit,
+      click,
+      flip,
+      arm,
+      toCommand,
+      toConfirm,
+      settle,
+      api,
+      watch,
+      close,
+      ref,
+      guard,
+      sheet,
+      toaster,
+    };
   }
 
   beforeEach(() => {
-    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+    vi.useFakeTimers({
+      shouldAdvanceTime: true,
+      toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+    });
   });
 
   afterEach(() => {
@@ -198,10 +230,15 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       isolation: 'container',
     });
     expect(close).not.toHaveBeenCalled();
-    expect(watch.watchIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, CREATED.expiresAt);
+    expect(watch.watchIntent).toHaveBeenCalledWith(
+      OWNER_ACCOUNT_ID,
+      ENROLMENT_INTENT_FIXTURE_ID,
+      CREATED.expiresAt,
+    );
     expect(find('wizard-step')?.textContent).toContain('Шаг 2 из 4 · Команда');
     expect(document.activeElement?.textContent).toContain('Выполните две команды на машине «VPS»');
-    const text = (id: string): string => find(id)?.querySelector('[data-testid="copy-code-text"]')?.textContent ?? '';
+    const text = (id: string): string =>
+      find(id)?.querySelector('[data-testid="copy-code-text"]')?.textContent ?? '';
     expect(text('wizard-linux-prepare')).toBe('PREPARE THE HOST');
     expect(text('wizard-command')).toBe('ENROL WITH TC_ENROLMENT');
     expect(find('wizard-linux-socket')?.textContent).toContain(
@@ -210,7 +247,9 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(find('wizard-arch-darwin-arm64')).toBeNull();
     expect(find('wizard-runbook')).toBeNull();
     // Both blocks are named regions with their own copy button (a11y).
-    const regions = [...root.querySelectorAll('[data-testid="wizard-linux"] [role="region"]')].map((region) => region.getAttribute('aria-label'));
+    const regions = [...root.querySelectorAll('[data-testid="wizard-linux"] [role="region"]')].map((region) =>
+      region.getAttribute('aria-label'),
+    );
     expect(regions).toEqual(['Команда подготовки машины', 'Команда подключения раннера']);
   });
 
@@ -222,9 +261,17 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     (find('wizard-platform-linux') as HTMLInputElement).click();
     await settle();
     await submit();
-    expect(api.createEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, expect.objectContaining({ isolation: 'container' }));
+    expect(api.createEnrolmentIntent).toHaveBeenCalledWith(
+      OWNER_ACCOUNT_ID,
+      expect.objectContaining({ isolation: 'container' }),
+    );
     expect(api.withdrawEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID);
-    expect(close).toHaveBeenCalledWith({ kind: 'code', name: 'VPS', projectScope: 'all', allowedProjects: [] });
+    expect(close).toHaveBeenCalledWith({
+      kind: 'code',
+      name: 'VPS',
+      projectScope: 'all',
+      allowedProjects: [],
+    });
   });
 
   it('creates a user intent and shows the API one-liner per processor, byte for byte', async () => {
@@ -236,10 +283,15 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       allowedProjects: [],
       isolation: 'user',
     });
-    expect(watch.watchIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, CREATED.expiresAt);
+    expect(watch.watchIntent).toHaveBeenCalledWith(
+      OWNER_ACCOUNT_ID,
+      ENROLMENT_INTENT_FIXTURE_ID,
+      CREATED.expiresAt,
+    );
     expect(find('wizard-step')?.textContent).toContain('Шаг 2 из 4 · Команда');
     expect(document.activeElement?.hasAttribute('data-step-heading')).toBe(true);
-    const command = (): string => find('wizard-command')?.querySelector('[data-testid="copy-code-text"]')?.textContent ?? '';
+    const command = (): string =>
+      find('wizard-command')?.querySelector('[data-testid="copy-code-text"]')?.textContent ?? '';
     expect(command()).toBe('ARM ONE-LINER');
     (find('wizard-arch-darwin-x64') as HTMLInputElement).click();
     await settle();
@@ -250,11 +302,15 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
   });
 
   it('shows the runbook path with the setup line when the release has no one-liner (S2)', async () => {
-    const { toCommand, find } = await render({ created: () => ({ ok: true, value: { ...CREATED, installCommands: null } }) });
+    const { toCommand, find } = await render({
+      created: () => ({ ok: true, value: { ...CREATED, installCommands: null } }),
+    });
     await toCommand();
     expect(find('wizard-runbook')?.textContent).toContain('Скачайте и проверьте выпуск 0.3.0.');
     expect(find('wizard-command')?.querySelector('[data-testid="copy-code-text"]')?.textContent).toBe(SETUP);
-    expect(find('wizard-runbook-link')?.getAttribute('href')).toContain('#get-a-release-and-verify-it-both-backends');
+    expect(find('wizard-runbook-link')?.getAttribute('href')).toContain(
+      '#get-a-release-and-verify-it-both-backends',
+    );
   });
 
   it('offers the code path when the API has no command, and never builds one', async () => {
@@ -292,7 +348,10 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     // Decision 6: the heading has focus, never «Подтвердить»; «Отклонить» comes first.
     expect(document.activeElement?.hasAttribute('data-step-heading')).toBe(true);
     const buttons = [...(find('wizard-reject')?.parentElement?.querySelectorAll('button') ?? [])];
-    expect(buttons.map((button) => button.getAttribute('data-testid'))).toEqual(['wizard-reject', 'wizard-approve']);
+    expect(buttons.map((button) => button.getAttribute('data-testid'))).toEqual([
+      'wizard-reject',
+      'wizard-approve',
+    ]);
     expect(buttons.every((button) => button.type === 'button')).toBe(true);
   });
 
@@ -300,7 +359,11 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     const { toConfirm, click, api, watch, find } = await render();
     await toConfirm();
     await click('wizard-approve');
-    expect(api.approveEnrolmentIntent).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, '7K2Q-M9XD');
+    expect(api.approveEnrolmentIntent).toHaveBeenCalledWith(
+      OWNER_ACCOUNT_ID,
+      ENROLMENT_INTENT_FIXTURE_ID,
+      '7K2Q-M9XD',
+    );
     expect(watch.watchRunner).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
     expect(find('wizard-step')?.textContent).toContain('Шаг 4 из 4 · На связи');
     expect(find('wizard-approved-waiting')).not.toBeNull();
@@ -340,7 +403,11 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     expect(api.approveEnrolmentIntent).toHaveBeenCalledTimes(1);
     await arm();
     await click('wizard-approve');
-    expect(api.approveEnrolmentIntent).toHaveBeenLastCalledWith(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, 'ZZZZ-1111');
+    expect(api.approveEnrolmentIntent).toHaveBeenLastCalledWith(
+      OWNER_ACCOUNT_ID,
+      ENROLMENT_INTENT_FIXTURE_ID,
+      'ZZZZ-1111',
+    );
   });
 
   it('reads a 404 on approve as expired when the intent says so', async () => {
@@ -354,7 +421,9 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
   });
 
   it('keeps «Подтвердить» unusable for a suspended account', async () => {
-    const { toConfirm, click, find, api } = await render({ approve: () => failed('forbidden', 'account-suspended') });
+    const { toConfirm, click, find, api } = await render({
+      approve: () => failed('forbidden', 'account-suspended'),
+    });
     await toConfirm();
     await click('wizard-approve');
     expect(find('wizard-error')?.textContent).toContain('Аккаунт приостановлен');
@@ -425,11 +494,15 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
   });
 
   it('asks before closing a live request, withdraws it, and closes even when the withdraw fails', async () => {
-    const { toCommand, guard, sheet, api, close, toaster, settle } = await render({ withdraw: () => failed('offline') });
+    const { toCommand, guard, sheet, api, close, toaster, settle } = await render({
+      withdraw: () => failed('offline'),
+    });
     await toCommand();
     guard.request();
     await settle();
-    expect(sheet.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: 'Закрыть и отозвать запрос?', tone: 'danger' }));
+    expect(sheet.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Закрыть и отозвать запрос?', tone: 'danger' }),
+    );
     expect(api.withdrawEnrolmentIntent).toHaveBeenCalled();
     expect(toaster.show).toHaveBeenCalledWith('Не удалось отозвать запрос. Он истечёт сам через 10 минут.');
     expect(close).toHaveBeenCalledWith({ kind: 'closed', enrolled: false });

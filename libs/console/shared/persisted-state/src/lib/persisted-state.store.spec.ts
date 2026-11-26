@@ -232,7 +232,12 @@ describe('PersistedStateStore', () => {
 
   it('keeps a task draft per item at once, part by part, and drops it when both parts are gone (#435)', () => {
     const { store, storage } = setup();
-    store.setTaskDraft('a', 7, { edit: { title: 'New title', body: 'Text', baseVersion: 3 } }, '2026-11-05T10:00:00Z');
+    store.setTaskDraft(
+      'a',
+      7,
+      { edit: { title: 'New title', body: 'Text', baseVersion: 3 } },
+      '2026-11-05T10:00:00Z',
+    );
     store.setTaskDraft('a', 7, { comment: '/approve please' }, '2026-11-05T10:01:00Z');
     expect(parsePersistedState(storage.read()).projects['a']?.taskDrafts).toEqual({
       '7': {
@@ -251,7 +256,12 @@ describe('PersistedStateStore', () => {
   it('keeps at most TASK_DRAFTS_MAX task drafts per project, newest first', () => {
     const { store } = setup();
     for (let n = 1; n <= TASK_DRAFTS_MAX + 2; n += 1) {
-      store.setTaskDraft('a', n, { comment: `c${String(n)}` }, `2026-11-05T10:${String(n).padStart(2, '0')}:00Z`);
+      store.setTaskDraft(
+        'a',
+        n,
+        { comment: `c${String(n)}` },
+        `2026-11-05T10:${String(n).padStart(2, '0')}:00Z`,
+      );
     }
     expect(store.taskDraftOf('a', 1)).toBeUndefined();
     expect(store.taskDraftOf('a', 2)).toBeUndefined();

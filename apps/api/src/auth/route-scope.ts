@@ -26,14 +26,7 @@ import { scopeOf } from './scope';
  * - `public`: no scope (`/healthz`).
  */
 export type ScopeRule =
-  | 'project'
-  | 'projects'
-  | 'account'
-  | 'own-user'
-  | 'operator'
-  | 'runner'
-  | 'enrolment'
-  | 'public';
+  'project' | 'projects' | 'account' | 'own-user' | 'operator' | 'runner' | 'enrolment' | 'public';
 
 const P = '/api/v1/projects/:slug';
 const PROJECT = 'project' satisfies ScopeRule;

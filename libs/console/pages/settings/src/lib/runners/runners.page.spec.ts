@@ -4,12 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { PROJECTS_URL } from '@console/entities/project';
-import {
-  RUNNER_FIXTURE_IDS,
-  RunnersApi,
-  runnerFixture,
-  type RunnerResult,
-} from '@console/entities/runner';
+import { RUNNER_FIXTURE_IDS, RunnersApi, runnerFixture, type RunnerResult } from '@console/entities/runner';
 import { AddRunner, type AddRunnerOutcome } from '@console/features/add-runner';
 import { EnrolRunner } from '@console/features/enrol-runner';
 import {
@@ -31,8 +26,22 @@ import { settingsRoutes } from '../settings.routes';
 const OWNER: AccountMembershipDto = { id: OWNER_ACCOUNT_ID, slug: 'owner', name: 'Owner', role: 'owner' };
 const RELEASE = { version: '0.3.0', minimumVersion: '0.2.0' };
 const PROJECTS = [
-  { slug: 'team-console', repo: 'geeera/team-console', displayName: 'Team Console', routineId: null, addedAt: '2026-10-01T00:00:00.000Z', archivedAt: null },
-  { slug: 'storify', repo: 'geeera/storify', displayName: 'Storify', routineId: null, addedAt: '2026-10-01T00:00:00.000Z', archivedAt: null },
+  {
+    slug: 'team-console',
+    repo: 'geeera/team-console',
+    displayName: 'Team Console',
+    routineId: null,
+    addedAt: '2026-10-01T00:00:00.000Z',
+    archivedAt: null,
+  },
+  {
+    slug: 'storify',
+    repo: 'geeera/storify',
+    displayName: 'Storify',
+    routineId: null,
+    addedAt: '2026-10-01T00:00:00.000Z',
+    archivedAt: null,
+  },
 ];
 
 async function settle(): Promise<void> {
@@ -47,7 +56,10 @@ describe('RunnersPage (/settings/runners, #464)', () => {
 
   async function open({
     accounts = { ok: true, value: [OWNER] } as RunnerResult<readonly AccountMembershipDto[]>,
-    list = (): RunnerResult<RunnerListDto> => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } }),
+    list = (): RunnerResult<RunnerListDto> => ({
+      ok: true,
+      value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE },
+    }),
     revokeOutcome = { kind: 'cancelled' } as RevokeOutcome,
     edited = null as RunnerDto | null,
     clearOutcome = { kind: 'cancelled' } as ClearSuspectOutcome,
@@ -88,7 +100,9 @@ describe('RunnersPage (/settings/runners, #464)', () => {
     document.body.appendChild(harness.fixture.nativeElement);
     await harness.navigateByUrl('/settings/runners');
     await settle();
-    TestBed.inject(HttpTestingController).match(PROJECTS_URL).forEach((request) => request.flush(PROJECTS));
+    TestBed.inject(HttpTestingController)
+      .match(PROJECTS_URL)
+      .forEach((request) => request.flush(PROJECTS));
     await settle();
     const root = harness.routeNativeElement as HTMLElement;
     const find = (id: string): HTMLElement | null => root.querySelector(`[data-testid="${id}"]`);
@@ -105,10 +119,16 @@ describe('RunnersPage (/settings/runners, #464)', () => {
         ok: true,
         value: {
           runners: [
-            runnerFixture({ id: RUNNER_FIXTURE_IDS.old, name: 'Old', revokedAt: '2026-11-01T00:00:00.000Z', online: false }),
+            runnerFixture({
+              id: RUNNER_FIXTURE_IDS.old,
+              name: 'Old',
+              revokedAt: '2026-11-01T00:00:00.000Z',
+              online: false,
+            }),
             runnerFixture({ version: '0.1.0', belowMinimum: true }),
           ],
-          pendingEnrolments: [], release: RELEASE,
+          pendingEnrolments: [],
+          release: RELEASE,
         },
       }),
     });
@@ -138,7 +158,10 @@ describe('RunnersPage (/settings/runners, #464)', () => {
 
   it('shows the empty state with the enrolment call to action, which opens the wizard for the account', async () => {
     const { find, wizard, enrol, api } = await open({
-      list: () => ({ ok: true, value: { runners: [], pendingEnrolments: [], release: { version: '0.3.0', minimumVersion: null } } }),
+      list: () => ({
+        ok: true,
+        value: { runners: [], pendingEnrolments: [], release: { version: '0.3.0', minimumVersion: null } },
+      }),
     });
     expect(find('runners-empty')?.textContent).toContain('Раннеров пока нет');
     expect(find('runners-release')).toBeNull();
@@ -175,7 +198,9 @@ describe('RunnersPage (/settings/runners, #464)', () => {
   });
 
   it('opens the new runner’s scope editor for «Выбрать проекты»', async () => {
-    const { find, manage } = await open({ wizardOutcome: { kind: 'pick-projects', runnerId: runnerFixture().id } });
+    const { find, manage } = await open({
+      wizardOutcome: { kind: 'pick-projects', runnerId: runnerFixture().id },
+    });
     (find('runners-enrol') as HTMLButtonElement).click();
     await settle();
     expect(manage.editProjects).toHaveBeenCalledWith(expect.objectContaining({ runner: runnerFixture() }));
@@ -241,7 +266,9 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       clearOutcome: { kind: 'cleared', runner: runnerFixture({ suspect: null }) },
     });
     expect(find('runner-suspect')).not.toBeNull();
-    expect(find('runner-clear-suspect')?.getAttribute('aria-label')).toBe('Снять отметку «подозрительный» с раннера Mac');
+    expect(find('runner-clear-suspect')?.getAttribute('aria-label')).toBe(
+      'Снять отметку «подозрительный» с раннера Mac',
+    );
     (find('runner-clear-suspect') as HTMLButtonElement).click();
     await settle();
     expect(manage.clearSuspect).toHaveBeenCalledWith({ accountId: OWNER_ACCOUNT_ID, runner: suspect });
@@ -252,7 +279,14 @@ describe('RunnersPage (/settings/runners, #464)', () => {
   // #827
   it('offers the claim on a claimable runner only, applies the claimed runner and reads a stale claim again', async () => {
     const unrecorded = await open({
-      list: () => ({ ok: true, value: { runners: [runnerFixture({ enroller: 'unrecorded' })], pendingEnrolments: [], release: RELEASE } }),
+      list: () => ({
+        ok: true,
+        value: {
+          runners: [runnerFixture({ enroller: 'unrecorded' })],
+          pendingEnrolments: [],
+          release: RELEASE,
+        },
+      }),
     });
     expect(unrecorded.find('runner-enroller')).not.toBeNull();
     expect(unrecorded.find('runner-claim-enroller')).toBeNull();
@@ -295,13 +329,18 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       expiresAt: '2026-11-12T10:10:00.000Z',
     };
     const { root, find, manage } = await open({
-      list: () => ({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [pending], release: RELEASE } }),
+      list: () => ({
+        ok: true,
+        value: { runners: [runnerFixture()], pendingEnrolments: [pending], release: RELEASE },
+      }),
       withdrawOutcome: { kind: 'withdrawn' },
     });
     const row = find('runners-pending-code');
     expect(row?.textContent).toContain('Laptop');
     expect(row?.textContent).toContain('проекты: team-console');
-    expect(find('runners-pending-withdraw')?.getAttribute('aria-label')).toBe('Отозвать код подключения для «Laptop»');
+    expect(find('runners-pending-withdraw')?.getAttribute('aria-label')).toBe(
+      'Отозвать код подключения для «Laptop»',
+    );
     (find('runners-pending-withdraw') as HTMLButtonElement).click();
     await settle();
     expect(manage.withdrawEnrolment).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, pending);

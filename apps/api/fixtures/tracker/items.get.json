@@ -20,10 +20,7 @@
       "tier": null,
       "sprint": null,
       "title": "Export to CSV",
-      "labels": [
-        "status:proposed",
-        "kind:feature"
-      ],
+      "labels": ["status:proposed", "kind:feature"],
       "flags": [],
       "state": "open",
       "closedAt": null,

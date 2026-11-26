@@ -219,18 +219,16 @@ describe('AddProjectForm', () => {
     await render();
     await type('geeera/storify');
     await submit();
-    http
-      .expectOne(PROJECTS_URL)
-      .flush(
-        problem('github-owner-not-connected', 403, {
-          step: 'repo-owner',
-          connectUrl: '/api/v1/github/connect',
-        }),
-        {
-          status: 403,
-          statusText: 'Forbidden',
-        },
-      );
+    http.expectOne(PROJECTS_URL).flush(
+      problem('github-owner-not-connected', 403, {
+        step: 'repo-owner',
+        connectUrl: '/api/v1/github/connect',
+      }),
+      {
+        status: 403,
+        statusText: 'Forbidden',
+      },
+    );
     await settle();
 
     expect(TestBed.inject(GitHubConnectionStore).view()).toBe('lost');

@@ -143,11 +143,7 @@ export class ItemsApi {
   }
 
   /** `whole`: a list longer than the page cap is an `error`, never a partial list (the board's counts, #556). */
-  async items(
-    slug: string,
-    query: ItemQuery = {},
-    whole = false,
-  ): Promise<TrackerRead<ItemSummaryDto[]>> {
+  async items(slug: string, query: ItemQuery = {}, whole = false): Promise<TrackerRead<ItemSummaryDto[]>> {
     return this.pages(
       itemsUrl(slug),
       (body) => (isItemListDto(body) ? { rows: body.items, next: body.next } : null),

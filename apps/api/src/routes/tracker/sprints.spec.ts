@@ -236,8 +236,12 @@ describe('open item counts', () => {
       [3, 0],
     ]);
     expect(list.backlogOpenCount).toBe(3);
-    expect(await (await send('GET', `${sprintsPath(project.slug)}/1`)).json()).toMatchObject({ openCount: 2 });
-    expect(await (await send('GET', `${sprintsPath(project.slug)}/3`)).json()).toMatchObject({ openCount: 0 });
+    expect(await (await send('GET', `${sprintsPath(project.slug)}/1`)).json()).toMatchObject({
+      openCount: 2,
+    });
+    expect(await (await send('GET', `${sprintsPath(project.slug)}/3`)).json()).toMatchObject({
+      openCount: 0,
+    });
   });
 
   it('leaves closed items out of both counts', async () => {

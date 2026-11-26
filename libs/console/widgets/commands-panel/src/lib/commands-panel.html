@@ -219,7 +219,9 @@
           <p class="cmd__hint" [id]="id + '-ask-hint'">{{ 'commands.ask.hint' | transloco }}</p>
           @if (status.pendingRequests > 0) {
           <p class="cmd__line cmd__line--pending" data-testid="ask-pending">
-            <tc-icon name="clock" size="sm" /><span>{{ 'commands.ask.pending' | transloco: { n: status.pendingRequests } }}</span>
+            <tc-icon name="clock" size="sm" /><span
+              >{{ 'commands.ask.pending' | transloco: { n: status.pendingRequests } }}</span
+            >
           </p>
           } @if (teamWhy(); as why) {
           <p class="cmd__why" [id]="id + '-ask-why'">
@@ -255,7 +257,9 @@
           </p>
           } } @else {
           <p class="cmd__line" data-testid="approve-line">
-            <tc-icon [name]="row.kind === 'none' ? 'minus' : 'alert'" size="sm" /><span>{{ row.line | transloco }}</span>
+            <tc-icon [name]="row.kind === 'none' ? 'minus' : 'alert'" size="sm" /><span
+              >{{ row.line | transloco }}</span
+            >
           </p>
           }
         </div>

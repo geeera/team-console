@@ -23,7 +23,11 @@ export const READINESS_WINDOW_SECONDS = 600;
 /** 429 `rate-limited` once the project's checks of this window are spent, else `null`; counted before any GitHub call. */
 export async function readinessRateRefusal(c: Context, slug: string, at: number): Promise<Response | null> {
   const window = rateWindowOf(at, READINESS_WINDOW_SECONDS);
-  const hit = await new RateLimitsRepo(c.env.DB).hit(`project:${slug}:actions-readiness`, window, READINESS_CHECKS_PER_WINDOW);
+  const hit = await new RateLimitsRepo(c.env.DB).hit(
+    `project:${slug}:actions-readiness`,
+    window,
+    READINESS_CHECKS_PER_WINDOW,
+  );
   if (hit.allowed) {
     return null;
   }
@@ -51,7 +55,13 @@ export function originMisconfigured(c: Context, reason: string): Response {
 /** 422 `dispatch-repository-unverified`: the switch's and the check's word for a repository GitHub does not confirm. */
 export function repositoryUnverified(c: Context, detail: string): Response {
   const extensions: Record<string, ProblemExtensionValue> = { field: 'dispatch' };
-  return problem(c, { type: 'dispatch-repository-unverified', title: 'Invalid request', status: 422, detail, extensions });
+  return problem(c, {
+    type: 'dispatch-repository-unverified',
+    title: 'Invalid request',
+    status: 422,
+    detail,
+    extensions,
+  });
 }
 
 /**
@@ -71,7 +81,10 @@ export function actionsNotReady(c: Context, items: readonly ActionsSetupItemId[]
 }
 
 /** The answer of an outcome that is not a checked readiness. */
-export function uncheckedReadiness(c: Context, outcome: Exclude<ReadinessOutcome, { kind: 'checked' }>): Response {
+export function uncheckedReadiness(
+  c: Context,
+  outcome: Exclude<ReadinessOutcome, { kind: 'checked' }>,
+): Response {
   switch (outcome.kind) {
     case 'repository-unverified':
       return repositoryUnverified(c, outcome.detail);
@@ -97,7 +110,11 @@ export const WORKFLOW_PR_WINDOW_SECONDS = 3600;
 export const WORKFLOW_PR_VOLUME_ALERT = 30;
 
 /** 429 `rate-limited` once the project's or the account's attempts of this hour are spent, else `null`. */
-export async function workflowPrRateRefusal(c: Context, project: { readonly slug: string; readonly accountId: string }, at: number): Promise<Response | null> {
+export async function workflowPrRateRefusal(
+  c: Context,
+  project: { readonly slug: string; readonly accountId: string },
+  at: number,
+): Promise<Response | null> {
   const limits = new RateLimitsRepo(c.env.DB);
   const window = rateWindowOf(at, WORKFLOW_PR_WINDOW_SECONDS);
   const logger = c.get('logger');
@@ -111,10 +128,15 @@ export async function workflowPrRateRefusal(c: Context, project: { readonly slug
       retryAfter: retryAfterOf(at, WORKFLOW_PR_WINDOW_SECONDS),
     });
   };
-  if (!(await limits.hit(`project:${project.slug}:actions-setup-pr`, window, WORKFLOW_PR_PER_PROJECT)).allowed) {
+  if (
+    !(await limits.hit(`project:${project.slug}:actions-setup-pr`, window, WORKFLOW_PR_PER_PROJECT)).allowed
+  ) {
     return refuse('project', WORKFLOW_PR_PER_PROJECT);
   }
-  if (!(await limits.hit(`account:${project.accountId}:actions-setup-pr`, window, WORKFLOW_PR_PER_ACCOUNT)).allowed) {
+  if (
+    !(await limits.hit(`account:${project.accountId}:actions-setup-pr`, window, WORKFLOW_PR_PER_ACCOUNT))
+      .allowed
+  ) {
     return refuse('account', WORKFLOW_PR_PER_ACCOUNT);
   }
   const volume = await limits.hit('all:actions-setup-pr', window, WORKFLOW_PR_VOLUME_ALERT);
@@ -131,19 +153,28 @@ function writeDisabled(c: Context): Response {
     type: 'github-write-disabled',
     title: 'Writing to the repository is switched off on this console',
     status: 503,
-    detail: 'The console does not open pull requests right now; add the workflow file yourself from its Copy view',
+    detail:
+      'The console does not open pull requests right now; add the workflow file yourself from its Copy view',
   });
 }
 
 /** The answer of every outcome of `openWorkflowPr` that opened no pull request. */
-export function workflowPrRefusal(c: Context, outcome: Exclude<WorkflowPrOutcome, { kind: 'opened' }>): Response {
+export function workflowPrRefusal(
+  c: Context,
+  outcome: Exclude<WorkflowPrOutcome, { kind: 'opened' }>,
+): Response {
   switch (outcome.kind) {
     case 'write-disabled':
       return writeDisabled(c);
     case 'console-misconfigured':
       return originMisconfigured(c, outcome.reason);
     case 'repository-unverified':
-      return problem(c, { type: 'dispatch-repository-unverified', title: 'Invalid request', status: 422, detail: outcome.detail });
+      return problem(c, {
+        type: 'dispatch-repository-unverified',
+        title: 'Invalid request',
+        status: 422,
+        detail: outcome.detail,
+      });
     case 'permission-missing': {
       const extensions: Record<string, ProblemExtensionValue> = {
         permissions: [...outcome.permissions],
@@ -176,7 +207,9 @@ export function workflowPrRefusal(c: Context, outcome: Exclude<WorkflowPrOutcome
     }
     case 'pr-open': {
       const extensions: Record<string, ProblemExtensionValue> =
-        outcome.pr === null ? {} : { number: outcome.pr.number, url: outcome.pr.url, provenance: outcome.pr.provenance };
+        outcome.pr === null
+          ? {}
+          : { number: outcome.pr.number, url: outcome.pr.url, provenance: outcome.pr.provenance };
       return problem(c, {
         type: 'actions-setup-pr-open',
         title: 'A pull request from the console’s branch is already open',
@@ -191,7 +224,8 @@ export function workflowPrRefusal(c: Context, outcome: Exclude<WorkflowPrOutcome
         type: 'actions-setup-branch-exists',
         title: 'The console’s branch already exists in the repository',
         status: 409,
-        detail: 'The console never writes to a branch it did not just create: delete the branch on GitHub, then try again',
+        detail:
+          'The console never writes to a branch it did not just create: delete the branch on GitHub, then try again',
         extensions,
       });
     }
@@ -200,7 +234,8 @@ export function workflowPrRefusal(c: Context, outcome: Exclude<WorkflowPrOutcome
         type: 'actions-setup-pr-tampered',
         title: 'The branch changed while the pull request was being opened',
         status: 409,
-        detail: 'The console closed the pull request it could not vouch for; delete the branch on GitHub, then try again',
+        detail:
+          'The console closed the pull request it could not vouch for; delete the branch on GitHub, then try again',
       });
   }
 }

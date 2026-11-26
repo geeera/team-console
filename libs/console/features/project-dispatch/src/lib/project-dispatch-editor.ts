@@ -18,7 +18,16 @@ import { projectActionsRouteOf, ProjectsStore } from '@console/entities/project'
 import { RunnersApi, runnerFailureKeyOf, type RunnerFailure } from '@console/entities/runner';
 import { RouterLink } from '@angular/router';
 import { TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
-import { Banner, Button, Choice, ChoiceGroup, focusAfterRender, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
+import {
+  Banner,
+  Button,
+  Choice,
+  ChoiceGroup,
+  focusAfterRender,
+  Icon,
+  injectRetryFocus,
+  StateBlock,
+} from '@console/shared/ui';
 import { ACTIONS_NOT_READY, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
 
 type EditorStatus = 'loading' | 'ready' | 'error';
@@ -38,7 +47,17 @@ let nextEditorId = 0;
  */
 @Component({
   selector: 'tc-project-dispatch-editor',
-  imports: [Banner, Button, Choice, ChoiceGroup, Icon, RouterLink, StateBlock, TranslocoPipe, TranslocoPluralPipe],
+  imports: [
+    Banner,
+    Button,
+    Choice,
+    ChoiceGroup,
+    Icon,
+    RouterLink,
+    StateBlock,
+    TranslocoPipe,
+    TranslocoPluralPipe,
+  ],
   templateUrl: './project-dispatch-editor.html',
   styleUrl: './project-dispatch-editor.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -146,7 +165,9 @@ export class ProjectDispatchEditor {
       const isNotReady = result.failure.slug === ACTIONS_NOT_READY;
       this.saveFailure.set(
         isNotReady
-          ? notReadyMessageOf(result.failure.items ?? [], this.projectName(), (key, params) => this.t(key, params))
+          ? notReadyMessageOf(result.failure.items ?? [], this.projectName(), (key, params) =>
+              this.t(key, params),
+            )
           : this.t(runnerFailureKeyOf(result.failure)),
       );
       this.isAccessSourceRefusal.set(result.failure.slug === 'access-source-hosted');

@@ -46,7 +46,10 @@ describe('RunnersApi', () => {
     const { api, http } = setup();
     const read = api.list(OWNER_ACCOUNT_ID);
     http.expectOne(RUNNERS).flush({ runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE });
-    expect(await read).toEqual({ ok: true, value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE } });
+    expect(await read).toEqual({
+      ok: true,
+      value: { runners: [runnerFixture()], pendingEnrolments: [], release: RELEASE },
+    });
 
     const malformed = api.list(OWNER_ACCOUNT_ID);
     // A runner without `belowMinimum` (an older Worker) is not shown as if it met the minimum.
@@ -57,10 +60,18 @@ describe('RunnersApi', () => {
 
   it('posts the enrolment code request with the name and the scope only', async () => {
     const { api, http } = setup();
-    const created = api.createEnrolmentCode(OWNER_ACCOUNT_ID, { name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] });
+    const created = api.createEnrolmentCode(OWNER_ACCOUNT_ID, {
+      name: 'Mac',
+      projectScope: 'selected',
+      allowedProjects: ['team-console'],
+    });
     const request = http.expectOne(`${RUNNERS}/enrolment-code`);
     expect(request.request.method).toBe('POST');
-    expect(request.request.body).toEqual({ name: 'Mac', projectScope: 'selected', allowedProjects: ['team-console'] });
+    expect(request.request.body).toEqual({
+      name: 'Mac',
+      projectScope: 'selected',
+      allowedProjects: ['team-console'],
+    });
     const dto = {
       code: `tce_${'a'.repeat(43)}`,
       expiresAt: '2026-11-11T10:10:00.000Z',
@@ -76,9 +87,15 @@ describe('RunnersApi', () => {
 
   it('patches the scope (an empty list under all) and posts a revoke, each answered with the runner', async () => {
     const { api, http } = setup();
-    const patched = api.setScope(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, { projectScope: 'all', allowedProjects: ['team-console'] });
+    const patched = api.setScope(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, {
+      projectScope: 'all',
+      allowedProjects: ['team-console'],
+    });
     const patch = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}`);
-    expect([patch.request.method, patch.request.body]).toEqual(['PATCH', { projectScope: 'all', allowedProjects: [] }]);
+    expect([patch.request.method, patch.request.body]).toEqual([
+      'PATCH',
+      { projectScope: 'all', allowedProjects: [] },
+    ]);
     patch.flush(runnerFixture({ projectScope: 'all', allowedProjects: [] }));
     expect(await patched).toMatchObject({ ok: true, value: { projectScope: 'all', allowedProjects: [] } });
 
@@ -86,7 +103,10 @@ describe('RunnersApi', () => {
     const post = http.expectOne(`${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}/revoke`);
     expect(post.request.method).toBe('POST');
     post.flush(problem(409, 'runner-revoked').error, { status: 409, statusText: 'Conflict' });
-    expect(await revoked).toEqual({ ok: false, failure: { kind: 'revoked', slug: 'runner-revoked', field: null } });
+    expect(await revoked).toEqual({
+      ok: false,
+      failure: { kind: 'revoked', slug: 'runner-revoked', field: null },
+    });
   });
 
   // #827
@@ -119,7 +139,10 @@ describe('RunnersApi', () => {
     http
       .expectOne(`${RUNNERS}/enrolment-codes/${id}/withdraw`)
       .flush(problem(404, 'enrolment-not-found').error, { status: 404, statusText: 'Not Found' });
-    expect(await gone).toEqual({ ok: false, failure: { kind: 'not-found', slug: 'enrolment-not-found', field: null } });
+    expect(await gone).toEqual({
+      ok: false,
+      failure: { kind: 'not-found', slug: 'enrolment-not-found', field: null },
+    });
   });
 
   it('reads and writes placement per account and per project; null clears with a JSON body', async () => {
@@ -153,10 +176,20 @@ describe('RunnersApi', () => {
 
   it('counts the owners among the members, and refuses a member list of the wrong shape', async () => {
     const { api, http } = setup();
-    const member = (userId: string, role: string) => ({ userId, login: userId, avatarUrl: null, role, joinedAt: '2026-11-01T00:00:00.000Z' });
+    const member = (userId: string, role: string) => ({
+      userId,
+      login: userId,
+      avatarUrl: null,
+      role,
+      joinedAt: '2026-11-01T00:00:00.000Z',
+    });
     const counted = api.ownerCount(OWNER_ACCOUNT_ID);
     http.expectOne(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/members`).flush({
-      members: [member('01M6YSNJ0000000000000000M1', 'owner'), member('01M6YSNJ0000000000000000M2', 'owner'), member('01M6YSNJ0000000000000000M3', 'member')],
+      members: [
+        member('01M6YSNJ0000000000000000M1', 'owner'),
+        member('01M6YSNJ0000000000000000M2', 'owner'),
+        member('01M6YSNJ0000000000000000M3', 'member'),
+      ],
     });
     expect(await counted).toEqual({ ok: true, value: 2 });
 
@@ -178,7 +211,13 @@ describe('RunnersApi', () => {
       'POST',
       { name: 'Mac', projectScope: 'all', allowedProjects: [], isolation: 'user' },
     ]);
-    const dto = { intentId: ENROLMENT_INTENT_FIXTURE_ID, expiresAt: '2026-11-11T10:10:00.000Z', command: 'x', installCommands: null, linuxInstall: null };
+    const dto = {
+      intentId: ENROLMENT_INTENT_FIXTURE_ID,
+      expiresAt: '2026-11-11T10:10:00.000Z',
+      command: 'x',
+      installCommands: null,
+      linuxInstall: null,
+    };
     create.flush(dto, { status: 201, statusText: 'Created' });
     expect(await created).toEqual({ ok: true, value: dto });
 
@@ -209,7 +248,9 @@ describe('RunnersApi', () => {
     expect(first.request.keepalive).toBe(false);
     first.flush(null, { status: 204, statusText: 'No Content' });
     await plain;
-    const leaving = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, { keepalive: true });
+    const leaving = api.withdrawEnrolmentIntent(OWNER_ACCOUNT_ID, ENROLMENT_INTENT_FIXTURE_ID, {
+      keepalive: true,
+    });
     const second = http.expectOne(`${intentUrl}/withdraw`);
     expect(second.request.keepalive).toBe(true);
     second.flush(null, { status: 204, statusText: 'No Content' });
@@ -253,8 +294,15 @@ describe('runnerFailureOf', () => {
   });
 
   it('keeps the items of an actions-not-ready refusal, ids only (#759)', () => {
-    const failure = runnerFailureOf(problem(422, 'actions-not-ready', { field: 'dispatch', items: ['secret', 'workflow', '<b>', 7] }));
-    expect(failure).toEqual({ kind: 'invalid', slug: 'actions-not-ready', field: 'dispatch', items: ['secret', 'workflow'] });
+    const failure = runnerFailureOf(
+      problem(422, 'actions-not-ready', { field: 'dispatch', items: ['secret', 'workflow', '<b>', 7] }),
+    );
+    expect(failure).toEqual({
+      kind: 'invalid',
+      slug: 'actions-not-ready',
+      field: 'dispatch',
+      items: ['secret', 'workflow'],
+    });
     expect(runnerFailureKeyOf(failure)).toBe('runners.err.actionsNotReadyBare');
     expect(runnerFailureOf(problem(422, 'access-source-hosted'))).not.toHaveProperty('items');
   });
@@ -276,7 +324,10 @@ describe('runnerFailureOf', () => {
   });
 
   it('reads an Access redirect as an expired session, not as offline', () => {
-    const redirect = new HttpErrorResponse({ status: 0, url: 'https://team.cloudflareaccess.com/cdn-cgi/access/login' });
+    const redirect = new HttpErrorResponse({
+      status: 0,
+      url: 'https://team.cloudflareaccess.com/cdn-cgi/access/login',
+    });
     expect(runnerFailureOf(redirect).kind).toBe('session-expired');
   });
 });
@@ -292,19 +343,28 @@ describe('runnerFailureOf for enrolment intents', () => {
   });
 
   it('words the limit, a changed request and a suspended account', () => {
-    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-limit', field: null })).toBe('runners.wizard.err.limit');
-    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-fingerprint-mismatch', field: null })).toBe(
+    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-limit', field: null })).toBe(
+      'runners.wizard.err.limit',
+    );
+    expect(
+      runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-fingerprint-mismatch', field: null }),
+    ).toBe('runners.wizard.err.changed');
+    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-changed', field: null })).toBe(
       'runners.wizard.err.changed',
     );
-    expect(runnerFailureKeyOf({ kind: 'conflict', slug: 'enrolment-intent-changed', field: null })).toBe('runners.wizard.err.changed');
-    expect(runnerFailureKeyOf({ kind: 'forbidden', slug: 'account-suspended', field: null })).toBe('runners.wizard.err.suspended');
+    expect(runnerFailureKeyOf({ kind: 'forbidden', slug: 'account-suspended', field: null })).toBe(
+      'runners.wizard.err.suspended',
+    );
   });
 });
 
 describe('runnerFailureKeyOf', () => {
   it('words every refusal, a 422 by its slug and field', () => {
-    const of = (kind: Parameters<typeof runnerFailureKeyOf>[0]['kind'], slug: string | null = null, field: string | null = null) =>
-      runnerFailureKeyOf({ kind, slug, field });
+    const of = (
+      kind: Parameters<typeof runnerFailureKeyOf>[0]['kind'],
+      slug: string | null = null,
+      field: string | null = null,
+    ) => runnerFailureKeyOf({ kind, slug, field });
     expect(of('invalid', 'allowed-projects-invalid', 'allowedProjects')).toBe('runners.err.allowedProjects');
     expect(of('invalid', 'runner-policy-invalid', 'runner')).toBe('runners.err.policyRunner');
     expect(of('invalid', 'runner-policy-invalid', 'fallback')).toBe('runners.err.policy');

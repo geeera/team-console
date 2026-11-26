@@ -21,7 +21,16 @@ import {
   type WorkerContext,
   type WorkerHonoEnv,
 } from '@worker/core';
-import { AuditRepo, JobsRepo, RunnersRepo, TeamStateRepo, type HeldJobRecord, type JobRecord, type NewAuditEvent, type RunnerRecord } from '@worker/db';
+import {
+  AuditRepo,
+  JobsRepo,
+  RunnersRepo,
+  TeamStateRepo,
+  type HeldJobRecord,
+  type JobRecord,
+  type NewAuditEvent,
+  type RunnerRecord,
+} from '@worker/db';
 import { dispatchAdmittedActionsJobs } from '../actions/dispatch';
 import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
@@ -57,14 +66,24 @@ function invalid(c: Context, type: string, field: string, detail: string): Respo
 }
 
 /** `job` as the live job of the runner `runnerId` under its scope; another runner's or a finished one is 404/409. */
-function judgeHeld(c: Context, job: HeldJobRecord | null, runnerId: string, now: string): JobRecord | Response {
+function judgeHeld(
+  c: Context,
+  job: HeldJobRecord | null,
+  runnerId: string,
+  now: string,
+): JobRecord | Response {
   // The scope is judged again (#490 review, #775) by the claim's own term, read with the job (#794, D3 included): a
   // project the runner lost since the claim is no longer its.
   if (job === null || job.runnerId !== runnerId || !job.runnerServes) {
     return problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 });
   }
   if (job.state !== 'claimed' && job.state !== 'running') {
-    return problem(c, { type: 'job-finished', title: 'Conflict', status: 409, detail: `The job is ${job.state}` });
+    return problem(c, {
+      type: 'job-finished',
+      title: 'Conflict',
+      status: 409,
+      detail: `The job is ${job.state}`,
+    });
   }
   if (job.leaseUntil === null || job.leaseUntil < now) {
     return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
@@ -98,7 +117,12 @@ async function scopeOf(repo: RunnersRepo, runner: RunnerRecord): Promise<RunnerS
  * changed since authentication; this re-reads it so a revoke answers as the runner door does (401 `runner-revoked`)
  * and a narrowing as a job that is no longer this runner's (404). Read only on this refusal path, never per call.
  */
-async function lostWriteRefusal(c: Context, runner: RunnerIdentity, jobId: string, now: string): Promise<Response> {
+async function lostWriteRefusal(
+  c: Context,
+  runner: RunnerIdentity,
+  jobId: string,
+  now: string,
+): Promise<Response> {
   const [job, stored] = await Promise.all([
     new JobsRepo(c.env.DB).findHeldById(jobId),
     new RunnersRepo(c.env.DB).findById(runner.runnerId),
@@ -110,11 +134,29 @@ async function lostWriteRefusal(c: Context, runner: RunnerIdentity, jobId: strin
   // `runnerServes` holds the account equality of the stored row; a row of another account (impossible past 0021's
   // identity trigger) serves nothing.
   const judged = judgeHeld(c, stored.accountId === runner.accountId ? job : null, runner.runnerId, now);
-  return judged instanceof Response ? judged : problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
+  return judged instanceof Response
+    ? judged
+    : problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409 });
 }
 
-function auditOf(runner: RunnerIdentity, job: JobRecord, at: string, kind: NewAuditEvent['kind'], details: Readonly<Record<string, unknown>>, ipCountry: string | null): NewAuditEvent {
-  return { accountId: job.accountId, at, actorKind: 'runner', actor: runner.runnerId, kind, target: job.id, details, ipCountry };
+function auditOf(
+  runner: RunnerIdentity,
+  job: JobRecord,
+  at: string,
+  kind: NewAuditEvent['kind'],
+  details: Readonly<Record<string, unknown>>,
+  ipCountry: string | null,
+): NewAuditEvent {
+  return {
+    accountId: job.accountId,
+    at,
+    actorKind: 'runner',
+    actor: runner.runnerId,
+    kind,
+    target: job.id,
+    details,
+    ipCountry,
+  };
 }
 
 /**
@@ -146,8 +188,14 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
       const runners = new RunnersRepo(c.env.DB);
       // #775 (SECURITY question 7): the declaration is stored before the claim reads it, so the claim's `AND` term
       // judges the stored row; a hosted or ephemeral identity's declaration is ignored by the write itself.
-      if (input.value.accessSources !== undefined && (await runners.setAccessSources(runner.runnerId, input.value.accessSources))) {
-        logger.info('runner declared access sources', { runnerId: runner.runnerId, accessSources: input.value.accessSources });
+      if (
+        input.value.accessSources !== undefined &&
+        (await runners.setAccessSources(runner.runnerId, input.value.accessSources))
+      ) {
+        logger.info('runner declared access sources', {
+          runnerId: runner.runnerId,
+          accessSources: input.value.accessSources,
+        });
       }
       const now = new Date();
       const nowIso = now.toISOString();
@@ -175,10 +223,28 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         // The claim just wrote this runner's id on the job; a missing row is a bug, never an open door.
         throw new Error('the claiming runner has no row');
       }
-      await jobs.appendEvents(job.id, runner.runnerId, [{ level: 'info', kind: 'notice', payload: { claimed: true, runnerId: runner.runnerId, attempt: job.attempt } }], nowIso);
+      await jobs.appendEvents(
+        job.id,
+        runner.runnerId,
+        [
+          {
+            level: 'info',
+            kind: 'notice',
+            payload: { claimed: true, runnerId: runner.runnerId, attempt: job.attempt },
+          },
+        ],
+        nowIso,
+      );
       const country = c.req.header('CF-IPCountry') ?? null;
       await new AuditRepo(c.env.DB).append(
-        auditOf(runner, job, nowIso, 'job.claimed', { kind: job.kind, slug: job.projectSlug, attempt: job.attempt, country }, country),
+        auditOf(
+          runner,
+          job,
+          nowIso,
+          'job.claimed',
+          { kind: job.kind, slug: job.projectSlug, attempt: job.attempt, country },
+          country,
+        ),
       );
       logger.info('job claimed', { jobId: job.id, runnerId: runner.runnerId, kind: job.kind });
       const body: ClaimResponse = {
@@ -205,7 +271,12 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
       const since = Date.parse(job.startedAt ?? job.claimedAt ?? now.toISOString());
       const deadline = since + job.maxMinutes * 60 * 1000;
       if (deadline <= now.getTime()) {
-        return problem(c, { type: 'job-lease-expired', title: 'Conflict', status: 409, detail: 'The job is past its maxMinutes' });
+        return problem(c, {
+          type: 'job-lease-expired',
+          title: 'Conflict',
+          status: 409,
+          detail: 'The job is past its maxMinutes',
+        });
       }
       const leaseUntil = new Date(Math.min(now.getTime() + JOB_LEASE_SECONDS * 1000, deadline)).toISOString();
       if (!(await new JobsRepo(c.env.DB).heartbeat(job.id, runner.runnerId, now.toISOString(), leaseUntil))) {
@@ -226,7 +297,12 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
       if (!input.ok) {
         return invalid(c, 'job-events-invalid', input.field, input.detail);
       }
-      const written = await new JobsRepo(c.env.DB).appendEvents(job.id, runner.runnerId, input.value.events, now);
+      const written = await new JobsRepo(c.env.DB).appendEvents(
+        job.id,
+        runner.runnerId,
+        input.value.events,
+        now,
+      );
       if (!written.held) {
         return lostWriteRefusal(c, runner, job.id, now);
       }
@@ -260,7 +336,14 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         runner.runnerId,
         input.value,
         now,
-        auditOf(runner, job, now, 'job.finished', { result: input.value.result, kind: job.kind, slug: job.projectSlug, acted: input.value.acted }, country),
+        auditOf(
+          runner,
+          job,
+          now,
+          'job.finished',
+          { result: input.value.result, kind: job.kind, slug: job.projectSlug, acted: input.value.acted },
+          country,
+        ),
         {
           costUsd: costUsd ?? 0,
           pauseAudit: {
@@ -299,14 +382,25 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
           reason: limitReason,
           runnerId: runner.runnerId,
           accountId: runner.accountId,
-          audit: auditOf(runner, job, now, 'job.streak-excluded', { reason: limitReason, slug: job.projectSlug }, country),
+          audit: auditOf(
+            runner,
+            job,
+            now,
+            'job.streak-excluded',
+            { reason: limitReason, slug: job.projectSlug },
+            country,
+          ),
         },
       );
       if (streak.paused) {
         logger.warn('team paused on the failure streak', { slug: job.projectSlug });
       }
       if (streak.excluded) {
-        logger.info('failure left out of the streak', { jobId: job.id, runnerId: runner.runnerId, reason: limitReason });
+        logger.info('failure left out of the streak', {
+          jobId: job.id,
+          runnerId: runner.runnerId,
+          reason: limitReason,
+        });
       }
       // #716, #746: this job's slot is free, so the account's Actions jobs held back by a role's `max_parallel` or by the
       // account's entitled concurrency get their run now rather than at the next sweep, whichever way this job ran. The

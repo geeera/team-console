@@ -101,7 +101,9 @@ if (failures > 0) {
   );
 }
 const gridCounts = Object.fromEntries(
-  [...gridFindings].map(([file, lines]) => [file, lines.length] as const).sort(([a], [b]) => a.localeCompare(b)),
+  [...gridFindings]
+    .map(([file, lines]) => [file, lines.length] as const)
+    .sort(([a], [b]) => a.localeCompare(b)),
 );
 if (process.argv.includes('--write-grid-baseline')) {
   writeFileSync(GRID_BASELINE_FILE, `${JSON.stringify(gridCounts, null, 2)}\n`);
@@ -135,7 +137,10 @@ const readBaselineAt = (ref: string): Record<string, number> | undefined => {
     return JSON.parse(raw) as Record<string, number>;
   } catch (error) {
     // The file is new at this commit (the rule's first PR): nothing to compare with. Anything else is a real failure.
-    if (error instanceof Error && /exists on disk, but not in|does not exist in|path .* does not exist/.test(error.message)) {
+    if (
+      error instanceof Error &&
+      /exists on disk, but not in|does not exist in|path .* does not exist/.test(error.message)
+    ) {
       return undefined;
     }
     throw error;
@@ -148,11 +153,17 @@ if (gridRaised.length > 0) {
     `\ndesign-lint: grid-columns-baseline.json raises the count for ${gridRaised.join(', ')} compared with ${baseRef}. The baseline may only shrink; set the columns instead, or add "grid-columns-ok: <why>" inside the rule.`,
   );
 }
-const gridFixed =Object.keys(gridBaseline).filter((file) => (gridCounts[file] ?? 0) < (gridBaseline[file] ?? 0));
+const gridFixed = Object.keys(gridBaseline).filter(
+  (file) => (gridCounts[file] ?? 0) < (gridBaseline[file] ?? 0),
+);
 if (gridFixed.length > 0) {
-  console.log(`design-lint: ${gridFixed.length} file(s) are below their grid baseline; lower it with --write-grid-baseline.`);
+  console.log(
+    `design-lint: ${gridFixed.length} file(s) are below their grid baseline; lower it with --write-grid-baseline.`,
+  );
 }
 if (failures > 0 || nativePickers > 0 || gridOver.length > 0 || gridRaised.length > 0) {
   process.exit(1);
 }
-console.log(`design-lint: ${stylesheetsChecked} stylesheet(s) use tokens only; no native date/time inputs; no new implicit grid columns.`);
+console.log(
+  `design-lint: ${stylesheetsChecked} stylesheet(s) use tokens only; no native date/time inputs; no new implicit grid columns.`,
+);

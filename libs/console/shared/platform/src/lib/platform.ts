@@ -43,8 +43,10 @@ const OTHER_ENGINES = /\b(?:Chrome|Chromium|CriOS|Edg|EdgiOS|OPR|Firefox|FxiOS)\
 
 function isIosAgent(signals: PlatformSignals): boolean {
   // iPadOS asks for the desktop site and says "Macintosh"; only the touch screen gives it away.
-  return /\b(?:iPhone|iPad|iPod)\b/.test(signals.userAgent) ||
-    (/\bMacintosh\b/.test(signals.userAgent) && signals.maxTouchPoints > 1);
+  return (
+    /\b(?:iPhone|iPad|iPod)\b/.test(signals.userAgent) ||
+    (/\bMacintosh\b/.test(signals.userAgent) && signals.maxTouchPoints > 1)
+  );
 }
 
 /**

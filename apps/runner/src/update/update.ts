@@ -1,6 +1,18 @@
 import { createHash } from 'node:crypto';
 import type { Stats } from 'node:fs';
-import { chmod, copyFile, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rename, rm, symlink } from 'node:fs/promises';
+import {
+  chmod,
+  copyFile,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  rename,
+  rm,
+  symlink,
+} from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import {
   BUNDLE_FILE,
@@ -237,7 +249,10 @@ async function assertSums(tree: string): Promise<void> {
     sums.set(match[2] ?? '', match[1] ?? '');
   }
   if (sums.size !== RELEASE_FILES.length || !RELEASE_FILES.every((file) => sums.has(file))) {
-    throw new UpdateError('verification-failed', `${RELEASE_SUMS_FILE} does not list exactly the release files`);
+    throw new UpdateError(
+      'verification-failed',
+      `${RELEASE_SUMS_FILE} does not list exactly the release files`,
+    );
   }
   for (const file of RELEASE_FILES) {
     const digest = createHash('sha256')
@@ -341,7 +356,10 @@ async function swapInto(tree: string, prefix: string, target: string): Promise<v
       await linkEntries(prefix);
       return;
     }
-    throw new UpdateError('unpack-failed', `${releaseDirOf(target)} is the live release; nothing was changed`);
+    throw new UpdateError(
+      'unpack-failed',
+      `${releaseDirOf(target)} is the live release; nothing was changed`,
+    );
   }
   const releases = join(prefix, RELEASES_DIR);
   await mkdir(releases, { recursive: true, mode: 0o755 });
@@ -384,11 +402,18 @@ export async function installTarball(
   await mkdir(tree, { mode: 0o700 });
   const unpacked = await deps.exec('tar', ['-xzf', tarball, '--no-same-owner', '-C', tree]);
   if (unpacked.code !== 0) {
-    throw new UpdateError('unpack-failed', `tar could not extract ${basename(tarball)} (exit ${String(unpacked.code)})`);
+    throw new UpdateError(
+      'unpack-failed',
+      `tar could not extract ${basename(tarball)} (exit ${String(unpacked.code)})`,
+    );
   }
   await assertReleaseTree(tree);
   await assertSums(tree);
-  const reported = await deps.exec(join(tree, NODE_FILE), ['--disable-sigusr1', join(tree, BUNDLE_FILE), 'version']);
+  const reported = await deps.exec(join(tree, NODE_FILE), [
+    '--disable-sigusr1',
+    join(tree, BUNDLE_FILE),
+    'version',
+  ]);
   if (reported.code !== 0 || reported.stdout.trim() !== target) {
     throw new UpdateError('verification-failed', `the downloaded bundle does not report version ${target}`);
   }

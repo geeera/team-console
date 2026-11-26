@@ -29,7 +29,10 @@ const input: MacInstallCommandInput = {
 };
 const sumsOf = (version: string): string =>
   ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']
-    .map((platform, index) => `${String(index + 1).repeat(64)}  team-console-runner-${version}-${platform}.tar.gz\n`)
+    .map(
+      (platform, index) =>
+        `${String(index + 1).repeat(64)}  team-console-runner-${version}-${platform}.tar.gz\n`,
+    )
     .join('');
 
 describe('macInstallCommandOf', () => {
@@ -70,7 +73,9 @@ describe('macInstallCommandOf', () => {
 
 describe('namedRunnerReleaseOf (the Worker’s format check, R-ONE-2)', () => {
   it('takes exactly the release’s SHA256SUMS text and maps each platform to its sum', () => {
-    expect(namedRunnerReleaseOf({ RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0') })).toEqual({
+    expect(
+      namedRunnerReleaseOf({ RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0') }),
+    ).toEqual({
       version: '0.2.0',
       sums: {
         'darwin-arm64': '1'.repeat(64),
@@ -84,11 +89,29 @@ describe('namedRunnerReleaseOf (the Worker’s format check, R-ONE-2)', () => {
   it.each([
     ['no version', { RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0') }],
     ['no sums', { RUNNER_RELEASE_VERSION: '0.2.0' }],
-    ['sums of another version', { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.3.0') }],
-    ['an extra line', { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: `${sumsOf('0.2.0')}${'5'.repeat(64)}  x.tar.gz\n` }],
-    ['a missing newline', { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0').slice(0, -1) }],
-    ['a single space', { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0').replace('  ', ' ') }],
-    ['a release without node', { RUNNER_RELEASE_VERSION: '0.1.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.1.0') }],
+    [
+      'sums of another version',
+      { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.3.0') },
+    ],
+    [
+      'an extra line',
+      {
+        RUNNER_RELEASE_VERSION: '0.2.0',
+        RUNNER_RELEASE_SHA256SUMS: `${sumsOf('0.2.0')}${'5'.repeat(64)}  x.tar.gz\n`,
+      },
+    ],
+    [
+      'a missing newline',
+      { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0').slice(0, -1) },
+    ],
+    [
+      'a single space',
+      { RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.2.0').replace('  ', ' ') },
+    ],
+    [
+      'a release without node',
+      { RUNNER_RELEASE_VERSION: '0.1.0', RUNNER_RELEASE_SHA256SUMS: sumsOf('0.1.0') },
+    ],
   ])('refuses %s', (_, env) => {
     expect(namedRunnerReleaseOf(env)).toBeNull();
   });
@@ -119,9 +142,14 @@ describe('macInstallCommandsOf', () => {
 describe('the Linux one command', () => {
   const DIGEST = `sha256:${'d'.repeat(64)}`;
   const IMAGE = `ghcr.io/geeera/team-console-runner:0.2.0@${DIGEST}`;
-  const env = { ENVIRONMENT: 'production', RUNNER_RELEASE_VERSION: '0.2.0', RUNNER_RELEASE_IMAGE_DIGEST: DIGEST };
+  const env = {
+    ENVIRONMENT: 'production',
+    RUNNER_RELEASE_VERSION: '0.2.0',
+    RUNNER_RELEASE_IMAGE_DIGEST: DIGEST,
+  };
   const unitLines = (unit: string): string[] => unit.split('\n');
-  const execStartOf = (unit: string): string => unitLines(unit).find((line) => line.startsWith('ExecStart=')) ?? '';
+  const execStartOf = (unit: string): string =>
+    unitLines(unit).find((line) => line.startsWith('ExecStart=')) ?? '';
 
   it('names the image of the configured release by its digest', () => {
     expect(namedRunnerImageOf(env)).toEqual({ version: '0.2.0', image: IMAGE });
@@ -161,7 +189,9 @@ describe('the Linux one command', () => {
   });
 
   it('runs the runner’s unit with NoNewPrivileges and no capability at all', () => {
-    expect(unitLines(runnerUnitOf(IMAGE))).toEqual(expect.arrayContaining(['NoNewPrivileges=yes', 'CapabilityBoundingSet=']));
+    expect(unitLines(runnerUnitOf(IMAGE))).toEqual(
+      expect.arrayContaining(['NoNewPrivileges=yes', 'CapabilityBoundingSet=']),
+    );
   });
 
   it('bounds the podman unit to the capabilities of setuid newuidmap/newgidmap, which NoNewPrivileges would forbid', () => {
@@ -198,9 +228,17 @@ describe('the Linux one command', () => {
       'id tcrunner >/dev/null 2>&1 || sudo useradd --system --user-group --add-subids-for-system --home-dir /var/lib/team-console-runner --no-create-home --shell /usr/sbin/nologin tcrunner',
     );
     // Quoted heredocs: the shell expands nothing inside a unit.
-    expect(prepare).toContain(`sudo tee /etc/systemd/system/team-console-runner-podman.service >/dev/null <<'EOF'\n${podmanUnitOf()}\nEOF`);
-    expect(prepare).toContain(`sudo tee /etc/systemd/system/team-console-runner.service >/dev/null <<'EOF'\n${runnerUnitOf(IMAGE)}\nEOF`);
-    expect(prepare.endsWith('sudo systemctl daemon-reload && sudo systemctl enable --now team-console-runner-podman.service')).toBe(true);
+    expect(prepare).toContain(
+      `sudo tee /etc/systemd/system/team-console-runner-podman.service >/dev/null <<'EOF'\n${podmanUnitOf()}\nEOF`,
+    );
+    expect(prepare).toContain(
+      `sudo tee /etc/systemd/system/team-console-runner.service >/dev/null <<'EOF'\n${runnerUnitOf(IMAGE)}\nEOF`,
+    );
+    expect(
+      prepare.endsWith(
+        'sudo systemctl daemon-reload && sudo systemctl enable --now team-console-runner-podman.service',
+      ),
+    ).toBe(true);
     expect(prepare).not.toMatch(/TC_ENROLMENT|docker\.sock/);
   });
 
@@ -226,9 +264,13 @@ describe('the Linux one command', () => {
 
   it('takes a loopback http origin on the local stack only, as the runner does', () => {
     const local = { ...env, ENVIRONMENT: 'local' };
-    expect(linuxInstallCommandsOf(local, 'http://127.0.0.1:8300', INTENT)?.enrol).toContain('setup --url http://127.0.0.1:8300 ');
+    expect(linuxInstallCommandsOf(local, 'http://127.0.0.1:8300', INTENT)?.enrol).toContain(
+      'setup --url http://127.0.0.1:8300 ',
+    );
     expect(linuxInstallCommandsOf(local, 'http://console.example', INTENT)).toBeNull();
-    expect(linuxInstallCommandsOf({ ...env, ENVIRONMENT: 'dev' }, 'http://127.0.0.1:8300', INTENT)).toBeNull();
+    expect(
+      linuxInstallCommandsOf({ ...env, ENVIRONMENT: 'dev' }, 'http://127.0.0.1:8300', INTENT),
+    ).toBeNull();
   });
 
   it('builds the pair from the named image only', () => {
@@ -238,6 +280,8 @@ describe('the Linux one command', () => {
       prepare: linuxPrepareCommandOf(IMAGE),
       enrol: linuxEnrolCommandOf('https://console.example', IMAGE, INTENT),
     });
-    expect(linuxInstallCommandsOf({ ENVIRONMENT: 'production' }, 'https://console.example', INTENT)).toBeNull();
+    expect(
+      linuxInstallCommandsOf({ ENVIRONMENT: 'production' }, 'https://console.example', INTENT),
+    ).toBeNull();
   });
 });

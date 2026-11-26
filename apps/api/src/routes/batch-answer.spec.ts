@@ -1,5 +1,10 @@
 import { env } from 'cloudflare:test';
-import { ANSWER_REPLAY_WINDOW_MS, BATCH_ANSWER_MAX, isProblemDetails, problemSlugOf } from '@shared/contracts';
+import {
+  ANSWER_REPLAY_WINDOW_MS,
+  BATCH_ANSWER_MAX,
+  isProblemDetails,
+  problemSlugOf,
+} from '@shared/contracts';
 import { answerComment } from '@shared/owner-grammar';
 import type { FakeGitHubOAuth } from '@worker/github/testing';
 import { ApiGitHub } from '../github';

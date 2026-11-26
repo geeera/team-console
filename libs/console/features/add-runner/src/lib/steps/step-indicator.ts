@@ -11,12 +11,18 @@ import { WIZARD_STEPS, type WizardStep } from '../add-runner.model';
   imports: [TranslocoPipe],
   template: `
     <p class="indicator__text" data-testid="wizard-step">
-      {{ 'runners.wizard.step' | transloco: { n: number(), name: ('runners.wizard.steps.' + step() | transloco) } }}
+      {{
+        'runners.wizard.step'
+          | transloco: { n: number(), name: ('runners.wizard.steps.' + step() | transloco) }
+      }}
     </p>
     @if (!compact()) {
       <ol class="indicator__list" [attr.aria-label]="'runners.wizard.stepsLabel' | transloco">
         @for (item of steps; track item) {
-          <li [class.indicator__item--current]="item === step()" [attr.aria-current]="item === step() ? 'step' : null">
+          <li
+            [class.indicator__item--current]="item === step()"
+            [attr.aria-current]="item === step() ? 'step' : null"
+          >
             {{ 'runners.wizard.steps.' + item | transloco }}
           </li>
         }

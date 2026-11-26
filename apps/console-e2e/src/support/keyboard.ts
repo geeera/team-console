@@ -30,6 +30,8 @@ export async function scrollsSideways(page: Page): Promise<boolean> {
       const overflowX = getComputedStyle(element).overflowX;
       return overflowX === 'auto' || overflowX === 'scroll';
     });
-    return [document.documentElement, ...scrollers].some((element) => element.scrollWidth > element.clientWidth + 1);
+    return [document.documentElement, ...scrollers].some(
+      (element) => element.scrollWidth > element.clientWidth + 1,
+    );
   });
 }

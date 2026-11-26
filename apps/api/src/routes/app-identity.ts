@@ -1,11 +1,5 @@
 import { Hono } from 'hono';
-import {
-  appIconDirOf,
-  appNameOf,
-  appShortNameOf,
-  isEnvironment,
-  type Environment,
-} from '@shared/contracts';
+import { appIconDirOf, appNameOf, appShortNameOf, isEnvironment, type Environment } from '@shared/contracts';
 import { problem, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
 import type { ApiEnv } from '../env';
 

@@ -22,7 +22,9 @@ interface Job {
 }
 
 function readJobs(): Readonly<Record<string, Job>> {
-  const workflow: unknown = parse(readFileSync(join(workspaceRoot, '.github/workflows/release-runner.yml'), 'utf8'));
+  const workflow: unknown = parse(
+    readFileSync(join(workspaceRoot, '.github/workflows/release-runner.yml'), 'utf8'),
+  );
   if (typeof workflow !== 'object' || workflow === null || !('jobs' in workflow)) {
     throw new Error('release-runner.yml has no jobs');
   }

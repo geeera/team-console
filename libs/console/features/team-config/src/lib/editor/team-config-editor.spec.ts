@@ -31,7 +31,11 @@ async function settle(fixture: ComponentFixture<unknown>): Promise<void> {
 
 const overlay = (): HTMLElement => document.querySelector('.cdk-overlay-container') as HTMLElement;
 
-async function open(view: TeamConfigDto, status: TeamStatusDto | null = null, focus: string | null = null): Promise<{
+async function open(
+  view: TeamConfigDto,
+  status: TeamStatusDto | null = null,
+  focus: string | null = null,
+): Promise<{
   fixture: ComponentFixture<TeamConfigEditor>;
   http: HttpTestingController;
   el: HTMLElement;
@@ -55,13 +59,20 @@ async function open(view: TeamConfigDto, status: TeamStatusDto | null = null, fo
   http.expectOne(URL).flush(view);
   await settle(fixture);
   const transloco = TestBed.inject(TranslocoService);
-  return { fixture, http, el: fixture.nativeElement as HTMLElement, t: (key, params) => transloco.translate(key, params) };
+  return {
+    fixture,
+    http,
+    el: fixture.nativeElement as HTMLElement,
+    t: (key, params) => transloco.translate(key, params),
+  };
 }
 
 const testId = (el: HTMLElement, id: string): HTMLElement | null => el.querySelector(`[data-testid="${id}"]`);
 
 describe('TeamConfigEditor', () => {
-  afterEach(() => document.querySelectorAll('.cdk-overlay-container').forEach((node) => (node.innerHTML = '')));
+  afterEach(() =>
+    document.querySelectorAll('.cdk-overlay-container').forEach((node) => (node.innerHTML = '')),
+  );
 
   it('locks the five never-off roles with their reason and gives security no switch', async () => {
     const { el, t } = await open(teamConfigViewOf(stored));
@@ -80,7 +91,9 @@ describe('TeamConfigEditor', () => {
 
   it('marks an overridden role and counts it in the preset line', async () => {
     const { el, t } = await open(teamConfigViewOf(stored));
-    expect(testId(testId(el, 'role-qa') as HTMLElement, 'role-override')?.textContent).toContain(t('teamConfig.role.override'));
+    expect(testId(testId(el, 'role-qa') as HTMLElement, 'role-override')?.textContent).toContain(
+      t('teamConfig.role.override'),
+    );
     expect(testId(el, 'role-dev')?.querySelector('[data-testid="role-override"]')).toBeNull();
     expect(testId(el, 'preset-line')?.textContent).toContain('1');
   });
@@ -96,7 +109,9 @@ describe('TeamConfigEditor', () => {
   it('says why the subscription is off while a hosted runner can reach the project', async () => {
     const { el, t } = await open(teamConfigViewOf(stored, { subscriptionBlocked: true }));
     const radio = testId(el, 'access-subscription') as HTMLInputElement;
-    expect(radio.closest('label')?.getAttribute('aria-disabled') ?? radio.getAttribute('aria-disabled')).toBe('true');
+    expect(radio.closest('label')?.getAttribute('aria-disabled') ?? radio.getAttribute('aria-disabled')).toBe(
+      'true',
+    );
     expect(radio.getAttribute('aria-describedby')).toContain('-blocked');
     expect(testId(el, 'access-blocked')?.textContent).toContain(t('teamConfig.access.blocked'));
     expect(testId(el, 'access-runners')).not.toBeNull();
@@ -126,7 +141,9 @@ describe('TeamConfigEditor', () => {
     expect(testId(el, 'save-bar-count')?.textContent).toContain('1');
     (testId(el, 'save-bar-review') as HTMLButtonElement).click();
     await settle(fixture);
-    expect(overlay().querySelector('[data-testid="changes-table"]')?.textContent?.replace(/\s/g, ' ')).toContain('250 $');
+    expect(
+      overlay().querySelector('[data-testid="changes-table"]')?.textContent?.replace(/\s/g, ' '),
+    ).toContain('250 $');
     (overlay().querySelector('[data-testid="review-save"]') as HTMLButtonElement).click();
     await settle(fixture);
     const request = http.expectOne((req) => req.method === 'PUT');
@@ -168,10 +185,15 @@ describe('TeamConfigEditor', () => {
       state: 'paused-by-budget',
       budget: { month: '2026-11', spentUsd: 200, budgetUsd: 200, waivedAt: null },
     });
-    const { el, t, fixture } = await open(teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }), status);
+    const { el, t, fixture } = await open(
+      teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }),
+      status,
+    );
     const callout = testId(el, 'team-budget-stop') as HTMLElement;
     expect(callout.querySelector('h2')?.textContent).toContain(t('teamConfig.budget.title'));
-    expect(testId(callout, 'team-budget-body')?.textContent?.replace(/\s/g, ' ')).toContain('потрачено 200 $ из 200 $');
+    expect(testId(callout, 'team-budget-body')?.textContent?.replace(/\s/g, ' ')).toContain(
+      'потрачено 200 $ из 200 $',
+    );
     testId(callout, 'team-budget-raise')?.click();
     await settle(fixture);
     expect(document.activeElement?.getAttribute('data-testid')).toBe('input-budget.monthly_usd');
@@ -229,7 +251,10 @@ describe('TeamConfigEditor', () => {
     const status = teamStatusOf({
       budget: { month: '2026-11', spentUsd: 212, budgetUsd: 200, waivedAt: '2026-11-16T09:00:00.000Z' },
     });
-    const { el, t, fixture } = await open(teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }), status);
+    const { el, t, fixture } = await open(
+      teamConfigViewOf({ ...stored, budget: { monthly_usd: 200 } }),
+      status,
+    );
     const waived = testId(el, 'team-waived') as HTMLElement;
     expect(waived.getAttribute('data-editing')).toBeNull();
     const field = testId(el, 'input-budget.monthly_usd') as HTMLInputElement;

@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { DOCUMENTED_DEFAULTS, homebrewBinOf, launchDaemonPlist, servicePathOf, sudoersRule } from './templates';
+import {
+  DOCUMENTED_DEFAULTS,
+  homebrewBinOf,
+  launchDaemonPlist,
+  servicePathOf,
+  sudoersRule,
+} from './templates';
 
 /**
  * The committed service files are the installer's templates rendered with the documented defaults, so what a reviewer
@@ -41,7 +47,9 @@ describe('service files', () => {
       '*',
     ]);
     expect(script).toContain('exec "$prefix/node" "$prefix/team-console-runner.mjs" job-exec');
-    expect(script.indexOf('exec "$prefix/node"')).toBeLessThan(script.indexOf('exec node "$prefix/team-console-runner.mjs"'));
+    expect(script.indexOf('exec "$prefix/node"')).toBeLessThan(
+      script.indexOf('exec node "$prefix/team-console-runner.mjs"'),
+    );
     expect(script).toContain('exec /usr/bin/pkill -9 -u "$uid"');
     for (const dir of ['/tmp', '/private/var/tmp', '/Users/Shared']) {
       expect(script).toContain(` ${dir} `);
@@ -105,9 +113,15 @@ describe('job-exec sweep', () => {
 /** #772: the runner process's PATH keeps the node's own directory first and adds Homebrew's bin for its tools. */
 describe('servicePathOf', () => {
   it.each([
-    ['/opt/homebrew/opt/node/bin/node', '/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+    [
+      '/opt/homebrew/opt/node/bin/node',
+      '/opt/homebrew/opt/node/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+    ],
     ['/opt/homebrew/bin/node', '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
-    ['/usr/local/opt/node@22/bin/node', '/usr/local/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
+    [
+      '/usr/local/opt/node@22/bin/node',
+      '/usr/local/opt/node@22/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
+    ],
     ['/usr/local/bin/node', '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin'],
   ])('%s → %s', (node, path) => {
     expect(servicePathOf(node)).toBe(path);

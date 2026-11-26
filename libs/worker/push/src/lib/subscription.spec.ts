@@ -53,9 +53,9 @@ describe('checkPushSubscription (row 2)', () => {
   });
 
   it('accepts padded base64url keys', () => {
-    expect(checkPushSubscription(body('https://web.push.apple.com/abc', { p256dh: P256DH, auth: `${AUTH}==` })).ok).toBe(
-      true,
-    );
+    expect(
+      checkPushSubscription(body('https://web.push.apple.com/abc', { p256dh: P256DH, auth: `${AUTH}==` })).ok,
+    ).toBe(true);
   });
 
   const compressed = new Uint8Array(65).fill(7);
@@ -66,13 +66,31 @@ describe('checkPushSubscription (row 2)', () => {
     ['an array', []],
     ['no keys', { endpoint: 'https://web.push.apple.com/abc' }],
     ['a bad endpoint', body('https://evil.example/x')],
-    ['p256dh of 64 bytes', body('https://web.push.apple.com/a', { p256dh: encodeBase64Url(point.slice(1)), auth: AUTH })],
-    ['p256dh not starting 0x04', body('https://web.push.apple.com/a', { p256dh: encodeBase64Url(compressed), auth: AUTH })],
-    ['p256dh in standard base64', body('https://web.push.apple.com/a', { p256dh: `${P256DH.slice(0, -1)}+`, auth: AUTH })],
-    ['auth of 15 bytes', body('https://web.push.apple.com/a', { p256dh: P256DH, auth: encodeBase64Url(new Uint8Array(15)) })],
-    ['auth of 17 bytes', body('https://web.push.apple.com/a', { p256dh: P256DH, auth: encodeBase64Url(new Uint8Array(17)) })],
+    [
+      'p256dh of 64 bytes',
+      body('https://web.push.apple.com/a', { p256dh: encodeBase64Url(point.slice(1)), auth: AUTH }),
+    ],
+    [
+      'p256dh not starting 0x04',
+      body('https://web.push.apple.com/a', { p256dh: encodeBase64Url(compressed), auth: AUTH }),
+    ],
+    [
+      'p256dh in standard base64',
+      body('https://web.push.apple.com/a', { p256dh: `${P256DH.slice(0, -1)}+`, auth: AUTH }),
+    ],
+    [
+      'auth of 15 bytes',
+      body('https://web.push.apple.com/a', { p256dh: P256DH, auth: encodeBase64Url(new Uint8Array(15)) }),
+    ],
+    [
+      'auth of 17 bytes',
+      body('https://web.push.apple.com/a', { p256dh: P256DH, auth: encodeBase64Url(new Uint8Array(17)) }),
+    ],
     ['a numeric key', body('https://web.push.apple.com/a', { p256dh: 1, auth: AUTH })],
-    ['a string expirationTime', { ...(body('https://web.push.apple.com/a') as object), expirationTime: 'soon' }],
+    [
+      'a string expirationTime',
+      { ...(body('https://web.push.apple.com/a') as object), expirationTime: 'soon' },
+    ],
   ])('refuses %s with a reason that does not echo the input', (_, input) => {
     const result = checkPushSubscription(input);
     expect(result.ok).toBe(false);

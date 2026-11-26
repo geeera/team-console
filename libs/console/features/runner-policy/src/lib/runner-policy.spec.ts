@@ -28,8 +28,17 @@ describe('policyOfForm', () => {
       policy: { mode: 'pinned', runner: MAC },
     });
     expect(
-      policyOfForm({ ...EMPTY_POLICY_FORM, mode: 'failover', preferred: MAC, fallback: [VPS, MAC, VPS], offlineAfter: ' 600 ' }),
-    ).toEqual({ ok: true, policy: { mode: 'failover', preferred: MAC, fallback: [VPS], offline_after_seconds: 600 } });
+      policyOfForm({
+        ...EMPTY_POLICY_FORM,
+        mode: 'failover',
+        preferred: MAC,
+        fallback: [VPS, MAC, VPS],
+        offlineAfter: ' 600 ',
+      }),
+    ).toEqual({
+      ok: true,
+      policy: { mode: 'failover', preferred: MAC, fallback: [VPS], offline_after_seconds: 600 },
+    });
   });
 
   it.each([
@@ -130,7 +139,9 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
       await fixture.whenStable();
     };
     const save = async (): Promise<void> => {
-      (find('runner-policy-form') as HTMLFormElement).dispatchEvent(new Event('submit', { cancelable: true }));
+      (find('runner-policy-form') as HTMLFormElement).dispatchEvent(
+        new Event('submit', { cancelable: true }),
+      );
       await settle();
     };
     const hold = (): void => {
@@ -141,7 +152,20 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
       (release as (() => void) | null)?.();
       await settle();
     };
-    return { fixture, root, find, choose, select, type, save, writes, reads: () => reads, settle, hold, resume };
+    return {
+      fixture,
+      root,
+      find,
+      choose,
+      select,
+      type,
+      save,
+      writes,
+      reads: () => reads,
+      settle,
+      hold,
+      resume,
+    };
   }
 
   const accountScope: RunnerPolicyScope = { kind: 'account', accountId: OWNER_ACCOUNT_ID };
@@ -152,7 +176,9 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
     expect(find('policy-mode-inherit')).toBeNull();
     expect(find('runner-policy-effective')?.textContent).toBe('Сейчас: любой разрешённый раннер.');
     await choose('pinned');
-    const options = [...(find<HTMLSelectElement>('policy-pinned')?.options ?? [])].map((option) => option.text);
+    const options = [...(find<HTMLSelectElement>('policy-pinned')?.options ?? [])].map(
+      (option) => option.text,
+    );
     expect(options).toEqual(['Выберите раннер', 'Mac', 'VPS']);
     await select('policy-pinned', VPS);
     await save();
@@ -171,10 +197,9 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
     await select('policy-preferred', MAC);
     await select('policy-add-fallback', VPS);
     await select('policy-add-fallback', third.id);
-    expect([...root.querySelectorAll('[data-testid="policy-fallback"]')].map((row) => row.textContent?.trim())).toEqual([
-      'VPS',
-      'Box',
-    ]);
+    expect(
+      [...root.querySelectorAll('[data-testid="policy-fallback"]')].map((row) => row.textContent?.trim()),
+    ).toEqual(['VPS', 'Box']);
     (root.querySelector('[aria-label="Поднять Box выше"]') as HTMLButtonElement).click();
     await fixture.whenStable();
     await type('policy-offline', '120');
@@ -185,7 +210,9 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
       fallback: [third.id, VPS],
       offline_after_seconds: 120,
     });
-    expect(find('runner-policy-effective')?.textContent).toBe('Сейчас: Mac, а если он молчит 120 с — Box, VPS.');
+    expect(find('runner-policy-effective')?.textContent).toBe(
+      'Сейчас: Mac, а если он молчит 120 с — Box, VPS.',
+    );
   });
 
   it('refuses an incomplete form before anything is sent', async () => {
@@ -213,14 +240,19 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
     await choose('inherit');
     await save();
     expect(writes).toEqual([{ scope: projectScope, policy: null }]);
-    expect(find('runner-policy-effective')?.textContent).toBe('Сейчас, как в аккаунте: любой разрешённый раннер.');
+    expect(find('runner-policy-effective')?.textContent).toBe(
+      'Сейчас, как в аккаунте: любой разрешённый раннер.',
+    );
   });
 
   it('names a revoked runner a stored policy still points at, and says why the Worker refuses it', async () => {
     const stale: RunnerPolicy = { mode: 'pinned', runner: OLD };
     const { find, save } = await render(projectScope, {
       read: () => ({ ok: true, value: { policy: stale, effective: stale } }),
-      write: () => ({ ok: false, failure: { kind: 'invalid', slug: 'runner-policy-invalid', field: 'runner' } }),
+      write: () => ({
+        ok: false,
+        failure: { kind: 'invalid', slug: 'runner-policy-invalid', field: 'runner' },
+      }),
     });
     expect(find('runner-policy-effective')?.textContent).toBe('Сейчас: только Old Mac (отозван).');
     expect(find<HTMLSelectElement>('policy-pinned')?.selectedOptions[0]?.text).toBe('Old Mac (отозван)');
@@ -290,9 +322,13 @@ describe('RunnerPolicyEditor (#464, ADR 0008 decision 12)', () => {
     let failing = true;
     const { find, fixture, reads, settle } = await render(projectScope, {
       read: () =>
-        failing ? { ok: false, failure: { kind: 'forbidden', slug: 'owner-only', field: null } } : { ok: true, value: ANY },
+        failing
+          ? { ok: false, failure: { kind: 'forbidden', slug: 'owner-only', field: null } }
+          : { ok: true, value: ANY },
     });
-    expect(find('runner-policy-load-error')?.textContent).toContain('Это может сделать только владелец аккаунта.');
+    expect(find('runner-policy-load-error')?.textContent).toContain(
+      'Это может сделать только владелец аккаунта.',
+    );
     failing = false;
     (find('runner-policy-load-error')?.querySelector('button') as HTMLButtonElement).click();
     await settle();

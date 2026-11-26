@@ -8,8 +8,15 @@ import { SprintItemList, SprintListItem } from './sprint-item-list';
 @Component({
   imports: [SprintItemList],
   template: `
-    <tc-sprint-item-list [items]="items()" [slug]="slug()" [rowAction]="withAction() ? action : null" [unfoldFrom]="unfoldFrom()" />
-    <ng-template #action let-issue><button type="button" data-testid="row-action">#{{ issue.number }}</button></ng-template>
+    <tc-sprint-item-list
+      [items]="items()"
+      [slug]="slug()"
+      [rowAction]="withAction() ? action : null"
+      [unfoldFrom]="unfoldFrom()"
+    />
+    <ng-template #action let-issue
+      ><button type="button" data-testid="row-action">#{{ issue.number }}</button></ng-template
+    >
   `,
 })
 class Host {
@@ -127,7 +134,11 @@ describe('SprintItemList', () => {
   });
 
   it('leads the subtitle with the kind word, and shows none for an unknown kind (#557)', async () => {
-    const { rows } = await render([ISSUE, { ...ISSUE, number: 50, kind: 'epic' }, { ...ISSUE, number: 51, kind: null }]);
+    const { rows } = await render([
+      ISSUE,
+      { ...ISSUE, number: 50, kind: 'epic' },
+      { ...ISSUE, number: 51, kind: null },
+    ]);
 
     expect(rows[0]?.querySelector('[tc-row-subtitle] [data-testid="kind"]')?.textContent).toBe('Функция');
     expect(rows[1]?.querySelector('[data-testid="kind"]')).toBeNull();

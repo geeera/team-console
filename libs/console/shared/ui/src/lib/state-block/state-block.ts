@@ -57,7 +57,9 @@ export class StateBlock {
   /** The stamp is pressed on with its gesture instead of being there already. */
   readonly pressed = input(false, { transform: booleanAttribute });
 
-  protected readonly hasDesk = computed(() => this.kind() === 'empty' && !this.compact() && this.stamp() !== '');
+  protected readonly hasDesk = computed(
+    () => this.kind() === 'empty' && !this.compact() && this.stamp() !== '',
+  );
 
   protected readonly glyph = computed<IconName | null>(() => {
     const kind = this.kind();

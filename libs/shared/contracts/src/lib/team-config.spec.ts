@@ -19,7 +19,10 @@ import {
   type TeamRole,
 } from './team-config';
 
-const doc = (members: Record<string, unknown> = {}): Record<string, unknown> => ({ schema: TEAM_CONFIG_SCHEMA, ...members });
+const doc = (members: Record<string, unknown> = {}): Record<string, unknown> => ({
+  schema: TEAM_CONFIG_SCHEMA,
+  ...members,
+});
 
 function refusal(value: unknown): { type: string; field: string } | null {
   const check = checkTeamConfig(value);
@@ -33,9 +36,12 @@ describe('checkTeamConfig: the schema member', () => {
     expect(checkTeamConfig(doc())).toEqual({ ok: true, value: { schema: TEAM_CONFIG_SCHEMA } });
   });
 
-  it.each([['team-config/v2'], ['team-config/v0'], [''], [1], [null]])('refuses schema %j as team-config-schema', (schema) => {
-    expect(refusal({ schema })).toEqual({ type: 'team-config-schema', field: 'schema' });
-  });
+  it.each([['team-config/v2'], ['team-config/v0'], [''], [1], [null]])(
+    'refuses schema %j as team-config-schema',
+    (schema) => {
+      expect(refusal({ schema })).toEqual({ type: 'team-config-schema', field: 'schema' });
+    },
+  );
 
   it('refuses a document without a schema as team-config-schema', () => {
     expect(refusal({ preset: 'economy' })).toEqual({ type: 'team-config-schema', field: 'schema' });
@@ -66,9 +72,9 @@ describe('checkTeamConfig: exact keys at every level', () => {
     expect(refusal(JSON.parse('{"schema":"team-config/v1","__proto__":{"preset":"max"}}'))).toEqual(
       invalidAt('__proto__'),
     );
-    expect(refusal(JSON.parse('{"schema":"team-config/v1","roles":{"__proto__":{"model":"claude-fable-5-1"}}}'))).toEqual(
-      invalidAt('roles.__proto__'),
-    );
+    expect(
+      refusal(JSON.parse('{"schema":"team-config/v1","roles":{"__proto__":{"model":"claude-fable-5-1"}}}')),
+    ).toEqual(invalidAt('roles.__proto__'));
   });
 
   it('refuses constructor and prototype keys', () => {
@@ -94,15 +100,47 @@ describe('checkTeamConfig: exact keys at every level', () => {
 });
 
 /** Every integer bound ±1 (property: the bound itself passes, one past it on either side fails). */
-const INTEGER_FIELDS: readonly (readonly [string, { readonly min: number; readonly max: number }, (n: unknown) => Record<string, unknown>])[] = [
-  ['roles.dev.max_parallel', TEAM_CONFIG_BOUNDS.maxParallel, (n) => doc({ roles: { dev: { max_parallel: n } } })],
-  ['roles.dev.max_minutes', TEAM_CONFIG_BOUNDS.maxMinutes, (n) => doc({ roles: { dev: { max_minutes: n } } })],
-  ['roles.scribe.max_turns', TEAM_CONFIG_BOUNDS.maxTurns, (n) => doc({ roles: { scribe: { max_turns: n } } })],
-  ['gates.max_rework_rounds', TEAM_CONFIG_BOUNDS.maxReworkRounds, (n) => doc({ gates: { max_rework_rounds: n } })],
+const INTEGER_FIELDS: readonly (readonly [
+  string,
+  { readonly min: number; readonly max: number },
+  (n: unknown) => Record<string, unknown>,
+])[] = [
+  [
+    'roles.dev.max_parallel',
+    TEAM_CONFIG_BOUNDS.maxParallel,
+    (n) => doc({ roles: { dev: { max_parallel: n } } }),
+  ],
+  [
+    'roles.dev.max_minutes',
+    TEAM_CONFIG_BOUNDS.maxMinutes,
+    (n) => doc({ roles: { dev: { max_minutes: n } } }),
+  ],
+  [
+    'roles.scribe.max_turns',
+    TEAM_CONFIG_BOUNDS.maxTurns,
+    (n) => doc({ roles: { scribe: { max_turns: n } } }),
+  ],
+  [
+    'gates.max_rework_rounds',
+    TEAM_CONFIG_BOUNDS.maxReworkRounds,
+    (n) => doc({ gates: { max_rework_rounds: n } }),
+  ],
   ['caps.normal.dev_tasks', TEAM_CONFIG_BOUNDS.devTasks, (n) => doc({ caps: { normal: { dev_tasks: n } } })],
-  ['caps.burn.parallel_devs', TEAM_CONFIG_BOUNDS.parallelDevs, (n) => doc({ caps: { burn: { parallel_devs: n } } })],
-  ['sprint.length_days', TEAM_CONFIG_BOUNDS.lengthDays, (n) => doc({ sprint: { length_days: n, freeze_days: 0 } })],
-  ['sprint.freeze_days', TEAM_CONFIG_BOUNDS.freezeDays, (n) => doc({ sprint: { length_days: 28, freeze_days: n } })],
+  [
+    'caps.burn.parallel_devs',
+    TEAM_CONFIG_BOUNDS.parallelDevs,
+    (n) => doc({ caps: { burn: { parallel_devs: n } } }),
+  ],
+  [
+    'sprint.length_days',
+    TEAM_CONFIG_BOUNDS.lengthDays,
+    (n) => doc({ sprint: { length_days: n, freeze_days: 0 } }),
+  ],
+  [
+    'sprint.freeze_days',
+    TEAM_CONFIG_BOUNDS.freezeDays,
+    (n) => doc({ sprint: { length_days: 28, freeze_days: n } }),
+  ],
   ['budget.monthly_usd', TEAM_CONFIG_BOUNDS.monthlyUsd, (n) => doc({ budget: { monthly_usd: n } })],
 ];
 
@@ -117,16 +155,21 @@ describe.each(INTEGER_FIELDS)('the bound of %s', (field, bound, build) => {
     expect(refusal(build(bound.max + 1))).toEqual(invalidAt(field));
   });
 
-  it.each([[Number.NaN], [Number.POSITIVE_INFINITY], [bound.min + 0.5], [String(bound.min)], [true], [null], [[bound.min]]])(
-    'refuses %j',
-    (value) => {
-      if (field === 'budget.monthly_usd' && value === null) {
-        expect(isTeamConfig(build(value))).toBe(true);
-        return;
-      }
-      expect(refusal(build(value))).toEqual(invalidAt(field));
-    },
-  );
+  it.each([
+    [Number.NaN],
+    [Number.POSITIVE_INFINITY],
+    [bound.min + 0.5],
+    [String(bound.min)],
+    [true],
+    [null],
+    [[bound.min]],
+  ])('refuses %j', (value) => {
+    if (field === 'budget.monthly_usd' && value === null) {
+      expect(isTeamConfig(build(value))).toBe(true);
+      return;
+    }
+    expect(refusal(build(value))).toEqual(invalidAt(field));
+  });
 });
 
 describe('checkTeamConfig: enums', () => {
@@ -155,7 +198,9 @@ describe('checkTeamConfig: models and their per-role bounds', () => {
   );
 
   it('never runs security on Fable or Haiku, and allows it Opus and Sonnet', () => {
-    expect(refusal(doc({ roles: { security: { model: 'claude-fable-5-1' } } }))).toEqual(invalidAt('roles.security.model'));
+    expect(refusal(doc({ roles: { security: { model: 'claude-fable-5-1' } } }))).toEqual(
+      invalidAt('roles.security.model'),
+    );
     expect(refusal(doc({ roles: { security: { model: 'claude-haiku-4-5-20251001' } } }))).toEqual(
       invalidAt('roles.security.model'),
     );
@@ -176,13 +221,18 @@ describe('checkTeamConfig: models and their per-role bounds', () => {
 
 describe('checkTeamConfig: roles that stay on', () => {
   it.each(NEVER_OFF_ROLES)('refuses %s with enabled: false, accepts enabled: true', (role) => {
-    expect(refusal(doc({ roles: { [role]: { enabled: false } } }))).toEqual(invalidAt(`roles.${role}.enabled`));
+    expect(refusal(doc({ roles: { [role]: { enabled: false } } }))).toEqual(
+      invalidAt(`roles.${role}.enabled`),
+    );
     expect(isTeamConfig(doc({ roles: { [role]: { enabled: true } } }))).toBe(true);
   });
 
-  it.each([[true], [false], ['true'], [null]])('refuses roles.security.enabled at any value (%j)', (enabled) => {
-    expect(refusal(doc({ roles: { security: { enabled } } }))).toEqual(invalidAt('roles.security.enabled'));
-  });
+  it.each([[true], [false], ['true'], [null]])(
+    'refuses roles.security.enabled at any value (%j)',
+    (enabled) => {
+      expect(refusal(doc({ roles: { security: { enabled } } }))).toEqual(invalidAt('roles.security.enabled'));
+    },
+  );
 
   it.each(TEAM_ROLES.filter((role) => !NEVER_OFF_ROLES.includes(role) && role !== 'security'))(
     'lets %s be switched off',
@@ -224,14 +274,18 @@ describe('checkTeamConfig: document-wide rules', () => {
   });
 
   it('refuses a freeze as long as the sprint, judged on the resolved values', () => {
-    expect(refusal(doc({ sprint: { length_days: 7, freeze_days: 7 } }))).toEqual(invalidAt('sprint.freeze_days'));
+    expect(refusal(doc({ sprint: { length_days: 7, freeze_days: 7 } }))).toEqual(
+      invalidAt('sprint.freeze_days'),
+    );
     expect(isTeamConfig(doc({ sprint: { length_days: 7, freeze_days: 6 } }))).toBe(true);
   });
 });
 
 describe('the presets are data', () => {
   it('makes recommended exactly today’s table (the runner’s ROLE_MODELS, the agent frontmatter)', () => {
-    const models = Object.fromEntries(TEAM_ROLES.map((role) => [role, TEAM_CONFIG_PRESET_ROLES.recommended[role].model]));
+    const models = Object.fromEntries(
+      TEAM_ROLES.map((role) => [role, TEAM_CONFIG_PRESET_ROLES.recommended[role].model]),
+    );
     expect(models).toEqual({
       pm: 'claude-opus-5-5',
       architect: 'claude-fable-5-1',
@@ -257,7 +311,11 @@ describe('the presets are data', () => {
         expect(allowedModelsOf(role), `${preset} ${role}`).toContain(entry.model);
         expect(entry.enabled).toBe(true);
       }
-      expect(isResolvedTeamConfig(resolveTeamConfig({ schema: TEAM_CONFIG_SCHEMA, preset }, { revision: 1, accessSource: 'api_key' }))).toBe(true);
+      expect(
+        isResolvedTeamConfig(
+          resolveTeamConfig({ schema: TEAM_CONFIG_SCHEMA, preset }, { revision: 1, accessSource: 'api_key' }),
+        ),
+      ).toBe(true);
     }
   });
 
@@ -269,7 +327,9 @@ describe('the presets are data', () => {
 
   it('caps no role’s parallel jobs below the bound in recommended, so nothing changes for a project without a row', () => {
     for (const role of TEAM_ROLES) {
-      expect(TEAM_CONFIG_PRESET_ROLES.recommended[role].max_parallel).toBe(TEAM_CONFIG_BOUNDS.maxParallel.max);
+      expect(TEAM_CONFIG_PRESET_ROLES.recommended[role].max_parallel).toBe(
+        TEAM_CONFIG_BOUNDS.maxParallel.max,
+      );
     }
   });
 });
@@ -309,8 +369,21 @@ describe('resolveTeamConfig', () => {
   });
 
   it('carries no budget, preset, reason, author, diff or credential member (key set)', () => {
-    const view = resolveTeamConfig({ schema: TEAM_CONFIG_SCHEMA, budget: { monthly_usd: 9 } }, { revision: 1, accessSource: 'api_key' });
-    expect(Object.keys(view).sort()).toEqual(['access', 'caps', 'cost', 'gates', 'language', 'revision', 'roles', 'schema', 'sprint']);
+    const view = resolveTeamConfig(
+      { schema: TEAM_CONFIG_SCHEMA, budget: { monthly_usd: 9 } },
+      { revision: 1, accessSource: 'api_key' },
+    );
+    expect(Object.keys(view).sort()).toEqual([
+      'access',
+      'caps',
+      'cost',
+      'gates',
+      'language',
+      'revision',
+      'roles',
+      'schema',
+      'sprint',
+    ]);
     expect(Object.keys(view.access)).toEqual(['source']);
   });
 });
@@ -321,10 +394,22 @@ describe('isResolvedTeamConfig', () => {
   it.each([
     ['a budget member', { ...view, budget: { monthly_usd: 1 } }],
     ['a preset member', { ...view, preset: 'economy' }],
-    ['a missing role', { ...view, roles: Object.fromEntries(Object.entries(view.roles).filter(([role]) => role !== 'dev')) }],
-    ['a role of an unknown model', { ...view, roles: { ...view.roles, dev: { ...view.roles.dev, model: 'opus' } } }],
-    ['security on Fable', { ...view, roles: { ...view.roles, security: { ...view.roles.security, model: 'claude-fable-5-1' } } }],
-    ['security switched off', { ...view, roles: { ...view.roles, security: { ...view.roles.security, enabled: false } } }],
+    [
+      'a missing role',
+      { ...view, roles: Object.fromEntries(Object.entries(view.roles).filter(([role]) => role !== 'dev')) },
+    ],
+    [
+      'a role of an unknown model',
+      { ...view, roles: { ...view.roles, dev: { ...view.roles.dev, model: 'opus' } } },
+    ],
+    [
+      'security on Fable',
+      { ...view, roles: { ...view.roles, security: { ...view.roles.security, model: 'claude-fable-5-1' } } },
+    ],
+    [
+      'security switched off',
+      { ...view, roles: { ...view.roles, security: { ...view.roles.security, enabled: false } } },
+    ],
     ['a missing gate member', { ...view, gates: { qa: 'always' } }],
     ['another schema', { ...view, schema: 'team-config/v2' }],
     ['a credential member in access', { ...view, access: { source: 'api_key', kind: 'api-key' } }],
@@ -337,19 +422,31 @@ describe('presetViewOf', () => {
   it('derives custom from a role whose model or effort differs from the preset', () => {
     expect(presetViewOf(null)).toBe('recommended');
     expect(presetViewOf({ schema: TEAM_CONFIG_SCHEMA, preset: 'economy' })).toBe('economy');
-    expect(presetViewOf({ schema: TEAM_CONFIG_SCHEMA, preset: 'economy', roles: { dev: { model: 'claude-sonnet-5' } } })).toBe(
-      'economy',
-    );
-    expect(presetViewOf({ schema: TEAM_CONFIG_SCHEMA, preset: 'economy', roles: { dev: { model: 'claude-opus-5-5' } } })).toBe(
-      'custom',
-    );
+    expect(
+      presetViewOf({
+        schema: TEAM_CONFIG_SCHEMA,
+        preset: 'economy',
+        roles: { dev: { model: 'claude-sonnet-5' } },
+      }),
+    ).toBe('economy');
+    expect(
+      presetViewOf({
+        schema: TEAM_CONFIG_SCHEMA,
+        preset: 'economy',
+        roles: { dev: { model: 'claude-opus-5-5' } },
+      }),
+    ).toBe('custom');
     expect(presetViewOf({ schema: TEAM_CONFIG_SCHEMA, roles: { dev: { effort: 'low' } } })).toBe('custom');
   });
 });
 
 describe('teamConfigDiffOf', () => {
   it('lists the changed leaves in key order, arrays whole', () => {
-    const before: TeamConfig = { schema: TEAM_CONFIG_SCHEMA, preset: 'recommended', gates: { code_paths: ['apps/**'] } };
+    const before: TeamConfig = {
+      schema: TEAM_CONFIG_SCHEMA,
+      preset: 'recommended',
+      gates: { code_paths: ['apps/**'] },
+    };
     const after: TeamConfig = {
       schema: TEAM_CONFIG_SCHEMA,
       preset: 'economy',
@@ -371,9 +468,9 @@ describe('teamConfigDiffOf', () => {
   });
 
   it('lists a removed member without its new value', () => {
-    expect(teamConfigDiffOf({ schema: TEAM_CONFIG_SCHEMA, language: 'en' }, { schema: TEAM_CONFIG_SCHEMA })).toEqual([
-      { path: 'language', from: 'en' },
-    ]);
+    expect(
+      teamConfigDiffOf({ schema: TEAM_CONFIG_SCHEMA, language: 'en' }, { schema: TEAM_CONFIG_SCHEMA }),
+    ).toEqual([{ path: 'language', from: 'en' }]);
   });
 });
 

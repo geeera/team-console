@@ -118,7 +118,10 @@ export function writeNextBuild(name: string, options: { sameBuild?: boolean } = 
       text = text.replace('<head>', `<head>\n  <meta name="${BUILD_MARKER}" content="B">`);
     }
     if (!builtAtPatched && /^main-[^/]+\.js$/.test(file)) {
-      const patched = text.replace(/builtAt:(["'`])local\1/, (_match, quote: string) => `builtAt:${quote}${name}-build-b${quote}`);
+      const patched = text.replace(
+        /builtAt:(["'`])local\1/,
+        (_match, quote: string) => `builtAt:${quote}${name}-build-b${quote}`,
+      );
       if (patched === text) {
         throw new Error('build-info builtAt literal not found in the main bundle');
       }

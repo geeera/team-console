@@ -196,7 +196,11 @@ describe('AuditRepo', () => {
     ['a JWT', 'jwt', ['eyJhbGciOiJSUzI1NiJ9', 'eyJzdWIiOiJqb2ItMSJ9', 'c2ln'].join('.')],
     ['an npm token', 'npm-token', `npm_${'Qw3e'.repeat(9)}`],
     ['an AWS access key id', 'aws-access-key', `AKIA${'Z7Q2'.repeat(4)}`],
-    ['a PEM private key', 'private-key', ['-----BEGIN ', 'PRIVATE KEY-----\nMIIEvQ\n-----END ', 'PRIVATE KEY-----'].join('')],
+    [
+      'a PEM private key',
+      'private-key',
+      ['-----BEGIN ', 'PRIVATE KEY-----\nMIIEvQ\n-----END ', 'PRIVATE KEY-----'].join(''),
+    ],
   ])('masks %s in details before the row is written', async (_, kind, secret) => {
     const target = `format-${kind}-${String(secret.length)}`;
     await repo.append(event({ target, details: { note: `saw ${secret} here`, list: [secret] } }));
@@ -247,7 +251,9 @@ describe('AuditRepo', () => {
     const rename = (from: string, to: string): D1PreparedStatement =>
       env.DB.prepare(`UPDATE accounts SET name = ?3 WHERE id = ?1 AND name = ?2`).bind(ACCOUNT, from, to);
     const auditedRows = async (target: string): Promise<number | null> =>
-      env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`).bind(target).first<number>('n');
+      env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`)
+        .bind(target)
+        .first<number>('n');
 
     it('writes the audit row when its write changed a row', async () => {
       const [write] = await env.DB.batch([
@@ -260,7 +266,11 @@ describe('AuditRepo', () => {
 
     it('writes no audit row when its write changed nothing', async () => {
       const [write] = await env.DB.batch([
-        ...auditedWrite(env.DB, rename('no such name', 'X'), event({ kind: 'team.paused', target: 'aw-unchanged' })),
+        ...auditedWrite(
+          env.DB,
+          rename('no such name', 'X'),
+          event({ kind: 'team.paused', target: 'aw-unchanged' }),
+        ),
       ]);
       expect(write?.meta.changes).toBe(0);
       expect(await auditedRows('aw-unchanged')).toBe(0);
@@ -269,7 +279,11 @@ describe('AuditRepo', () => {
     it('judges its own write, not a statement earlier in the batch', async () => {
       await env.DB.batch([
         rename('A', 'A3'),
-        ...auditedWrite(env.DB, rename('no such name', 'X'), event({ kind: 'team.paused', target: 'aw-earlier' })),
+        ...auditedWrite(
+          env.DB,
+          rename('no such name', 'X'),
+          event({ kind: 'team.paused', target: 'aw-earlier' }),
+        ),
       ]);
       expect(await auditedRows('aw-earlier')).toBe(0);
       await rename('A3', 'A').run();
@@ -280,7 +294,10 @@ describe('AuditRepo', () => {
       const exported = Object.keys(auditModule);
       expect(exported).toContain('auditedWrite');
       expect(exported).not.toContain('WROTE_PREVIOUS_STATEMENT');
-      expect(Object.values(auditModule)).not.toContainEqual({ exists: 'SELECT 1 WHERE changes() > 0', params: [] });
+      expect(Object.values(auditModule)).not.toContainEqual({
+        exists: 'SELECT 1 WHERE changes() > 0',
+        params: [],
+      });
     });
 
     it('is the only module that calls changes()', () => {

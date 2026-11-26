@@ -39,16 +39,25 @@ type Story = StoryObj<Args>;
 export const Online: Story = {};
 export const Offline: Story = { args: { runner: runnerFixture({ online: false }) } };
 /** Enrolled, never called since: the code was used but the daemon is not running. */
-export const NeverSeen: Story = { args: { runner: runnerFixture({ online: false, lastSeenAt: null, lastSeenCountry: null }) } };
+export const NeverSeen: Story = {
+  args: { runner: runnerFixture({ online: false, lastSeenAt: null, lastSeenCountry: null }) },
+};
 /** Below `RUNNER_MINIMUM_VERSION`: the chip and the minimum beside the version. */
-export const BelowMinimum: Story = { args: { runner: runnerFixture({ version: '0.1.0', belowMinimum: true }) } };
+export const BelowMinimum: Story = {
+  args: { runner: runnerFixture({ version: '0.1.0', belowMinimum: true }) },
+};
 /** Threat model C4 detection: a call from a new country. */
 export const Suspect: Story = {
   args: { runner: runnerFixture({ suspect: { at: '2026-11-11T09:40:00.000Z', reason: 'new-country' } }) },
 };
 /** #571: hit the Claude usage limit; claims nothing until the reset time, then resumes on its own. */
 export const UsageLimit: Story = {
-  args: { runner: runnerFixture({ online: false, pause: { reason: 'usage-limit', until: '2026-11-11T14:30:00.000Z' } }) },
+  args: {
+    runner: runnerFixture({
+      online: false,
+      pause: { reason: 'usage-limit', until: '2026-11-11T14:30:00.000Z' },
+    }),
+  },
 };
 export const RateLimit: Story = {
   args: { runner: runnerFixture({ pause: { reason: 'rate-limit', until: '2026-11-11T10:20:00.000Z' } }) },

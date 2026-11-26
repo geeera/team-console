@@ -9,7 +9,8 @@ type ListAnswer = JobResult<JobListDto>;
 type EventsAnswer = JobResult<JobEventListDto>;
 
 const ok = <T>(value: T): JobResult<T> => ({ ok: true, value });
-const jobsOf = (...jobs: JobDto[]): ListAnswer => ok({ jobs, nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
+const jobsOf = (...jobs: JobDto[]): ListAnswer =>
+  ok({ jobs, nextCursor: null, runnerAvailability: 'ready', canRunNow: true });
 const eventsOf = (...events: JobEventDto[]): EventsAnswer => ok({ events, nextCursor: null });
 
 /** A JobsApi whose answers each case queues; every call is recorded. */
@@ -80,7 +81,15 @@ describe('JobsStore', () => {
   // #775: the view words Run now from these; a member's list carries no reason.
   it('keeps the availability, the reason and canRunNow of the last read, and forgets them for the next project', async () => {
     const store = setup();
-    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'none', canRunNow: true, runnerUnavailableReason: 'other-owner-subscription' }));
+    api.lists.push(
+      ok({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'other-owner-subscription',
+      }),
+    );
     const stop = store.watch('team-console');
     expect(store.availability()).toBeNull();
     await vi.advanceTimersByTimeAsync(0);
@@ -89,7 +98,15 @@ describe('JobsStore', () => {
     expect(store.canRunNow()).toBe(true);
     stop();
 
-    api.lists.push(ok({ jobs: [], nextCursor: null, runnerAvailability: 'offline', canRunNow: false, accountOwnerNames: ['Анна'] }));
+    api.lists.push(
+      ok({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'offline',
+        canRunNow: false,
+        accountOwnerNames: ['Анна'],
+      }),
+    );
     const next = store.watch('storify');
     expect(store.availability()).toBeNull();
     expect(store.canRunNow()).toBe(false);

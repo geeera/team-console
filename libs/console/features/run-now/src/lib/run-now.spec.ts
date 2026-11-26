@@ -79,7 +79,12 @@ describe('RunNow', () => {
     [403, 'owner-only', 'forbidden', 'Запускать задачи может только владелец аккаунта'],
     [404, 'project-not-found', 'not-found', 'Проект не найден'],
     [409, 'job-exists', 'exists', 'уже в очереди или выполняется'],
-    [409, 'tracker-not-cut-over', 'not-cut-over', 'Задачу этого вида отсюда не запустить, пока проект ведёт задачи в GitHub Issues'],
+    [
+      409,
+      'tracker-not-cut-over',
+      'not-cut-over',
+      'Задачу этого вида отсюда не запустить, пока проект ведёт задачи в GitHub Issues',
+    ],
     [422, 'job-invalid', 'invalid', 'Консоль не приняла запрос'],
     [429, 'rate-limited', 'rate-limited', 'Слишком много запросов'],
     [500, 'internal', 'error', 'Что-то пошло не так'],
@@ -106,7 +111,9 @@ describe('RunNow', () => {
     const { root, select } = setup();
     const hintId = select.getAttribute('aria-describedby') ?? '';
     expect(hintId).not.toBe('');
-    expect(root.querySelector(`[id="${hintId}"]`)?.textContent).toContain('Ревью и чат с PM запускаются со своих мест');
+    expect(root.querySelector(`[id="${hintId}"]`)?.textContent).toContain(
+      'Ревью и чат с PM запускаются со своих мест',
+    );
   });
 
   it('says the job waits for the runner when none can take it now, and never disables Run for that', async () => {

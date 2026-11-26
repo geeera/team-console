@@ -77,7 +77,10 @@ async function devices(h: Harness): Promise<PushDevicesDto['devices']> {
 }
 
 beforeEach(async () => {
-  await env.DB.batch([env.DB.prepare('DELETE FROM push_subscriptions'), env.DB.prepare('DELETE FROM push_test_sends')]);
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM push_subscriptions'),
+    env.DB.prepare('DELETE FROM push_test_sends'),
+  ]);
 });
 
 afterEach(() => {
@@ -164,18 +167,24 @@ describe('subscriptions', () => {
     'https://evil.example/x',
     'https://fcm.googleapis.com:8443/x',
     'https://[::1]/x',
-  ])('refuses the endpoint %s with 422 push-invalid-subscription and writes no row (row 1)', async (endpoint) => {
-    const h = harness();
-    const device = await h.service.subscribe();
-    const response = await call(h, 'PUT', '/subscriptions', { ...device, endpoint });
+  ])(
+    'refuses the endpoint %s with 422 push-invalid-subscription and writes no row (row 1)',
+    async (endpoint) => {
+      const h = harness();
+      const device = await h.service.subscribe();
+      const response = await call(h, 'PUT', '/subscriptions', { ...device, endpoint });
 
-    expect(response.status).toBe(422);
-    await expect(slugOf(response)).resolves.toBe('push-invalid-subscription');
-    await expect(storedEndpoints()).resolves.toEqual([]);
-  });
+      expect(response.status).toBe(422);
+      await expect(slugOf(response)).resolves.toBe('push-invalid-subscription');
+      await expect(storedEndpoints()).resolves.toEqual([]);
+    },
+  );
 
   it.each([
-    ['p256dh of 64 bytes', (d: PushSubscriptionRequest) => ({ ...d.keys, p256dh: d.keys.p256dh.slice(0, 85) })],
+    [
+      'p256dh of 64 bytes',
+      (d: PushSubscriptionRequest) => ({ ...d.keys, p256dh: d.keys.p256dh.slice(0, 85) }),
+    ],
     ['auth of 12 bytes', (d: PushSubscriptionRequest) => ({ ...d.keys, auth: d.keys.auth.slice(0, 16) })],
     ['no auth', (d: PushSubscriptionRequest) => ({ p256dh: d.keys.p256dh })],
   ])('refuses %s with 422 and writes no row (row 2)', async (_, keys) => {
@@ -294,7 +303,9 @@ describe('POST /api/v1/push/test', () => {
     const h = harness();
     await call(h, 'PUT', '/subscriptions', await h.service.subscribe());
 
-    const refused = await call(h, 'POST', '/test', undefined, { bindings: localEnv({ VAPID_PRIVATE_KEY: '' }) });
+    const refused = await call(h, 'POST', '/test', undefined, {
+      bindings: localEnv({ VAPID_PRIVATE_KEY: '' }),
+    });
     expect(refused.status).toBe(503);
     await expect(slugOf(refused)).resolves.toBe('push-misconfigured');
     expect((await call(h, 'POST', '/test')).status).toBe(200);

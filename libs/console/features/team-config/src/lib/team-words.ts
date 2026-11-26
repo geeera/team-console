@@ -16,7 +16,8 @@ export function modelKeyOf(model: TeamModel): string {
   return MODEL_KEYS[model];
 }
 
-export const modelNameOf = (t: Translate, model: TeamModel): string => t(`teamConfig.model.${modelKeyOf(model)}`);
+export const modelNameOf = (t: Translate, model: TeamModel): string =>
+  t(`teamConfig.model.${modelKeyOf(model)}`);
 
 /**
  * The words for a document path in the review table and the error line (UX spec §5 "diff row"): the role's name and
@@ -44,7 +45,11 @@ export function valueTextOf(t: Translate, lang: string, path: string, value: unk
     return path === 'budget.monthly_usd' ? localUsdOf(value, lang) : localNumberOf(value, lang);
   }
   if (typeof value === 'boolean') {
-    return t(key === 'enabled' ? `teamConfig.value.${value ? 'on' : 'off'}` : `teamConfig.value.${value ? 'yes' : 'no'}`);
+    return t(
+      key === 'enabled'
+        ? `teamConfig.value.${value ? 'on' : 'off'}`
+        : `teamConfig.value.${value ? 'yes' : 'no'}`,
+    );
   }
   if (Array.isArray(value)) {
     return value.map(String).join(', ');
@@ -95,7 +100,11 @@ const NOT_A_SETTING = new Set(['schema']);
  * reads "not set" and its new value "Added: …", a removed one "Removed" — text, never colour alone. Every word is
  * interpolated, never HTML (threat model T4).
  */
-export function revisionChangesOf(t: Translate, lang: string, diff: readonly TeamConfigChange[]): ChangeRow[] {
+export function revisionChangesOf(
+  t: Translate,
+  lang: string,
+  diff: readonly TeamConfigChange[],
+): ChangeRow[] {
   return diff
     .filter((change) => !NOT_A_SETTING.has(change.path))
     .map((change) => {
@@ -106,7 +115,11 @@ export function revisionChangesOf(t: Translate, lang: string, diff: readonly Tea
         path: change.path,
         label: fieldLabelOf(t, change.path),
         from: hasFrom ? valueTextOf(t, lang, change.path, change.from) : t('teamConfig.history.notSet'),
-        to: !hasTo ? t('teamConfig.history.removed') : hasFrom ? to : t('teamConfig.history.added', { value: to }),
+        to: !hasTo
+          ? t('teamConfig.history.removed')
+          : hasFrom
+            ? to
+            : t('teamConfig.history.added', { value: to }),
       };
     });
 }

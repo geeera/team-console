@@ -350,7 +350,9 @@ async function requestReviews(c: Context, github: ApiGitHub): Promise<Response> 
   }
   const keyOf = (role: ReviewJobRole): string => reviewDedupeKeyOf(row.slug, number, pull.headSha, role);
   const jobs = new JobsRepo(c.env.DB);
-  const live = new Set((await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => job.dedupeKey));
+  const live = new Set(
+    (await jobs.findLiveByDedupeKeys(row.slug, roles.map(keyOf))).map((job) => job.dedupeKey),
+  );
   // #684: each review job takes its role's `max_minutes` as configured now (qa, reviewer and security are never off).
   const view = await currentResolvedViewOf(c.env.DB, row.slug);
   const now = new Date();

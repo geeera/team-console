@@ -51,7 +51,12 @@ const isShippedSource = (file: string): boolean =>
 const SOURCES = [...sourcesUnder('apps'), ...sourcesUnder('libs')].filter(isShippedSource);
 
 function parsed(file: string): ts.SourceFile {
-  return ts.createSourceFile(file, readFileSync(join(workspaceRoot, file), 'utf8'), ts.ScriptTarget.ES2022, true);
+  return ts.createSourceFile(
+    file,
+    readFileSync(join(workspaceRoot, file), 'utf8'),
+    ts.ScriptTarget.ES2022,
+    true,
+  );
 }
 
 function callsNamed(source: ts.SourceFile, name: string): ts.CallExpression[] {
@@ -159,7 +164,8 @@ const ALIAS_FINDINGS: { readonly names: Mention[]; readonly kinds: Mention[] } =
     const source = parsed(file);
     const visit = (node: ts.Node): void => {
       if (ts.isIdentifier(node) && node.text === 'mintScoped') {
-        const isDeclaration = file === APP_AUTH && ts.isMethodDeclaration(node.parent) && node.parent.name === node;
+        const isDeclaration =
+          file === APP_AUTH && ts.isMethodDeclaration(node.parent) && node.parent.name === node;
         const isCall = CALLER_FILES.has(file) && isDirectMintCallee(node);
         if (!isDeclaration && !isCall) {
           names.push({ file, line: lineOf(source, node), text: node.parent.getText(source) });
@@ -235,7 +241,10 @@ describe('no alias reaches a scoped mint (#759 SEC 1)', () => {
       }
       if (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) || ts.isBinaryExpression(node)) {
         const text = constantText(node);
-        if (text !== null && (text.includes('mintScoped') || SCOPED_KINDS.some((kind) => text.includes(kind)))) {
+        if (
+          text !== null &&
+          (text.includes('mintScoped') || SCOPED_KINDS.some((kind) => text.includes(kind)))
+        ) {
           texts.push(text);
         }
       }
@@ -243,16 +252,18 @@ describe('no alias reaches a scoped mint (#759 SEC 1)', () => {
     };
     visit(probe);
     expect(identifiers).toEqual(['auth.mintScoped', 'mintScoped']);
-    expect(texts).toEqual(
-      expect.arrayContaining(['mintScoped', 'workflow-pr', 'environment-read']),
-    );
+    expect(texts).toEqual(expect.arrayContaining(['mintScoped', 'workflow-pr', 'environment-read']));
     expect(texts.filter((text) => text === 'mintScoped')).toHaveLength(3);
   });
 });
 
 describe('named scoped mints (#759, threat model C5 R8)', () => {
   it('finds the dispatch call, so the scan reads the sources it is meant to', () => {
-    expect(MINT_CALLS).toContainEqual({ file: 'apps/api/src/actions/dispatch.ts', kind: 'actions-dispatch', isLiteral: true });
+    expect(MINT_CALLS).toContainEqual({
+      file: 'apps/api/src/actions/dispatch.ts',
+      kind: 'actions-dispatch',
+      isLiteral: true,
+    });
   });
 
   it('names every scoped kind as a string literal, never through a variable', () => {
@@ -265,16 +276,21 @@ describe('named scoped mints (#759, threat model C5 R8)', () => {
   });
 
   it.each(SCOPED_KINDS)('lets only the listed modules mint a %s token', (kind) => {
-    const callers = [...new Set(MINT_CALLS.filter((call) => call.kind === kind).map((call) => call.file))].sort();
+    const callers = [
+      ...new Set(MINT_CALLS.filter((call) => call.kind === kind).map((call) => call.file)),
+    ].sort();
     expect(callers).toEqual([...ALLOWED_CALLERS[kind]].sort());
   });
 
   it('keeps the scoped kinds of this spec equal to the library’s', () => {
     const text = readFileSync(join(workspaceRoot, SCOPED_MINT), 'utf8');
     const declared = /SCOPED_MINT_KINDS = \[([^\]]*)\] as const/.exec(text)?.[1] ?? '';
-    expect(declared.split(',').map((kind) => kind.trim().replace(/^'|'$/g, '')).filter(Boolean)).toEqual([
-      ...SCOPED_KINDS,
-    ]);
+    expect(
+      declared
+        .split(',')
+        .map((kind) => kind.trim().replace(/^'|'$/g, ''))
+        .filter(Boolean),
+    ).toEqual([...SCOPED_KINDS]);
   });
 
   it('holds workflows: write in one constant of the library and nowhere else', () => {
@@ -285,13 +301,17 @@ describe('named scoped mints (#759, threat model C5 R8)', () => {
   });
 
   it('mints installation tokens in GitHubAppAuth alone', () => {
-    const minters = SOURCES.filter((file) => readFileSync(join(workspaceRoot, file), 'utf8').includes('access_tokens'));
+    const minters = SOURCES.filter((file) =>
+      readFileSync(join(workspaceRoot, file), 'utf8').includes('access_tokens'),
+    );
     expect(minters).toEqual([APP_AUTH]);
   });
 
   it('passes every this.mint( a permission set drawn from the named constants', () => {
     const source = parsed(APP_AUTH);
-    const calls = callsNamed(source, 'mint').filter((call) => call.expression.getText(source) === 'this.mint');
+    const calls = callsNamed(source, 'mint').filter(
+      (call) => call.expression.getText(source) === 'this.mint',
+    );
     expect(calls.length).toBeGreaterThanOrEqual(3);
     const permissionsOf = (call: ts.CallExpression): string => {
       const body = call.arguments[1];
@@ -309,7 +329,12 @@ describe('named scoped mints (#759, threat model C5 R8)', () => {
           : member.getText(source);
     };
     const used = calls.map(permissionsOf);
-    expect(used.every((value) => ['INSTALLATION_PERMISSIONS', 'INSTALLATION_LIST_PERMISSIONS', 'permissions'].includes(value)), used.join(', ')).toBe(true);
+    expect(
+      used.every((value) =>
+        ['INSTALLATION_PERMISSIONS', 'INSTALLATION_LIST_PERMISSIONS', 'permissions'].includes(value),
+      ),
+      used.join(', '),
+    ).toBe(true);
     // The one shorthand `permissions` is the named kind's frozen set, never a parameter.
     expect(source.getFullText().match(/const permissions = [^;]+;/g)).toEqual([
       'const permissions = SCOPED_MINT_PERMISSIONS[kind];',

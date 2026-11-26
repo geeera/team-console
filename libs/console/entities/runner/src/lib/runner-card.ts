@@ -1,6 +1,15 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { LocalDayPipe, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
-import { Chip, Icon, Ledger, LedgerRow, StatusCard, type ChipTone, type IconName, type StatusCardTone } from '@console/shared/ui';
+import {
+  Chip,
+  Icon,
+  Ledger,
+  LedgerRow,
+  StatusCard,
+  type ChipTone,
+  type IconName,
+  type StatusCardTone,
+} from '@console/shared/ui';
 import { actionsRunIdOf, type RunnerDto, type RunnerServedProjectDto } from '@shared/contracts';
 import { runnerPresenceOf, type RunnerPresence } from './runner.model';
 
@@ -51,26 +60,42 @@ let nextCardId = 0;
               'runners.presence.' + presenceKey() | transloco
             }}</tc-chip>
             @if (runner().belowMinimum && runner().revokedAt === null) {
-              <tc-chip tone="warning" data-testid="runner-behind">{{ 'runners.card.behind' | transloco }}</tc-chip>
+              <tc-chip tone="warning" data-testid="runner-behind">{{
+                'runners.card.behind' | transloco
+              }}</tc-chip>
             }
           </p>
         </div>
       </div>
       @if (runner().suspect; as suspect) {
         <p tc-status-card-body class="runner-card__note" data-testid="runner-suspect">
-          {{ 'runners.card.suspect.' + suspect.reason | transloco: { day: suspect.at | localDay, time: suspect.at | localTime } }}
+          {{
+            'runners.card.suspect.' + suspect.reason
+              | transloco: { day: suspect.at | localDay, time: suspect.at | localTime }
+          }}
         </p>
       }
       @if (enrollerNote(); as note) {
-        <p tc-status-card-body class="runner-card__note" data-testid="runner-enroller" [attr.data-state]="runner().enroller">
+        <p
+          tc-status-card-body
+          class="runner-card__note"
+          data-testid="runner-enroller"
+          [attr.data-state]="runner().enroller"
+        >
           {{ note | transloco }}
         </p>
       }
       @if (runner().pause; as pause) {
-        <p tc-status-card-body class="runner-card__note" data-testid="runner-pause" [attr.data-reason]="pause.reason">
+        <p
+          tc-status-card-body
+          class="runner-card__note"
+          data-testid="runner-pause"
+          [attr.data-reason]="pause.reason"
+        >
           {{ 'runners.card.pause.' + pause.reason | transloco }}
           <time [attr.datetime]="pause.until">{{
-            'runners.card.pauseUntil' | transloco: { day: pause.until | localDay, time: pause.until | localTime }
+            'runners.card.pauseUntil'
+              | transloco: { day: pause.until | localDay, time: pause.until | localTime }
           }}</time>
         </p>
       }
@@ -92,7 +117,9 @@ let nextCardId = 0;
         </div>
         <div tc-ledger-row [label]="'runners.card.lastSeen' | transloco">
           @if (runner().lastSeenAt; as seen) {
-            <time [attr.datetime]="seen" data-testid="runner-last-seen">{{ seen | localDay }}, {{ seen | localTime }}</time>
+            <time [attr.datetime]="seen" data-testid="runner-last-seen"
+              >{{ seen | localDay }}, {{ seen | localTime }}</time
+            >
             @if (runner().lastSeenCountry; as country) {
               · {{ country }}
             }
@@ -101,7 +128,9 @@ let nextCardId = 0;
           }
         </div>
         <div tc-ledger-row [label]="'runners.card.host' | transloco">
-          <span dir="auto">{{ runner().host.hostname }}</span> · {{ runner().host.os }}/{{ runner().host.arch }}
+          <span dir="auto">{{ runner().host.hostname }}</span> · {{ runner().host.os }}/{{
+            runner().host.arch
+          }}
           @if (runner().capabilities.local) {
             · {{ 'runners.card.local' | transloco }}
           }
@@ -110,7 +139,10 @@ let nextCardId = 0;
           @if (runner().projectScope === 'all') {
             <span data-testid="runner-scope">{{ 'runners.card.scopeAll' | transloco }}</span>
             @if (runner().servedProjects.length > 0) {
-              · <span data-testid="runner-projects">{{ 'runners.card.scopeAllNow' | transloco: { projects: servedSlugs() } }}</span>
+              ·
+              <span data-testid="runner-projects">{{
+                'runners.card.scopeAllNow' | transloco: { projects: servedSlugs() }
+              }}</span>
             } @else if (runner().revokedAt === null) {
               · <span data-testid="runner-projects">{{ 'runners.card.scopeAllNone' | transloco }}</span>
             }
@@ -131,7 +163,9 @@ let nextCardId = 0;
           </div>
         }
       </dl>
-      <div tc-status-card-actions class="runner-card__actions"><ng-content select="[tc-runner-actions]" /></div>
+      <div tc-status-card-actions class="runner-card__actions">
+        <ng-content select="[tc-runner-actions]" />
+      </div>
     </article>
   `,
   styles: `
@@ -168,8 +202,14 @@ export class RunnerCard {
     const runner = this.runner();
     return runner.isolation === 'actions-ephemeral' ? actionsRunIdOf(runner.name) : null;
   });
-  protected readonly presenceKey = computed(() => (this.presence() === 'never-seen' ? 'neverSeen' : this.presence()));
-  protected readonly servedSlugs = computed(() => this.runner().servedProjects.map((project) => project.slug).join(', '));
+  protected readonly presenceKey = computed(() =>
+    this.presence() === 'never-seen' ? 'neverSeen' : this.presence(),
+  );
+  protected readonly servedSlugs = computed(() =>
+    this.runner()
+      .servedProjects.map((project) => project.slug)
+      .join(', '),
+  );
   /** Projects the runner serves but its declared credential cannot run: the owner sees it here, not at the first claim. */
   protected readonly unfit = computed((): readonly RunnerServedProjectDto[] =>
     this.runner().servedProjects.filter((project) => !project.fit),

@@ -62,7 +62,11 @@ import { QuestionList } from '@console/widgets/question-list';
         </tc-receipt>
       }
       <tc-install-card [ready]="projects.status() === 'ready'" (dismissed)="focusHeading()" />
-      @if (projects.status() === 'ready' && projects.hasProjects() && !installOffer.holdsPushNudgeOn(installOffer.screen())) {
+      @if (
+        projects.status() === 'ready' &&
+        projects.hasProjects() &&
+        !installOffer.holdsPushNudgeOn(installOffer.screen())
+      ) {
         <tc-push-nudge (dismissed)="focusHeading()" />
       }
       @if (projects.status() !== 'ready') {

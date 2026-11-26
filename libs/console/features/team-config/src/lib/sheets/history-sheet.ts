@@ -10,16 +10,14 @@ import {
   viewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { localDayOf, localTimeOf, TranslocoPipe, TranslocoPluralPipe, TranslocoService } from '@console/shared/i18n';
 import {
-  Button,
-  DIALOG_DATA,
-  DialogRef,
-  Icon,
-  List,
-  ListRow,
-  StateBlock,
-} from '@console/shared/ui';
+  localDayOf,
+  localTimeOf,
+  TranslocoPipe,
+  TranslocoPluralPipe,
+  TranslocoService,
+} from '@console/shared/i18n';
+import { Button, DIALOG_DATA, DialogRef, Icon, List, ListRow, StateBlock } from '@console/shared/ui';
 import type { TeamConfigRevisionDto, TeamConfigRevisionSummaryDto } from '@shared/contracts';
 import { ChangesTable } from '../changes-table/changes-table';
 import { TeamConfigClient } from '../team-config.client';
@@ -55,12 +53,23 @@ let nextHistoryId = 0;
   template: `
     <div class="history">
       @if (open(); as opened) {
-        <button tc-button variant="quiet" type="button" class="history__back" data-testid="history-back" (click)="back()">
+        <button
+          tc-button
+          variant="quiet"
+          type="button"
+          class="history__back"
+          data-testid="history-back"
+          (click)="back()"
+        >
           <tc-icon name="chevron-left" size="sm" />{{ 'teamConfig.history.back' | transloco }}
         </button>
         @switch (revisionPhase()) {
           @case ('loading') {
-            <tc-state-block kind="loading" compact [title]="'teamConfig.history.revisionLoading' | transloco: { n: opened }" />
+            <tc-state-block
+              kind="loading"
+              compact
+              [title]="'teamConfig.history.revisionLoading' | transloco: { n: opened }"
+            />
           }
           @case ('failed') {
             <tc-state-block
@@ -69,17 +78,33 @@ let nextHistoryId = 0;
               data-testid="revision-error"
               [title]="'teamConfig.history.revisionFailed' | transloco: { n: opened }"
             >
-              <button tc-button tc-state-action size="sm" type="button" data-testid="revision-retry" (click)="openRevision(opened)">
+              <button
+                tc-button
+                tc-state-action
+                size="sm"
+                type="button"
+                data-testid="revision-retry"
+                (click)="openRevision(opened)"
+              >
                 {{ 'teamConfig.common.retry' | transloco }}
               </button>
             </tc-state-block>
           }
           @case ('ready') {
             @if (revision(); as revision) {
-              <section class="history__revision" data-testid="revision" [attr.aria-labelledby]="id + '-revision'">
+              <section
+                class="history__revision"
+                data-testid="revision"
+                [attr.aria-labelledby]="id + '-revision'"
+              >
                 <div class="history__revision-head">
                   <div>
-                    <h3 #revisionHeading class="history__revision-title" tabindex="-1" [id]="id + '-revision'">
+                    <h3
+                      #revisionHeading
+                      class="history__revision-title"
+                      tabindex="-1"
+                      [id]="id + '-revision'"
+                    >
                       {{ 'teamConfig.history.revision' | transloco: { n: revision.revision } }}
                     </h3>
                     <p class="history__meta" data-testid="revision-meta">
@@ -95,10 +120,15 @@ let nextHistoryId = 0;
                 @if (revision.reason; as reason) {
                   <blockquote class="history__reason" data-testid="revision-reason">{{ reason }}</blockquote>
                 } @else {
-                  <p class="history__meta" data-testid="revision-reason">{{ 'teamConfig.history.noReason' | transloco }}</p>
+                  <p class="history__meta" data-testid="revision-reason">
+                    {{ 'teamConfig.history.noReason' | transloco }}
+                  </p>
                 }
                 @if (rows().length > 0) {
-                  <tc-changes-table [rows]="rows()" [caption]="'teamConfig.history.revision' | transloco: { n: revision.revision }" />
+                  <tc-changes-table
+                    [rows]="rows()"
+                    [caption]="'teamConfig.history.revision' | transloco: { n: revision.revision }"
+                  />
                 } @else {
                   <p class="history__meta">{{ 'teamConfig.history.noSettings' | transloco }}</p>
                 }
@@ -114,7 +144,12 @@ let nextHistoryId = 0;
                 >
                   {{ (showRaw() ? 'teamConfig.history.hideRaw' : 'teamConfig.history.showRaw') | transloco }}
                 </button>
-                <pre class="history__raw" data-testid="revision-raw" [id]="id + '-raw'" [hidden]="!showRaw()">{{ raw() }}</pre>
+                <pre
+                  class="history__raw"
+                  data-testid="revision-raw"
+                  [id]="id + '-raw'"
+                  [hidden]="!showRaw()"
+                  >{{ raw() }}</pre>
               </section>
             }
           }
@@ -132,14 +167,25 @@ let nextHistoryId = 0;
               [title]="'teamConfig.history.failedTitle' | transloco"
               [description]="'teamConfig.history.failed' | transloco"
             >
-              <button tc-button tc-state-action type="button" data-testid="history-retry" (click)="loadHistory()">
+              <button
+                tc-button
+                tc-state-action
+                type="button"
+                data-testid="history-retry"
+                (click)="loadHistory()"
+              >
                 <tc-icon name="refresh" size="sm" />{{ 'teamConfig.common.retry' | transloco }}
               </button>
             </tc-state-block>
           }
           @case ('ready') {
             @if (revisions().length === 0) {
-              <tc-state-block kind="empty" compact data-testid="history-empty" [title]="'teamConfig.history.empty' | transloco" />
+              <tc-state-block
+                kind="empty"
+                compact
+                data-testid="history-empty"
+                [title]="'teamConfig.history.empty' | transloco"
+              />
             } @else {
               <tc-list data-testid="history-list" [attr.aria-label]="'teamConfig.history.title' | transloco">
                 @for (summary of shown(); track summary.revision) {
@@ -156,7 +202,11 @@ let nextHistoryId = 0;
                         {{ 'teamConfig.history.settings' | translocoPlural: settingsOf(summary) }}
                       </span>
                     </span>
-                    <span tc-row-detail [class.history__reason-line]="summary.reason !== null" data-testid="history-reason">
+                    <span
+                      tc-row-detail
+                      [class.history__reason-line]="summary.reason !== null"
+                      data-testid="history-reason"
+                    >
                       {{ summary.reason ?? ('teamConfig.history.noReason' | transloco) }}
                     </span>
                     <tc-icon tc-row-trailing name="chevron-right" size="sm" />
@@ -164,7 +214,13 @@ let nextHistoryId = 0;
                 }
               </tc-list>
               @if (hidden() > 0) {
-                <button tc-button type="button" class="history__more" data-testid="history-more" (click)="showMore()">
+                <button
+                  tc-button
+                  type="button"
+                  class="history__more"
+                  data-testid="history-more"
+                  (click)="showMore()"
+                >
                   {{ 'teamConfig.history.more' | translocoPlural: hidden() }}
                 </button>
               }
@@ -277,7 +333,9 @@ export class HistorySheet {
   private readonly injector = inject(Injector);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly revisionHeading = viewChild<ElementRef<HTMLElement>>('revisionHeading');
-  private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  private readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   protected readonly id = `tc-history-${nextHistoryId++}`;
   protected readonly listPhase = signal<Phase>('loading');
@@ -339,7 +397,10 @@ export class HistorySheet {
     const n = this.open();
     this.open.set(null);
     afterNextRender(
-      () => this.host.nativeElement.querySelector<HTMLElement>(`[data-testid="history-row-${String(n)}"] button`)?.focus(),
+      () =>
+        this.host.nativeElement
+          .querySelector<HTMLElement>(`[data-testid="history-row-${String(n)}"] button`)
+          ?.focus(),
       { injector: this.injector },
     );
   }
@@ -367,5 +428,6 @@ export class HistorySheet {
     return summary.paths.filter((path) => path !== 'schema').length;
   }
 
-  private readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+  private readonly t = (key: string, params?: Record<string, unknown>): string =>
+    this.transloco.translate(key, params);
 }

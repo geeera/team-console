@@ -18,7 +18,13 @@ const sprint = (number: number, dueOn: string): TrackerSprintDto => ({
   openCount: 0,
 });
 
-const ITEM: ItemDto = itemFixture({ key: 'TC-408', number: 408, title: 'Threat model', sprint: 3, version: 7 });
+const ITEM: ItemDto = itemFixture({
+  key: 'TC-408',
+  number: 408,
+  title: 'Threat model',
+  sprint: 3,
+  version: 7,
+});
 
 /** The lane as the tracker lists it: TC-407 first, then TC-408 (the task), then TC-409. */
 const LANE: ItemDto[] = [
@@ -72,7 +78,11 @@ async function setup(picked: string | null) {
   const items = new FakeItems();
   const menu = { open: vi.fn(async (_anchor: unknown, _spec: unknown) => picked) };
   await TestBed.configureTestingModule({
-    providers: [provideConsoleI18n(), { provide: ItemsApi, useValue: items }, { provide: Menu, useValue: menu }],
+    providers: [
+      provideConsoleI18n(),
+      { provide: ItemsApi, useValue: items },
+      { provide: Menu, useValue: menu },
+    ],
   }).compileComponents();
   await TestBed.inject(ApplicationInitStatus).donePromise;
   const moves: ItemMove[] = [];
@@ -95,7 +105,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
 
     expect(menu.open).toHaveBeenCalledTimes(1);
     expect(items.updates).toEqual([{ version: 7, sprint: 4, key: expect.any(String) }]);
-    expect(moves).toEqual([{ item: expect.objectContaining({ sprint: 4, version: 8 }), from: 3, to: 4, isUndo: false }]);
+    expect(moves).toEqual([
+      { item: expect.objectContaining({ sprint: 4, version: 8 }), from: 3, to: 4, isUndo: false },
+    ]);
     expect(toaster.message()).toBe('TC-408 → Sprint 04');
 
     expect(toaster.runUndo()).toBe(true);
@@ -113,7 +125,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
     const announce = vi.spyOn(TestBed.inject(LiveAnnouncer), 'announce');
     await mover.open(document.body, 'team-console', ITEM, handlers);
 
-    const spec = menu.open.mock.calls[0]?.[1] as { groups: { label?: string; items: { id: string; off?: string }[] }[] };
+    const spec = menu.open.mock.calls[0]?.[1] as {
+      groups: { label?: string; items: { id: string; off?: string }[] }[];
+    };
     expect(spec.groups[0]?.label).toBe('Очередь · Одобрено');
     expect(spec.groups[0]?.items.map((item) => [item.id, item.off ?? null])).toEqual([
       ['queue:first', null],
@@ -123,7 +137,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
     expect(items.reorders).toEqual([{ version: 7, move: 'first', key: expect.any(String) }]);
     expect(items.updates).toHaveLength(0);
     expect(moves).toHaveLength(0);
-    expect(reordered).toEqual([expect.objectContaining({ key: 'TC-408', queue: { position: 1, total: 3 }, version: 8 })]);
+    expect(reordered).toEqual([
+      expect.objectContaining({ key: 'TC-408', queue: { position: 1, total: 3 }, version: 8 }),
+    ]);
     // No toast and no Undo: the row stays in its lane, where the eye already is.
     expect(toaster.message()).toBeNull();
     expect(announce).toHaveBeenCalledWith('TC-408: 1-я из 3 в «Одобрено»', 'polite');
@@ -135,7 +151,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
     await mover.open(document.body, 'team-console', ITEM, handlers);
 
     expect(reordered).toHaveLength(0);
-    expect(failures).toEqual([{ failure: expect.objectContaining({ kind: 'conflict' }), retry: expect.any(Function) }]);
+    expect(failures).toEqual([
+      { failure: expect.objectContaining({ kind: 'conflict' }), retry: expect.any(Function) },
+    ]);
     await (failures[0] as { retry: () => Promise<void> }).retry();
     expect(items.reorders.map((call) => call.key)).toEqual([items.reorders[0]?.key, items.reorders[0]?.key]);
     expect(reordered).toHaveLength(1);
@@ -144,7 +162,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
   it('places a task in the listed lane of its sprint and status, or nowhere when it is not listed', () => {
     expect(queuePositionIn(LANE, ITEM)).toEqual({ position: 2, total: 3 });
     expect(queuePositionIn(LANE, { ...ITEM, number: 410, key: 'TC-410' })).toBeNull();
-    expect(queuePositionIn([...LANE, itemFixture({ number: 5, sprint: 3, status: 'qa' })], LANE[0] as ItemDto)).toEqual({
+    expect(
+      queuePositionIn([...LANE, itemFixture({ number: 5, sprint: 3, status: 'qa' })], LANE[0] as ItemDto),
+    ).toEqual({
       position: 1,
       total: 3,
     });
@@ -166,7 +186,9 @@ describe('ItemMover (#409 §2.2, #558)', () => {
     await mover.open(document.body, 'team-console', ITEM, handlers);
 
     expect(moves).toHaveLength(0);
-    expect(failures).toEqual([{ failure: expect.objectContaining({ kind: 'frozen' }), retry: expect.any(Function) }]);
+    expect(failures).toEqual([
+      { failure: expect.objectContaining({ kind: 'frozen' }), retry: expect.any(Function) },
+    ]);
     await (failures[0] as { retry: () => Promise<void> }).retry();
     expect(items.updates[1]?.key).toBe(items.updates[0]?.key);
     expect(moves).toHaveLength(1);

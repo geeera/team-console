@@ -2,7 +2,12 @@ import { env } from 'cloudflare:test';
 import type { NewAuditEvent } from '../accounts/audit.repo';
 import { RunnersRepo } from '../runners/runners.repo';
 import { JobsRepo, type ClaimRequest, type NewJob } from './jobs.repo';
-import { FAILURE_STREAK_PAUSER, RUNNER_EXCLUSION_BUDGET, RUNNER_EXCLUSION_WINDOW_MS, TeamStateRepo } from './team-state.repo';
+import {
+  FAILURE_STREAK_PAUSER,
+  RUNNER_EXCLUSION_BUDGET,
+  RUNNER_EXCLUSION_WINDOW_MS,
+  TeamStateRepo,
+} from './team-state.repo';
 
 // #490 review: the claim statement's branches and the repos' guards, directly against D1.
 
@@ -70,7 +75,10 @@ async function runner(
   options: RunnerRowOptions = {},
 ): Promise<string> {
   const id = ulid('RN');
-  const capabilities: Record<string, unknown> = { local: true, maxConcurrency: options.maxConcurrency ?? maxConcurrency };
+  const capabilities: Record<string, unknown> = {
+    local: true,
+    maxConcurrency: options.maxConcurrency ?? maxConcurrency,
+  };
   if (options.accessSources !== undefined) {
     capabilities['accessSources'] = options.accessSources;
   }
@@ -104,18 +112,32 @@ const tok = (n: number): string => `5c0de${n.toString(16)}`.padEnd(64, '0');
  */
 async function setAccessSource(slug: string, accessSource: 'subscription' | 'api_key'): Promise<void> {
   const config = JSON.stringify({ schema: 'team-config/v1', access: { source: accessSource } });
-  const moved = await env.DB.prepare(`UPDATE team_configs SET config = ?2, revision = revision + 1 WHERE project_slug = ?1`).bind(slug, config).run();
+  const moved = await env.DB.prepare(
+    `UPDATE team_configs SET config = ?2, revision = revision + 1 WHERE project_slug = ?1`,
+  )
+    .bind(slug, config)
+    .run();
   if (moved.meta.changes === 0) {
-    await env.DB.prepare(`INSERT INTO team_configs (project_slug, revision, config, updated_at, updated_by) VALUES (?1, 1, ?2, ?3, 'spec')`).bind(slug, config, T0).run();
+    await env.DB.prepare(
+      `INSERT INTO team_configs (project_slug, revision, config, updated_at, updated_by) VALUES (?1, 1, ?2, ?3, 'spec')`,
+    )
+      .bind(slug, config, T0)
+      .run();
   }
-  await env.DB.prepare(`UPDATE projects SET access_source = ?2 WHERE slug = ?1`).bind(slug, accessSource).run();
+  await env.DB.prepare(`UPDATE projects SET access_source = ?2 WHERE slug = ?1`)
+    .bind(slug, accessSource)
+    .run();
 }
 
 /** A job well ahead of any queued leftover of the account: an `all` runner sees them all (#775). */
 const URGENT = 1000;
 
 /** A project row with its creator (D3) and access source. */
-async function projectBy(accountId: string, createdBy: string | null, accessSource: 'subscription' | 'api_key' = 'subscription'): Promise<string> {
+async function projectBy(
+  accountId: string,
+  createdBy: string | null,
+  accessSource: 'subscription' | 'api_key' = 'subscription',
+): Promise<string> {
   const slug = await project(accountId);
   await env.DB.prepare(`UPDATE projects SET created_by = ?2 WHERE slug = ?1`).bind(slug, createdBy).run();
   if (accessSource !== 'subscription') {
@@ -129,25 +151,47 @@ async function owners(accountId: string, n: number): Promise<void> {
   for (let index = 0; index < n; index += 1) {
     const userId = ulid('MB');
     await env.DB.batch([
-      env.DB
-        .prepare(`INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`)
-        .bind(userId, String(900000 + counter), `o-${String(counter)}`, T0),
-      env.DB.prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`).bind(accountId, userId, T0),
+      env.DB.prepare(
+        `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+      ).bind(userId, String(900000 + counter), `o-${String(counter)}`, T0),
+      env.DB.prepare(
+        `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`,
+      ).bind(accountId, userId, T0),
     ]);
   }
 }
 
 /** Stores the runner's allow-list: the claim reads it from the row, not from the caller (#543). */
 async function allow(runnerId: string, allowed: readonly string[]): Promise<void> {
-  await env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`).bind(runnerId, JSON.stringify(allowed)).run();
+  await env.DB.prepare(`UPDATE runners SET allowed_projects = ?2 WHERE id = ?1`)
+    .bind(runnerId, JSON.stringify(allowed))
+    .run();
 }
 
 const jobs = new JobsRepo(env.DB);
 
-async function enqueue(slug: string, accountId = ACCOUNT_A, overrides: Partial<NewJob> = {}): Promise<string> {
+async function enqueue(
+  slug: string,
+  accountId = ACCOUNT_A,
+  overrides: Partial<NewJob> = {},
+): Promise<string> {
   const id = ulid('JB');
   const outcome = await jobs.enqueue(
-    { id, accountId, projectSlug: slug, kind: 'slot-dev', role: 'orchestrator', payload: {}, priority: 0, requestedBy: 'owner', dedupeKey: null, needsLocal: false, maxMinutes: 90, at: T0, ...overrides },
+    {
+      id,
+      accountId,
+      projectSlug: slug,
+      kind: 'slot-dev',
+      role: 'orchestrator',
+      payload: {},
+      priority: 0,
+      requestedBy: 'owner',
+      dedupeKey: null,
+      needsLocal: false,
+      maxMinutes: 90,
+      at: T0,
+      ...overrides,
+    },
     audit('job.dispatched', accountId),
   );
   expect(outcome).toBe('ok');
@@ -155,7 +199,15 @@ async function enqueue(slug: string, accountId = ACCOUNT_A, overrides: Partial<N
 }
 
 const claimAs = (runnerId: string, overrides: Partial<ClaimRequest> = {}): Promise<unknown> =>
-  jobs.claim({ runnerId, accountId: ACCOUNT_A, local: true, tokenHash: 'a'.repeat(64), now: T1, leaseUntil: '2026-11-10T10:10:00.000Z', ...overrides });
+  jobs.claim({
+    runnerId,
+    accountId: ACCOUNT_A,
+    local: true,
+    tokenHash: 'a'.repeat(64),
+    now: T1,
+    leaseUntil: '2026-11-10T10:10:00.000Z',
+    ...overrides,
+  });
 
 // The entitled concurrency (#746) is account-wide and these cases share the account: the top of the override's
 // range keeps it out of the rules each case is about; the concurrency specs set their own.
@@ -191,25 +243,36 @@ describe('JobsRepo.claim', () => {
     await enqueue(open);
     expect(((await claimAs(vps, { tokenHash: 'c'.repeat(64) })) as { runnerId: string }).runnerId).toBe(vps);
 
-    await env.DB.prepare(`UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1`).bind(ACCOUNT_A, JSON.stringify({ mode: 'pinned', runner: mac })).run();
+    await env.DB.prepare(`UPDATE accounts SET default_runner_policy = ?2 WHERE id = ?1`)
+      .bind(ACCOUNT_A, JSON.stringify({ mode: 'pinned', runner: mac }))
+      .run();
     await enqueue(inherits);
     expect(await claimAs(vps, { tokenHash: 'd'.repeat(64) })).toBeNull();
     expect(((await claimAs(mac, { tokenHash: 'e'.repeat(64) })) as { runnerId: string }).runnerId).toBe(mac);
-    await env.DB.prepare(`UPDATE accounts SET default_runner_policy = NULL WHERE id = ?1`).bind(ACCOUNT_A).run();
+    await env.DB.prepare(`UPDATE accounts SET default_runner_policy = NULL WHERE id = ?1`)
+      .bind(ACCOUNT_A)
+      .run();
   });
 
   it('failover: the fallback claims only while the preferred is silent or revoked', async () => {
     const preferred = await runner(ACCOUNT_A, [], T1);
     const fallback = await runner(ACCOUNT_A, []);
-    const slug = await project(ACCOUNT_A, JSON.stringify({ mode: 'failover', preferred, fallback: [fallback], offline_after_seconds: 300 }));
+    const slug = await project(
+      ACCOUNT_A,
+      JSON.stringify({ mode: 'failover', preferred, fallback: [fallback], offline_after_seconds: 300 }),
+    );
     await allow(fallback, [slug]);
     await enqueue(slug);
     expect(await claimAs(fallback, { tokenHash: 'f'.repeat(64) })).toBeNull();
     await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2 WHERE id = ?1`).bind(preferred, OLD).run();
-    expect(((await claimAs(fallback, { tokenHash: '0'.repeat(64) })) as { runnerId: string }).runnerId).toBe(fallback);
+    expect(((await claimAs(fallback, { tokenHash: '0'.repeat(64) })) as { runnerId: string }).runnerId).toBe(
+      fallback,
+    );
 
     const again = await enqueue(slug);
-    await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2, revoked_at = ?2 WHERE id = ?1`).bind(preferred, T1).run();
+    await env.DB.prepare(`UPDATE runners SET last_seen_at = ?2, revoked_at = ?2 WHERE id = ?1`)
+      .bind(preferred, T1)
+      .run();
     expect(((await claimAs(fallback, { tokenHash: '1'.repeat(64) })) as { id: string }).id).toBe(again);
     // A stranger to the policy never claims, whatever its allow-list.
     const stranger = await runner(ACCOUNT_A, [slug]);
@@ -245,7 +308,9 @@ describe('JobsRepo.claim', () => {
     expect(((await claimAs(all, { tokenHash: tok(32) })) as { id: string }).id).toBe(second);
     // Account B's job stays where it is, whatever the scope says (the account match is a separate term).
     expect(await claimAs(all, { accountId: ACCOUNT_B, tokenHash: tok(34) })).toBeNull();
-    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE project_slug = ?1`).bind(theirs).first<{ state: string; runner_id: null }>();
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE project_slug = ?1`)
+      .bind(theirs)
+      .first<{ state: string; runner_id: null }>();
     expect(row).toEqual({ state: 'queued', runner_id: null });
   });
 
@@ -253,14 +318,25 @@ describe('JobsRepo.claim', () => {
   // owner's projects only; an API-key runner, or a one-owner account, is not held back; selection always works.
   it('D3: in a two-owner account an all-scope subscription runner serves its enroller’s projects only', async () => {
     const account = '01M6YSNJ00000000000000JBD3';
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-d3', 'D3', '{"max_concurrency":32}', ?2)`).bind(account, T0).run();
+    await env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-d3', 'D3', '{"max_concurrency":32}', ?2)`,
+    )
+      .bind(account, T0)
+      .run();
     const mine = await projectBy(account, 'owner-1');
     const theirs = await projectBy(account, 'owner-2');
     const legacy = await projectBy(account, null);
-    const subscription = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] });
+    const subscription = await runner(account, 'all', null, 8, {
+      enrolledBy: 'owner-1',
+      accessSources: ['subscription'],
+    });
     const undeclared = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1' });
-    const apiKey = await runner(account, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['api_key'] });
-    const claimIn = (runnerId: string, n: number) => claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
+    const apiKey = await runner(account, 'all', null, 8, {
+      enrolledBy: 'owner-1',
+      accessSources: ['api_key'],
+    });
+    const claimIn = (runnerId: string, n: number) =>
+      claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
 
     // One owner: D3 does not apply; everything of the account is served.
     await owners(account, 1);
@@ -283,21 +359,32 @@ describe('JobsRepo.claim', () => {
     // Explicit selection serves the other owner's project whatever the credential.
     await setAccessSource(theirs, 'subscription');
     const picked = await enqueue(theirs, account);
-    await new RunnersRepo(env.DB).setScope(account, subscription, { projectScope: 'selected', allowedProjects: [theirs] }, 'owner-1', audit('runner.scope-changed', account));
+    await new RunnersRepo(env.DB).setScope(
+      account,
+      subscription,
+      { projectScope: 'selected', allowedProjects: [theirs] },
+      'owner-1',
+      audit('runner.scope-changed', account),
+    );
     expect(((await claimIn(subscription, 46)) as { id: string }).id).toBe(picked);
   });
 
   // #775 (SECURITY question 7): the declaration only narrows; a runner that declares nothing is not narrowed.
   it('accessSources: a runner declaring subscription never claims an api_key job; an undeclared one is judged by the row alone', async () => {
     const account = '01M6YSNJ00000000000000JBS7';
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-s7', 'S7', '{"max_concurrency":32}', ?2)`).bind(account, T0).run();
+    await env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, 'jb-s7', 'S7', '{"max_concurrency":32}', ?2)`,
+    )
+      .bind(account, T0)
+      .run();
     const byKey = await projectBy(account, null, 'api_key');
     const bySubscription = await projectBy(account, null, 'subscription');
     const declared = await runner(account, 'all', null, 8, { accessSources: ['subscription'] });
     const undeclared = await runner(account, 'all');
     const keyJob = await enqueue(byKey, account);
     const subscriptionJob = await enqueue(bySubscription, account);
-    const claimIn = (runnerId: string, n: number) => claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
+    const claimIn = (runnerId: string, n: number) =>
+      claimAs(runnerId, { accountId: account, tokenHash: tok(n) });
     expect(((await claimIn(declared, 50)) as { id: string }).id).toBe(subscriptionJob);
     expect(await claimIn(declared, 51)).toBeNull();
     expect(((await claimIn(undeclared, 52)) as { id: string }).id).toBe(keyJob);
@@ -309,7 +396,14 @@ describe('JobsRepo.claim', () => {
     const r = await runner(ACCOUNT_A, [dropped, kept]);
     const id = await enqueue(dropped);
     expect((await new RunnersRepo(env.DB).findById(r))?.allowedProjects).toContain(dropped);
-    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', { ...audit('runner.scope-changed'), target: r }, jobs.cancelUnservedStatements(r, T1));
+    await new RunnersRepo(env.DB).setScope(
+      ACCOUNT_A,
+      r,
+      { projectScope: 'selected', allowedProjects: [kept] },
+      'owner',
+      { ...audit('runner.scope-changed'), target: r },
+      jobs.cancelUnservedStatements(r, T1),
+    );
     expect(await claimAs(r, { tokenHash: '5a'.repeat(32) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
   });
@@ -319,7 +413,13 @@ describe('JobsRepo.claim', () => {
     const r = await runner(ACCOUNT_A, [slug]);
     const id = await enqueue(slug);
     expect((await new RunnersRepo(env.DB).findById(r))?.revokedAt).toBeNull();
-    await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
+    await new RunnersRepo(env.DB).revoke(
+      ACCOUNT_A,
+      r,
+      T1,
+      { ...audit('runner.revoked'), target: r },
+      jobs.cancelForRunnerStatements(r, T1),
+    );
     expect(await claimAs(r, { tokenHash: '5b'.repeat(32) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
   });
@@ -328,7 +428,10 @@ describe('JobsRepo.claim', () => {
 // #571, threat model C4 "rogue runner": the pause and the concurrency cap are judged inside the one claim UPDATE.
 describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
   const runners = new RunnersRepo(env.DB);
-  const pauseAudit = (target: string, accountId = ACCOUNT_A): NewAuditEvent => ({ ...audit('runner.paused', accountId), target });
+  const pauseAudit = (target: string, accountId = ACCOUNT_A): NewAuditEvent => ({
+    ...audit('runner.paused', accountId),
+    target,
+  });
   // A prefix no other spec of this file uses: the token index is unique across the whole file's jobs.
   const token = (n: number): string => `c0de${n.toString(16)}`.padEnd(64, '0');
 
@@ -341,7 +444,12 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     expect(await claimAs(r, { tokenHash: token(2) })).toBeNull();
     expect(await jobs.findById(second)).toMatchObject({ state: 'queued', runnerId: null });
 
-    expect(await jobs.finish(first, r, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, { ...audit('job.finished'), target: first })).toBe(true);
+    expect(
+      await jobs.finish(first, r, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, {
+        ...audit('job.finished'),
+        target: first,
+      }),
+    ).toBe(true);
     expect(((await claimAs(r, { tokenHash: token(3) })) as { id: string }).id).toBe(second);
   });
 
@@ -350,7 +458,9 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     const ids = [await enqueue(slug), await enqueue(slug), await enqueue(slug)];
     const r = await runner(ACCOUNT_A, [slug], null, 2);
     expect(await claimAs(r, { tokenHash: token(4) })).not.toBeNull();
-    expect(await jobs.appendEvents(ids[0] ?? '', r, [{ level: 'info', kind: 'started', payload: {} }], T1)).toMatchObject({ held: true });
+    expect(
+      await jobs.appendEvents(ids[0] ?? '', r, [{ level: 'info', kind: 'started', payload: {} }], T1),
+    ).toMatchObject({ held: true });
     expect(await claimAs(r, { tokenHash: token(5) })).not.toBeNull();
     expect(await claimAs(r, { tokenHash: token(6) })).toBeNull();
     expect((await jobs.findById(ids[2] ?? ''))?.state).toBe('queued');
@@ -370,7 +480,10 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     const slug = await project(ACCOUNT_A);
     const ids = [await enqueue(slug), await enqueue(slug)];
     const r = await runner(ACCOUNT_A, [slug], null, 1);
-    const both = await Promise.all([claimAs(r, { tokenHash: token(9) }), claimAs(r, { tokenHash: token(10) })]);
+    const both = await Promise.all([
+      claimAs(r, { tokenHash: token(9) }),
+      claimAs(r, { tokenHash: token(10) }),
+    ]);
     expect(both.filter((row) => row !== null)).toHaveLength(1);
     const states = await Promise.all(ids.map(async (id) => (await jobs.findById(id))?.state));
     expect(states.sort()).toEqual(['claimed', 'queued']);
@@ -381,7 +494,10 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     const id = await enqueue(slug);
     const mac = await runner(ACCOUNT_A, [slug], null, 1);
     const vps = await runner(ACCOUNT_A, [slug], null, 1);
-    const both = await Promise.all([claimAs(mac, { tokenHash: token(11) }), claimAs(vps, { tokenHash: token(12) })]);
+    const both = await Promise.all([
+      claimAs(mac, { tokenHash: token(11) }),
+      claimAs(vps, { tokenHash: token(12) }),
+    ]);
     expect(both.filter((row) => row !== null)).toHaveLength(1);
     const holder = (await jobs.findById(id))?.runnerId;
     const idle = holder === mac ? vps : mac;
@@ -394,11 +510,26 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     const id = await enqueue(slug);
     const paused = await runner(ACCOUNT_A, [slug]);
     const other = await runner(ACCOUNT_A, [slug]);
-    expect(await runners.pause(ACCOUNT_A, paused, { reason: 'usage-limit', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(paused))).toBe(true);
+    expect(
+      await runners.pause(
+        ACCOUNT_A,
+        paused,
+        { reason: 'usage-limit', until: '2026-11-10T11:00:00.000Z' },
+        pauseAudit(paused),
+      ),
+    ).toBe(true);
     expect(await claimAs(paused, { tokenHash: token(14) })).toBeNull();
     expect(await jobs.findById(id)).toMatchObject({ state: 'queued', runnerId: null });
     // The pause ends on its own at `until`: no resume call is needed.
-    expect(((await claimAs(paused, { tokenHash: token(15), now: '2026-11-10T11:00:00.000Z', leaseUntil: '2026-11-10T11:05:00.000Z' })) as { id: string }).id).toBe(id);
+    expect(
+      (
+        (await claimAs(paused, {
+          tokenHash: token(15),
+          now: '2026-11-10T11:00:00.000Z',
+          leaseUntil: '2026-11-10T11:05:00.000Z',
+        })) as { id: string }
+      ).id,
+    ).toBe(id);
 
     const again = await enqueue(slug);
     expect(await claimAs(paused, { tokenHash: token(16) })).toBeNull();
@@ -411,9 +542,23 @@ describe('JobsRepo.claim: runner pause and maxConcurrency', () => {
     const a = await runner(ACCOUNT_A, [mine]);
     const b = await runner(ACCOUNT_B, [theirs]);
     await enqueue(theirs, ACCOUNT_B);
-    expect(await runners.pause(ACCOUNT_A, a, { reason: 'rate-limit', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(a))).toBe(true);
+    expect(
+      await runners.pause(
+        ACCOUNT_A,
+        a,
+        { reason: 'rate-limit', until: '2026-11-10T11:00:00.000Z' },
+        pauseAudit(a),
+      ),
+    ).toBe(true);
     // Account A cannot pause B's runner by id: the write names the account it acts in.
-    expect(await runners.pause(ACCOUNT_A, b, { reason: 'manual', until: '2026-11-10T11:00:00.000Z' }, pauseAudit(b))).toBe(false);
+    expect(
+      await runners.pause(
+        ACCOUNT_A,
+        b,
+        { reason: 'manual', until: '2026-11-10T11:00:00.000Z' },
+        pauseAudit(b),
+      ),
+    ).toBe(false);
     expect((await runners.findById(b))?.pause).toBeNull();
     expect(await claimAs(b, { accountId: ACCOUNT_B, tokenHash: token(18) })).not.toBeNull();
   });
@@ -425,12 +570,26 @@ describe('JobsRepo.finish and events', () => {
     const id = await enqueue(slug);
     const r = await runner(ACCOUNT_A, [slug]);
     await claimAs(r, { tokenHash: '6'.repeat(64), leaseUntil: '2026-11-10T10:06:00.000Z' });
-    const late = await jobs.finish(id, r, { result: 'finished', summary: 's', metrics: {}, acted: false }, '2026-11-10T10:07:00.000Z', audit('job.finished'));
+    const late = await jobs.finish(
+      id,
+      r,
+      { result: 'finished', summary: 's', metrics: {}, acted: false },
+      '2026-11-10T10:07:00.000Z',
+      audit('job.finished'),
+    );
     expect(late).toBe(false);
     expect((await jobs.findById(id))?.state).toBe('claimed');
-    const rows = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1 AND kind = 'finished'`).bind(id).first<{ n: number }>();
+    const rows = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1 AND kind = 'finished'`,
+    )
+      .bind(id)
+      .first<{ n: number }>();
     expect(rows?.n).toBe(0);
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target IS NULL AND account_id = ?1`).bind(ACCOUNT_A).first<{ n: number }>();
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target IS NULL AND account_id = ?1`,
+    )
+      .bind(ACCOUNT_A)
+      .first<{ n: number }>();
     expect(audits?.n).toBe(0);
   });
 
@@ -444,10 +603,21 @@ describe('JobsRepo.finish and events', () => {
     const outcome = { result: 'failed' as const, summary: 's', metrics: {}, acted: false };
     expect(await jobs.finish(id, r, outcome, '2026-11-10T10:06:00.000Z', finishAudit)).toBe(true);
     expect(await jobs.finish(id, r, outcome, '2026-11-10T10:06:30.000Z', finishAudit)).toBe(false);
-    expect(await jobs.findById(id)).toMatchObject({ state: 'failed', finishedAt: '2026-11-10T10:06:00.000Z' });
-    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1 AND kind = 'failed'`).bind(id).first<{ n: number }>();
+    expect(await jobs.findById(id)).toMatchObject({
+      state: 'failed',
+      finishedAt: '2026-11-10T10:06:00.000Z',
+    });
+    const events = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1 AND kind = 'failed'`,
+    )
+      .bind(id)
+      .first<{ n: number }>();
     expect(events?.n).toBe(1);
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`,
+    )
+      .bind(id)
+      .first<{ n: number }>();
     expect(audits?.n).toBe(1);
   });
 
@@ -458,11 +628,25 @@ describe('JobsRepo.finish and events', () => {
     const other = await runner(ACCOUNT_A, []);
     await claimAs(holder, { tokenHash: '9'.repeat(64) });
     const finishAudit = { ...audit('job.finished'), target: id };
-    expect(await jobs.finish(id, other, { result: 'finished', summary: 's', metrics: {}, acted: false }, T1, finishAudit)).toBe(false);
+    expect(
+      await jobs.finish(
+        id,
+        other,
+        { result: 'finished', summary: 's', metrics: {}, acted: false },
+        T1,
+        finishAudit,
+      ),
+    ).toBe(false);
     expect((await jobs.findById(id))?.state).toBe('claimed');
-    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`).bind(id).first<{ n: number }>();
+    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`)
+      .bind(id)
+      .first<{ n: number }>();
     expect(events?.n).toBe(0);
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`,
+    )
+      .bind(id)
+      .first<{ n: number }>();
     expect(audits?.n).toBe(0);
   });
 
@@ -501,7 +685,11 @@ describe('JobsRepo heartbeat, events and finish judge the stored runner row', ()
   async function expectNothingWritten(id: string): Promise<void> {
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed', leaseUntil: LEASE, finishedAt: null });
     expect(await jobs.listEvents(id, 0, 10)).toEqual([]);
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`).bind(id).first<{ n: number }>();
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.finished' AND target = ?1`,
+    )
+      .bind(id)
+      .first<{ n: number }>();
     expect(audits?.n).toBe(0);
   }
 
@@ -534,21 +722,32 @@ describe('JobsRepo heartbeat, events and finish judge the stored runner row', ()
   it('refuses events from a runner that does not hold the job', async () => {
     const { id } = await held('d3');
     const other = await runner(ACCOUNT_A, [(await jobs.findById(id))?.projectSlug ?? '']);
-    expect(await jobs.appendEvents(id, other, [event], T1)).toEqual({ held: false, lastSeq: 0, capped: false });
+    expect(await jobs.appendEvents(id, other, [event], T1)).toEqual({
+      held: false,
+      lastSeq: 0,
+      capped: false,
+    });
     await expectNothingWritten(id);
   });
 });
 
 describe('TeamStateRepo.pause and resume', () => {
   const auditCount = async (kind: NewAuditEvent['kind'], slug: string): Promise<number | undefined> =>
-    (await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`).bind(kind, slug).first<{ n: number }>())?.n;
+    (
+      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = ?1 AND target = ?2`)
+        .bind(kind, slug)
+        .first<{ n: number }>()
+    )?.n;
 
   // #492: the write is conditional on the state, so of two racing requests only one takes effect and audits.
   it('takes effect once for two concurrent pauses and once for two concurrent resumes', async () => {
     const slug = await project(ACCOUNT_A);
     const repo = new TeamStateRepo(env.DB);
     const pauseAudit = { ...audit('team.paused'), target: slug };
-    const pauses = await Promise.all([repo.pause(slug, 'owner-1', T0, pauseAudit), repo.pause(slug, 'owner-2', T0, pauseAudit)]);
+    const pauses = await Promise.all([
+      repo.pause(slug, 'owner-1', T0, pauseAudit),
+      repo.pause(slug, 'owner-2', T0, pauseAudit),
+    ]);
     expect(pauses.filter(Boolean)).toHaveLength(1);
     expect(await auditCount('team.paused', slug)).toBe(1);
     expect(await repo.pause(slug, 'owner-3', T1, pauseAudit)).toBe(false);
@@ -556,7 +755,10 @@ describe('TeamStateRepo.pause and resume', () => {
     expect(await auditCount('team.paused', slug)).toBe(1);
 
     const resumeAudit = { ...audit('team.resumed'), target: slug };
-    const resumes = await Promise.all([repo.resume(slug, T1, resumeAudit), repo.resume(slug, T1, resumeAudit)]);
+    const resumes = await Promise.all([
+      repo.resume(slug, T1, resumeAudit),
+      repo.resume(slug, T1, resumeAudit),
+    ]);
     expect(resumes.filter(Boolean)).toHaveLength(1);
     expect(await auditCount('team.resumed', slug)).toBe(1);
     expect(await repo.get(slug)).toMatchObject({ pausedAt: null, pausedBy: null, failedStreak: 0 });
@@ -586,22 +788,52 @@ describe('TeamStateRepo.recordOutcome', () => {
     const slug = await project(ACCOUNT_A);
     const repo = new TeamStateRepo(env.DB);
     const pauseAudit = { ...audit('team.paused'), target: slug };
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false, excluded: false });
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false, excluded: false });
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 3, paused: true, excluded: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+      failedStreak: 1,
+      paused: false,
+      excluded: false,
+    });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+      failedStreak: 2,
+      paused: false,
+      excluded: false,
+    });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+      failedStreak: 3,
+      paused: true,
+      excluded: false,
+    });
     expect((await repo.get(slug)).pausedBy).toBe(FAILURE_STREAK_PAUSER);
-    const rows = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`).bind(slug).first<{ n: number }>();
+    const rows = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`,
+    )
+      .bind(slug)
+      .first<{ n: number }>();
     expect(rows?.n).toBe(1);
-    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 4, paused: false, excluded: false });
+    expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+      failedStreak: 4,
+      paused: false,
+      excluded: false,
+    });
     await repo.resume(slug, T1, { ...audit('team.resumed'), target: slug });
     expect(await repo.get(slug)).toMatchObject({ pausedAt: null, failedStreak: 0 });
-    expect(await repo.recordOutcome(slug, 'finished', T1)).toEqual({ failedStreak: 0, paused: false, excluded: false });
+    expect(await repo.recordOutcome(slug, 'finished', T1)).toEqual({
+      failedStreak: 0,
+      paused: false,
+      excluded: false,
+    });
   });
 
   // #492: the audit row is conditional on this outcome being the one that paused, inside the outcome's batch.
   it('writes the pause audit only when this outcome paused the project', async () => {
     const pausedCount = async (slug: string): Promise<number | undefined> =>
-      (await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`).bind(slug).first<{ n: number }>())?.n;
+      (
+        await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`,
+        )
+          .bind(slug)
+          .first<{ n: number }>()
+      )?.n;
     const repo = new TeamStateRepo(env.DB);
 
     // Paused by the owner first: the streak reaching three pauses nothing and writes no row.
@@ -609,7 +841,11 @@ describe('TeamStateRepo.recordOutcome', () => {
     await repo.pause(owned, 'owner', T0, { ...audit('team.paused'), target: `${owned}:owner` });
     const ownedAudit = { ...audit('team.paused'), target: owned };
     for (const streak of [1, 2, 3]) {
-      expect(await repo.recordOutcome(owned, 'failed', T1, ownedAudit)).toEqual({ failedStreak: streak, paused: false, excluded: false });
+      expect(await repo.recordOutcome(owned, 'failed', T1, ownedAudit)).toEqual({
+        failedStreak: streak,
+        paused: false,
+        excluded: false,
+      });
     }
     expect(await pausedCount(owned)).toBe(0);
 
@@ -617,11 +853,21 @@ describe('TeamStateRepo.recordOutcome', () => {
     const streaked = await project(ACCOUNT_A);
     const streakAudit = { ...audit('team.paused'), target: streaked };
     for (const streak of [1, 2, 3]) {
-      await expect(repo.recordOutcome(streaked, 'failed', T0, streakAudit)).resolves.toMatchObject({ failedStreak: streak });
+      await expect(repo.recordOutcome(streaked, 'failed', T0, streakAudit)).resolves.toMatchObject({
+        failedStreak: streak,
+      });
     }
-    expect(await repo.recordOutcome(streaked, 'finished', T1)).toEqual({ failedStreak: 0, paused: false, excluded: false });
+    expect(await repo.recordOutcome(streaked, 'finished', T1)).toEqual({
+      failedStreak: 0,
+      paused: false,
+      excluded: false,
+    });
     for (const streak of [1, 2, 3]) {
-      expect(await repo.recordOutcome(streaked, 'failed', T1, streakAudit)).toEqual({ failedStreak: streak, paused: false, excluded: false });
+      expect(await repo.recordOutcome(streaked, 'failed', T1, streakAudit)).toEqual({
+        failedStreak: streak,
+        paused: false,
+        excluded: false,
+      });
     }
     expect(await repo.get(streaked)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
     expect(await pausedCount(streaked)).toBe(1);
@@ -644,14 +890,23 @@ describe('TeamStateRepo.recordOutcome', () => {
       reason,
       runnerId,
       accountId,
-      audit: { ...audit('job.streak-excluded', accountId), actorKind: 'runner' as const, actor: runnerId, target: `job-${runnerId}` },
+      audit: {
+        ...audit('job.streak-excluded', accountId),
+        actorKind: 'runner' as const,
+        actor: runnerId,
+        target: `job-${runnerId}`,
+      },
     });
     const pauseRunner = async (runnerId: string, until: string): Promise<void> => {
-      await env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = 'usage-limit' WHERE id = ?1`).bind(runnerId, until).run();
+      await env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = 'usage-limit' WHERE id = ?1`)
+        .bind(runnerId, until)
+        .run();
     };
     const excludedCount = async (runnerId: string): Promise<number | undefined> =>
       (
-        await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1`)
+        await env.DB.prepare(
+          `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1`,
+        )
           .bind(runnerId)
           .first<{ n: number }>()
       )?.n;
@@ -662,8 +917,16 @@ describe('TeamStateRepo.recordOutcome', () => {
       await pauseRunner(paused, PAUSED_UNTIL);
       const repo = new TeamStateRepo(env.DB);
       const pauseAudit = { ...audit('team.paused'), target: slug };
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 1, paused: false, excluded: false });
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({ failedStreak: 2, paused: false, excluded: false });
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+        failedStreak: 1,
+        paused: false,
+        excluded: false,
+      });
+      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit)).toEqual({
+        failedStreak: 2,
+        paused: false,
+        excluded: false,
+      });
       for (const reason of ['usage-limit', 'rate-limit', 'usage-limit']) {
         expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(paused, reason))).toEqual({
           failedStreak: 2,
@@ -683,12 +946,16 @@ describe('TeamStateRepo.recordOutcome', () => {
 
       // A limit does not reset a streak either, and a fresh project gets no row from one.
       const fresh = await project(ACCOUNT_A);
-      expect(await repo.recordOutcome(fresh, 'failed', T0, undefined, limitOf(paused, 'rate-limit'))).toEqual({
-        failedStreak: 0,
-        paused: false,
-        excluded: true,
-      });
-      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM team_state WHERE project_slug = ?1`).bind(fresh).first<{ n: number }>();
+      expect(await repo.recordOutcome(fresh, 'failed', T0, undefined, limitOf(paused, 'rate-limit'))).toEqual(
+        {
+          failedStreak: 0,
+          paused: false,
+          excluded: true,
+        },
+      );
+      const row = await env.DB.prepare(`SELECT COUNT(*) AS n FROM team_state WHERE project_slug = ?1`)
+        .bind(fresh)
+        .first<{ n: number }>();
       expect(row?.n).toBe(0);
     });
 
@@ -697,21 +964,28 @@ describe('TeamStateRepo.recordOutcome', () => {
       const unpaused = await runner(ACCOUNT_A, [slug]);
       const repo = new TeamStateRepo(env.DB);
       const pauseAudit = { ...audit('team.paused'), target: slug };
-      for (const [streak, reason] of [[1, 'usage-limit'], [2, 'rate-limit']] as const) {
+      for (const [streak, reason] of [
+        [1, 'usage-limit'],
+        [2, 'rate-limit'],
+      ] as const) {
         expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(unpaused, reason))).toEqual({
           failedStreak: streak,
           paused: false,
           excluded: false,
         });
       }
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(unpaused, 'usage-limit'))).toEqual({
+      expect(
+        await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(unpaused, 'usage-limit')),
+      ).toEqual({
         failedStreak: 3,
         paused: true,
         excluded: false,
       });
       expect(await repo.get(slug)).toMatchObject({ pausedAt: T0, pausedBy: FAILURE_STREAK_PAUSER });
       expect(await excludedCount(unpaused)).toBe(0);
-      const pauses = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`)
+      const pauses = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'team.paused' AND target = ?1`,
+      )
         .bind(slug)
         .first<{ n: number }>();
       expect(pauses?.n).toBe(1);
@@ -727,24 +1001,34 @@ describe('TeamStateRepo.recordOutcome', () => {
       const repo = new TeamStateRepo(env.DB);
       const pauseAudit = { ...audit('team.paused'), target: slug };
       for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
-        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toMatchObject({ excluded: true });
+        expect(
+          await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit')),
+        ).toMatchObject({ excluded: true });
       }
       expect(await excludedCount(rogue)).toBe(RUNNER_EXCLUSION_BUDGET);
       // Past the budget the failures count, and the third in a row pauses the project.
       for (const streak of [1, 2]) {
-        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toEqual({
+        expect(
+          await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit')),
+        ).toEqual({
           failedStreak: streak,
           paused: false,
           excluded: false,
         });
       }
-      expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit'))).toMatchObject({ failedStreak: 3, paused: true });
+      expect(
+        await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(rogue, 'usage-limit')),
+      ).toMatchObject({ failedStreak: 3, paused: true });
       expect(await excludedCount(rogue)).toBe(RUNNER_EXCLUSION_BUDGET);
 
       // The runner's budget follows it to another project; a well-behaved runner there is still excluded.
       const elsewhere = await project(ACCOUNT_A);
-      expect(await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(rogue, 'usage-limit'))).toMatchObject({ failedStreak: 1, excluded: false });
-      expect(await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(other, 'rate-limit'))).toMatchObject({ failedStreak: 1, excluded: true });
+      expect(
+        await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(rogue, 'usage-limit')),
+      ).toMatchObject({ failedStreak: 1, excluded: false });
+      expect(
+        await repo.recordOutcome(elsewhere, 'failed', T0, undefined, limitOf(other, 'rate-limit')),
+      ).toMatchObject({ failedStreak: 1, excluded: true });
     });
 
     // #701, #705: the project's budget, and both budgets sized from concurrency.
@@ -782,31 +1066,53 @@ describe('TeamStateRepo.recordOutcome', () => {
         // #669: every Actions job brings a fresh runner id, so a per-runner count alone never fills up.
         const ephemeral = async (): Promise<string> => {
           const id = await pausedRunner(ACCOUNT_A, slug);
-          await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral', capabilities = ?2 WHERE id = ?1`)
+          await env.DB.prepare(
+            `UPDATE runners SET isolation = 'actions-ephemeral', capabilities = ?2 WHERE id = ?1`,
+          )
             .bind(id, JSON.stringify({ local: false, maxConcurrency: 1 }))
             .run();
           return id;
         };
         for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
-          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'usage-limit'))).toMatchObject({
+          expect(
+            await repo.recordOutcome(
+              slug,
+              'failed',
+              T0,
+              pauseAudit,
+              limitOf(await ephemeral(), 'usage-limit'),
+            ),
+          ).toMatchObject({
             excluded: true,
           });
         }
         for (const streak of [1, 2]) {
-          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'usage-limit'))).toEqual({
+          expect(
+            await repo.recordOutcome(
+              slug,
+              'failed',
+              T0,
+              pauseAudit,
+              limitOf(await ephemeral(), 'usage-limit'),
+            ),
+          ).toEqual({
             failedStreak: streak,
             paused: false,
             excluded: false,
           });
         }
-        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'rate-limit'))).toMatchObject({
+        expect(
+          await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(await ephemeral(), 'rate-limit')),
+        ).toMatchObject({
           failedStreak: 3,
           paused: true,
         });
         expect(await projectExcluded(slug)).toBe(RUNNER_EXCLUSION_BUDGET);
         // Another project of the account keeps its own budget.
         const other = await project(ACCOUNT_A);
-        expect(await repo.recordOutcome(other, 'failed', T0, undefined, limitOf(await ephemeral(), 'usage-limit'))).toMatchObject({
+        expect(
+          await repo.recordOutcome(other, 'failed', T0, undefined, limitOf(await ephemeral(), 'usage-limit')),
+        ).toMatchObject({
           failedStreak: 0,
           excluded: true,
         });
@@ -814,12 +1120,18 @@ describe('TeamStateRepo.recordOutcome', () => {
 
       it('gives several runners on one project one budget between them, not one each', async () => {
         const slug = await project(ACCOUNT_A);
-        const runners = [await pausedRunner(ACCOUNT_A, slug), await pausedRunner(ACCOUNT_A, slug), await pausedRunner(ACCOUNT_A, slug)];
+        const runners = [
+          await pausedRunner(ACCOUNT_A, slug),
+          await pausedRunner(ACCOUNT_A, slug),
+          await pausedRunner(ACCOUNT_A, slug),
+        ];
         const repo = new TeamStateRepo(env.DB);
         const outcomes = [];
         for (let round = 0; round < 3; round += 1) {
           for (const id of runners) {
-            outcomes.push((await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(id, 'usage-limit'))).excluded);
+            outcomes.push(
+              (await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(id, 'usage-limit'))).excluded,
+            );
           }
         }
         expect(outcomes.filter(Boolean)).toHaveLength(RUNNER_EXCLUSION_BUDGET);
@@ -834,7 +1146,10 @@ describe('TeamStateRepo.recordOutcome', () => {
         const id = await pausedRunner(ACCOUNT_A, slug);
         const claim = limitOf(id, 'usage-limit');
         const repo = new TeamStateRepo(env.DB);
-        await repo.recordOutcome(slug, 'failed', T0, undefined, { ...claim, audit: { ...claim.audit, details: { slug: 'elsewhere' } } });
+        await repo.recordOutcome(slug, 'failed', T0, undefined, {
+          ...claim,
+          audit: { ...claim.audit, details: { slug: 'elsewhere' } },
+        });
         expect(await projectExcluded(slug)).toBe(1);
         expect(await projectExcluded('elsewhere')).toBe(0);
       });
@@ -848,13 +1163,17 @@ describe('TeamStateRepo.recordOutcome', () => {
         const pauseAudit = { ...audit('team.paused', accountId), target: slug };
         // A runner holding `concurrency` jobs hits its quota: every one of them is left out, nothing pauses.
         for (let i = 0; i < concurrency; i += 1) {
-          expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId))).toEqual({
+          expect(
+            await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId)),
+          ).toEqual({
             failedStreak: 0,
             paused: false,
             excluded: true,
           });
         }
-        expect(await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId))).toMatchObject({
+        expect(
+          await repo.recordOutcome(slug, 'failed', T0, pauseAudit, limitOf(wide, 'usage-limit', accountId)),
+        ).toMatchObject({
           failedStreak: 1,
           excluded: false,
         });
@@ -863,13 +1182,17 @@ describe('TeamStateRepo.recordOutcome', () => {
         const spread = await project(accountId);
         for (let i = 0; i < concurrency; i += 1) {
           const id = await pausedRunner(accountId, spread);
-          expect(await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(id, 'rate-limit', accountId))).toMatchObject({
+          expect(
+            await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(id, 'rate-limit', accountId)),
+          ).toMatchObject({
             failedStreak: 0,
             excluded: true,
           });
         }
         const extra = await pausedRunner(accountId, spread);
-        expect(await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(extra, 'rate-limit', accountId))).toMatchObject({
+        expect(
+          await repo.recordOutcome(spread, 'failed', T0, undefined, limitOf(extra, 'rate-limit', accountId)),
+        ).toMatchObject({
           failedStreak: 1,
           excluded: false,
         });
@@ -881,9 +1204,13 @@ describe('TeamStateRepo.recordOutcome', () => {
         const overDeclared = await pausedRunner(ACCOUNT_A, slug, RUNNER_EXCLUSION_BUDGET + 3);
         const repo = new TeamStateRepo(env.DB);
         for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
-          expect(await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit'))).toMatchObject({ excluded: true });
+          expect(
+            await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit')),
+          ).toMatchObject({ excluded: true });
         }
-        expect(await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit'))).toMatchObject({
+        expect(
+          await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(overDeclared, 'usage-limit')),
+        ).toMatchObject({
           failedStreak: 1,
           excluded: false,
         });
@@ -894,7 +1221,9 @@ describe('TeamStateRepo.recordOutcome', () => {
         for (let i = 0; i < RUNNER_EXCLUSION_BUDGET; i += 1) {
           await repo.recordOutcome(roomy, 'failed', T0, undefined, limitOf(narrow, 'usage-limit', accountId));
         }
-        expect(await repo.recordOutcome(roomy, 'failed', T0, undefined, limitOf(narrow, 'usage-limit', accountId))).toMatchObject({
+        expect(
+          await repo.recordOutcome(roomy, 'failed', T0, undefined, limitOf(narrow, 'usage-limit', accountId)),
+        ).toMatchObject({
           excluded: false,
         });
       });
@@ -909,7 +1238,9 @@ describe('TeamStateRepo.recordOutcome', () => {
         await repo.recordOutcome(slug, 'failed', T0, undefined, limitOf(runnerId, 'usage-limit'));
       }
       const later = new Date(Date.parse(T0) + RUNNER_EXCLUSION_WINDOW_MS + 1000).toISOString();
-      expect(await repo.recordOutcome(slug, 'failed', later, undefined, limitOf(runnerId, 'usage-limit'))).toMatchObject({ excluded: true });
+      expect(
+        await repo.recordOutcome(slug, 'failed', later, undefined, limitOf(runnerId, 'usage-limit')),
+      ).toMatchObject({ excluded: true });
     });
 
     it('takes a pause that lapsed inside the grace window, not one older, another runner’s, or one in another account', async () => {
@@ -918,11 +1249,15 @@ describe('TeamStateRepo.recordOutcome', () => {
       // T1 is five minutes after T0: a minute's lapse is inside the grace window, ten minutes' is not.
       const lapsedJustNow = await runner(ACCOUNT_A, [slug]);
       await pauseRunner(lapsedJustNow, '2026-11-10T10:04:00.000Z');
-      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedJustNow, 'usage-limit'))).toMatchObject({ excluded: true });
+      expect(
+        await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedJustNow, 'usage-limit')),
+      ).toMatchObject({ excluded: true });
 
       const lapsedLongAgo = await runner(ACCOUNT_A, [slug]);
       await pauseRunner(lapsedLongAgo, '2026-11-10T09:55:00.000Z');
-      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedLongAgo, 'usage-limit'))).toEqual({
+      expect(
+        await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(lapsedLongAgo, 'usage-limit')),
+      ).toEqual({
         failedStreak: 1,
         paused: false,
         excluded: false,
@@ -932,8 +1267,18 @@ describe('TeamStateRepo.recordOutcome', () => {
       const unpaused = await runner(ACCOUNT_A, [slug]);
       const otherAccount = await runner(ACCOUNT_B, []);
       await pauseRunner(otherAccount, PAUSED_UNTIL);
-      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(unpaused, 'rate-limit'))).toMatchObject({ failedStreak: 2, excluded: false });
-      expect(await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(otherAccount, 'rate-limit', ACCOUNT_A))).toMatchObject({
+      expect(
+        await repo.recordOutcome(slug, 'failed', T1, undefined, limitOf(unpaused, 'rate-limit')),
+      ).toMatchObject({ failedStreak: 2, excluded: false });
+      expect(
+        await repo.recordOutcome(
+          slug,
+          'failed',
+          T1,
+          undefined,
+          limitOf(otherAccount, 'rate-limit', ACCOUNT_A),
+        ),
+      ).toMatchObject({
         failedStreak: 3,
         excluded: false,
       });
@@ -948,8 +1293,18 @@ describe('TeamStateRepo.recordOutcome', () => {
     const r = await runner(ACCOUNT_A, [kept, lost]);
     const id = await enqueue(lost);
     await claimAs(r, { tokenHash: '7'.repeat(64) });
-    await new RunnersRepo(env.DB).setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', audit('runner.scope-changed'), jobs.cancelUnservedStatements(r, T1));
-    expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
+    await new RunnersRepo(env.DB).setScope(
+      ACCOUNT_A,
+      r,
+      { projectScope: 'selected', allowedProjects: [kept] },
+      'owner',
+      audit('runner.scope-changed'),
+      jobs.cancelUnservedStatements(r, T1),
+    );
+    expect(await jobs.findById(id)).toMatchObject({
+      state: 'cancelled',
+      result: { reason: 'runner-allow-list' },
+    });
   });
 
   // R-SCOPE-5: `all → selected` is a narrowing like any other; the cancel rides in the same batch.
@@ -961,8 +1316,20 @@ describe('TeamStateRepo.recordOutcome', () => {
     expect(((await claimAs(r, { tokenHash: tok(60) })) as { id: string }).id).toBe(id);
     const runners = new RunnersRepo(env.DB);
     const narrowed = { projectScope: 'selected' as const, allowedProjects: [kept] };
-    expect(await runners.setScope(ACCOUNT_A, r, narrowed, 'owner', { ...audit('runner.scope-changed'), target: r }, jobs.cancelUnservedStatements(r, T1))).toBe('changed');
-    expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
+    expect(
+      await runners.setScope(
+        ACCOUNT_A,
+        r,
+        narrowed,
+        'owner',
+        { ...audit('runner.scope-changed'), target: r },
+        jobs.cancelUnservedStatements(r, T1),
+      ),
+    ).toBe('changed');
+    expect(await jobs.findById(id)).toMatchObject({
+      state: 'cancelled',
+      result: { reason: 'runner-allow-list' },
+    });
   });
 
   it('cancels nothing when the allow-list write changed nothing', async () => {
@@ -975,7 +1342,16 @@ describe('TeamStateRepo.recordOutcome', () => {
     await allow(r, [kept]);
     const runners = new RunnersRepo(env.DB);
     const same = { ...audit('runner.scope-changed'), target: r };
-    expect(await runners.setScope(ACCOUNT_A, r, { projectScope: 'selected', allowedProjects: [kept] }, 'owner', same, jobs.cancelUnservedStatements(r, T1))).toBe('unchanged');
+    expect(
+      await runners.setScope(
+        ACCOUNT_A,
+        r,
+        { projectScope: 'selected', allowedProjects: [kept] },
+        'owner',
+        same,
+        jobs.cancelUnservedStatements(r, T1),
+      ),
+    ).toBe('unchanged');
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
   });
 
@@ -984,9 +1360,18 @@ describe('TeamStateRepo.recordOutcome', () => {
     const r = await runner(ACCOUNT_A, [slug]);
     const id = await enqueue(slug);
     await claimAs(r, { tokenHash: '0f'.repeat(32) });
-    const won = await new RunnersRepo(env.DB).revoke(ACCOUNT_A, r, T1, { ...audit('runner.revoked'), target: r }, jobs.cancelForRunnerStatements(r, T1));
+    const won = await new RunnersRepo(env.DB).revoke(
+      ACCOUNT_A,
+      r,
+      T1,
+      { ...audit('runner.revoked'), target: r },
+      jobs.cancelForRunnerStatements(r, T1),
+    );
     expect(won).toBe(true);
-    expect(await jobs.findById(id)).toMatchObject({ state: 'cancelled', result: { reason: 'runner-revoked' } });
+    expect(await jobs.findById(id)).toMatchObject({
+      state: 'cancelled',
+      result: { reason: 'runner-revoked' },
+    });
   });
 
   it('cancels nothing for a revoke that lost the race', async () => {
@@ -1000,7 +1385,9 @@ describe('TeamStateRepo.recordOutcome', () => {
     expect(await runners.revoke(ACCOUNT_A, r, T0, revokeAudit)).toBe(true);
 
     // The loser's revoke finds the runner revoked; the job it still holds must stay untouched.
-    expect(await runners.revoke(ACCOUNT_A, r, T1, revokeAudit, jobs.cancelForRunnerStatements(r, T1))).toBe(false);
+    expect(await runners.revoke(ACCOUNT_A, r, T1, revokeAudit, jobs.cancelForRunnerStatements(r, T1))).toBe(
+      false,
+    );
     expect(await jobs.findById(id)).toMatchObject({ state: 'claimed' });
   });
 });
@@ -1037,7 +1424,10 @@ describe('JobsRepo.enqueueAll', () => {
       .bind(qa.id, security.id)
       .first<{ n: number }>();
     expect(audits?.n).toBe(2);
-    const live = await jobs.findLiveByDedupeKeys(slug, [qa.dedupeKey ?? '', `${slug}:review:7:${HEAD}:reviewer`]);
+    const live = await jobs.findLiveByDedupeKeys(slug, [
+      qa.dedupeKey ?? '',
+      `${slug}:review:7:${HEAD}:reviewer`,
+    ]);
     expect(live.map((job) => job.id)).toEqual([qa.id]);
   });
 
@@ -1061,7 +1451,9 @@ describe('JobsRepo.enqueueAll', () => {
     // The NULL account trips the account trigger before NOT NULL; either way the batch fails as a whole.
     await expect(jobs.enqueueAll([entry(qa)], hold)).rejects.toThrow(/jobs\.account_id/);
     expect(await jobs.findById(qa.id)).toBeNull();
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`).bind(qa.id).first<{ n: number }>();
+    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE target = ?1`)
+      .bind(qa.id)
+      .first<{ n: number }>();
     expect(audits?.n).toBe(0);
   });
 
@@ -1096,7 +1488,11 @@ describe('RunnersRepo.availabilityOf agrees with the claim', () => {
   async function account(): Promise<string> {
     accounts += 1;
     const id = `01M6YSNJ00000000000000AV${String(accounts).padStart(2, '0')}`;
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, ?2, 'AV', '{"max_concurrency":32}', ?3)`).bind(id, `jb-av-${String(accounts)}`, T0).run();
+    await env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, entitlements, created_at) VALUES (?1, ?2, 'AV', '{"max_concurrency":32}', ?3)`,
+    )
+      .bind(id, `jb-av-${String(accounts)}`, T0)
+      .run();
     return id;
   }
 
@@ -1110,135 +1506,277 @@ describe('RunnersRepo.availabilityOf agrees with the claim', () => {
     let isClaimed = false;
     for (const r of c.runners.filter((candidate) => candidate.isOnline)) {
       tokens += 1;
-      const job = await claimAs(r.id, { accountId: c.accountId, tokenHash: `a7a11${tokens.toString(16)}`.padEnd(64, '0') });
+      const job = await claimAs(r.id, {
+        accountId: c.accountId,
+        tokenHash: `a7a11${tokens.toString(16)}`.padEnd(64, '0'),
+      });
       isClaimed ||= job !== null;
     }
     return isClaimed;
   }
 
-  const cases: readonly (readonly [string, 'ready' | 'paused' | 'offline' | 'none', () => Promise<Case>])[] = [
-    ['no runner at all', 'none', async () => {
-      const accountId = await account();
-      return { accountId, slug: await project(accountId), runners: [] };
-    }],
-    ['a selected runner that does not list the project', 'none', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      return { accountId, slug, runners: [await seen(await runner(accountId, ['elsewhere']), T1)] };
-    }],
-    ['a selected runner that lists it, online', 'ready', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), T1)] };
-    }],
-    ['an all runner, online', 'ready', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      return { accountId, slug, runners: [await seen(await runner(accountId, 'all'), T1)] };
-    }],
-    ['the only eligible runner silent past the online window', 'offline', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), SILENT)] };
-    }],
-    ['the only eligible runner never seen', 'offline', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), null)] };
-    }],
-    ['the only eligible runner online but paused', 'paused', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      const r = await seen(await runner(accountId, [slug]), T1);
-      await env.DB.prepare(`UPDATE runners SET paused_until = '2026-11-10T12:00:00.000Z', pause_reason = 'usage-limit' WHERE id = ?1`).bind(r.id).run();
-      return { accountId, slug, runners: [r] };
-    }],
-    ['a pause that has already ended', 'ready', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      const r = await seen(await runner(accountId, [slug]), T1);
-      await env.DB.prepare(`UPDATE runners SET paused_until = ?2, pause_reason = 'rate-limit' WHERE id = ?1`).bind(r.id, T0).run();
-      return { accountId, slug, runners: [r] };
-    }],
-    ['a revoked runner', 'none', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      const r = await seen(await runner(accountId, [slug]), T1);
-      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(r.id, T0).run();
-      return { accountId, slug, runners: [r] };
-    }],
-    ['an all runner of another account', 'none', async () => {
-      const accountId = await account();
-      const other = await account();
-      const slug = await project(accountId);
-      await seen(await runner(other, 'all'), T1);
-      return { accountId, slug, runners: [] };
-    }],
-    ['a project pinned to another runner, which is silent', 'offline', async () => {
-      const accountId = await account();
-      const pinned = await seen(await runner(accountId, 'all'), SILENT);
-      const slug = await project(accountId, JSON.stringify({ mode: 'pinned', runner: pinned.id }));
-      return { accountId, slug, runners: [pinned, await seen(await runner(accountId, 'all'), T1)] };
-    }],
-    // `policyAdmitsRunnerSql` alone would admit the fallback here; the claim waits out `offline_after_seconds`.
-    ['failover: the preferred silent for less than offline_after_seconds, the fallback online', 'offline', async () => {
-      const accountId = await account();
-      const preferred = await seen(await runner(accountId, 'all'), SILENT);
-      const fallback = await seen(await runner(accountId, 'all'), T1);
-      const policy = { mode: 'failover', preferred: preferred.id, fallback: [fallback.id], offline_after_seconds: 3600 };
-      return { accountId, slug: await project(accountId, JSON.stringify(policy)), runners: [preferred, fallback] };
-    }],
-    ['failover: the preferred silent past offline_after_seconds, the fallback online', 'ready', async () => {
-      const accountId = await account();
-      const preferred = await seen(await runner(accountId, 'all'), SILENT);
-      const fallback = await seen(await runner(accountId, 'all'), T1);
-      const policy = { mode: 'failover', preferred: preferred.id, fallback: [fallback.id], offline_after_seconds: 60 };
-      return { accountId, slug: await project(accountId, JSON.stringify(policy)), runners: [preferred, fallback] };
-    }],
-    ['a runner declaring only api_key on a subscription project', 'none', async () => {
-      const accountId = await account();
-      const slug = await projectBy(accountId, null, 'subscription');
-      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1)] };
-    }],
-    ['a hosted runner on a subscription project (C12 row 6)', 'none', async () => {
-      const accountId = await account();
-      const slug = await projectBy(accountId, null, 'subscription');
-      const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
-      return { accountId, slug, runners: [r] };
-    }],
-    ['a hosted runner on an api_key project', 'ready', async () => {
-      const accountId = await account();
-      const slug = await projectBy(accountId, null, 'api_key');
-      const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
-      return { accountId, slug, runners: [r] };
-    }],
-    ['D3: two owners, a subscription all runner, another owner’s project', 'none', async () => {
-      const accountId = await account();
-      await owners(accountId, 2);
-      const slug = await projectBy(accountId, 'owner-2');
-      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1)] };
-    }],
-    ['D3: two owners, a subscription all runner, its enroller’s project', 'ready', async () => {
-      const accountId = await account();
-      await owners(accountId, 2);
-      const slug = await projectBy(accountId, 'owner-1');
-      return { accountId, slug, runners: [await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1)] };
-    }],
-    ['a suspended account', 'none', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      const r = await seen(await runner(accountId, [slug]), T1);
-      await env.DB.prepare(`UPDATE accounts SET suspended_at = ?2 WHERE id = ?1`).bind(accountId, T0).run();
-      return { accountId, slug, runners: [r] };
-    }],
-    ['an archived project', 'none', async () => {
-      const accountId = await account();
-      const slug = await project(accountId);
-      const r = await seen(await runner(accountId, [slug]), T1);
-      await env.DB.prepare(`UPDATE projects SET archived_at = ?2 WHERE slug = ?1`).bind(slug, T0).run();
-      return { accountId, slug, runners: [r] };
-    }],
-  ];
+  const cases: readonly (readonly [string, 'ready' | 'paused' | 'offline' | 'none', () => Promise<Case>])[] =
+    [
+      [
+        'no runner at all',
+        'none',
+        async () => {
+          const accountId = await account();
+          return { accountId, slug: await project(accountId), runners: [] };
+        },
+      ],
+      [
+        'a selected runner that does not list the project',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          return { accountId, slug, runners: [await seen(await runner(accountId, ['elsewhere']), T1)] };
+        },
+      ],
+      [
+        'a selected runner that lists it, online',
+        'ready',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), T1)] };
+        },
+      ],
+      [
+        'an all runner, online',
+        'ready',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          return { accountId, slug, runners: [await seen(await runner(accountId, 'all'), T1)] };
+        },
+      ],
+      [
+        'the only eligible runner silent past the online window',
+        'offline',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), SILENT)] };
+        },
+      ],
+      [
+        'the only eligible runner never seen',
+        'offline',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          return { accountId, slug, runners: [await seen(await runner(accountId, [slug]), null)] };
+        },
+      ],
+      [
+        'the only eligible runner online but paused',
+        'paused',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          const r = await seen(await runner(accountId, [slug]), T1);
+          await env.DB.prepare(
+            `UPDATE runners SET paused_until = '2026-11-10T12:00:00.000Z', pause_reason = 'usage-limit' WHERE id = ?1`,
+          )
+            .bind(r.id)
+            .run();
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'a pause that has already ended',
+        'ready',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          const r = await seen(await runner(accountId, [slug]), T1);
+          await env.DB.prepare(
+            `UPDATE runners SET paused_until = ?2, pause_reason = 'rate-limit' WHERE id = ?1`,
+          )
+            .bind(r.id, T0)
+            .run();
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'a revoked runner',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          const r = await seen(await runner(accountId, [slug]), T1);
+          await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(r.id, T0).run();
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'an all runner of another account',
+        'none',
+        async () => {
+          const accountId = await account();
+          const other = await account();
+          const slug = await project(accountId);
+          await seen(await runner(other, 'all'), T1);
+          return { accountId, slug, runners: [] };
+        },
+      ],
+      [
+        'a project pinned to another runner, which is silent',
+        'offline',
+        async () => {
+          const accountId = await account();
+          const pinned = await seen(await runner(accountId, 'all'), SILENT);
+          const slug = await project(accountId, JSON.stringify({ mode: 'pinned', runner: pinned.id }));
+          return { accountId, slug, runners: [pinned, await seen(await runner(accountId, 'all'), T1)] };
+        },
+      ],
+      // `policyAdmitsRunnerSql` alone would admit the fallback here; the claim waits out `offline_after_seconds`.
+      [
+        'failover: the preferred silent for less than offline_after_seconds, the fallback online',
+        'offline',
+        async () => {
+          const accountId = await account();
+          const preferred = await seen(await runner(accountId, 'all'), SILENT);
+          const fallback = await seen(await runner(accountId, 'all'), T1);
+          const policy = {
+            mode: 'failover',
+            preferred: preferred.id,
+            fallback: [fallback.id],
+            offline_after_seconds: 3600,
+          };
+          return {
+            accountId,
+            slug: await project(accountId, JSON.stringify(policy)),
+            runners: [preferred, fallback],
+          };
+        },
+      ],
+      [
+        'failover: the preferred silent past offline_after_seconds, the fallback online',
+        'ready',
+        async () => {
+          const accountId = await account();
+          const preferred = await seen(await runner(accountId, 'all'), SILENT);
+          const fallback = await seen(await runner(accountId, 'all'), T1);
+          const policy = {
+            mode: 'failover',
+            preferred: preferred.id,
+            fallback: [fallback.id],
+            offline_after_seconds: 60,
+          };
+          return {
+            accountId,
+            slug: await project(accountId, JSON.stringify(policy)),
+            runners: [preferred, fallback],
+          };
+        },
+      ],
+      [
+        'a runner declaring only api_key on a subscription project',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await projectBy(accountId, null, 'subscription');
+          return {
+            accountId,
+            slug,
+            runners: [
+              await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1),
+            ],
+          };
+        },
+      ],
+      [
+        'a hosted runner on a subscription project (C12 row 6)',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await projectBy(accountId, null, 'subscription');
+          const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'a hosted runner on an api_key project',
+        'ready',
+        async () => {
+          const accountId = await account();
+          const slug = await projectBy(accountId, null, 'api_key');
+          const r = await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'D3: two owners, a subscription all runner, another owner’s project',
+        'none',
+        async () => {
+          const accountId = await account();
+          await owners(accountId, 2);
+          const slug = await projectBy(accountId, 'owner-2');
+          return {
+            accountId,
+            slug,
+            runners: [
+              await seen(
+                await runner(accountId, 'all', null, 8, {
+                  enrolledBy: 'owner-1',
+                  accessSources: ['subscription'],
+                }),
+                T1,
+              ),
+            ],
+          };
+        },
+      ],
+      [
+        'D3: two owners, a subscription all runner, its enroller’s project',
+        'ready',
+        async () => {
+          const accountId = await account();
+          await owners(accountId, 2);
+          const slug = await projectBy(accountId, 'owner-1');
+          return {
+            accountId,
+            slug,
+            runners: [
+              await seen(
+                await runner(accountId, 'all', null, 8, {
+                  enrolledBy: 'owner-1',
+                  accessSources: ['subscription'],
+                }),
+                T1,
+              ),
+            ],
+          };
+        },
+      ],
+      [
+        'a suspended account',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          const r = await seen(await runner(accountId, [slug]), T1);
+          await env.DB.prepare(`UPDATE accounts SET suspended_at = ?2 WHERE id = ?1`)
+            .bind(accountId, T0)
+            .run();
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+      [
+        'an archived project',
+        'none',
+        async () => {
+          const accountId = await account();
+          const slug = await project(accountId);
+          const r = await seen(await runner(accountId, [slug]), T1);
+          await env.DB.prepare(`UPDATE projects SET archived_at = ?2 WHERE slug = ?1`).bind(slug, T0).run();
+          return { accountId, slug, runners: [r] };
+        },
+      ],
+    ];
 
   it.each(cases)('%s: %s', async (_name, expected, seed) => {
     const c = await seed();
@@ -1268,32 +1806,56 @@ describe('RunnersRepo.availabilityOf agrees with the claim', () => {
   // SECURITY review of #804: the owner's reason for `none`, from the same terms with one turned around.
   it.each([
     ['no runner at all', 'no-runner', async (accountId: string) => project(accountId)],
-    ['a runner whose access sources do not fit', 'access-mismatch', async (accountId: string) => {
-      const slug = await projectBy(accountId, null, 'subscription');
-      await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1);
-      return slug;
-    }],
-    ['a hosted runner on a subscription project', 'access-mismatch', async (accountId: string) => {
-      const slug = await projectBy(accountId, null, 'subscription');
-      await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
-      return slug;
-    }],
-    ['D3 holding back the only subscription runner', 'other-owner-subscription', async (accountId: string) => {
-      await owners(accountId, 2);
-      const slug = await projectBy(accountId, 'owner-2');
-      await seen(await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }), T1);
-      return slug;
-    }],
-    ['D3 runner pinned away from the project', 'no-runner', async (accountId: string) => {
-      await owners(accountId, 2);
-      const elsewhere = await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1' });
-      const d3 = await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] });
-      const slug = await projectBy(accountId, 'owner-2');
-      await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(slug, JSON.stringify({ mode: 'pinned', runner: elsewhere })).run();
-      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(elsewhere, T0).run();
-      expect(d3).not.toBe(elsewhere);
-      return slug;
-    }],
+    [
+      'a runner whose access sources do not fit',
+      'access-mismatch',
+      async (accountId: string) => {
+        const slug = await projectBy(accountId, null, 'subscription');
+        await seen(await runner(accountId, 'all', null, 8, { accessSources: ['api_key'] }), T1);
+        return slug;
+      },
+    ],
+    [
+      'a hosted runner on a subscription project',
+      'access-mismatch',
+      async (accountId: string) => {
+        const slug = await projectBy(accountId, null, 'subscription');
+        await seen(await runner(accountId, [slug], null, 8, { hosted: true }), T1);
+        return slug;
+      },
+    ],
+    [
+      'D3 holding back the only subscription runner',
+      'other-owner-subscription',
+      async (accountId: string) => {
+        await owners(accountId, 2);
+        const slug = await projectBy(accountId, 'owner-2');
+        await seen(
+          await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1', accessSources: ['subscription'] }),
+          T1,
+        );
+        return slug;
+      },
+    ],
+    [
+      'D3 runner pinned away from the project',
+      'no-runner',
+      async (accountId: string) => {
+        await owners(accountId, 2);
+        const elsewhere = await runner(accountId, 'all', null, 8, { enrolledBy: 'owner-1' });
+        const d3 = await runner(accountId, 'all', null, 8, {
+          enrolledBy: 'owner-1',
+          accessSources: ['subscription'],
+        });
+        const slug = await projectBy(accountId, 'owner-2');
+        await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`)
+          .bind(slug, JSON.stringify({ mode: 'pinned', runner: elsewhere }))
+          .run();
+        await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(elsewhere, T0).run();
+        expect(d3).not.toBe(elsewhere);
+        return slug;
+      },
+    ],
   ] as const)('none because of %s: %s', async (_name, reason, seed) => {
     const accountId = await account();
     const slug = await seed(accountId);

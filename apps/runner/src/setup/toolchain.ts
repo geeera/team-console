@@ -101,7 +101,11 @@ export async function runsAsJobUser(host: ToolchainHost, path: string): Promise<
 }
 
 /** Judges one candidate; `null` when it does not exist (not a refusal: most candidates are simply absent). */
-export async function judgeCandidate(host: ToolchainHost, tool: Tool, path: string): Promise<AcceptedTool | string | null> {
+export async function judgeCandidate(
+  host: ToolchainHost,
+  tool: Tool,
+  path: string,
+): Promise<AcceptedTool | string | null> {
   const real = await host.realpath(path);
   if (real === null) {
     return null;
@@ -109,7 +113,7 @@ export async function judgeCandidate(host: ToolchainHost, tool: Tool, path: stri
   if (USER_HOMES.test(path) || USER_HOMES.test(real)) {
     return `${path}: under a user's home, which the job user cannot reach and its owner can change${
       tool === 'claude'
-        ? '; install Claude Code system-wide instead (Homebrew: brew install --cask claude-code, or npm install -g @anthropic-ai/claude-code with Homebrew\'s node)'
+        ? "; install Claude Code system-wide instead (Homebrew: brew install --cask claude-code, or npm install -g @anthropic-ai/claude-code with Homebrew's node)"
         : ''
     }`;
   }

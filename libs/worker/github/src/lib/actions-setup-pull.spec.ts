@@ -43,10 +43,19 @@ const FIXTURES: MockFixtures = {
     ...MOCK_FIXTURES.repositories,
     [REPO]: {
       installationId: 2101,
-      repository: { id: REPO_ID, full_name: REPO, private: true, default_branch: 'main', owner: { login: 'acme', id: 300101 } },
+      repository: {
+        id: REPO_ID,
+        full_name: REPO,
+        private: true,
+        default_branch: 'main',
+        owner: { login: 'acme', id: 300101 },
+      },
       pulls: [
         // A fork's PR from a branch of the same name: the `<owner>:<branch>` head filter never matches it.
-        pull(6, { head: { ref: BRANCH, sha: OTHER_SHA, repo: repository(1, 'forker') }, user: { login: 'forker', type: 'User' } }),
+        pull(6, {
+          head: { ref: BRANCH, sha: OTHER_SHA, repo: repository(1, 'forker') },
+          user: { login: 'forker', type: 'User' },
+        }),
         pull(5, {}),
       ],
       pullFiles: { '5': [{ filename: RUNNER_WORKFLOW_PATH }] },
@@ -93,7 +102,9 @@ describe('readActionsSetupPull', () => {
   });
 
   it('answers null when no PR is open from the branch', async () => {
-    await expect(readActionsSetupPull(client, parseRepoName(REPO), 'team-console/runner-ffffffffffff')).resolves.toBeNull();
+    await expect(
+      readActionsSetupPull(client, parseRepoName(REPO), 'team-console/runner-ffffffffffff'),
+    ).resolves.toBeNull();
   });
 });
 
@@ -133,7 +144,10 @@ describe('readSetupBranches (#870)', () => {
       'not a ref',
       { ref: 'refs/heads/team-console/runner-ffffffffffff' },
     ]);
-    await expect(readSetupBranches(client, parseRepoName(REPO))).resolves.toEqual([BRANCH, 'team-console/runner-ffffffffffff']);
+    await expect(readSetupBranches(client, parseRepoName(REPO))).resolves.toEqual([
+      BRANCH,
+      'team-console/runner-ffffffffffff',
+    ]);
     expect(paths).toEqual([`GET /repos/${REPO}/git/matching-refs/heads/team-console/runner-`]);
   });
 
@@ -178,7 +192,9 @@ describe('judgePullProvenance', () => {
 
   it('is console only for the app’s bot, in the project’s repository, one commit with the rendering', () => {
     expect(judgePullProvenance(consoles, expected)).toBe('console');
-    expect(judgePullProvenance({ ...consoles, author: { login: BOT.toUpperCase(), type: 'Bot' } }, expected)).toBe('console');
+    expect(
+      judgePullProvenance({ ...consoles, author: { login: BOT.toUpperCase(), type: 'Bot' } }, expected),
+    ).toBe('console');
   });
 
   it.each<[string, Partial<ActionsSetupPull>]>([

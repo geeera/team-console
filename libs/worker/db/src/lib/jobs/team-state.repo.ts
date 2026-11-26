@@ -121,7 +121,9 @@ export class TeamStateRepo {
 
   async get(projectSlug: string): Promise<TeamStateRecord> {
     const row = await this.db
-      .prepare(`SELECT project_slug, paused_at, paused_by, failed_streak FROM team_state WHERE project_slug = ?1`)
+      .prepare(
+        `SELECT project_slug, paused_at, paused_by, failed_streak FROM team_state WHERE project_slug = ?1`,
+      )
       .bind(projectSlug)
       .first<TeamStateRow>();
     return row === null
@@ -195,7 +197,11 @@ export class TeamStateRepo {
     };
   }
 
-  private resumeStatements(projectSlug: string, now: string, audit: NewAuditEvent): readonly D1PreparedStatement[] {
+  private resumeStatements(
+    projectSlug: string,
+    now: string,
+    audit: NewAuditEvent,
+  ): readonly D1PreparedStatement[] {
     return auditedWrite(
       this.db,
       this.db
@@ -276,7 +282,9 @@ export class TeamStateRepo {
     const claim = failed && limit !== undefined && isRunnerLimitReason(limit.reason) ? limit : null;
     // Read only for a limit claim. A plan change between this read and the write is harmless: the counts stay inside it.
     const entitledConcurrency =
-      claim === null ? PLAN_ENTITLEMENTS.free.maxConcurrency : await this.entitledConcurrencyOf(claim.accountId);
+      claim === null
+        ? PLAN_ENTITLEMENTS.free.maxConcurrency
+        : await this.entitledConcurrencyOf(claim.accountId);
     // A NULL runner (no limit claimed) makes the held-pause guards pass, so the outcome counts as before.
     const heldPause = [
       claim?.runnerId ?? null,
@@ -299,7 +307,14 @@ export class TeamStateRepo {
              updated_at = ?4
            RETURNING failed_streak, paused_at, paused_by`,
         )
-        .bind(projectSlug, failed ? 1 : 0, TEAM_FAILURE_STREAK_PAUSE, now, FAILURE_STREAK_PAUSER, ...heldPause),
+        .bind(
+          projectSlug,
+          failed ? 1 : 0,
+          TEAM_FAILURE_STREAK_PAUSE,
+          now,
+          FAILURE_STREAK_PAUSER,
+          ...heldPause,
+        ),
     ];
     // In the same batch (#492), and only when this outcome is the one that paused: the same test as `paused` below.
     if (failed && pauseAudit !== undefined) {
@@ -314,7 +329,10 @@ export class TeamStateRepo {
     }
     if (claim !== null) {
       // The project budget counts `details.slug`, so the repo writes it rather than trusting the caller's details.
-      const excludedAudit: NewAuditEvent = { ...claim.audit, details: { ...claim.audit.details, slug: projectSlug } };
+      const excludedAudit: NewAuditEvent = {
+        ...claim.audit,
+        details: { ...claim.audit.details, slug: projectSlug },
+      };
       statements.push(
         auditEventStatement(this.db, excludedAudit, {
           exists: heldPauseOf('?9', '?10', '?11', '?12', '?13', '?14'),

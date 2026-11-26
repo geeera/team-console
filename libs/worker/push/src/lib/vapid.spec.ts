@@ -20,12 +20,21 @@ describe('checkVapidConfig', () => {
   });
 
   it.each([
-    ['a mailto subject (the owner e-mail must not be published)', { subject: 'mailto:owner@example.com' }, 'subject'],
+    [
+      'a mailto subject (the owner e-mail must not be published)',
+      { subject: 'mailto:owner@example.com' },
+      'subject',
+    ],
     ['an http subject', { subject: 'http://example.com' }, 'subject'],
     ['a 33-byte private key', { privateKey: encodeBase64Url(new Uint8Array(33)) }, 'privateKey'],
     ['a compressed public key', { publicKey: encodeBase64Url(point.slice(0, 33)) }, 'publicKey'],
   ])('refuses %s', (_, override, name) => {
-    const result = checkVapidConfig({ publicKey: PUBLIC, privateKey: PRIVATE, subject: SUBJECT, ...override });
+    const result = checkVapidConfig({
+      publicKey: PUBLIC,
+      privateKey: PRIVATE,
+      subject: SUBJECT,
+      ...override,
+    });
     expect(result).toEqual({ ok: false, invalid: [name] });
     expect(JSON.stringify(result)).not.toContain(PRIVATE);
   });

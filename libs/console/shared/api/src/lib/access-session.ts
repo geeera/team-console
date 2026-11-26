@@ -74,7 +74,9 @@ export function isAccessSessionExpired(response: HttpResponseBase, body: unknown
     const type = problemTypeOf(body);
     return type !== null && REAUTH_PROBLEM_TYPE.test(type);
   }
-  return response.status >= 200 && response.status < 300 && isDeclaredNonJson(response.headers.get('Content-Type'));
+  return (
+    response.status >= 200 && response.status < 300 && isDeclaredNonJson(response.headers.get('Content-Type'))
+  );
 }
 
 /** The current address with the marker that makes the service worker leave the navigation to the network. */

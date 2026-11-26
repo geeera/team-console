@@ -24,10 +24,7 @@
       "tier": null,
       "sprint": null,
       "title": "Export the backlog to CSV",
-      "labels": [
-        "status:proposed",
-        "kind:feature"
-      ],
+      "labels": ["status:proposed", "kind:feature"],
       "flags": [],
       "state": "open",
       "closedAt": null,

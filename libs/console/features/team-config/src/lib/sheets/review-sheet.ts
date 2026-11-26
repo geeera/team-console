@@ -32,7 +32,17 @@ let nextReviewId = 0;
  */
 @Component({
   selector: 'tc-review-sheet',
-  imports: [Button, Callout, ChangesTable, Field, FieldControl, Icon, SheetFooter, TranslocoPipe, TranslocoPluralPipe],
+  imports: [
+    Button,
+    Callout,
+    ChangesTable,
+    Field,
+    FieldControl,
+    Icon,
+    SheetFooter,
+    TranslocoPipe,
+    TranslocoPluralPipe,
+  ],
   template: `
     <form class="review" novalidate [id]="id" (submit)="submit($event)">
       <p class="review__count">{{ 'teamConfig.bar.count' | translocoPlural: data.rows.length }}</p>

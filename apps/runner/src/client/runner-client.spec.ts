@@ -133,11 +133,23 @@ describe('RunnerClient', () => {
   it('claim: sends the access sources it was given and hands the console’s scope on, dropping one that is not a scope', async () => {
     const job = jobFixture();
     const scope = { projectScope: 'all', allowedProjects: [], projects: ['team-console'] };
-    const { client, requests } = clientWith(() => json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300, scope }));
-    await expect(client.claim({ accessSources: ['subscription'] })).resolves.toMatchObject({ kind: 'job', scope });
+    const { client, requests } = clientWith(() =>
+      json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300, scope }),
+    );
+    await expect(client.claim({ accessSources: ['subscription'] })).resolves.toMatchObject({
+      kind: 'job',
+      scope,
+    });
     expect(JSON.parse(requests[0]?.body ?? '{}')).toEqual({ accessSources: ['subscription'] });
 
-    const forged = clientWith(() => json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300, scope: { projectScope: 'all', allowedProjects: ['x'], projects: ['../x'] } }));
+    const forged = clientWith(() =>
+      json(200, {
+        job,
+        jobToken: sentinels.jobToken,
+        leaseSeconds: 300,
+        scope: { projectScope: 'all', allowedProjects: ['x'], projects: ['../x'] },
+      }),
+    );
     const outcome = await forged.client.claim();
     expect(outcome.kind).toBe('job');
     expect(outcome).not.toHaveProperty('scope');
@@ -145,13 +157,26 @@ describe('RunnerClient', () => {
 
   it('self: the runner’s row and served projects, refused when the answer is not the DTO', async () => {
     const self = {
-      runner: { id: RUNNER_ID, name: 'Mac', accountId: '01M6YSNJ000000000000000001', projectScope: 'all', allowedProjects: [], isolation: 'user', version: '0.3.0', belowMinimum: false, pausedUntil: null, lastSeenAt: null },
+      runner: {
+        id: RUNNER_ID,
+        name: 'Mac',
+        accountId: '01M6YSNJ000000000000000001',
+        projectScope: 'all',
+        allowedProjects: [],
+        isolation: 'user',
+        version: '0.3.0',
+        belowMinimum: false,
+        pausedUntil: null,
+        lastSeenAt: null,
+      },
       projects: [{ slug: 'team-console', accessSource: 'subscription' }],
     };
     const { client, requests } = clientWith(() => json(200, self));
     await expect(client.self()).resolves.toEqual(self);
     expect(requests[0]).toMatchObject({ url: `${API}/api/v1/runner/self`, method: 'GET' });
-    const bad = clientWith(() => json(200, { ...self, runner: { ...self.runner, projectScope: 'everything' } }));
+    const bad = clientWith(() =>
+      json(200, { ...self, runner: { ...self.runner, projectScope: 'everything' } }),
+    );
     await expect(bad.client.self()).rejects.toMatchObject({ message: 'self: unexpected answer' });
   });
 
@@ -159,7 +184,13 @@ describe('RunnerClient', () => {
     const job = jobFixture();
     const forged = { schema: 'team-config/v1', roles: { pm: { model: 'opus' } } };
     const { client } = clientWith(() =>
-      json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300, teamConfig: forged, teamConfigRevision: 1 }),
+      json(200, {
+        job,
+        jobToken: sentinels.jobToken,
+        leaseSeconds: 300,
+        teamConfig: forged,
+        teamConfigRevision: 1,
+      }),
     );
     await expect(client.claim()).resolves.toEqual({
       kind: 'job',
@@ -360,7 +391,11 @@ describe('pause and resume', () => {
     await client.pause({ reason: 'usage-limit', until: '2026-11-13T13:00:00.000Z' });
     await client.resume();
     expect(requests.map((request) => [request.method, request.url, request.body])).toEqual([
-      ['POST', `${API}/api/v1/runner/pause`, JSON.stringify({ reason: 'usage-limit', until: '2026-11-13T13:00:00.000Z' })],
+      [
+        'POST',
+        `${API}/api/v1/runner/pause`,
+        JSON.stringify({ reason: 'usage-limit', until: '2026-11-13T13:00:00.000Z' }),
+      ],
       ['POST', `${API}/api/v1/runner/resume`, '{}'],
     ]);
     const [first, second] = requests.map((request) => bearerOf(request.headers['authorization']));
@@ -371,7 +406,9 @@ describe('pause and resume', () => {
 
   it('throws the console’s refusal with its problem slug', async () => {
     const { client } = clientWith(() => problem(422, 'runner-pause-invalid'));
-    await expect(client.pause({ reason: 'usage-limit', until: '2026-11-15T13:00:00.000Z' })).rejects.toMatchObject({
+    await expect(
+      client.pause({ reason: 'usage-limit', until: '2026-11-15T13:00:00.000Z' }),
+    ).rejects.toMatchObject({
       status: 422,
       problem: 'runner-pause-invalid',
     });

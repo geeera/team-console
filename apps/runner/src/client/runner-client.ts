@@ -234,7 +234,9 @@ export class RunnerClient {
       job: body.job,
       jobToken: body.jobToken,
       leaseSeconds: body.leaseSeconds,
-      ...(Object.hasOwn(body, 'teamConfig') ? { teamConfig: (body as Record<string, unknown>)['teamConfig'] } : {}),
+      ...(Object.hasOwn(body, 'teamConfig')
+        ? { teamConfig: (body as Record<string, unknown>)['teamConfig'] }
+        : {}),
       ...(isRunnerScopeDto(scope) ? { scope } : {}),
     };
   }

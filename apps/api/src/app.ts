@@ -7,7 +7,10 @@ import { routeScopeMiddleware } from './auth/route-scope';
 import { jobScopeMiddleware } from './auth/tracker-access.middleware';
 import { createAccountRoutes } from './routes/accounts';
 import { createAccountRunnerRoutes } from './routes/account-runners';
-import { createAccountEnrolmentIntentRoutes, createRunnerEnrolmentIntentRoutes } from './routes/enrolment-intents';
+import {
+  createAccountEnrolmentIntentRoutes,
+  createRunnerEnrolmentIntentRoutes,
+} from './routes/enrolment-intents';
 import { createRunnerRoutes } from './routes/runner';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';

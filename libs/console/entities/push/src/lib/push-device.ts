@@ -33,7 +33,9 @@ export class PushDevice {
     if (this.swPush === null || !this.swPush.isEnabled) {
       return null;
     }
-    return firstValueFrom(this.swPush.subscription.pipe(take(1), timeout({ first: timeoutMs, with: () => of(null) })));
+    return firstValueFrom(
+      this.swPush.subscription.pipe(take(1), timeout({ first: timeoutMs, with: () => of(null) })),
+    );
   }
 
   /** Asks the browser for a subscription: shows the permission prompt while the permission is not decided yet. */

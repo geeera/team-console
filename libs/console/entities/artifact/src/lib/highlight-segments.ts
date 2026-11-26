@@ -51,10 +51,17 @@ function charIndexAt(foldedStarts: readonly number[], position: number): number 
 
 /** The title's own `[start, end)` under a folded match at `[foldedStart, foldedEnd)`, rounded out to whole
  * characters. */
-function originalRangeOf(folded: FoldedTitle, foldedStart: number, foldedEnd: number): readonly [number, number] {
+function originalRangeOf(
+  folded: FoldedTitle,
+  foldedStart: number,
+  foldedEnd: number,
+): readonly [number, number] {
   const from = charIndexAt(folded.foldedStarts, foldedStart);
   const to = charIndexAt(folded.foldedStarts, Math.max(foldedStart, foldedEnd - 1));
-  return [folded.originalStarts[from] ?? 0, folded.originalStarts[to + 1] ?? folded.originalStarts.at(-1) ?? 0];
+  return [
+    folded.originalStarts[from] ?? 0,
+    folded.originalStarts[to + 1] ?? folded.originalStarts.at(-1) ?? 0,
+  ];
 }
 
 /**

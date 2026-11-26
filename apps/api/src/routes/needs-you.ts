@@ -108,7 +108,10 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
     }
     // #684: one D1 query for every project read, whatever its tracker; no GitHub subrequest.
     const budgetStops = new Map<string, NeedsYouBudgetStopDto>();
-    for (const stop of await new TeamStateRepo(c.env.DB).budgetStopsOf(read.map((row) => row.slug), new Date().toISOString())) {
+    for (const stop of await new TeamStateRepo(c.env.DB).budgetStopsOf(
+      read.map((row) => row.slug),
+      new Date().toISOString(),
+    )) {
       if (stop.budgetUsd === null) {
         // A save that removes the budget lifts its pause in the same batch, so this is a broken invariant, not input.
         c.get('logger').error('budget stop without a budget', { slug: stop.projectSlug });
@@ -130,7 +133,11 @@ export function createNeedsYouRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiE
     );
     // #735: a hint only, read once per project here; the write routes refuse on their own regardless of it.
     const canManage = new Map(read.map((row) => [row.slug, canManageProject(c, row)]));
-    const actionsDrifts = await actionsDriftsOf(c.env, c.get('logger'), read.map((row) => row.slug));
+    const actionsDrifts = await actionsDriftsOf(
+      c.env,
+      c.get('logger'),
+      read.map((row) => row.slug),
+    );
     return c.json(buildNeedsYou(results, omitted, budgetStops, canManage, concurrencyStops, actionsDrifts));
   });
 }
@@ -149,7 +156,10 @@ async function actionsDriftsOf(
   if (states.length === 0) {
     return drifts;
   }
-  const rendered = await renderRunnerWorkflow({ consoleOrigin: env.CONSOLE_PUBLIC_ORIGIN ?? '', environment: env.ENVIRONMENT });
+  const rendered = await renderRunnerWorkflow({
+    consoleOrigin: env.CONSOLE_PUBLIC_ORIGIN ?? '',
+    environment: env.ENVIRONMENT,
+  });
   if (!rendered.ok) {
     logger.error('needs-you could not render the runner workflow', { failure: rendered.failure });
   }

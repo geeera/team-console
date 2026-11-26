@@ -120,7 +120,9 @@ describe('git config allow-list', () => {
     ]);
     fixtureGit(['-C', partial, 'remote', 'set-url', 'origin', UPSTREAM]);
     const partialDir = join(partial, '.git');
-    await expect(assertCleanGitConfig(partialDir, env, { ...asClone, partial: true })).resolves.toBeUndefined();
+    await expect(
+      assertCleanGitConfig(partialDir, env, { ...asClone, partial: true }),
+    ).resolves.toBeUndefined();
     await expect(assertCleanGitConfig(partialDir, env, asClone)).rejects.toMatchObject({
       reason: 'git-config-refused',
       message: expect.stringContaining('remote.origin.promisor (unexpected value, local)') as unknown,
@@ -133,15 +135,20 @@ describe('git config allow-list', () => {
     ['extensions.partialclone', 'evil'],
   ])('refuses %s = %s on a partial clone', (key, value) => {
     const entries = [{ scope: 'local', origin: 'file:.git/config', key, value }];
-    expect(refusedGitConfig(entries, { ...asClone, partial: true })).toEqual([`${key} (unexpected value, local)`]);
+    expect(refusedGitConfig(entries, { ...asClone, partial: true })).toEqual([
+      `${key} (unexpected value, local)`,
+    ]);
   });
 
   it.each(['remote.origin.promisor', 'remote.origin.partialclonefilter', 'extensions.partialclone'])(
     'refuses %s on the mirror, which is never partial',
     (key) => {
-      const value = key === 'remote.origin.promisor' ? 'true' : key.endsWith('filter') ? 'blob:none' : 'origin';
+      const value =
+        key === 'remote.origin.promisor' ? 'true' : key.endsWith('filter') ? 'blob:none' : 'origin';
       const entries = [{ scope: 'local', origin: 'file:config', key, value }];
-      expect(refusedGitConfig(entries, { ...asMirror(), partial: true })).toEqual([`${key} (unexpected value, local)`]);
+      expect(refusedGitConfig(entries, { ...asMirror(), partial: true })).toEqual([
+        `${key} (unexpected value, local)`,
+      ]);
     },
   );
 
@@ -195,7 +202,9 @@ describe('git config allow-list', () => {
   });
 
   it('compares section and variable case-insensitively, as git does', () => {
-    const entries = parseGitConfigList('local\0file:config\0REMOTE.origin.URL\nhttps://github.com/geeera/team-console.git\0');
+    const entries = parseGitConfigList(
+      'local\0file:config\0REMOTE.origin.URL\nhttps://github.com/geeera/team-console.git\0',
+    );
     expect(refusedGitConfig(entries, asClone)).toEqual([]);
   });
 
@@ -254,7 +263,9 @@ describe('git config allow-list', () => {
     ['user.name', 'Job'],
   ])('refuses %s', async (key, value) => {
     fixtureGit(['-C', repo, 'config', key, value]);
-    const refusal: unknown = await assertCleanGitConfig(gitDir(), env, asClone).catch((error: unknown) => error);
+    const refusal: unknown = await assertCleanGitConfig(gitDir(), env, asClone).catch(
+      (error: unknown) => error,
+    );
     expect(refusal).toBeInstanceOf(LaunchRefusal);
     expect(refusal).toMatchObject({ reason: 'git-config-refused' });
     expect((refusal as Error).message).toContain('local)');
@@ -285,7 +296,9 @@ describe('git config allow-list', () => {
       'local\0file:config\0credential.helper\n/runner/helper\0local\0file:config\0credential.helper\n/tmp/evil\0',
     );
     expect(refusedGitConfig(entries.slice(0, 1), withHelper)).toEqual([]);
-    expect(refusedGitConfig(entries, withHelper)).toEqual(['credential.helper (foreign credential helper, local)']);
+    expect(refusedGitConfig(entries, withHelper)).toEqual([
+      'credential.helper (foreign credential helper, local)',
+    ]);
   });
 
   it('ignores the system scope (the host administrator’s file, e.g. osxkeychain)', () => {

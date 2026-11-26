@@ -34,7 +34,10 @@ async function useApiKey(api: APIRequestContext, slug: string): Promise<void> {
 
 /** The project as a switch made while its repository was ready leaves it; the mock names `dev` its default branch. */
 async function seedOnActions(workerIndex: number, slug: string): Promise<void> {
-  await localD1(workerIndex, `UPDATE projects SET dispatch = 'actions', default_branch = 'dev' WHERE slug = '${slug}'`);
+  await localD1(
+    workerIndex,
+    `UPDATE projects SET dispatch = 'actions', default_branch = 'dev' WHERE slug = '${slug}'`,
+  );
 }
 
 async function runNow(api: APIRequestContext, slug: string): Promise<JobDto> {
@@ -93,11 +96,16 @@ test('the local stack refuses the switch as not ready; an Actions project shows 
     await seedOnActions(testInfo.workerIndex, ACTIONS_PROJECT);
     const onActions = await openDispatch(page, ACTIONS_PROJECT);
     await expect(onActions.getByRole('radio', { name: ru('runners.dispatch.actions') })).toBeChecked();
-    await expect(onActions.getByTestId('project-dispatch-branch')).toHaveText(ru('runners.dispatch.branch', { branch: 'dev' }));
+    await expect(onActions.getByTestId('project-dispatch-branch')).toHaveText(
+      ru('runners.dispatch.branch', { branch: 'dev' }),
+    );
     await expectAccessible(page, 'Settings › Runners, dispatch on GitHub Actions');
 
     const stored = await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`);
-    expect((await stored.json()) as ProjectDispatchDto).toEqual({ dispatch: 'actions', defaultBranch: 'dev' });
+    expect((await stored.json()) as ProjectDispatchDto).toEqual({
+      dispatch: 'actions',
+      defaultBranch: 'dev',
+    });
 
     // Run now: the job copies the project's dispatch and the workflow_dispatch call is accepted (it stays queued
     // for its run; a failed call would have failed it).
@@ -175,7 +183,9 @@ test('a pinned placement stays when the project goes to GitHub Actions, and pick
     await expect(page.getByTestId('runners-policy-project').getByTestId('policy-mode-pinned')).toBeChecked();
     await expectAccessible(page, 'Settings › Runners, pinned placement on a GitHub Actions project');
 
-    const dispatch = (await (await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`)).json()) as ProjectDispatchDto;
+    const dispatch = (await (
+      await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/dispatch`)
+    ).json()) as ProjectDispatchDto;
     expect(dispatch.dispatch).toBe('actions');
     const policy = (await (await api.get(`/api/v1/projects/${ACTIONS_PROJECT}/runner-policy`)).json()) as {
       policy: unknown;
@@ -206,7 +216,9 @@ test('the dispatch switch fits the phone', async ({ page, stack }, testInfo) => 
   await page.setViewportSize({ width: 375, height: 812 });
   const editor = await openDispatch(page, ACTIONS_PROJECT);
   await expect(editor.getByRole('radio', { name: ru('runners.dispatch.actions') })).toBeChecked();
-  await expect(editor.getByTestId('project-dispatch-branch')).toHaveText(ru('runners.dispatch.branch', { branch: 'dev' }));
+  await expect(editor.getByTestId('project-dispatch-branch')).toHaveText(
+    ru('runners.dispatch.branch', { branch: 'dev' }),
+  );
   await editor.scrollIntoViewIfNeeded();
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   const box = await editor.getByTestId('project-dispatch-save').boundingBox();

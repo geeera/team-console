@@ -6,7 +6,14 @@ import { Field, FieldControl } from './field';
 @Component({
   imports: [Field, FieldControl],
   template: `
-    <tc-field label="Repository" [hint]="hint()" [error]="error()" [note]="note()" [required]="required()" [optionalHint]="optionalHint()">
+    <tc-field
+      label="Repository"
+      [hint]="hint()"
+      [error]="error()"
+      [note]="note()"
+      [required]="required()"
+      [optionalHint]="optionalHint()"
+    >
       <input tcInput type="text" />
     </tc-field>
   `,

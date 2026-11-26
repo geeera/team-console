@@ -31,9 +31,10 @@ export function isVisibleSpaceSection(value: unknown): value is SpaceSection {
  */
 export function spaceUrlOf(slug: string, lastPath: string | undefined): string {
   const firstSegment = lastPath?.split(/[/?#]/, 1)[0];
-  const path = firstSegment !== undefined && firstSegment !== '' && isVisibleSpaceSection(firstSegment)
-    ? lastPath
-    : DEFAULT_SPACE_SECTION;
+  const path =
+    firstSegment !== undefined && firstSegment !== '' && isVisibleSpaceSection(firstSegment)
+      ? lastPath
+      : DEFAULT_SPACE_SECTION;
   return `/p/${encodeURIComponent(slug)}/${path}`;
 }
 

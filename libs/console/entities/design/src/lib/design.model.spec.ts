@@ -17,7 +17,11 @@ export function screen(file: string, extra: Partial<DesignManifestDto['screens']
     path: `docs/design/277-viewer/${file}`,
     file,
     caption: file.replace(/\.\w+$/, ''),
-    device: file.startsWith('phone-') ? ('phone' as const) : file.startsWith('mac-') ? ('mac' as const) : null,
+    device: file.startsWith('phone-')
+      ? ('phone' as const)
+      : file.startsWith('mac-')
+        ? ('mac' as const)
+        : null,
     type: 'png' as const,
     size: 1000,
     tooLarge: false,
@@ -65,8 +69,14 @@ describe('designManifestOf', () => {
     ['no sha', { ...MANIFEST, sha: 'dev' }],
     ['an unknown ref', { ...MANIFEST, ref: 'tag' }],
     ['screens that are not a list', { ...MANIFEST, screens: {} }],
-    ['an interactive url that is not https', { ...MANIFEST, interactive: { ...MANIFEST.interactive, url: 'http://x' } }],
-    ['an interactive path outside docs/design', { ...MANIFEST, interactive: { ...MANIFEST.interactive, path: 'x.html' } }],
+    [
+      'an interactive url that is not https',
+      { ...MANIFEST, interactive: { ...MANIFEST.interactive, url: 'http://x' } },
+    ],
+    [
+      'an interactive path outside docs/design',
+      { ...MANIFEST, interactive: { ...MANIFEST.interactive, path: 'x.html' } },
+    ],
     ['null', null],
   ])('refuses a body with %s', (_label, body) => {
     expect(designManifestOf(body)).toBeNull();
@@ -76,7 +86,10 @@ describe('designManifestOf', () => {
 describe('the manifest helpers', () => {
   it('lists the devices in phone, mac order and filters screens by device', () => {
     expect(devicesOf(MANIFEST)).toEqual(['phone', 'mac']);
-    expect(screensFor(MANIFEST, 'phone').map((s) => s.file)).toEqual(['phone-01-list.png', 'phone-02-grid.png']);
+    expect(screensFor(MANIFEST, 'phone').map((s) => s.file)).toEqual([
+      'phone-01-list.png',
+      'phone-02-grid.png',
+    ]);
     expect(screensFor(MANIFEST, null)).toHaveLength(3);
     expect(devicesOf({ ...MANIFEST, screens: [screen('01-cover.png')] })).toEqual([]);
   });
@@ -103,7 +116,9 @@ describe('the manifest helpers', () => {
   });
 
   it('builds the image source from the file route, pinned to the commit', () => {
-    expect(screenSrcOf('team-console', MANIFEST, MANIFEST.screens[1] as DesignManifest['screens'][number])).toBe(
+    expect(
+      screenSrcOf('team-console', MANIFEST, MANIFEST.screens[1] as DesignManifest['screens'][number]),
+    ).toBe(
       `/api/v1/projects/team-console/designs/277/${SHA}/file?path=docs%2Fdesign%2F277-viewer%2Fphone-01-list.png`,
     );
   });

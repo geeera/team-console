@@ -50,35 +50,29 @@ describe('integration: enrol against the local stack, then claim', () => {
     const home = join(dir, 'home');
     const out: string[] = [];
     const err: string[] = [];
-    const exit = await runCli(
-      ['enrol', '--url', enrolment.apiUrl, '--backend', 'none'],
-      {
-        // The documented path (#582): the code in the environment, never in argv.
-        env: { TC_RUNNER_HOME: home, TC_ENROL_CODE: enrolment.code },
-        homeDir: dir,
-        host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
-        fetch: (url, init) => fetch(url, init),
-        stdout: (line) => out.push(line),
-        stderr: (line) => err.push(line),
-      },
-    );
+    const exit = await runCli(['enrol', '--url', enrolment.apiUrl, '--backend', 'none'], {
+      // The documented path (#582): the code in the environment, never in argv.
+      env: { TC_RUNNER_HOME: home, TC_ENROL_CODE: enrolment.code },
+      homeDir: dir,
+      host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
+      fetch: (url, init) => fetch(url, init),
+      stdout: (line) => out.push(line),
+      stderr: (line) => err.push(line),
+    });
     expect(err).toEqual([]);
     expect(exit).toBe(EXIT_OK);
     expect(out.join('\n')).toContain('Enrolled "Integration runner"');
     expect(out.join('\n')).not.toContain(enrolment.code);
 
     // 3. The same code a second time is refused: single use.
-    const again = await runCli(
-      ['enrol', '--url', enrolment.apiUrl, '--backend', 'none'],
-      {
-        env: { TC_RUNNER_HOME: join(dir, 'home-2'), TC_ENROL_CODE: enrolment.code },
-        homeDir: dir,
-        host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
-        fetch: (url, init) => fetch(url, init),
-        stdout: () => undefined,
-        stderr: (line) => err.push(line),
-      },
-    );
+    const again = await runCli(['enrol', '--url', enrolment.apiUrl, '--backend', 'none'], {
+      env: { TC_RUNNER_HOME: join(dir, 'home-2'), TC_ENROL_CODE: enrolment.code },
+      homeDir: dir,
+      host: { os: process.platform, arch: process.arch, hostname: 'integration.local' },
+      fetch: (url, init) => fetch(url, init),
+      stdout: () => undefined,
+      stderr: (line) => err.push(line),
+    });
     expect(again).not.toBe(EXIT_OK);
     expect(err.join('\n')).toContain('wrong, already used or expired');
 

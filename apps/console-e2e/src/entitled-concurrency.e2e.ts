@@ -16,7 +16,11 @@ import { localD1, switchToConsoleTracker } from './support/tracker-seed';
 const SLUG = 'team-console';
 
 /** The operator's change to the owner's account: a fixed spec constant, never input. */
-async function setOwnerAccount(workerIndex: number, plan: 'free' | 'team', entitlements: string): Promise<void> {
+async function setOwnerAccount(
+  workerIndex: number,
+  plan: 'free' | 'team',
+  entitlements: string,
+): Promise<void> {
   if (!/^\{[a-z_":0-9,]*\}$/.test(entitlements)) {
     throw new Error('entitlements is not a fixed fixture value');
   }
@@ -37,7 +41,9 @@ test.beforeEach(async ({ stack }, testInfo) => {
   await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
 });
 
-test('a free account with two runners runs one job at a time: the second claim gets 204', async ({ stack }, testInfo) => {
+test('a free account with two runners runs one job at a time: the second claim gets 204', async ({
+  stack,
+}, testInfo) => {
   await setOwnerAccount(testInfo.workerIndex, 'free', '{}');
   const api = await apiClient(stack);
   try {
@@ -62,7 +68,10 @@ test('max_concurrency 0 starts no job, and Needs you says why until the operator
     const mac = await enrolRunner(api, SLUG);
     await review(api, 'qa');
     expect(await claimStatus(api, mac)).toBe(204);
-    const projects = (await (await api.get('/api/v1/projects')).json()) as { slug: string; displayName: string }[];
+    const projects = (await (await api.get('/api/v1/projects')).json()) as {
+      slug: string;
+      displayName: string;
+    }[];
     const name = projects.find((project) => project.slug === SLUG)?.displayName ?? SLUG;
 
     await page.goto('/needs-you');
@@ -72,7 +81,9 @@ test('max_concurrency 0 starts no job, and Needs you says why until the operator
     await expect(page.getByRole('list', { name: ru('needsYou.attention.label') })).toContainText(name);
     await expect(page.getByTestId('empty')).toHaveCount(0);
     await expectAccessible(page, 'Needs you, no concurrency entitled');
-    await page.getByTestId('project-attention').screenshot({ path: testInfo.outputPath('needs-you-concurrency.png') });
+    await page
+      .getByTestId('project-attention')
+      .screenshot({ path: testInfo.outputPath('needs-you-concurrency.png') });
 
     await setOwnerAccount(testInfo.workerIndex, 'team', '{}');
     await page.reload();

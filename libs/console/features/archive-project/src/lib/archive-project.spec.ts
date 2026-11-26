@@ -30,18 +30,16 @@ describe('ArchiveProject', () => {
     archiver = TestBed.inject(ArchiveProject);
     projects = TestBed.inject(ProjectsStore);
     const loaded = projects.load();
-    http
-      .expectOne(PROJECTS_URL)
-      .flush([
-        {
-          slug: 'storify',
-          repo: 'geeera/storify',
-          displayName: 'Storify',
-          routineId: null,
-          addedAt: '2026-09-29T00:00:00.000Z',
-          archivedAt: null,
-        },
-      ]);
+    http.expectOne(PROJECTS_URL).flush([
+      {
+        slug: 'storify',
+        repo: 'geeera/storify',
+        displayName: 'Storify',
+        routineId: null,
+        addedAt: '2026-09-29T00:00:00.000Z',
+        archivedAt: null,
+      },
+    ]);
     await loaded;
   });
 

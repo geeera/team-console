@@ -26,7 +26,9 @@ async function serveWaiting(page: Page): Promise<(count: number) => void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        items: Array.from({ length: count }, () => ({ project: { slug: 'team-console', name: 'team-console' } })),
+        items: Array.from({ length: count }, () => ({
+          project: { slug: 'team-console', name: 'team-console' },
+        })),
       }),
     }),
   );

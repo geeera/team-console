@@ -117,7 +117,9 @@ describe('team-console-runner CLI', () => {
       const { exit } = run(enrolArgs, enrolled, { keys: { platform: 'darwin', exec: fake.exec, env: {} } });
 
       expect(await exit).toBe(EXIT_OK);
-      expect(out.join('\n')).toMatch(/the key is in the keychain item runner-key:.* in .*login\.keychain-db\./);
+      expect(out.join('\n')).toMatch(
+        /the key is in the keychain item runner-key:.* in .*login\.keychain-db\./,
+      );
     });
 
     it('stays enrolled and says the location is unknown, not the home, when the lookup then fails', async () => {
@@ -174,7 +176,9 @@ describe('team-console-runner CLI', () => {
   it('warns on stderr when the code is an argument, without echoing it', async () => {
     const { exit } = run(enrolArgs, enrolled);
     expect(await exit).toBe(EXIT_OK);
-    expect(err.join('\n')).toMatch(/^warning: --code <value> .* ps; use TC_ENROL_CODE or --code - instead\.$/m);
+    expect(err.join('\n')).toMatch(
+      /^warning: --code <value> .* ps; use TC_ENROL_CODE or --code - instead\.$/m,
+    );
     expect(err.join('\n')).not.toContain(sentinels.enrolmentCode);
   });
 
@@ -339,7 +343,11 @@ describe('team-console-runner CLI', () => {
 
     // #772: the service runs node by the path it was started with, never its realpath.
     it.each([
-      ['an absolute argv0 as given', '/usr/bin/node', 'ExecStart=/usr/bin/node /opt/tcr/team-console-runner.mjs'],
+      [
+        'an absolute argv0 as given',
+        '/usr/bin/node',
+        'ExecStart=/usr/bin/node /opt/tcr/team-console-runner.mjs',
+      ],
       ['the resolved path for a bare node', 'node', 'ExecStart=/usr/lib/node-v22/bin/node /opt/tcr/'],
     ])('writes %s into the service file', async (_, argv0, execStart) => {
       const host = fakeInstallHost();
@@ -436,7 +444,11 @@ describe('team-console-runner CLI', () => {
     it('says a newer release is available with --check, installing nothing', async () => {
       await enrolled();
       const exec = vi.fn<Exec>();
-      const { exit, requests } = updateRun(['update', '--check'], { version: NEWER, minimumVersion: null }, exec);
+      const { exit, requests } = updateRun(
+        ['update', '--check'],
+        { version: NEWER, minimumVersion: null },
+        exec,
+      );
       expect(await exit).toBe(EXIT_OK);
       expect(out.join('\n')).toContain(`${NEWER} is available (installed ${RUNNER_VERSION})`);
       expect(requests.map((request) => `${request.method} ${new URL(request.url).pathname}`)).toEqual([

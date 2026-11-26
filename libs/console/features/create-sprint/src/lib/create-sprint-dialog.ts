@@ -256,7 +256,10 @@ export class CreateSprintDialog {
       return;
     }
     const name = sprintNameOf(this.name());
-    const body: CreateSprintBody = { dueOn: this.dueOn(), title: name === this.data.suggestedName ? null : name };
+    const body: CreateSprintBody = {
+      dueOn: this.dueOn(),
+      title: name === this.data.suggestedName ? null : name,
+    };
     const key = this.keys.keyFor(body);
     this.running.set(true);
     this.failure.set(null);

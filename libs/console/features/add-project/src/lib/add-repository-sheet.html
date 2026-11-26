@@ -9,7 +9,8 @@
       'settings.setup.ready.title' | transloco: { name: state.slug } }} }
     </h3>
     <p>
-      {{ (summary.waiting > 0 ? 'settings.setup.readyWaiting.body' : 'settings.setup.ready.body') | transloco }}
+      {{ (summary.waiting > 0 ? 'settings.setup.readyWaiting.body' : 'settings.setup.ready.body') | transloco
+      }}
     </p>
   </tc-card>
   } @else {
@@ -39,8 +40,8 @@
   } @case ('not-connected') {
   <section tc-callout tone="warning" aria-labelledby="add-sheet-result" data-testid="add-result">
     <h3 #result tc-callout-title id="add-sheet-result" class="sheet__title" tabindex="-1">
-      {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') | transloco
-      }}
+      {{ (connection.view() === 'lost' ? 'settings.gh.lost.title' : 'settings.gh.needConnect.title') |
+      transloco }}
     </h3>
     <p>{{ 'settings.gh.needConnect.lostBody' | transloco }}</p>
     @if (connectRefused()) {
@@ -72,10 +73,10 @@
       {{ 'settings.add.unavailable.title' | transloco }}
     </h3>
     <p>
-      @if (retryAt(); as retryAt) { {{ 'settings.add.unavailable.rate' | transloco: { time: (retryAt | localTime)
-      } }} } @else if (isAuthFailure()) { {{
-      'settings.add.unavailable.auth' | transloco: { app: connection.appName() ?? 'team-console' } }} } @else {
-      {{ 'settings.add.unavailable.github' | transloco }} }
+      @if (retryAt(); as retryAt) { {{ 'settings.add.unavailable.rate' | transloco: { time: (retryAt |
+      localTime) } }} } @else if (isAuthFailure()) { {{ 'settings.add.unavailable.auth' | transloco: { app:
+      connection.appName() ?? 'team-console' } }} } @else { {{ 'settings.add.unavailable.github' | transloco
+      }} }
     </p>
   </section>
   } } } }
@@ -84,7 +85,14 @@
 <!-- The frame orders the roles (#282): the main action on top on the phone, on the right in the dialog. -->
 <ng-template tcSheetFooter="primary">
   @switch (state.kind) { @case ('checking') {
-  <button tc-button variant="primary" type="button" data-testid="sheet-busy" [loading]="true" aria-disabled="true">
+  <button
+    tc-button
+    variant="primary"
+    type="button"
+    data-testid="sheet-busy"
+    [loading]="true"
+    aria-disabled="true"
+  >
     {{ 'settings.add.submitting' | transloco }}
   </button>
   } @case ('added') {

@@ -7,7 +7,12 @@ import { trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.m
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
-import { actionsNotReady, readinessRateRefusal, repositoryUnverified, uncheckedReadiness } from './actions-setup-problems';
+import {
+  actionsNotReady,
+  readinessRateRefusal,
+  repositoryUnverified,
+  uncheckedReadiness,
+} from './actions-setup-problems';
 import { actionsOnSubscription } from './dispatch-problems';
 import { SMALL_WRITE_MAX_BYTES, writeLimit } from '../tracker/http';
 import { jobAuditOf } from './jobs';
@@ -36,67 +41,85 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
       return c.json(body);
     })
 
-    .put('/:slug/dispatch', trackerAccess(`PUT ${P}/dispatch`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const row = trackerProjectOfContext(c);
-      const input = checkProjectDispatchInput(await jsonBody(c));
-      if (!input.ok) {
-        const extensions: Record<string, ProblemExtensionValue> = { field: input.field };
-        return problem(c, { type: 'dispatch-invalid', title: 'Invalid request', status: 422, detail: input.detail, extensions });
-      }
-      const { dispatch } = input.value;
-      const repo = new ProjectDispatchRepo(c.env.DB);
-      const before = await repo.find(row.slug);
-      let defaultBranch: string | null = null;
-      if (dispatch === 'actions') {
-        if (row.repo_id === null) {
-          return repositoryUnverified(c, 'The repository id of this project was never recorded');
+    .put(
+      '/:slug/dispatch',
+      trackerAccess(`PUT ${P}/dispatch`),
+      writeLimit(SMALL_WRITE_MAX_BYTES),
+      async (c) => {
+        const row = trackerProjectOfContext(c);
+        const input = checkProjectDispatchInput(await jsonBody(c));
+        if (!input.ok) {
+          const extensions: Record<string, ProblemExtensionValue> = { field: input.field };
+          return problem(c, {
+            type: 'dispatch-invalid',
+            title: 'Invalid request',
+            status: 422,
+            detail: input.detail,
+            extensions,
+          });
         }
-        const target = await readinessTargetOf({ env: c.env }, row);
-        if (target === null) {
-          return problem(c, { type: 'project-not-found', title: 'Project not found', status: 404 });
+        const { dispatch } = input.value;
+        const repo = new ProjectDispatchRepo(c.env.DB);
+        const before = await repo.find(row.slug);
+        let defaultBranch: string | null = null;
+        if (dispatch === 'actions') {
+          if (row.repo_id === null) {
+            return repositoryUnverified(c, 'The repository id of this project was never recorded');
+          }
+          const target = await readinessTargetOf({ env: c.env }, row);
+          if (target === null) {
+            return problem(c, { type: 'project-not-found', title: 'Project not found', status: 404 });
+          }
+          if (target.accessSource !== 'api_key') {
+            return actionsOnSubscription(c);
+          }
+          const limited = await readinessRateRefusal(c, row.slug, github.now());
+          if (limited !== null) {
+            return limited;
+          }
+          const readiness = await checkActionsReadiness(
+            { env: c.env, github, logger: c.get('logger'), requestOrigin: new URL(c.req.url).origin },
+            row,
+            target,
+          );
+          if (readiness.kind !== 'checked') {
+            return uncheckedReadiness(c, readiness);
+          }
+          const blocking = blockingItemsOf(readiness.setup.items);
+          if (blocking.length > 0 || readiness.defaultBranch === null) {
+            c.get('logger').info('dispatch refused', {
+              reason: 'actions-not-ready',
+              slug: row.slug,
+              items: blocking.join(','),
+            });
+            return actionsNotReady(c, blocking);
+          }
+          defaultBranch = readiness.defaultBranch;
         }
-        if (target.accessSource !== 'api_key') {
-          return actionsOnSubscription(c);
+        const at = new Date().toISOString();
+        const outcome = await repo.set({
+          slug: row.slug,
+          dispatch,
+          defaultBranch,
+          audit: jobAuditOf(c, row.account_id, at, 'project.dispatch-changed', row.slug, {
+            from: before?.dispatch ?? null,
+            to: dispatch,
+          }),
+        });
+        switch (outcome.kind) {
+          case 'access-source-hosted':
+            return actionsOnSubscription(c);
+          case 'repository-unverified':
+            return repositoryUnverified(c, 'The repository id of this project was never recorded');
+          case 'saved': {
+            c.get('logger').info('project dispatch changed', { slug: row.slug, dispatch });
+            const body: ProjectDispatchDto = {
+              dispatch: outcome.record.dispatch,
+              defaultBranch: outcome.record.defaultBranch,
+            };
+            return c.json(body);
+          }
         }
-        const limited = await readinessRateRefusal(c, row.slug, github.now());
-        if (limited !== null) {
-          return limited;
-        }
-        const readiness = await checkActionsReadiness(
-          { env: c.env, github, logger: c.get('logger'), requestOrigin: new URL(c.req.url).origin },
-          row,
-          target,
-        );
-        if (readiness.kind !== 'checked') {
-          return uncheckedReadiness(c, readiness);
-        }
-        const blocking = blockingItemsOf(readiness.setup.items);
-        if (blocking.length > 0 || readiness.defaultBranch === null) {
-          c.get('logger').info('dispatch refused', { reason: 'actions-not-ready', slug: row.slug, items: blocking.join(',') });
-          return actionsNotReady(c, blocking);
-        }
-        defaultBranch = readiness.defaultBranch;
-      }
-      const at = new Date().toISOString();
-      const outcome = await repo.set({
-        slug: row.slug,
-        dispatch,
-        defaultBranch,
-        audit: jobAuditOf(c, row.account_id, at, 'project.dispatch-changed', row.slug, {
-          from: before?.dispatch ?? null,
-          to: dispatch,
-        }),
-      });
-      switch (outcome.kind) {
-        case 'access-source-hosted':
-          return actionsOnSubscription(c);
-        case 'repository-unverified':
-          return repositoryUnverified(c, 'The repository id of this project was never recorded');
-        case 'saved': {
-          c.get('logger').info('project dispatch changed', { slug: row.slug, dispatch });
-          const body: ProjectDispatchDto = { dispatch: outcome.record.dispatch, defaultBranch: outcome.record.defaultBranch };
-          return c.json(body);
-        }
-      }
-    });
+      },
+    );
 }

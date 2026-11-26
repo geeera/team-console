@@ -25,25 +25,28 @@ describe('GET /manifest.webmanifest', () => {
     ['dev', 'Team Console Dev', 'TC Dev'],
     ['stage', 'Team Console Stage', 'TC Stage'],
     ['local', 'Team Console Local', 'TC Local'],
-  ] as const)('names the %s app %s / %s and points at its own icon set', async (environment, name, shortName) => {
-    const manifest = await manifestOf(environment);
+  ] as const)(
+    'names the %s app %s / %s and points at its own icon set',
+    async (environment, name, shortName) => {
+      const manifest = await manifestOf(environment);
 
-    expect(manifest).toMatchObject({
-      name,
-      short_name: shortName,
-      start_url: '/',
-      scope: '/',
-      display: 'standalone',
-    });
-    const icons = manifest['icons'] as readonly { src: string; purpose: string }[];
-    expect(icons.map((icon) => icon.src)).toEqual([
-      `/icons/${environment}/icon-192.png`,
-      `/icons/${environment}/icon-512.png`,
-      `/icons/${environment}/icon-512.png`,
-      `/icons/${environment}/apple-touch-icon.png`,
-    ]);
-    expect(icons.some((icon) => icon.purpose === 'maskable')).toBe(true);
-  });
+      expect(manifest).toMatchObject({
+        name,
+        short_name: shortName,
+        start_url: '/',
+        scope: '/',
+        display: 'standalone',
+      });
+      const icons = manifest['icons'] as readonly { src: string; purpose: string }[];
+      expect(icons.map((icon) => icon.src)).toEqual([
+        `/icons/${environment}/icon-192.png`,
+        `/icons/${environment}/icon-512.png`,
+        `/icons/${environment}/icon-512.png`,
+        `/icons/${environment}/apple-touch-icon.png`,
+      ]);
+      expect(icons.some((icon) => icon.purpose === 'maskable')).toBe(true);
+    },
+  );
 
   it.each(ENVIRONMENTS)('lists only icons the %s assets actually serve', async (environment) => {
     const manifest = await manifestOf(environment);
@@ -96,7 +99,9 @@ describe('GET /brand/* (the icons index.html links to)', () => {
   it('serves a different icon on stage than in production', async () => {
     const [stage, production] = await Promise.all([
       fetchApi('/brand/apple-touch-icon.png', bindings('stage')).then((response) => response.arrayBuffer()),
-      fetchApi('/brand/apple-touch-icon.png', bindings('production')).then((response) => response.arrayBuffer()),
+      fetchApi('/brand/apple-touch-icon.png', bindings('production')).then((response) =>
+        response.arrayBuffer(),
+      ),
     ]);
 
     expect(new Uint8Array(stage)).not.toEqual(new Uint8Array(production));

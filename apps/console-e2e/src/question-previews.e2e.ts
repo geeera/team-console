@@ -34,9 +34,14 @@ test.beforeAll(async ({ stack }) => {
 });
 
 const tiltOf = (page: Page, index: number): Promise<string> =>
-  previews(page).nth(index).locator('xpath=..').evaluate((li) => getComputedStyle(li).rotate);
+  previews(page)
+    .nth(index)
+    .locator('xpath=..')
+    .evaluate((li) => getComputedStyle(li).rotate);
 
-test('#350: the previews lie in a small fan that opens on hover, and flat under reduced motion', async ({ page }) => {
+test('#350: the previews lie in a small fan that opens on hover, and flat under reduced motion', async ({
+  page,
+}) => {
   await showCard(page, '/p/team-console/questions');
   await animationsSettled(page);
   await expect.poll(() => tiltOf(page, 0)).toBe('-2deg');
@@ -59,7 +64,9 @@ for (const path of ['/p/team-console/questions', '/needs-you']) {
     await showCard(page, path);
     const list = card(page).getByRole('list', { name: ru('questions.previews.label', { n: 7 }) });
     await expect(list).toBeVisible();
-    expect(await previews(page).evaluateAll((buttons) => buttons.map((b) => b.getAttribute('data-path')))).toEqual([
+    expect(
+      await previews(page).evaluateAll((buttons) => buttons.map((b) => b.getAttribute('data-path'))),
+    ).toEqual([
       `${FOLDER}/phone-01-list.png`,
       `${FOLDER}/phone-02-detail.png`,
       `${FOLDER}/phone-03-answer.jpg`,
@@ -95,15 +102,15 @@ for (const path of ['/p/team-console/questions', '/needs-you']) {
     expect(tops).toEqual([...tops].sort((a, b) => a - b));
     // Nothing sticks out sideways (#281).
     expect(
-      await page.evaluate(
-        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
-      ),
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
     ).toBe(true);
     await expectAccessible(page, `${path}, design card with previews`);
   });
 }
 
-test('tapping a preview opens the viewer on that screen; closing returns focus to the preview', async ({ page }) => {
+test('tapping a preview opens the viewer on that screen; closing returns focus to the preview', async ({
+  page,
+}) => {
   await showCard(page, '/p/team-console/questions');
   const second = previews(page).nth(1);
   await second.click();
@@ -117,7 +124,9 @@ test('tapping a preview opens the viewer on that screen; closing returns focus t
   await expect(page.getByTestId('viewer-position')).toHaveText('2 из 5 · detail');
   const screen = page.getByTestId('viewer-screen');
   await expect(screen).toHaveAttribute('data-path', `${FOLDER}/phone-02-detail.png`);
-  await expect.poll(() => screen.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect
+    .poll(() => screen.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+    .toBe(true);
   // The card's answers are in the viewer's footer.
   const actions = page.getByTestId('viewer-actions');
   await expect(actions.locator('[data-command="approve"]')).toHaveText(ru('answer.command.approve'));
@@ -158,7 +167,9 @@ test('a failed answer inside the viewer: the error fits, the screen stays whole,
   await previews(page).first().click();
   await expect(dialog(page)).toBeVisible();
   const screen = page.getByTestId('viewer-screen');
-  await expect.poll(() => screen.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  await expect
+    .poll(() => screen.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0))
+    .toBe(true);
 
   await page.getByTestId('viewer-actions').locator('[data-command="approve"]').click();
   await expect(page.getByTestId('viewer-actions').getByTestId('answer-error')).toBeVisible();
@@ -167,7 +178,9 @@ test('a failed answer inside the viewer: the error fits, the screen stays whole,
   // The taller footer shrinks the screen instead of making the stage scroll.
   const stage = page.getByTestId('viewer-stage');
   await expect
-    .poll(() => stage.evaluate((el) => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1))
+    .poll(() =>
+      stage.evaluate((el) => el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1),
+    )
     .toBe(true);
   const [stageBox, screenBox] = await Promise.all([stage.boundingBox(), screen.boundingBox()]);
   expect(screenBox?.height ?? 0).toBeGreaterThan(0);

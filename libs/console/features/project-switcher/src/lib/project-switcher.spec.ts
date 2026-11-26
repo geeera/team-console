@@ -138,7 +138,12 @@ describe('ProjectSwitcher', () => {
   it('marks a snoozed project with the struck bell and the words, and drops it once turned back on (#221)', async () => {
     await setup();
     const store = TestBed.inject(ProjectsStore);
-    store.applySnooze('sx', { snoozed: true, until: null, allowsUrgent: true, since: '2026-10-05T10:00:00.000Z' });
+    store.applySnooze('sx', {
+      snoozed: true,
+      until: null,
+      allowsUrgent: true,
+      since: '2026-10-05T10:00:00.000Z',
+    });
     store.applySnooze('reader', {
       snoozed: true,
       until: '2020-01-01T00:00:00.000Z',

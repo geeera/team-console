@@ -8,7 +8,10 @@ interface Args {
 
 const meta: Meta<Args> = {
   title: 'Features/Actions setup/Workflow file',
-  decorators: [applicationConfig({ providers: actionsStoryProviders() }), moduleMetadata({ imports: [WorkflowFile] })],
+  decorators: [
+    applicationConfig({ providers: actionsStoryProviders() }),
+    moduleMetadata({ imports: [WorkflowFile] }),
+  ],
   render: (args) => ({
     props: args,
     template: `
@@ -30,19 +33,27 @@ export const UnknownBranch: Story = { args: { branch: null } };
 
 /** The read is still on its way. */
 export const Loading: Story = {
-  decorators: [applicationConfig({ providers: actionsStoryProviders({ workflow: () => new Promise(() => undefined) }) })],
+  decorators: [
+    applicationConfig({ providers: actionsStoryProviders({ workflow: () => new Promise(() => undefined) }) }),
+  ],
 };
 /** GitHub or the console failed: an error block with Retry. */
 export const LoadFailed: Story = {
   decorators: [
-    applicationConfig({ providers: actionsStoryProviders({ workflow: async () => ({ ok: false, problem: { kind: 'failed' } }) }) }),
+    applicationConfig({
+      providers: actionsStoryProviders({
+        workflow: async () => ({ ok: false, problem: { kind: 'failed' } }),
+      }),
+    }),
   ],
 };
 /** The console cannot build the file (503): the repository is fine, no Retry. */
 export const Misconfigured: Story = {
   decorators: [
     applicationConfig({
-      providers: actionsStoryProviders({ workflow: async () => ({ ok: false, problem: { kind: 'misconfigured' } }) }),
+      providers: actionsStoryProviders({
+        workflow: async () => ({ ok: false, problem: { kind: 'misconfigured' } }),
+      }),
     }),
   ],
 };

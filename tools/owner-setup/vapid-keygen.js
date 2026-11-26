@@ -34,7 +34,9 @@ function generateVapidKeyPair() {
 
   const publicPoint = Buffer.concat([Buffer.from([0x04]), x, y]);
   if (publicPoint.length !== 65 || publicPoint[0] !== 0x04) {
-    throw new Error(`uncompressed public point is ${publicPoint.length} bytes starting 0x${publicPoint[0].toString(16)}, expected 65 starting 0x04`);
+    throw new Error(
+      `uncompressed public point is ${publicPoint.length} bytes starting 0x${publicPoint[0].toString(16)}, expected 65 starting 0x04`,
+    );
   }
 
   return {

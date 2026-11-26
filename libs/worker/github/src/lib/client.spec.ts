@@ -267,7 +267,11 @@ describe('GitHubClient.postJson', () => {
           : json(200, { id: 7 }),
       );
       await expect(
-        new GitHubClient(github.fetch, tokens).patchJson(MILESTONE, { due_on: '2026-10-16T12:00:00Z' }, isComment),
+        new GitHubClient(github.fetch, tokens).patchJson(
+          MILESTONE,
+          { due_on: '2026-10-16T12:00:00Z' },
+          isComment,
+        ),
       ).resolves.toEqual({ id: 7 });
       expect(github.calls.map((call) => [call.method, call.body])).toEqual([
         ['PATCH', '{"due_on":"2026-10-16T12:00:00Z"}'],
@@ -278,7 +282,9 @@ describe('GitHubClient.postJson', () => {
 
     it('never repeats after a 5xx', async () => {
       const github = scriptedGitHub(() => json(502, {}));
-      const down = await rejection(new GitHubClient(github.fetch, ownerTokens()).patchJson(MILESTONE, {}, isComment));
+      const down = await rejection(
+        new GitHubClient(github.fetch, ownerTokens()).patchJson(MILESTONE, {}, isComment),
+      );
       expect(down.problem.type).toBe('github-unavailable');
       expect(github.calls).toHaveLength(1);
     });
@@ -512,7 +518,9 @@ describe('GitHubClient.paginateBounded', () => {
 });
 
 describe('the installation-list token source (#194, ADR 0003 decision 6 as amended)', () => {
-  function listTokens(token = installationToken('list')): InstallationListTokenSource & { invalidated: string[] } {
+  function listTokens(
+    token = installationToken('list'),
+  ): InstallationListTokenSource & { invalidated: string[] } {
     const invalidated: string[] = [];
     return {
       kind: 'installation-list',

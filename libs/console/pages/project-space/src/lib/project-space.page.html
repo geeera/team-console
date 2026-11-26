@@ -4,11 +4,10 @@
        shape), so nothing here naturally remounts on a switch; keying on the slug recreates the heading so `m-enter`
        plays again instead of the name just changing in place. -->
   @for (s of [slug()]; track s) {
-    <h1 class="space__title m-enter" tabindex="-1" [class.tc-sr-only]="isPhone()">
-      {{ project()?.displayName ?? slug() }}
-    </h1>
-  }
-  @if (!isPhone()) {
+  <h1 class="space__title m-enter" tabindex="-1" [class.tc-sr-only]="isPhone()">
+    {{ project()?.displayName ?? slug() }}
+  </h1>
+  } @if (!isPhone()) {
   <nav tc-tab-bar [attr.aria-label]="'space.sections' | transloco">
     @for (item of sections; track item.section) {
     <a tc-tab [routerLink]="['/p', slug(), item.section]" [current]="currentSection() === item.section">
@@ -87,7 +86,9 @@
 
 <div class="space__main">
   <!-- The board uses the whole main column on a wide screen (#275); text screens keep the reading width. -->
-  <div class="space__body m-route" [class.space__body--wide]="currentSection() === 'board'"><router-outlet /></div>
+  <div class="space__body m-route" [class.space__body--wide]="currentSection() === 'board'">
+    <router-outlet />
+  </div>
   @if (isPaneOpen()) {
   <tc-commands-pane id="tc-space-commands" [project]="commandsProject()" (closed)="closePane()" />
   }

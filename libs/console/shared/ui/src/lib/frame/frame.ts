@@ -52,10 +52,17 @@ import { externalHrefOf, frameSrcOf, trustedFrameSrc } from './frame-src';
       </div>
     }
     @if (href(); as href) {
-      <a class="tc-frame__open" data-testid="frame-open" [href]="href" target="_blank" rel="noopener noreferrer">
+      <a
+        class="tc-frame__open"
+        data-testid="frame-open"
+        [href]="href"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
         <span class="tc-frame__host">{{ host() }}</span>
         <span class="tc-frame__open-label"
-          >{{ 'ui.frame.open' | transloco }}<span class="tc-sr-only"> {{ 'ui.frame.newTab' | transloco }}</span></span
+          >{{ 'ui.frame.open' | transloco
+          }}<span class="tc-sr-only"> {{ 'ui.frame.newTab' | transloco }}</span></span
         >
         <tc-icon name="external" size="sm" />
       </a>

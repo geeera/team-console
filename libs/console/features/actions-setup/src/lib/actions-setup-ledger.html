@@ -1,216 +1,266 @@
 <ol class="ledger tc-steps" [attr.aria-label]="'actions.stepsAria' | transloco" data-testid="actions-ledger">
   <!-- 1 · access source -->
-  <li class="step" [class]="'step--' + stateOf('access')" data-step="access" [class.step--first]="firstMissing() === 'access'">
+  <li
+    class="step"
+    [class]="'step--' + stateOf('access')"
+    data-step="access"
+    [class.step--first]="firstMissing() === 'access'"
+  >
     <span class="step__mark" aria-hidden="true">
-      @switch (stateOf('access')) {
-        @case ('done') { <tc-icon name="check" size="sm" /> }
-        @case ('missing') { <tc-icon name="alert" size="sm" /> }
-        @default { 1 }
-      }
+      @switch (stateOf('access')) { @case ('done') { <tc-icon name="check" size="sm" /> } @case ('missing') {
+      <tc-icon name="alert" size="sm" /> } @default { 1 } }
     </span>
     <div class="step__body">
       <div class="step__head">
-        <h3 #stepTitle class="step__title" tabindex="-1" data-step="access">{{ 'actions.access.title' | transloco }}</h3>
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="access">
+          {{ 'actions.access.title' | transloco }}
+        </h3>
         @if (setup() !== null) {
-          <span class="step__state" data-testid="step-state">{{ 'actions.st.' + stateOf('access') | transloco }}</span>
+        <span class="step__state" data-testid="step-state"
+          >{{ 'actions.st.' + stateOf('access') | transloco }}</span
+        >
         }
       </div>
       @if (stateOf('access') === 'done') {
-        <p class="step__fix">{{ 'actions.access.done' | transloco }}</p>
+      <p class="step__fix">{{ 'actions.access.done' | transloco }}</p>
       } @else if (stateOf('access') === 'missing') {
-        <p class="step__fix">{{ 'actions.access.missing' | transloco }}</p>
-        <div class="step__how">
-          <p>{{ 'actions.access.how' | transloco }}</p>
-          @if (teamUrl(); as url) {
-            <a class="step__link" data-testid="actions-team-link" [routerLink]="url">
-              {{ 'actions.access.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
-            </a>
-          }
-        </div>
+      <p class="step__fix">{{ 'actions.access.missing' | transloco }}</p>
+      <div class="step__how">
+        <p>{{ 'actions.access.how' | transloco }}</p>
+        @if (teamUrl(); as url) {
+        <a class="step__link" data-testid="actions-team-link" [routerLink]="url">
+          {{ 'actions.access.link' | transloco }}<tc-icon name="chevron-right" size="sm" />
+        </a>
+        }
+      </div>
       }
     </div>
   </li>
 
   <!-- 2 · app permissions -->
-  <li class="step" [class]="'step--' + stateOf('permissions')" data-step="permissions" [class.step--first]="firstMissing() === 'permissions'">
+  <li
+    class="step"
+    [class]="'step--' + stateOf('permissions')"
+    data-step="permissions"
+    [class.step--first]="firstMissing() === 'permissions'"
+  >
     <span class="step__mark" aria-hidden="true">
-      @switch (stateOf('permissions')) {
-        @case ('done') { <tc-icon name="check" size="sm" /> }
-        @case ('missing') { <tc-icon name="alert" size="sm" /> }
-        @default { 2 }
-      }
+      @switch (stateOf('permissions')) { @case ('done') { <tc-icon name="check" size="sm" /> } @case
+      ('missing') { <tc-icon name="alert" size="sm" /> } @default { 2 } }
     </span>
     <div class="step__body">
       <div class="step__head">
-        <h3 #stepTitle class="step__title" tabindex="-1" data-step="permissions">{{ 'actions.perm.title' | transloco }}</h3>
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="permissions">
+          {{ 'actions.perm.title' | transloco }}
+        </h3>
         @if (setup() !== null) {
-          <span class="step__state" data-testid="step-state">{{ 'actions.st.' + stateOf('permissions') | transloco }}</span>
+        <span class="step__state" data-testid="step-state"
+          >{{ 'actions.st.' + stateOf('permissions') | transloco }}</span
+        >
         }
       </div>
       @if (stateOf('permissions') === 'done') {
-        <p class="step__fix">{{ 'actions.perm.done' | transloco: params() }}</p>
+      <p class="step__fix">{{ 'actions.perm.done' | transloco: params() }}</p>
       } @else if (stateOf('permissions') === 'missing') {
-        <p class="step__fix">{{ 'actions.perm.missing' | transloco }}</p>
-        <div class="step__how">
-          <p>{{ 'actions.perm.how' | transloco }}</p>
-          @if (permissionsLink(); as url) {
-            <a class="step__link" data-testid="actions-permissions-link" [href]="url" target="_blank" rel="noopener noreferrer">
-              {{ 'actions.perm.link' | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
-              <tc-icon name="external" size="sm" />
-            </a>
-          }
-        </div>
-      }
-      @if (setup() !== null) {
-        <button
-          tc-button
-          variant="quiet"
-          size="sm"
-          type="button"
-          class="step__how-toggle"
-          data-testid="actions-why-toggle"
-          [attr.aria-expanded]="isOpen('why')"
-          [attr.aria-controls]="id + '-why'"
-          (click)="toggle('why')"
+      <p class="step__fix">{{ 'actions.perm.missing' | transloco }}</p>
+      <div class="step__how">
+        <p>{{ 'actions.perm.how' | transloco }}</p>
+        @if (permissionsLink(); as url) {
+        <a
+          class="step__link"
+          data-testid="actions-permissions-link"
+          [href]="url"
+          target="_blank"
+          rel="noopener noreferrer"
         >
-          {{ 'actions.perm.whyToggle' | transloco }}
-          <tc-icon name="chevron-down" size="sm" [class.step__chevron--open]="isOpen('why')" />
-        </button>
-        <div class="step__how" [id]="id + '-why'" [hidden]="!isOpen('why')">
-          <p>{{ 'actions.perm.why.contents' | transloco: params() }}</p>
-          <p>{{ 'actions.perm.why.workflows' | transloco }}</p>
-          <p>{{ 'actions.perm.why.environments' | transloco }}</p>
-          <p>{{ 'actions.perm.why.ruleset' | transloco: params() }}</p>
-          @if (rulesetLink(); as url) {
-            <a class="step__link" [href]="url" target="_blank" rel="noopener noreferrer">
-              {{ 'actions.perm.why.rulesetLink' | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
-              <tc-icon name="external" size="sm" />
-            </a>
-          }
-        </div>
+          {{ 'actions.perm.link' | transloco }}<span class="tc-sr-only">
+            {{ 'settings.common.external' | transloco }}</span
+          >
+          <tc-icon name="external" size="sm" />
+        </a>
+        }
+      </div>
+      } @if (setup() !== null) {
+      <button
+        tc-button
+        variant="quiet"
+        size="sm"
+        type="button"
+        class="step__how-toggle"
+        data-testid="actions-why-toggle"
+        [attr.aria-expanded]="isOpen('why')"
+        [attr.aria-controls]="id + '-why'"
+        (click)="toggle('why')"
+      >
+        {{ 'actions.perm.whyToggle' | transloco }}
+        <tc-icon name="chevron-down" size="sm" [class.step__chevron--open]="isOpen('why')" />
+      </button>
+      <div class="step__how" [id]="id + '-why'" [hidden]="!isOpen('why')">
+        <p>{{ 'actions.perm.why.contents' | transloco: params() }}</p>
+        <p>{{ 'actions.perm.why.workflows' | transloco }}</p>
+        <p>{{ 'actions.perm.why.environments' | transloco }}</p>
+        <p>{{ 'actions.perm.why.ruleset' | transloco: params() }}</p>
+        @if (rulesetLink(); as url) {
+        <a class="step__link" [href]="url" target="_blank" rel="noopener noreferrer">
+          {{ 'actions.perm.why.rulesetLink' | transloco }}<span class="tc-sr-only">
+            {{ 'settings.common.external' | transloco }}</span
+          >
+          <tc-icon name="external" size="sm" />
+        </a>
+        }
+      </div>
       }
     </div>
   </li>
 
   <!-- 3 · the team-console Environment -->
-  <li class="step" [class]="'step--' + stateOf('environment')" data-step="environment" [class.step--first]="firstMissing() === 'environment'">
+  <li
+    class="step"
+    [class]="'step--' + stateOf('environment')"
+    data-step="environment"
+    [class.step--first]="firstMissing() === 'environment'"
+  >
     <span class="step__mark" aria-hidden="true">
-      @switch (stateOf('environment')) {
-        @case ('done') { <tc-icon name="check" size="sm" /> }
-        @case ('missing') { <tc-icon name="alert" size="sm" /> }
-        @default { 3 }
-      }
+      @switch (stateOf('environment')) { @case ('done') { <tc-icon name="check" size="sm" /> } @case
+      ('missing') { <tc-icon name="alert" size="sm" /> } @default { 3 } }
     </span>
     <div class="step__body">
       <div class="step__head">
-        <h3 #stepTitle class="step__title" tabindex="-1" data-step="environment">{{ 'actions.env.title' | transloco }}</h3>
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="environment">
+          {{ 'actions.env.title' | transloco }}
+        </h3>
         @if (setup() !== null) {
-          <span class="step__state" data-testid="step-state">{{ 'actions.st.' + stateOf('environment') | transloco }}</span>
+        <span class="step__state" data-testid="step-state"
+          >{{ 'actions.st.' + stateOf('environment') | transloco }}</span
+        >
         }
       </div>
       @if (setup() !== null) {
-        <ul class="subs" data-testid="actions-subchecks">
-          @for (sub of subChecks(); track sub.id) {
-            <li class="sub" [class]="'sub sub--' + sub.tone" [attr.data-item]="sub.id" [attr.data-tone]="sub.tone">
-              <tc-icon class="sub__icon" [name]="toneIcon(sub.tone)" size="sm" />
-              <span class="sub__word">{{ 'actions.sub.' + sub.tone | transloco }}</span>
-              <span class="sub__text">{{ sub.key | transloco: params() }}</span>
-            </li>
-          }
-        </ul>
-        @if (environmentLink(); as url) {
-          <a class="step__link" data-testid="actions-environment-link" [href]="url" target="_blank" rel="noopener noreferrer">
-            {{ (isEnvironmentMissing() ? 'actions.env.linkNew' : 'actions.env.linkEdit') | transloco }}<span class="tc-sr-only">
-              {{ 'settings.common.external' | transloco }}</span
-            >
-            <tc-icon name="external" size="sm" />
-          </a>
-        }
-        <button
-          tc-button
-          variant="quiet"
-          size="sm"
-          type="button"
-          class="step__how-toggle"
-          data-testid="actions-env-how-toggle"
-          [attr.aria-expanded]="isOpen('environment')"
-          [attr.aria-controls]="id + '-env-how'"
-          (click)="toggle('environment')"
+      <ul class="subs" data-testid="actions-subchecks">
+        @for (sub of subChecks(); track sub.id) {
+        <li
+          class="sub"
+          [class]="'sub sub--' + sub.tone"
+          [attr.data-item]="sub.id"
+          [attr.data-tone]="sub.tone"
         >
-          {{ 'settings.step.how' | transloco }}
-          <tc-icon name="chevron-down" size="sm" [class.step__chevron--open]="isOpen('environment')" />
-        </button>
-        <div class="step__how" [id]="id + '-env-how'" [hidden]="!isOpen('environment')" data-testid="actions-env-how">
-          <ol class="how">
-            <li>{{ 'actions.env.how.1' | transloco }}</li>
-            <li>
-              {{ 'actions.env.how.2' | transloco }}
-              <tc-copy-code
-                [code]="environmentName"
-                [ariaLabel]="'actions.copyAria' | transloco: { value: environmentName }"
-                [copyLabel]="'settings.common.copy' | transloco"
-                [copiedLabel]="'settings.common.copied' | transloco"
-                [failedNote]="'settings.common.copyFailed' | transloco"
-              />
-            </li>
-            <li>
-              {{ 'actions.env.how.3' | transloco: params() }}
-              @if (branch(); as branch) {
-                <tc-copy-code
-                  [code]="branch"
-                  [ariaLabel]="'actions.copyAria' | transloco: { value: branch }"
-                  [copyLabel]="'settings.common.copy' | transloco"
-                  [copiedLabel]="'settings.common.copied' | transloco"
-                  [failedNote]="'settings.common.copyFailed' | transloco"
-                />
-              }
-            </li>
-            <li>{{ 'actions.env.how.4' | transloco }}</li>
-            <li>
-              {{ 'actions.env.how.5' | transloco }}
-              <tc-copy-code
-                [code]="secretName"
-                [ariaLabel]="'actions.copyAria' | transloco: { value: secretName }"
-                [copyLabel]="'settings.common.copy' | transloco"
-                [copiedLabel]="'settings.common.copied' | transloco"
-                [failedNote]="'settings.common.copyFailed' | transloco"
-              />
-            </li>
-          </ol>
-          <p class="how__key"><tc-icon name="lock" size="sm" />{{ 'actions.env.keyNote' | transloco }}</p>
-          <p>{{ 'actions.env.noVars' | transloco }}</p>
-          <p>{{ 'actions.env.limit' | transloco }}</p>
-        </div>
+          <tc-icon class="sub__icon" [name]="toneIcon(sub.tone)" size="sm" />
+          <span class="sub__word">{{ 'actions.sub.' + sub.tone | transloco }}</span>
+          <span class="sub__text">{{ sub.key | transloco: params() }}</span>
+        </li>
+        }
+      </ul>
+      @if (environmentLink(); as url) {
+      <a
+        class="step__link"
+        data-testid="actions-environment-link"
+        [href]="url"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {{ (isEnvironmentMissing() ? 'actions.env.linkNew' : 'actions.env.linkEdit') | transloco }}<span
+          class="tc-sr-only"
+        >
+          {{ 'settings.common.external' | transloco }}</span
+        >
+        <tc-icon name="external" size="sm" />
+      </a>
+      }
+      <button
+        tc-button
+        variant="quiet"
+        size="sm"
+        type="button"
+        class="step__how-toggle"
+        data-testid="actions-env-how-toggle"
+        [attr.aria-expanded]="isOpen('environment')"
+        [attr.aria-controls]="id + '-env-how'"
+        (click)="toggle('environment')"
+      >
+        {{ 'settings.step.how' | transloco }}
+        <tc-icon name="chevron-down" size="sm" [class.step__chevron--open]="isOpen('environment')" />
+      </button>
+      <div
+        class="step__how"
+        [id]="id + '-env-how'"
+        [hidden]="!isOpen('environment')"
+        data-testid="actions-env-how"
+      >
+        <ol class="how">
+          <li>{{ 'actions.env.how.1' | transloco }}</li>
+          <li>
+            {{ 'actions.env.how.2' | transloco }}
+            <tc-copy-code
+              [code]="environmentName"
+              [ariaLabel]="'actions.copyAria' | transloco: { value: environmentName }"
+              [copyLabel]="'settings.common.copy' | transloco"
+              [copiedLabel]="'settings.common.copied' | transloco"
+              [failedNote]="'settings.common.copyFailed' | transloco"
+            />
+          </li>
+          <li>
+            {{ 'actions.env.how.3' | transloco: params() }} @if (branch(); as branch) {
+            <tc-copy-code
+              [code]="branch"
+              [ariaLabel]="'actions.copyAria' | transloco: { value: branch }"
+              [copyLabel]="'settings.common.copy' | transloco"
+              [copiedLabel]="'settings.common.copied' | transloco"
+              [failedNote]="'settings.common.copyFailed' | transloco"
+            />
+            }
+          </li>
+          <li>{{ 'actions.env.how.4' | transloco }}</li>
+          <li>
+            {{ 'actions.env.how.5' | transloco }}
+            <tc-copy-code
+              [code]="secretName"
+              [ariaLabel]="'actions.copyAria' | transloco: { value: secretName }"
+              [copyLabel]="'settings.common.copy' | transloco"
+              [copiedLabel]="'settings.common.copied' | transloco"
+              [failedNote]="'settings.common.copyFailed' | transloco"
+            />
+          </li>
+        </ol>
+        <p class="how__key"><tc-icon name="lock" size="sm" />{{ 'actions.env.keyNote' | transloco }}</p>
+        <p>{{ 'actions.env.noVars' | transloco }}</p>
+        <p>{{ 'actions.env.limit' | transloco }}</p>
+      </div>
       }
     </div>
   </li>
 
   <!-- 4 · the workflow file -->
-  <li class="step" [class]="'step--' + stateOf('workflow')" data-step="workflow" [class.step--first]="firstMissing() === 'workflow'">
+  <li
+    class="step"
+    [class]="'step--' + stateOf('workflow')"
+    data-step="workflow"
+    [class.step--first]="firstMissing() === 'workflow'"
+  >
     <span class="step__mark" aria-hidden="true">
-      @switch (stateOf('workflow')) {
-        @case ('done') { <tc-icon name="check" size="sm" /> }
-        @case ('outdated') { <tc-icon name="check" size="sm" /> }
-        @case ('missing') { <tc-icon name="alert" size="sm" /> }
-        @default { 4 }
-      }
+      @switch (stateOf('workflow')) { @case ('done') { <tc-icon name="check" size="sm" /> } @case ('outdated')
+      { <tc-icon name="check" size="sm" /> } @case ('missing') { <tc-icon name="alert" size="sm" /> } @default
+      { 4 } }
     </span>
     <div class="step__body">
       <div class="step__head">
-        <h3 #stepTitle class="step__title" tabindex="-1" data-step="workflow">{{ 'actions.wf.title' | transloco: params() }}</h3>
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="workflow">
+          {{ 'actions.wf.title' | transloco: params() }}
+        </h3>
         @if (setup() !== null) {
-          <span class="step__state" data-testid="step-state">{{ 'actions.st.' + stateOf('workflow') | transloco }}</span>
+        <span class="step__state" data-testid="step-state"
+          >{{ 'actions.st.' + stateOf('workflow') | transloco }}</span
+        >
         }
       </div>
       @if (setup(); as setup) {
-        <tc-workflow-step
-          [slug]="slug()"
-          [repo]="repo()"
-          [setup]="setup"
-          [branch]="branch()"
-          [branchLabel]="branchLabel()"
-          (recheck)="recheck.emit()"
-        />
+      <tc-workflow-step
+        [slug]="slug()"
+        [repo]="repo()"
+        [setup]="setup"
+        [branch]="branch()"
+        [branchLabel]="branchLabel()"
+        (recheck)="recheck.emit()"
+      />
       }
     </div>
   </li>
@@ -222,57 +272,65 @@
     </span>
     <div class="step__body">
       <div class="step__head">
-        <h3 #stepTitle class="step__title" tabindex="-1" data-step="switch">{{ 'actions.switch.title' | transloco }}</h3>
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="switch">
+          {{ 'actions.switch.title' | transloco }}
+        </h3>
         @if (setup(); as setup) {
-          <span class="step__state" data-testid="step-state">{{ (setup.dispatch === 'actions' ? 'actions.st.on' : 'actions.st.off') | transloco }}</span>
+        <span class="step__state" data-testid="step-state"
+          >{{ (setup.dispatch === 'actions' ? 'actions.st.on' : 'actions.st.off') | transloco }}</span
+        >
         }
       </div>
       @if (setup(); as setup) {
-        <tc-actions-switch-on
-          [slug]="slug()"
-          [projectName]="projectName()"
-          [setup]="setup"
-          [missing]="missingCount()"
-          [teamUrl]="teamUrl()"
-          (switched)="switched.emit($event)"
-          (blockedActivation)="focusFirstMissing()"
-          (recheck)="recheck.emit()"
-        />
+      <tc-actions-switch-on
+        [slug]="slug()"
+        [projectName]="projectName()"
+        [setup]="setup"
+        [missing]="missingCount()"
+        [teamUrl]="teamUrl()"
+        (switched)="switched.emit($event)"
+        (blockedActivation)="focusFirstMissing()"
+        (recheck)="recheck.emit()"
+      />
       }
     </div>
   </li>
   <!-- 6 · the first job, only once the switch is on -->
   @if (setup()?.dispatch === 'actions' && firstJob(); as first) {
-    <li class="step" [class.step--done]="first.kind === 'done'" [attr.data-first-job]="first.kind" data-step="first-job">
-      <span class="step__mark" aria-hidden="true">
-        @switch (first.kind) {
-          @case ('done') { <tc-icon name="check" size="sm" /> }
-          @case ('failed') { <tc-icon name="alert" size="sm" /> }
-          @default { 6 }
-        }
-      </span>
-      <div class="step__body">
-        <div class="step__head">
-          <h3 #stepTitle class="step__title" tabindex="-1" data-step="first-job">{{ 'actions.run.title' | transloco }}</h3>
-          <span class="step__state" data-testid="step-state">{{ 'actions.run.state.' + first.kind | transloco }}</span>
-        </div>
-        @switch (first.kind) {
-          @case ('done') {
-            <p class="step__fix" data-testid="first-job-text">{{ 'actions.run.done' | transloco: { time: (first.at | localTime) } }}</p>
-          }
-          @case ('failed') {
-            <p class="step__fix" data-testid="first-job-text">
-              {{ 'actions.run.failed' | transloco: { reason: ('actions.run.reason.' + first.reason | transloco) } }}
-            </p>
-          }
-          @default {
-            <p class="step__fix" data-testid="first-job-text">{{ 'actions.run.waiting' | transloco }}</p>
-          }
-        }
-        <a class="step__link" data-testid="first-job-open" [routerLink]="spaceUrl()">
-          {{ 'actions.run.openProject' | transloco }}<tc-icon name="chevron-right" size="sm" />
-        </a>
+  <li
+    class="step"
+    [class.step--done]="first.kind === 'done'"
+    [attr.data-first-job]="first.kind"
+    data-step="first-job"
+  >
+    <span class="step__mark" aria-hidden="true">
+      @switch (first.kind) { @case ('done') { <tc-icon name="check" size="sm" /> } @case ('failed') {
+      <tc-icon name="alert" size="sm" /> } @default { 6 } }
+    </span>
+    <div class="step__body">
+      <div class="step__head">
+        <h3 #stepTitle class="step__title" tabindex="-1" data-step="first-job">
+          {{ 'actions.run.title' | transloco }}
+        </h3>
+        <span class="step__state" data-testid="step-state"
+          >{{ 'actions.run.state.' + first.kind | transloco }}</span
+        >
       </div>
-    </li>
+      @switch (first.kind) { @case ('done') {
+      <p class="step__fix" data-testid="first-job-text">
+        {{ 'actions.run.done' | transloco: { time: (first.at | localTime) } }}
+      </p>
+      } @case ('failed') {
+      <p class="step__fix" data-testid="first-job-text">
+        {{ 'actions.run.failed' | transloco: { reason: ('actions.run.reason.' + first.reason | transloco) } }}
+      </p>
+      } @default {
+      <p class="step__fix" data-testid="first-job-text">{{ 'actions.run.waiting' | transloco }}</p>
+      } }
+      <a class="step__link" data-testid="first-job-open" [routerLink]="spaceUrl()">
+        {{ 'actions.run.openProject' | transloco }}<tc-icon name="chevron-right" size="sm" />
+      </a>
+    </div>
+  </li>
   }
 </ol>

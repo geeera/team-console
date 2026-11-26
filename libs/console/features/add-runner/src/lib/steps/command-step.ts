@@ -22,11 +22,19 @@ let nextCommandId = 0;
   imports: [Callout, CopyCode, LocalTimePipe, Segment, SegmentedRadio, Spinner, TranslocoPipe],
   template: `
     <h3 class="step__heading" tabindex="-1" data-step-heading>
-      {{ (linuxInstall() === null ? 'runners.wizard.command.title' : 'runners.wizard.command.linux.title') | transloco: { name: name() } }}
+      {{
+        (linuxInstall() === null ? 'runners.wizard.command.title' : 'runners.wizard.command.linux.title')
+          | transloco: { name: name() }
+      }}
     </h3>
     @if (isPhone()) {
       <section tc-callout data-testid="wizard-phone-note">
-        <p>{{ (linuxInstall() === null ? 'runners.wizard.command.phone' : 'runners.wizard.command.linux.phone') | transloco }}</p>
+        <p>
+          {{
+            (linuxInstall() === null ? 'runners.wizard.command.phone' : 'runners.wizard.command.linux.phone')
+              | transloco
+          }}
+        </p>
       </section>
     }
     @if (linuxInstall(); as linux) {
@@ -60,12 +68,17 @@ let nextCommandId = 0;
         </li>
       </ol>
       <section tc-callout data-testid="wizard-linux-socket">
-        <p>{{ 'runners.wizard.command.linux.socket' | transloco: { user: linuxUser, socket: podmanSocket } }}</p>
+        <p>
+          {{ 'runners.wizard.command.linux.socket' | transloco: { user: linuxUser, socket: podmanSocket } }}
+        </p>
       </section>
       <details class="command__what">
         <summary>{{ 'runners.wizard.command.what' | transloco }}</summary>
         <p class="step__meta">
-          {{ 'runners.wizard.command.linux.whatBody' | transloco: { version: linux.version, image: linux.image } }}
+          {{
+            'runners.wizard.command.linux.whatBody'
+              | transloco: { version: linux.version, image: linux.image }
+          }}
         </p>
       </details>
     } @else if (installCommands(); as install) {
@@ -85,7 +98,9 @@ let nextCommandId = 0;
             {{ option.label | transloco }}
           </label>
         }
-        <p tc-segmented-hint [id]="groupId + '-arch-hint'">{{ 'runners.wizard.command.archHint' | transloco }}</p>
+        <p tc-segmented-hint [id]="groupId + '-arch-hint'">
+          {{ 'runners.wizard.command.archHint' | transloco }}
+        </p>
       </fieldset>
       <tc-copy-code
         data-testid="wizard-command"
@@ -98,7 +113,9 @@ let nextCommandId = 0;
       />
       <details class="command__what">
         <summary>{{ 'runners.wizard.command.what' | transloco }}</summary>
-        <p class="step__meta">{{ 'runners.wizard.command.whatBody' | transloco: { version: install.version } }}</p>
+        <p class="step__meta">
+          {{ 'runners.wizard.command.whatBody' | transloco: { version: install.version } }}
+        </p>
       </details>
     } @else {
       <p class="step__lead">{{ 'runners.wizard.command.leadRunbook' | transloco }}</p>
@@ -189,9 +206,10 @@ export class AddRunnerCommandStep {
   protected readonly runbookUrl = RUNBOOK_INSTALL_URL;
   protected readonly linuxUser = LINUX_RUNNER_USER;
   protected readonly podmanSocket = LINUX_PODMAN_SOCKET;
-  protected readonly archOptions: readonly { readonly value: MacReleasePlatform; readonly label: string }[] = [
-    { value: 'darwin-arm64', label: 'runners.wizard.command.archArm' },
-    { value: 'darwin-x64', label: 'runners.wizard.command.archIntel' },
-  ];
+  protected readonly archOptions: readonly { readonly value: MacReleasePlatform; readonly label: string }[] =
+    [
+      { value: 'darwin-arm64', label: 'runners.wizard.command.archArm' },
+      { value: 'darwin-x64', label: 'runners.wizard.command.archIntel' },
+    ];
   protected readonly minutesLeft = computed(() => minutesLeftOf(this.expiresAt(), this.now()));
 }

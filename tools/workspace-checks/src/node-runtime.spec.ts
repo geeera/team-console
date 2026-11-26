@@ -2,7 +2,12 @@ import { workspaceRoot } from '@nx/devkit';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
-import { loadNodeRuntime, loadReleaseIdentity, type NodeRuntime, type ReleaseIdentity } from './support/release-tools';
+import {
+  loadNodeRuntime,
+  loadReleaseIdentity,
+  type NodeRuntime,
+  type ReleaseIdentity,
+} from './support/release-tools';
 
 /**
  * The Node.js the runner release ships (#634 PR 5, threat model C11 R-NODE-1/R-NODE-2): the fingerprints pinned in
@@ -44,7 +49,9 @@ describe('the bundled Node.js', () => {
   it('pins one fingerprint list in both workflows, exactly the committed keyring’s keys', () => {
     const pinned = runtime.parseFingerprints(release.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '');
     expect(runtime.parseFingerprints(check.env?.['NODE_RELEASE_KEY_FINGERPRINTS'] ?? '')).toEqual(pinned);
-    expect([...runtime.keyringFingerprints(read('apps/runner/node/release-keys.asc'))].sort()).toEqual([...pinned].sort());
+    expect([...runtime.keyringFingerprints(read('apps/runner/node/release-keys.asc'))].sort()).toEqual(
+      [...pinned].sort(),
+    );
   });
 
   it('pins a version the launcher can run, for every release platform', () => {
@@ -54,7 +61,9 @@ describe('the bundled Node.js', () => {
   });
 
   it('is fetched and verified only in pack, which runs no npm and can read the repository only', () => {
-    const fetchers = Object.entries(release.jobs).filter(([, job]) => runOf(job).includes('node-runtime.mjs fetch'));
+    const fetchers = Object.entries(release.jobs).filter(([, job]) =>
+      runOf(job).includes('node-runtime.mjs fetch'),
+    );
     expect(fetchers.map(([name]) => name)).toEqual(['pack']);
     const pack = release.jobs['pack'];
     expect(pack?.permissions).toEqual({ contents: 'read' });
@@ -68,8 +77,12 @@ describe('the bundled Node.js', () => {
     const pack = runOf(release.jobs['pack']);
     expect(pack).toContain('for platform in darwin-arm64 darwin-x64 linux-x64 linux-arm64; do');
     expect(pack).toContain('install -m 0555 "node/${platform}/node" "${stage}/node"');
-    expect(pack).toContain(`sha256sum ${['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].join(' ')} > SHA256SUMS`);
-    expect(['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].sort()).toEqual([...identity.RELEASE_FILES].sort());
+    expect(pack).toContain(
+      `sha256sum ${['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].join(' ')} > SHA256SUMS`,
+    );
+    expect(['team-console-runner.mjs', 'node', 'bin/job-exec', 'bin/team-console-runner'].sort()).toEqual(
+      [...identity.RELEASE_FILES].sort(),
+    );
     expect(pack).toContain('-cf - SHA256SUMS team-console-runner.mjs node bin');
   });
 

@@ -107,21 +107,29 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
     }
     const registered = parseRepoName(target.repo);
     const { auth, fetch } = await deps.github.connect(deps.env);
-    const repository = await readRegisteredRepository(new GitHubClient(fetch, auth.tokenSourceFor(registered)), registered, repoId);
+    const repository = await readRegisteredRepository(
+      new GitHubClient(fetch, auth.tokenSourceFor(registered)),
+      registered,
+      repoId,
+    );
     if (repository === null) {
       throw new DispatchRefusal('repository mismatch');
     }
     await new ProjectDispatchRepo(deps.env.DB).recordDefaultBranch(slug, repository.defaultBranch);
     phase = 'mint';
-    const token = await auth.mintScoped('actions-dispatch', { installationId, repositoryId: repoId }, async (event) => {
-      // #759: every mint attempt and failure is on record, not only the dispatch's own outcome.
-      deps.logger.info('actions dispatch token', {
-        jobId,
-        slug,
-        outcome: event.outcome,
-        ...(event.outcome === 'failed' ? { failure: event.failure, githubStatus: event.githubStatus } : {}),
-      });
-    });
+    const token = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId, repositoryId: repoId },
+      async (event) => {
+        // #759: every mint attempt and failure is on record, not only the dispatch's own outcome.
+        deps.logger.info('actions dispatch token', {
+          jobId,
+          slug,
+          outcome: event.outcome,
+          ...(event.outcome === 'failed' ? { failure: event.failure, githubStatus: event.githubStatus } : {}),
+        });
+      },
+    );
     try {
       // Recorded before the call, as a compare-and-set: a second request never dispatches the job again, and a run
       // that boots fast never meets a job the exchange still refuses as undispatched (#695 item 3). The write also
@@ -156,7 +164,12 @@ export async function dispatchActionsJob(deps: DispatchDeps, jobId: string): Pro
       ...(error instanceof GitHubError ? { githubStatus: error.githubStatus } : {}),
     });
     const at = nowOf(deps);
-    const failed = await jobs.failUndispatched(jobId, at, ACTIONS_DISPATCH_FAILED, `${ACTIONS_DISPATCH_FAILED}: ${failure}`);
+    const failed = await jobs.failUndispatched(
+      jobId,
+      at,
+      ACTIONS_DISPATCH_FAILED,
+      `${ACTIONS_DISPATCH_FAILED}: ${failure}`,
+    );
     // #874: GitHub's 404 on `workflow_dispatch` is the file gone, so "Needs you" says so before the next check.
     if (failure === 'workflow missing') {
       await recordWorkflowJudgement(deps, slug, { status: 'missing', sha256: null, checkedAt: at });
@@ -192,7 +205,10 @@ export async function dispatchAdmittedActionsJobs(
         dispatched += 1;
       }
     } catch (error: unknown) {
-      deps.logger.error('actions dispatch errored', { jobId: id, error: error instanceof Error ? error.name : 'unknown' });
+      deps.logger.error('actions dispatch errored', {
+        jobId: id,
+        error: error instanceof Error ? error.name : 'unknown',
+      });
     }
   }
   return dispatched;

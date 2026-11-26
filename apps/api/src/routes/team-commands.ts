@@ -360,7 +360,12 @@ export function createTeamCommandsRoutes(
   const owners = options.ownerConnection ?? connectedOwnerSource(github);
   const baseFetch: FetchLike = options.routinesFetch ?? (async (input, init) => fetch(input, init));
 
-  async function ownerCommand(c: Context, kind: 'pause' | 'resume', reason: string, waiveBudget = false): Promise<Response> {
+  async function ownerCommand(
+    c: Context,
+    kind: 'pause' | 'resume',
+    reason: string,
+    waiveBudget = false,
+  ): Promise<Response> {
     const logger = c.get('logger');
     const project = await findProject(c, c.req.param('slug') ?? '');
     if (project === null) {
@@ -577,7 +582,9 @@ export function createTeamCommandsRoutes(
 
     .post('/:slug/team/resume', ownerOnlyMiddleware, limit, async (c) => {
       const request = parseResume(await jsonBody(c));
-      return typeof request === 'string' ? invalid(c, request) : ownerCommand(c, 'resume', '', request.waiveBudget);
+      return typeof request === 'string'
+        ? invalid(c, request)
+        : ownerCommand(c, 'resume', '', request.waiveBudget);
     })
 
     .post('/:slug/runs', ownerOnlyMiddleware, limit, async (c) => {
@@ -600,7 +607,10 @@ export function createTeamCommandsRoutes(
       }
       const { slot } = request;
       // #731: a console-tracker team pauses in `team_state` (owner, failure streak, budget); nothing starts while it holds.
-      if (project.tracker === 'console' && (await consoleTeamStateOf(c.env.DB, project.slug)).state !== 'running') {
+      if (
+        project.tracker === 'console' &&
+        (await consoleTeamStateOf(c.env.DB, project.slug)).state !== 'running'
+      ) {
         return runPaused(c);
       }
       const trigger = slotTriggerOf(c.env, project.slug, slot);

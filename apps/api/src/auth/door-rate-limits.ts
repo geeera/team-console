@@ -36,7 +36,12 @@ export class DoorRateLimits {
    * `bucket` names a per-address count of its own beside the door's default (`ip`), for a call the same caller
    * legitimately repeats more often (the enrolment poll, #634).
    */
-  async hitAddress(header: string | undefined, limit: number, logger: Logger, bucket = 'ip'): Promise<boolean> {
+  async hitAddress(
+    header: string | undefined,
+    limit: number,
+    logger: Logger,
+    bucket = 'ip',
+  ): Promise<boolean> {
     const address = rateLimitAddressOf(header);
     if (address.kind === 'unknown') {
       // The edge always sets it; without it the caller is not reaching us through Cloudflare (or the header is forged).

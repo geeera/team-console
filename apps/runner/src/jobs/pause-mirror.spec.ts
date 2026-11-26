@@ -41,7 +41,11 @@ describe('the pause mirrored to the console', () => {
 
   it('posts a pause still in force from state.json on start, and claims nothing', async () => {
     const until = new Date(Date.now() + 30 * 60_000).toISOString();
-    await saveRunnerState(fixture.home, { schema: 1, pause: { reason: 'rate-limit', until }, limitStreak: 1 });
+    await saveRunnerState(fixture.home, {
+      schema: 1,
+      pause: { reason: 'rate-limit', until },
+      limitStreak: 1,
+    });
     let claims = 0;
     const client = Object.assign(recordingConsole(), {
       claim: async () => {
@@ -61,7 +65,11 @@ describe('the pause mirrored to the console', () => {
     // independent of how long the surrounding I/O actually takes.
     let clockMs = Date.now();
     const until = new Date(clockMs + 40).toISOString();
-    await saveRunnerState(fixture.home, { schema: 1, pause: { reason: 'usage-limit', until }, limitStreak: 1 });
+    await saveRunnerState(fixture.home, {
+      schema: 1,
+      pause: { reason: 'usage-limit', until },
+      limitStreak: 1,
+    });
     const shutdown = new AbortController();
     let claims = 0;
     const client = Object.assign(recordingConsole(), {
@@ -78,7 +86,10 @@ describe('the pause mirrored to the console', () => {
       return Promise.resolve();
     };
     expect(
-      await runLoop('loop', depsFor(client, { shutdown: shutdown.signal, sleep, now: () => new Date(clockMs) })),
+      await runLoop(
+        'loop',
+        depsFor(client, { shutdown: shutdown.signal, sleep, now: () => new Date(clockMs) }),
+      ),
     ).toBe('shutdown');
     expect(client.pauses).toEqual([{ reason: 'usage-limit', until }, 'resume']);
     expect(claims).toBe(2);
@@ -86,7 +97,11 @@ describe('the pause mirrored to the console', () => {
 
   it('keeps the local pause when the console cannot be reached, and says so in the log', async () => {
     const until = new Date(Date.now() + 30 * 60_000).toISOString();
-    await saveRunnerState(fixture.home, { schema: 1, pause: { reason: 'usage-limit', until }, limitStreak: 1 });
+    await saveRunnerState(fixture.home, {
+      schema: 1,
+      pause: { reason: 'usage-limit', until },
+      limitStreak: 1,
+    });
     const client = Object.assign(recordingConsole(), {
       claim: async () => ({ kind: 'idle' as const, retryAfterSeconds: 60 }),
       pause: async () => {

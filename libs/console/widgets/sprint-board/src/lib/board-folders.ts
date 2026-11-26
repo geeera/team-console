@@ -54,7 +54,10 @@ export function countsAfterMove(
 ): TrackerSprintListDto {
   const delta = (sprint: number | null): number => (sprint === to ? 1 : 0) - (sprint === from ? 1 : 0);
   return {
-    sprints: list.sprints.map((sprint) => ({ ...sprint, openCount: sprint.openCount + delta(sprint.number) })),
+    sprints: list.sprints.map((sprint) => ({
+      ...sprint,
+      openCount: sprint.openCount + delta(sprint.number),
+    })),
     backlogOpenCount: list.backlogOpenCount + delta(null),
   };
 }
@@ -85,7 +88,9 @@ export function folderKeyOf(folder: BoardFolderSpec): string {
         data-testid="folders-error"
         [icon]="state().kind === 'offline' ? 'offline' : null"
         [title]="'board.sections.listError' | transloco"
-        [description]="(state().kind === 'offline' ? 'board.sections.offlineHint' : 'board.sections.errorHint') | transloco"
+        [description]="
+          (state().kind === 'offline' ? 'board.sections.offlineHint' : 'board.sections.errorHint') | transloco
+        "
       >
         <button tc-button tc-state-action type="button" (click)="reload()">
           {{ 'board.sections.tryAgain' | transloco }}
@@ -104,7 +109,13 @@ export function folderKeyOf(folder: BoardFolderSpec): string {
         <section class="folders__no-next" data-testid="no-next" [attr.aria-labelledby]="noNextId">
           <h2 class="folders__no-next-title" [id]="noNextId">{{ 'board.sections.next' | transloco }}</h2>
           <p class="folders__no-next-text">{{ 'board.sections.noNext' | transloco }}</p>
-          <button tc-button size="sm" type="button" data-testid="folders-create-sprint" (click)="createSprint.emit()">
+          <button
+            tc-button
+            size="sm"
+            type="button"
+            data-testid="folders-create-sprint"
+            (click)="createSprint.emit()"
+          >
             <tc-icon name="plus" size="sm" />
             {{ 'sprintNew.create' | transloco }}
           </button>
@@ -176,11 +187,17 @@ export class BoardFolders {
     const state = this.state();
     return state.kind === 'ready' ? boardFoldersOf(state.list) : null;
   });
-  protected readonly hasFuture = computed(() => (this.folders() ?? []).some((folder) => folder.sprint !== null));
+  protected readonly hasFuture = computed(() =>
+    (this.folders() ?? []).some((folder) => folder.sprint !== null),
+  );
   /** No open sprint and nothing open in the backlog: the #409 project-empty state instead of folders. */
   protected readonly isProjectEmpty = computed(() => {
     const state = this.state();
-    return state.kind === 'ready' && openSprintsOf(state.list.sprints).length === 0 && state.list.backlogOpenCount === 0;
+    return (
+      state.kind === 'ready' &&
+      openSprintsOf(state.list.sprints).length === 0 &&
+      state.list.backlogOpenCount === 0
+    );
   });
 
   constructor() {
@@ -209,7 +226,10 @@ export class BoardFolders {
       .subscribe((event) => {
         const state = this.state();
         if (event.kind === 'moved' && event.move.item.state === 'open' && state.kind === 'ready') {
-          this.state.set({ kind: 'ready', list: countsAfterMove(state.list, event.move.from, event.move.to) });
+          this.state.set({
+            kind: 'ready',
+            list: countsAfterMove(state.list, event.move.from, event.move.to),
+          });
         }
       });
   }
@@ -265,7 +285,9 @@ export class BoardFolders {
     const valid = new Set(folders.map(folderKeyOf));
     const kept = new Set([...this.openKeys()].filter((key) => valid.has(key)));
     const section = this.initialSection();
-    const target = isBoardFolderSection(section) ? folders.find((folder) => folder.kind === section) : undefined;
+    const target = isBoardFolderSection(section)
+      ? folders.find((folder) => folder.kind === section)
+      : undefined;
     if (target !== undefined) {
       kept.add(folderKeyOf(target));
     }
@@ -276,7 +298,10 @@ export class BoardFolders {
     if (target !== undefined) {
       const key = folderKeyOf(target);
       afterNextRender(
-        () => this.children().find((child) => folderKeyOf(child.folder()) === key)?.focusHeading(),
+        () =>
+          this.children()
+            .find((child) => folderKeyOf(child.folder()) === key)
+            ?.focusHeading(),
         { injector: this.injector },
       );
     }

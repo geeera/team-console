@@ -7,16 +7,20 @@ import { ArtifactList } from './artifact-list';
 @Component({
   imports: [ArtifactList],
   template: `<tc-artifact-list
-    [items]="items()"
-    [grouped]="grouped()"
-    [highlight]="highlight()"
-    label="Artifacts"
-    [designLeading]="leading"
-    [designSubtitle]="subtitle"
-    (openDesign)="opened.set($event.number)"
-  />
-    <ng-template #leading let-design><span class="thumb">thumb {{ design.number }}</span></ng-template>
-    <ng-template #subtitle let-design><span class="summary">#{{ design.number }} · 6 экранов</span></ng-template>`,
+      [items]="items()"
+      [grouped]="grouped()"
+      [highlight]="highlight()"
+      label="Artifacts"
+      [designLeading]="leading"
+      [designSubtitle]="subtitle"
+      (openDesign)="opened.set($event.number)"
+    />
+    <ng-template #leading let-design
+      ><span class="thumb">thumb {{ design.number }}</span></ng-template
+    >
+    <ng-template #subtitle let-design
+      ><span class="summary">#{{ design.number }} · 6 экранов</span></ng-template
+    >`,
 })
 class Host {
   readonly items = signal<readonly Artifact[]>([]);
@@ -113,7 +117,10 @@ describe('ArtifactList', () => {
 
   it('keeps a design issue without a number, and a design file, as plain GitHub links', async () => {
     const fixture = await render();
-    fixture.componentInstance.items.set([DESIGN, { ...DESIGN, source: 'file', state: null, updatedAt: null }]);
+    fixture.componentInstance.items.set([
+      DESIGN,
+      { ...DESIGN, source: 'file', state: null, updatedAt: null },
+    ]);
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     expect(root.querySelectorAll('a')).toHaveLength(2);
@@ -141,8 +148,18 @@ describe('ArtifactList', () => {
 
   it('opens each type with an eye-only heading and its count when grouped; the list counts the artifacts alone (#766)', async () => {
     const fixture = await render();
-    const decision: Artifact = { ...DESIGN, type: 'decision', source: 'file', state: null, url: 'https://github.com/o/r/blob/main/0001.md' };
-    fixture.componentInstance.items.set([decision, { ...decision, url: `${decision.url}2` }, { ...DESIGN, number: 24 }]);
+    const decision: Artifact = {
+      ...DESIGN,
+      type: 'decision',
+      source: 'file',
+      state: null,
+      url: 'https://github.com/o/r/blob/main/0001.md',
+    };
+    fixture.componentInstance.items.set([
+      decision,
+      { ...decision, url: `${decision.url}2` },
+      { ...DESIGN, number: 24 },
+    ]);
     fixture.componentInstance.grouped.set(true);
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;

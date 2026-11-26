@@ -113,7 +113,10 @@ describe('isNeedsYouDto', () => {
     ],
     [
       'a context field that is not text',
-      { ...needsYou(), items: [{ ...needsYou().items[0], context: { ...needsYou().items[0]?.context, why: 1 } }] },
+      {
+        ...needsYou(),
+        items: [{ ...needsYou().items[0], context: { ...needsYou().items[0]?.context, why: 1 } }],
+      },
     ],
     [
       'a context without structured',
@@ -260,7 +263,11 @@ describe('the budget stop (#684)', () => {
     const body = needsYou();
     const view = needsYouViewOf({
       ...body,
-      projects: [{ ...body.projects[0]!, budgetStop: stop }, body.projects[1]!, { ...body.projects[2]!, budgetStop: stop }],
+      projects: [
+        { ...body.projects[0]!, budgetStop: stop },
+        body.projects[1]!,
+        { ...body.projects[2]!, budgetStop: stop },
+      ],
     });
     expect(view.budgetStops).toEqual([
       { project: { slug: 'team-console', name: 'Team Console' }, ...stop, paused: false, canManage: true },
@@ -294,7 +301,11 @@ describe('the budget stop (#684)', () => {
     const body = needsYou();
     const view = needsYouViewOf({
       ...body,
-      projects: [{ ...body.projects[0]!, canManage: false, budgetStop: stop }, body.projects[1]!, body.projects[2]!],
+      projects: [
+        { ...body.projects[0]!, canManage: false, budgetStop: stop },
+        body.projects[1]!,
+        body.projects[2]!,
+      ],
     });
     expect(view.budgetStops[0]?.canManage).toBe(false);
   });
@@ -315,9 +326,15 @@ describe('the concurrency stop (#746)', () => {
     const body = needsYou();
     const view = needsYouViewOf({
       ...body,
-      projects: [{ ...body.projects[0]!, concurrencyStop: { queuedJobs: 2 } }, body.projects[1]!, body.projects[2]!],
+      projects: [
+        { ...body.projects[0]!, concurrencyStop: { queuedJobs: 2 } },
+        body.projects[1]!,
+        body.projects[2]!,
+      ],
     });
-    expect(view.concurrencyStops).toEqual([{ project: { slug: 'team-console', name: 'Team Console' }, queuedJobs: 2 }]);
+    expect(view.concurrencyStops).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, queuedJobs: 2 },
+    ]);
     expect(needsYouViewOf(body).concurrencyStops).toEqual([]);
   });
 
@@ -341,7 +358,9 @@ describe('the Actions workflow drift (#874)', () => {
       ...body,
       projects: [{ ...body.projects[0]!, actionsDrift: drift }, body.projects[1]!, body.projects[2]!],
     });
-    expect(view.actionsDrifts).toEqual([{ project: { slug: 'team-console', name: 'Team Console' }, ...drift }]);
+    expect(view.actionsDrifts).toEqual([
+      { project: { slug: 'team-console', name: 'Team Console' }, ...drift },
+    ]);
     expect(needsYouViewOf(body).actionsDrifts).toEqual([]);
   });
 

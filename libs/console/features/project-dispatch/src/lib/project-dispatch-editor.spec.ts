@@ -5,12 +5,21 @@ import { ActionsSetupApi, actionsSetupFixture } from '@console/entities/actions-
 import { ProjectsStore } from '@console/entities/project';
 import { RunnersApi, runnerFailureOf, type RunnerResult } from '@console/entities/runner';
 import { provideConsoleI18n } from '@console/shared/i18n';
-import { PROBLEM_TYPE_PREFIX, type ActionsSetupDto, type ProjectDispatch, type ProjectDispatchDto } from '@shared/contracts';
+import {
+  PROBLEM_TYPE_PREFIX,
+  type ActionsSetupDto,
+  type ProjectDispatch,
+  type ProjectDispatchDto,
+} from '@shared/contracts';
 import { ProjectDispatchEditor } from './project-dispatch-editor';
 
 const PULL: ProjectDispatchDto = { dispatch: 'pull', defaultBranch: null };
 
-function problem(status: number, slug: string, extra: Record<string, unknown> = {}): RunnerResult<ProjectDispatchDto> {
+function problem(
+  status: number,
+  slug: string,
+  extra: Record<string, unknown> = {},
+): RunnerResult<ProjectDispatchDto> {
   const error = new HttpErrorResponse({
     status,
     error: { type: `${PROBLEM_TYPE_PREFIX}${slug}`, title: 'x', status, field: 'dispatch', ...extra },
@@ -68,7 +77,8 @@ describe('ProjectDispatchEditor (#670)', () => {
     };
     await settle();
     const root = fixture.nativeElement as HTMLElement;
-    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null => root.querySelector<T>(`[data-testid="${id}"]`);
+    const find = <T extends HTMLElement = HTMLElement>(id: string): T | null =>
+      root.querySelector<T>(`[data-testid="${id}"]`);
     const choose = async (mode: ProjectDispatch): Promise<void> => {
       const radio = find<HTMLInputElement>(`dispatch-mode-${mode}`) as HTMLInputElement;
       radio.checked = true;
@@ -86,7 +96,9 @@ describe('ProjectDispatchEditor (#670)', () => {
     const { find } = await render();
     expect(find<HTMLInputElement>('dispatch-mode-pull')?.checked).toBe(true);
     expect(find<HTMLInputElement>('dispatch-mode-actions')?.checked).toBe(false);
-    expect(find('project-dispatch-minutes')?.textContent).toContain('Минуты GitHub Actions — это ваши расходы');
+    expect(find('project-dispatch-minutes')?.textContent).toContain(
+      'Минуты GitHub Actions — это ваши расходы',
+    );
     // The note is read with the Actions choice, not only seen near it.
     const described = find('dispatch-mode-actions')?.getAttribute('aria-describedby') ?? '';
     expect(described.split(' ')).toContain(find('project-dispatch-minutes')?.id);
@@ -145,7 +157,8 @@ describe('ProjectDispatchEditor (#670)', () => {
 
   it('holds Save back while the repository is not ready and sends focus to «Подготовить репозиторий»', async () => {
     const { find, choose, save, settle, writes } = await render({
-      readiness: () => actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }),
+      readiness: () =>
+        actionsSetupFixture({ items: { secret: { status: 'missing' }, workflow: { status: 'missing' } } }),
     });
     await choose('actions');
     await settle();

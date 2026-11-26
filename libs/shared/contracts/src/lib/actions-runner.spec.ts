@@ -31,7 +31,14 @@ describe('the ephemeral runner name', () => {
   it('carries the run id and reads it back; any other name is no run', () => {
     expect(actionsRunnerNameOf('9876543210')).toBe('actions:9876543210');
     expect(actionsRunIdOf('actions:9876543210')).toBe('9876543210');
-    for (const name of ['Mac mini', 'actions:', 'actions:0123', 'actions:12a', 'xactions:12', 'actions:12 ']) {
+    for (const name of [
+      'Mac mini',
+      'actions:',
+      'actions:0123',
+      'actions:12a',
+      'xactions:12',
+      'actions:12 ',
+    ]) {
       expect(actionsRunIdOf(name), name).toBeNull();
     }
   });
@@ -69,7 +76,10 @@ describe('what an enrolment code can grant (#668)', () => {
       version: '0.4.0',
     };
     expect(checkEnrolRunnerInput({ ...body, isolation: 'container' }).ok).toBe(true);
-    expect(checkEnrolRunnerInput({ ...body, isolation: 'actions-ephemeral' })).toMatchObject({ ok: false, field: 'isolation' });
+    expect(checkEnrolRunnerInput({ ...body, isolation: 'actions-ephemeral' })).toMatchObject({
+      ok: false,
+      field: 'isolation',
+    });
   });
 });
 
@@ -88,7 +98,8 @@ describe('isActionsWorkflowDto (#759)', () => {
 });
 
 describe('the Actions readiness answer (#759 PR 3)', () => {
-  const okItems = (): ActionsSetupItemDto[] => ACTIONS_SETUP_ITEMS.map((id) => ({ id, status: 'ok' as const }));
+  const okItems = (): ActionsSetupItemDto[] =>
+    ACTIONS_SETUP_ITEMS.map((id) => ({ id, status: 'ok' as const }));
   const ready: ActionsSetupDto = {
     dispatch: 'pull',
     accessSource: 'api_key',
@@ -116,7 +127,9 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
     expect(isActionsSetupDto({ ...ready, items: ready.items.slice(1) })).toBe(false);
     expect(isActionsSetupDto({ ...ready, secretNames: ['OTHER'] })).toBe(false);
     expect(isActionsSetupDto(withItem({ id: 'secret', status: 'ok', updatedAt: '2026-11-01' }))).toBe(false);
-    expect(isActionsSetupDto(withItem({ id: 'protection-rules', status: 'wrong', reviewers: ['someone'] }))).toBe(false);
+    expect(
+      isActionsSetupDto(withItem({ id: 'protection-rules', status: 'wrong', reviewers: ['someone'] })),
+    ).toBe(false);
     expect(isActionsSetupDto({ ...ready, checkedAt: 'yesterday' })).toBe(false);
   });
 
@@ -139,11 +152,18 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
 
   it('takes versions with exactly their keys, versions as x.y.z and current pins nullable (#870)', () => {
     const versions = ready.versions;
-    const withVersions = (patch: Record<string, unknown>): Record<string, unknown> => ({ ...ready, versions: { ...versions, ...patch } });
+    const withVersions = (patch: Record<string, unknown>): Record<string, unknown> => ({
+      ...ready,
+      versions: { ...versions, ...patch },
+    });
     expect(isActionsSetupDto(withVersions({ current: null, runnerSupport: 'unknown' }))).toBe(true);
-    expect(isActionsSetupDto(withVersions({ current: { runner: null, node: '22.1.0', claudeCode: null } }))).toBe(true);
+    expect(
+      isActionsSetupDto(withVersions({ current: { runner: null, node: '22.1.0', claudeCode: null } })),
+    ).toBe(true);
     expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: null } }))).toBe(false);
-    expect(isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: '1.2.3-rc.1' } }))).toBe(false);
+    expect(
+      isActionsSetupDto(withVersions({ expected: { ...versions.expected, runner: '1.2.3-rc.1' } })),
+    ).toBe(false);
     expect(isActionsSetupDto(withVersions({ current: { ...versions.current, sha: 'x' } }))).toBe(false);
     expect(isActionsSetupDto(withVersions({ minRunner: null }))).toBe(true);
     expect(isActionsSetupDto(withVersions({ minRunner: '0.2.0-rc.1' }))).toBe(true);
@@ -154,9 +174,15 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
 
   it('takes a stale flag on a PR only as true (#870)', () => {
     const pr = { number: 3, url: 'https://github.com/acme/x/pull/3', provenance: 'console' };
-    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: true } }))).toBe(true);
-    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: false } }))).toBe(false);
-    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: 'yes' } }))).toBe(false);
+    expect(
+      isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: true } })),
+    ).toBe(true);
+    expect(
+      isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: false } })),
+    ).toBe(false);
+    expect(
+      isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, stale: 'yes' } })),
+    ).toBe(false);
   });
 
   it('refuses a ready flag that disagrees with the items', () => {
@@ -165,19 +191,43 @@ describe('the Actions readiness answer (#759 PR 3)', () => {
   });
 
   it('takes links and PRs only on GitHub’s own UI, a PR only on the workflow item', () => {
-    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: 'https://github.com/acme/x/settings/environments' }))).toBe(true);
-    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: 'https://evil.example.com/' }))).toBe(false);
-    expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: '/settings/projects/x/actions' }))).toBe(false);
+    expect(
+      isActionsSetupDto(
+        withItem({
+          id: 'secret',
+          status: 'missing',
+          link: 'https://github.com/acme/x/settings/environments',
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: 'https://evil.example.com/' })),
+    ).toBe(false);
+    expect(
+      isActionsSetupDto(withItem({ id: 'secret', status: 'missing', link: '/settings/projects/x/actions' })),
+    ).toBe(false);
     const pr = { number: 3, url: 'https://github.com/acme/x/pull/3', provenance: 'console' };
     expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr }))).toBe(true);
     expect(isActionsSetupDto(withItem({ id: 'secret', status: 'missing', pr }))).toBe(false);
-    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, url: 'https://evil.example.com/3' } }))).toBe(false);
-    expect(isActionsSetupDto(withItem({ id: 'workflow', status: 'missing', pr: { ...pr, provenance: 'trusted' } }))).toBe(false);
+    expect(
+      isActionsSetupDto(
+        withItem({ id: 'workflow', status: 'missing', pr: { ...pr, url: 'https://evil.example.com/3' } }),
+      ),
+    ).toBe(false);
+    expect(
+      isActionsSetupDto(
+        withItem({ id: 'workflow', status: 'missing', pr: { ...pr, provenance: 'trusted' } }),
+      ),
+    ).toBe(false);
   });
 
   it('counts unknown as blocking and protection rules as advisory', () => {
     const items = okItems().map((entry): ActionsSetupItemDto =>
-      entry.id === 'secret' ? { ...entry, status: 'unknown' } : entry.id === 'protection-rules' ? { ...entry, status: 'wrong' } : entry,
+      entry.id === 'secret'
+        ? { ...entry, status: 'unknown' }
+        : entry.id === 'protection-rules'
+          ? { ...entry, status: 'wrong' }
+          : entry,
     );
     expect(blockingItemsOf(items)).toEqual(['secret']);
     expect(blockingItemsOf(okItems())).toEqual([]);
@@ -274,7 +324,12 @@ describe('isOidcExchangeResponse', () => {
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 3 })).toBe(true);
     expect(isOidcExchangeResponse({ ...answer, teamConfig: undefined })).toBe(false);
     // A malformed view is still an envelope the caller accepts; `launchPlanOf` is where it is judged and refused.
-    expect(isOidcExchangeResponse({ ...answer, teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } } })).toBe(true);
+    expect(
+      isOidcExchangeResponse({
+        ...answer,
+        teamConfig: { ...answer.teamConfig, budget: { monthly_usd: 400 } },
+      }),
+    ).toBe(true);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: undefined })).toBe(false);
     expect(isOidcExchangeResponse({ ...answer, teamConfigRevision: 1.5 })).toBe(false);
   });

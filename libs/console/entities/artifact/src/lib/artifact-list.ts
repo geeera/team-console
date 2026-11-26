@@ -1,5 +1,13 @@
 import { NgTemplateOutlet } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, inject, input, output, type TemplateRef } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  output,
+  type TemplateRef,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { localDayOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Chip, Icon, type IconName, List, ListHeading, ListRow } from '@console/shared/ui';
@@ -22,7 +30,11 @@ type Entry =
     }
   | { readonly kind: 'heading'; readonly key: string; readonly type: ArtifactType; readonly count: number };
 
-const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check', design: 'pencil', demo: 'play' };
+const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = {
+  decision: 'check',
+  design: 'pencil',
+  demo: 'play',
+};
 
 /**
  * Artifacts as rows that open their github.com page in a new tab. Titles are GitHub text and only ever interpolated;
@@ -63,7 +75,8 @@ const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check'
                 /></span>
               }
               <span tc-row-title dir="auto"
-                ><ng-container *ngTemplateOutlet="titleRuns; context: { $implicit: entry.title }" /> <span class="tc-sr-only">{{ 'designs.row.open' | transloco }}</span></span
+                ><ng-container *ngTemplateOutlet="titleRuns; context: { $implicit: entry.title }" />
+                <span class="tc-sr-only">{{ 'designs.row.open' | transloco }}</span></span
               >
               <span tc-row-subtitle>
                 @if (designSubtitle(); as subtitle) {
@@ -109,7 +122,13 @@ const TYPE_ICONS: Readonly<Record<ArtifactType, IconName>> = { decision: 'check'
       }
     </tc-list>
     <ng-template #titleRuns let-runs>
-      @for (run of runs; track $index) { @if (run.isMatch) {<mark class="artifact__mark" data-testid="artifact-mark">{{ run.text }}</mark>} @else {{{ run.text }}} }
+      @for (run of runs; track $index) {
+        @if (run.isMatch) {
+          <mark class="artifact__mark" data-testid="artifact-mark">{{ run.text }}</mark>
+        } @else {
+          {{ run.text }}
+        }
+      }
     </ng-template>
   `,
   styles: `

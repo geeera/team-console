@@ -90,11 +90,17 @@ const intentStateOf = (id: string) =>
 const link = (id: string, subject: string) =>
   env.DB.prepare(`UPDATE users SET access_subject = ?2 WHERE id = ?1`).bind(id, subject).run();
 const enrollerOf = (id: string) =>
-  env.DB.prepare(`SELECT enrolled_by FROM runners WHERE id = ?1`).bind(id).first<string | null>('enrolled_by');
+  env.DB.prepare(`SELECT enrolled_by FROM runners WHERE id = ?1`)
+    .bind(id)
+    .first<string | null>('enrolled_by');
 const creatorOf = (slug: string) =>
-  env.DB.prepare(`SELECT created_by FROM projects WHERE slug = ?1`).bind(slug).first<string | null>('created_by');
+  env.DB.prepare(`SELECT created_by FROM projects WHERE slug = ?1`)
+    .bind(slug)
+    .first<string | null>('created_by');
 const adoptions = () =>
-  env.DB.prepare(`SELECT actor_kind, actor, target, details FROM audit_events WHERE kind = 'auth.access-actor-adopted'`)
+  env.DB.prepare(
+    `SELECT actor_kind, actor, target, details FROM audit_events WHERE kind = 'auth.access-actor-adopted'`,
+  )
     .all<{ actor_kind: string; actor: string; target: string; details: string }>()
     .then((rows) => rows.results);
 const adoptionsOf = async (target: string) => (await adoptions()).filter((row) => row.target === target);
@@ -123,7 +129,9 @@ describe('the other ways a link is written (#838)', () => {
   const ELSEWHERE = '01M6YSNJ0000000000000899A1';
 
   beforeAll(async () => {
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'acc-899', 'Elsewhere', ?2)`)
+    await env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'acc-899', 'Elsewhere', ?2)`,
+    )
       .bind(ELSEWHERE, T0)
       .run();
   });
@@ -202,7 +210,9 @@ describe('the other ways a link is written (#838)', () => {
     expect(await intentStateOf(expired)).toBe('pending');
     expect(await intentStateOf(theirs)).toBe('pending');
     expect(await intentStateOf(elsewhere)).toBe('pending');
-    expect(await adoptionsOf(INTENT_OWNER)).toEqual([adopted(INTENT_OWNER, { runners: 1, projects: 0, intents: 2 })]);
+    expect(await adoptionsOf(INTENT_OWNER)).toEqual([
+      adopted(INTENT_OWNER, { runners: 1, projects: 0, intents: 2 }),
+    ]);
 
     // The runner's door: a `start` on the withdrawn intent binds nothing, where the other owner's still binds.
     const repo = new EnrolmentIntentsRepo(env.DB);
@@ -218,15 +228,26 @@ describe('the other ways a link is written (#838)', () => {
       country: null,
     };
     const bound899 = (target: string) =>
-      ({ accountId: OWNER_ACCOUNT_ID, at, actorKind: 'runner', actor: 'runner', kind: 'enrolment-intent.bound', target }) as const;
+      ({
+        accountId: OWNER_ACCOUNT_ID,
+        at,
+        actorKind: 'runner',
+        actor: 'runner',
+        kind: 'enrolment-intent.bound',
+        target,
+      }) as const;
     expect(await repo.bind(pending, 'user', bind, bound899(pending))).toBe(false);
     expect(await repo.bind(theirs, 'user', bind, bound899(theirs))).toBe(true);
     // The owner, now acting as the user id, is left with no live intent they cannot reach.
-    expect(await repo.findOwned({ accountId: OWNER_ACCOUNT_ID, createdBy: INTENT_OWNER }, pending)).toBeNull();
+    expect(
+      await repo.findOwned({ accountId: OWNER_ACCOUNT_ID, createdBy: INTENT_OWNER }, pending),
+    ).toBeNull();
     expect((await repo.findById(pending))?.state).toBe('withdrawn');
 
     await dropUser(INTENT_OWNER);
-    await env.DB.prepare(`DELETE FROM runner_enrolment_requests WHERE id IN (?1, ?2)`).bind(theirs, expired).run();
+    await env.DB.prepare(`DELETE FROM runner_enrolment_requests WHERE id IN (?1, ?2)`)
+      .bind(theirs, expired)
+      .run();
   });
 
   it('backfills a link made by hand before the migration, once', async () => {
@@ -261,7 +282,12 @@ describe('the other ways a link is written (#838)', () => {
     expect(await enrollerOf(mine)).toBe(HAND_LINKED);
     expect(await creatorOf('p838-hand')).toBe(HAND_LINKED);
     expect(await adoptionsOf(HAND_LINKED)).toEqual([
-      { actor_kind: 'system', actor: 'access-link', target: HAND_LINKED, details: JSON.stringify({ runners: 1, projects: 1 }) },
+      {
+        actor_kind: 'system',
+        actor: 'access-link',
+        target: HAND_LINKED,
+        details: JSON.stringify({ runners: 1, projects: 1 }),
+      },
     ]);
     // 0044 applies over what 0042 left, and the later cases run on its triggers.
     for (const query of round2.queries) {
@@ -273,10 +299,13 @@ describe('the other ways a link is written (#838)', () => {
 
 describe('the Access–GitHub link adopts the access-owner actor (#838)', () => {
   const repo = new RunnersRepo(env.DB);
-  const served = async (runnerId: string) => (await repo.servedProjectsOf(OWNER_ACCOUNT_ID, runnerId)).map((p) => p.slug);
+  const served = async (runnerId: string) =>
+    (await repo.servedProjectsOf(OWNER_ACCOUNT_ID, runnerId)).map((p) => p.slug);
 
   beforeAll(async () => {
-    await env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'acc-838', 'Other', ?2)`)
+    await env.DB.prepare(
+      `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'acc-838', 'Other', ?2)`,
+    )
       .bind(OTHER_ACCOUNT, T0)
       .run();
     await user(ACCESS_OWNER, '838001');
@@ -307,7 +336,9 @@ describe('the Access–GitHub link adopts the access-owner actor (#838)', () => 
     expect(await enrollerOf(other)).toBe(SECOND_OWNER);
     expect(await enrollerOf(elsewhere)).toBe('access-owner');
     expect(await creatorOf('p838-elsewhere')).toBe('access-owner');
-    expect(await adoptionsOf(ACCESS_OWNER)).toEqual([adopted(ACCESS_OWNER, { runners: 1, projects: 1, intents: 0 })]);
+    expect(await adoptionsOf(ACCESS_OWNER)).toEqual([
+      adopted(ACCESS_OWNER, { runners: 1, projects: 1, intents: 0 }),
+    ]);
 
     // A code the owner made before the link becomes a runner after it: the runner is the linked user's.
     expect(await enrollerOf(await runner('access-owner'))).toBe(ACCESS_OWNER);
@@ -324,7 +355,9 @@ describe('the Access–GitHub link adopts the access-owner actor (#838)', () => 
       env.DB.prepare(`UPDATE runners SET enrolled_by = ?2 WHERE id = ?1`).bind(legacy, ACCESS_OWNER).run(),
     ).rejects.toThrow(/runners keep their identity/u);
     await expect(
-      env.DB.prepare(`UPDATE runners SET enrolled_by = ?2 WHERE id = ?1`).bind(await runner('access-owner'), STRANGER).run(),
+      env.DB.prepare(`UPDATE runners SET enrolled_by = ?2 WHERE id = ?1`)
+        .bind(await runner('access-owner'), STRANGER)
+        .run(),
     ).rejects.toThrow(/runners keep their identity/u);
   });
 

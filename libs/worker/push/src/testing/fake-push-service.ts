@@ -17,7 +17,13 @@ import {
 /** How the next delivery to a device ends (one-shot, in order). */
 export type FakePushOutcome = 'ok' | 'not-found' | 'gone' | 'rate-limited' | 'unavailable';
 
-export const FAKE_PUSH_OUTCOMES: readonly FakePushOutcome[] = ['ok', 'not-found', 'gone', 'rate-limited', 'unavailable'];
+export const FAKE_PUSH_OUTCOMES: readonly FakePushOutcome[] = [
+  'ok',
+  'not-found',
+  'gone',
+  'rate-limited',
+  'unavailable',
+];
 
 export function isFakePushOutcome(value: unknown): value is FakePushOutcome {
   return typeof value === 'string' && (FAKE_PUSH_OUTCOMES as readonly string[]).includes(value);
@@ -79,7 +85,8 @@ export class FakePushService {
   private readonly devices = new Map<string, FakeDevice>();
 
   /** `fetch` for the sender: the real push-service URL. */
-  readonly fetch = async (input: string, init: RequestInit): Promise<Response> => this.handle(new Request(input, init));
+  readonly fetch = async (input: string, init: RequestInit): Promise<Response> =>
+    this.handle(new Request(input, init));
 
   /** A new device on `host`, as `PushSubscription.toJSON()` returns it; the private key stays here. */
   async subscribe(host: FakePushHost = 'fcm.googleapis.com'): Promise<PushSubscriptionRequest> {
@@ -121,7 +128,9 @@ export class FakePushService {
     let decryptError: string | null = null;
     if (device !== undefined) {
       try {
-        payload = JSON.parse(new TextDecoder().decode(await decryptPushPayload(body, device.keys))) as unknown;
+        payload = JSON.parse(
+          new TextDecoder().decode(await decryptPushPayload(body, device.keys)),
+        ) as unknown;
       } catch (error: unknown) {
         decryptError = error instanceof Error ? error.message : 'unknown';
       }

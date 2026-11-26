@@ -78,9 +78,7 @@ export class ProjectDispatchRepo {
     }
     // The UPDATE judged it; this read only names which refusal held.
     const row = await this.db
-      .prepare(
-        `SELECT p.access_source FROM projects p WHERE p.slug = ?1`,
-      )
+      .prepare(`SELECT p.access_source FROM projects p WHERE p.slug = ?1`)
       .bind(write.slug)
       .first<{ access_source: string }>();
     if (row?.access_source === 'subscription') {

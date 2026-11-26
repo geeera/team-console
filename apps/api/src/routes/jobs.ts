@@ -12,14 +12,32 @@ import {
   type JobListDto,
   type RunnerPolicyDto,
 } from '@shared/contracts';
-import { newUlid, problem, type ProblemExtensionValue, type WorkerContext, type WorkerHonoEnv } from '@worker/core';
-import { AccountsRepo, JobsRepo, ProjectsRepo, RunnersRepo, effectivePolicyOf, type JobRecord, type NewAuditEvent } from '@worker/db';
+import {
+  newUlid,
+  problem,
+  type ProblemExtensionValue,
+  type WorkerContext,
+  type WorkerHonoEnv,
+} from '@worker/core';
+import {
+  AccountsRepo,
+  JobsRepo,
+  ProjectsRepo,
+  RunnersRepo,
+  effectivePolicyOf,
+  type JobRecord,
+  type NewAuditEvent,
+} from '@worker/db';
 import { dispatchActionsJob } from '../actions/dispatch';
 import { isJobRole } from '../auth/job-roles';
 import type { ApiGitHub } from '../github';
 import { actionsOnSubscription } from './dispatch-problems';
 import { auditActorOf } from '../auth/scope';
-import { policyActorOfContext, trackerAccess, trackerProjectOfContext } from '../auth/tracker-access.middleware';
+import {
+  policyActorOfContext,
+  trackerAccess,
+  trackerProjectOfContext,
+} from '../auth/tracker-access.middleware';
 import type { ApiEnv } from '../env';
 import { jsonBody } from '../json-body';
 import { trackerProjectOf } from '../projects/lookup';
@@ -79,7 +97,12 @@ export function jobDtoOf(job: JobRecord): JobDto {
 function limitOf(c: Context): number | Response {
   const limit = c.req.query('limit') ?? String(PAGE_DEFAULT);
   if (!/^[1-9][0-9]{0,2}$/.test(limit) || Number(limit) > PAGE_MAX) {
-    return problem(c, { type: 'query-invalid', title: 'Invalid request', status: 400, detail: `limit is 1 to ${String(PAGE_MAX)}` });
+    return problem(c, {
+      type: 'query-invalid',
+      title: 'Invalid request',
+      status: 400,
+      detail: `limit is 1 to ${String(PAGE_MAX)}`,
+    });
   }
   return Number(limit);
 }
@@ -90,9 +113,25 @@ function dedupeKeyOf(slug: string, kind: string): string | null {
 }
 
 /** An audit row of a write on the queue; who acted comes from the identity, never from a body. */
-export function jobAuditOf(c: Context, accountId: string, at: string, kind: NewAuditEvent['kind'], target: string, details: Readonly<Record<string, unknown>>): NewAuditEvent {
+export function jobAuditOf(
+  c: Context,
+  accountId: string,
+  at: string,
+  kind: NewAuditEvent['kind'],
+  target: string,
+  details: Readonly<Record<string, unknown>>,
+): NewAuditEvent {
   const actor = auditActorOf(c.get('identity'));
-  return { accountId, at, actorKind: actor.kind, actor: actor.actor, kind, target, details, ipCountry: c.req.header('CF-IPCountry') ?? null };
+  return {
+    accountId,
+    at,
+    actorKind: actor.kind,
+    actor: actor.actor,
+    kind,
+    target,
+    details,
+    ipCountry: c.req.header('CF-IPCountry') ?? null,
+  };
 }
 
 /**
@@ -124,7 +163,11 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       }
       // #684: the role's limits as configured now. A role switched off is refused here so the owner hears it at once;
       // the claim, the exchange and the dispatch judge it again in their writes, which is where it binds.
-      const limits = roleEnqueueLimitsOf(await currentResolvedViewOf(c.env.DB, row.slug), role, value.maxMinutes);
+      const limits = roleEnqueueLimitsOf(
+        await currentResolvedViewOf(c.env.DB, row.slug),
+        role,
+        value.maxMinutes,
+      );
       if (!limits.enabled) {
         return problem(c, {
           type: 'role-disabled',
@@ -152,10 +195,20 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
           maxMinutes: limits.maxMinutes,
           at,
         },
-        jobAuditOf(c, row.account_id, at, 'job.dispatched', id, { kind: value.kind, role, items: value.items, slug: row.slug }),
+        jobAuditOf(c, row.account_id, at, 'job.dispatched', id, {
+          kind: value.kind,
+          role,
+          items: value.items,
+          slug: row.slug,
+        }),
       );
       if (outcome === 'job-exists') {
-        return problem(c, { type: 'job-exists', title: 'Conflict', status: 409, detail: 'A job of this kind is already queued or running for the project' });
+        return problem(c, {
+          type: 'job-exists',
+          title: 'Conflict',
+          status: 409,
+          detail: 'A job of this kind is already queued or running for the project',
+        });
       }
       if (outcome === 'access-source-hosted') {
         return actionsOnSubscription(c);
@@ -210,9 +263,13 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       if (body.runnerAvailability === 'none' && isOwner) {
         const reason = await runners.unavailableReasonOf(row.slug, now);
         const creator =
-          reason === 'other-owner-subscription' ? await new ProjectsRepo(c.env.DB).creatorOf(row.account_id, row.slug) : null;
+          reason === 'other-owner-subscription'
+            ? await new ProjectsRepo(c.env.DB).creatorOf(row.account_id, row.slug)
+            : null;
         const creatorName =
-          creator === null ? undefined : (await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(row.account_id)).get(creator);
+          creator === null
+            ? undefined
+            : (await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(row.account_id)).get(creator);
         return c.json({
           ...body,
           runnerUnavailableReason: reason,
@@ -226,7 +283,9 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       const row = trackerProjectOfContext(c);
       const id = c.req.param('id');
       const job = isUlid(id) ? await new JobsRepo(c.env.DB).findInProject(row.slug, id) : null;
-      return job === null ? problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 }) : c.json(jobDtoOf(job));
+      return job === null
+        ? problem(c, { type: 'job-not-found', title: 'Job not found', status: 404 })
+        : c.json(jobDtoOf(job));
     })
 
     .get('/:slug/jobs/:id/events', trackerAccess(`GET ${P}/jobs/:id/events`), async (c) => {
@@ -247,7 +306,10 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       }
       const rows = await repo.listEvents(job.id, Number(after), limit);
       const page = rows.slice(0, limit);
-      const body: JobEventListDto = { events: page, nextCursor: rows.length > limit ? (page.at(-1)?.seq ?? null) : null };
+      const body: JobEventListDto = {
+        events: page,
+        nextCursor: rows.length > limit ? (page.at(-1)?.seq ?? null) : null,
+      };
       return c.json(body);
     })
 
@@ -261,34 +323,50 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       return c.json(body);
     })
 
-    .put('/:slug/runner-policy', trackerAccess(`PUT ${P}/runner-policy`), writeLimit(SMALL_WRITE_MAX_BYTES), async (c) => {
-      const row = trackerProjectOfContext(c);
-      const body = await jsonBody(c);
-      const policy = body === null ? null : checkRunnerPolicy(body);
-      if (policy !== null && !policy.ok) {
-        return invalid(c, 'runner-policy-invalid', policy.field, policy.detail);
-      }
-      const value = policy === null ? null : policy.value;
-      if (value !== null) {
-        const live = await new RunnersRepo(c.env.DB).liveIdsOf(row.account_id);
-        if (!runnerIdsOfPolicy(value).every((id) => live.includes(id))) {
-          return invalid(c, 'runner-policy-invalid', 'runner', 'The policy must name unrevoked runners of this account');
+    .put(
+      '/:slug/runner-policy',
+      trackerAccess(`PUT ${P}/runner-policy`),
+      writeLimit(SMALL_WRITE_MAX_BYTES),
+      async (c) => {
+        const row = trackerProjectOfContext(c);
+        const body = await jsonBody(c);
+        const policy = body === null ? null : checkRunnerPolicy(body);
+        if (policy !== null && !policy.ok) {
+          return invalid(c, 'runner-policy-invalid', policy.field, policy.detail);
         }
-      }
-      const at = new Date().toISOString();
-      const written = await new AccountsRepo(c.env.DB).setProjectRunnerPolicy(
-        row.slug,
-        value === null ? null : JSON.stringify(value),
-        jobAuditOf(c, row.account_id, at, 'runner.policy-changed', row.slug, { scope: 'project', policy: value }),
-      );
-      if (written === 'access-source-hosted') {
-        return accessSourceHosted(c);
-      }
-      const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
-      const dto: RunnerPolicyDto = {
-        policy: value,
-        effective: effectivePolicyOf(value === null ? null : JSON.stringify(value), account?.defaultRunnerPolicy ?? null),
-      };
-      return c.json(dto);
-    });
+        const value = policy === null ? null : policy.value;
+        if (value !== null) {
+          const live = await new RunnersRepo(c.env.DB).liveIdsOf(row.account_id);
+          if (!runnerIdsOfPolicy(value).every((id) => live.includes(id))) {
+            return invalid(
+              c,
+              'runner-policy-invalid',
+              'runner',
+              'The policy must name unrevoked runners of this account',
+            );
+          }
+        }
+        const at = new Date().toISOString();
+        const written = await new AccountsRepo(c.env.DB).setProjectRunnerPolicy(
+          row.slug,
+          value === null ? null : JSON.stringify(value),
+          jobAuditOf(c, row.account_id, at, 'runner.policy-changed', row.slug, {
+            scope: 'project',
+            policy: value,
+          }),
+        );
+        if (written === 'access-source-hosted') {
+          return accessSourceHosted(c);
+        }
+        const account = await new AccountsRepo(c.env.DB).findById(row.account_id);
+        const dto: RunnerPolicyDto = {
+          policy: value,
+          effective: effectivePolicyOf(
+            value === null ? null : JSON.stringify(value),
+            account?.defaultRunnerPolicy ?? null,
+          ),
+        };
+        return c.json(dto);
+      },
+    );
 }

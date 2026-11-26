@@ -29,8 +29,21 @@ import {
   type SetupWorld,
 } from '../testing/actions-setup-kit';
 import { saveAccessSource } from '../testing/actions-oidc-kit';
-import { INSTALLATION_ID, TOKEN_SENTINEL, json, localEnv, stubGitHub, type StubGitHub } from '../testing/github-kit';
-import { seedMembership, seedSession, seedSessionUser, seedUser, sendAsSession } from '../testing/session-kit';
+import {
+  INSTALLATION_ID,
+  TOKEN_SENTINEL,
+  json,
+  localEnv,
+  stubGitHub,
+  type StubGitHub,
+} from '../testing/github-kit';
+import {
+  seedMembership,
+  seedSession,
+  seedSessionUser,
+  seedUser,
+  sendAsSession,
+} from '../testing/session-kit';
 import { seedTrackerProject } from '../testing/tracker-kit';
 import { READINESS_CHECKS_PER_WINDOW } from './actions-setup-problems';
 
@@ -80,7 +93,9 @@ interface Fixture {
   readonly stub: StubGitHub;
 }
 
-async function seedReadyProject(options: { installationId?: number; source?: 'api_key' | 'subscription' } = {}): Promise<Fixture> {
+async function seedReadyProject(
+  options: { installationId?: number; source?: 'api_key' | 'subscription' } = {},
+): Promise<Fixture> {
   const { slug } = await seedTrackerProject();
   const row = await env.DB.prepare(`SELECT repo, repo_id FROM projects WHERE slug = ?1`)
     .bind(slug)
@@ -89,14 +104,24 @@ async function seedReadyProject(options: { installationId?: number; source?: 'ap
     throw new Error('seeded project missing');
   }
   const installationId = options.installationId ?? INSTALLATION_ID;
-  await env.DB.prepare(`UPDATE projects SET installation_id = ?2 WHERE slug = ?1`).bind(slug, installationId).run();
+  await env.DB.prepare(`UPDATE projects SET installation_id = ?2 WHERE slug = ?1`)
+    .bind(slug, installationId)
+    .run();
   if ((options.source ?? 'api_key') === 'api_key') {
-    const project = { slug, accountId: OWNER_ACCOUNT_ID, repoId: row.repo_id, repo: row.repo, defaultBranch: 'main' };
+    const project = {
+      slug,
+      accountId: OWNER_ACCOUNT_ID,
+      repoId: row.repo_id,
+      repo: row.repo,
+      defaultBranch: 'main',
+    };
     expect(await saveAccessSource(project, 'api_key', 0)).toBe('saved');
   }
   const world = readyWorld(row.repo_id, rendering);
   world.installationId = installationId;
-  const stub = stubGitHub((call) => answerSetupRead(world, row.repo, rendering, call) ?? json(404, { message: 'Not Found' }));
+  const stub = stubGitHub(
+    (call) => answerSetupRead(world, row.repo, rendering, call) ?? json(404, { message: 'Not Found' }),
+  );
   return { slug, repo: row.repo, world, stub };
 }
 
@@ -115,8 +140,15 @@ async function check(fixture: Fixture, options: CheckOptions = {}): Promise<Resp
   });
 }
 
-async function setupOf(fixture: Fixture, logs?: string[], bindings?: CheckOptions['bindings']): Promise<ActionsSetupDto> {
-  const response = await check(fixture, { ...(logs === undefined ? {} : { logs }), ...(bindings === undefined ? {} : { bindings }) });
+async function setupOf(
+  fixture: Fixture,
+  logs?: string[],
+  bindings?: CheckOptions['bindings'],
+): Promise<ActionsSetupDto> {
+  const response = await check(fixture, {
+    ...(logs === undefined ? {} : { logs }),
+    ...(bindings === undefined ? {} : { bindings }),
+  });
   expect(response.status, await response.clone().text()).toBe(200);
   const body: unknown = await response.json();
   expect(isActionsSetupDto(body)).toBe(true);
@@ -140,7 +172,9 @@ async function slugOf(response: Response): Promise<string | null> {
 }
 
 const scopedMints = (stub: StubGitHub) =>
-  stub.calls.filter((call) => call.url.pathname.endsWith('/access_tokens') && (call.body ?? '').includes('repository_ids'));
+  stub.calls.filter(
+    (call) => call.url.pathname.endsWith('/access_tokens') && (call.body ?? '').includes('repository_ids'),
+  );
 const revokes = (stub: StubGitHub) =>
   stub.calls.filter((call) => call.method === 'DELETE' && call.url.pathname === '/installation/token');
 
@@ -185,9 +219,18 @@ describe('GET /api/v1/projects/:slug/actions-setup: a ready repository', () => {
       permissions: { actions: 'read', environments: 'read' },
     });
     expect(revokes(fixture.stub)).toHaveLength(1);
-    expect(fixture.stub.calls.filter((call) => !isAllowedSetupPath(fixture.repo, call)).map((call) => call.url.pathname)).toEqual([]);
+    expect(
+      fixture.stub.calls
+        .filter((call) => !isAllowedSetupPath(fixture.repo, call))
+        .map((call) => call.url.pathname),
+    ).toEqual([]);
     expect(fixture.stub.calls.some((call) => /\/variables|\/secrets$/.test(call.url.pathname))).toBe(false);
-    expect(fixture.stub.calls.every((call) => call.method === 'GET' || call.method === 'DELETE' || call.url.pathname.endsWith('/access_tokens'))).toBe(true);
+    expect(
+      fixture.stub.calls.every(
+        (call) =>
+          call.method === 'GET' || call.method === 'DELETE' || call.url.pathname.endsWith('/access_tokens'),
+      ),
+    ).toBe(true);
   });
 
   it('is never cached: Cache-Control no-store, and each call reads GitHub again', async () => {
@@ -206,14 +249,34 @@ describe('each missing piece is named, with where to fix it on GitHub', () => {
     fixture.world.environment = null;
     const setup = await setupOf(fixture);
     expect(setup.ready).toBe(false);
-    expect(statuses(setup)).toMatchObject({ environment: 'missing', 'branch-policy': 'missing', secret: 'missing', 'protection-rules': 'unknown' });
-    expect(itemOf(setup, 'environment').link).toBe(`https://github.com/${fixture.repo}/settings/environments/new`);
+    expect(statuses(setup)).toMatchObject({
+      environment: 'missing',
+      'branch-policy': 'missing',
+      secret: 'missing',
+      'protection-rules': 'unknown',
+    });
+    expect(itemOf(setup, 'environment').link).toBe(
+      `https://github.com/${fixture.repo}/settings/environments/new`,
+    );
   });
 
   it.each([
     ['every branch may deploy', { deployment_branch_policy: null }, null, 'missing'],
-    ['protected branches instead of a rule', { deployment_branch_policy: { protected_branches: true, custom_branch_policies: false } }, null, 'wrong'],
-    ['a second rule', {}, [{ name: 'main', type: 'branch' }, { name: 'release-*', type: 'branch' }], 'wrong'],
+    [
+      'protected branches instead of a rule',
+      { deployment_branch_policy: { protected_branches: true, custom_branch_policies: false } },
+      null,
+      'wrong',
+    ],
+    [
+      'a second rule',
+      {},
+      [
+        { name: 'main', type: 'branch' },
+        { name: 'release-*', type: 'branch' },
+      ],
+      'wrong',
+    ],
     ['a tag rule', {}, [{ name: 'main', type: 'tag' }], 'wrong'],
     ['another branch', {}, [{ name: 'dev', type: 'branch' }], 'wrong'],
     ['no rule listed', {}, [], 'missing'],
@@ -225,7 +288,9 @@ describe('each missing piece is named, with where to fix it on GitHub', () => {
     }
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'branch-policy').status).toBe(expected);
-    expect(itemOf(setup, 'branch-policy').link).toBe(`https://github.com/${fixture.repo}/settings/environments/${String(ENVIRONMENT_ID)}/edit`);
+    expect(itemOf(setup, 'branch-policy').link).toBe(
+      `https://github.com/${fixture.repo}/settings/environments/${String(ENVIRONMENT_ID)}/edit`,
+    );
     expect(setup.ready).toBe(false);
   });
 
@@ -234,7 +299,11 @@ describe('each missing piece is named, with where to fix it on GitHub', () => {
     fixture.world.environment = {
       ...fixture.world.environment,
       protection_rules: [
-        { id: 1, type: 'required_reviewers', reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }] },
+        {
+          id: 1,
+          type: 'required_reviewers',
+          reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }],
+        },
         { id: 2, type: 'wait_timer', wait_timer: 5 },
         { id: 3, type: 'branch_policy' },
       ],
@@ -271,7 +340,9 @@ describe('each missing piece is named, with where to fix it on GitHub', () => {
     fixture.world.workflow = `${rendering.text} `;
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'workflow').status).toBe('modified');
-    expect(itemOf(setup, 'workflow').link).toBe(`https://github.com/${fixture.repo}/blob/main/.github/workflows/team-console-runner.yml`);
+    expect(itemOf(setup, 'workflow').link).toBe(
+      `https://github.com/${fixture.repo}/blob/main/.github/workflows/team-console-runner.yml`,
+    );
     expect(setup.ready).toBe(false);
   });
 
@@ -305,7 +376,12 @@ describe('permissions the installer has not accepted read as unknown, never ok (
     const fixture = await seedReadyProject({ installationId: SCRIPTED_INSTALLATION });
     fixture.world.otherMint = 'refused';
     const setup = await setupOf(fixture);
-    expect(statuses(setup)).toMatchObject({ environment: 'unknown', 'branch-policy': 'unknown', 'protection-rules': 'unknown', secret: 'unknown' });
+    expect(statuses(setup)).toMatchObject({
+      environment: 'unknown',
+      'branch-policy': 'unknown',
+      'protection-rules': 'unknown',
+      secret: 'unknown',
+    });
     expect(setup.ready).toBe(false);
     expect(revokes(fixture.stub)).toEqual([]);
   });
@@ -324,7 +400,11 @@ describe('permissions the installer has not accepted read as unknown, never ok (
     fixture.world.suspended = true;
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'app-permissions').status).toBe('missing');
-    expect(setup.items.filter((entry) => !['access-source', 'app-permissions'].includes(entry.id)).every((entry) => entry.status === 'unknown')).toBe(true);
+    expect(
+      setup.items
+        .filter((entry) => !['access-source', 'app-permissions'].includes(entry.id))
+        .every((entry) => entry.status === 'unknown'),
+    ).toBe(true);
     expect(scopedMints(fixture.stub)).toEqual([]);
   });
 });
@@ -347,18 +427,28 @@ describe('the console’s setup PR and its provenance', () => {
   type PullPatch = (pull: Record<string, unknown>, owner: string) => Record<string, unknown>;
   it.each<[string, PullPatch, string]>([
     ['opened by a person', (pull) => ({ ...pull, user: { login: 'someone', type: 'User' } }), 'foreign'],
-    ['opened by another bot', (pull) => ({ ...pull, user: { login: 'other-app[bot]', type: 'Bot' } }), 'foreign'],
+    [
+      'opened by another bot',
+      (pull) => ({ ...pull, user: { login: 'other-app[bot]', type: 'Bot' } }),
+      'foreign',
+    ],
     [
       'with its head in another repository',
       // The head label still names the console's branch under the owner, as GitHub's filter matched it.
-      (pull, owner) => ({ ...pull, head: { ...(pull['head'] as Record<string, unknown>), repo: { id: 1, owner: { login: owner } } } }),
+      (pull, owner) => ({
+        ...pull,
+        head: { ...(pull['head'] as Record<string, unknown>), repo: { id: 1, owner: { login: owner } } },
+      }),
       'foreign',
     ],
     ['with a second commit', (pull) => ({ ...pull, commits: 2 }), 'changed'],
   ])('a PR %s is %s, never the console’s', async (_case, patch, provenance) => {
     const fixture = await seedReadyProject();
     fixture.world.workflow = null;
-    fixture.world.pull = patch(consolePull(fixture.world, fixture.repo, rendering), fixture.repo.split('/')[0] ?? '');
+    fixture.world.pull = patch(
+      consolePull(fixture.world, fixture.repo, rendering),
+      fixture.repo.split('/')[0] ?? '',
+    );
     fixture.world.pullFiles = ['.github/workflows/team-console-runner.yml'];
     fixture.world.pullWorkflow = rendering.text;
     const setup = await setupOf(fixture);
@@ -377,7 +467,9 @@ describe('the console’s setup PR and its provenance', () => {
   it('a PR whose html_url is not GitHub’s is not shown at all', async () => {
     const fixture = await seedReadyProject();
     fixture.world.workflow = null;
-    fixture.world.pull = consolePull(fixture.world, fixture.repo, rendering, { html_url: 'https://evil.example.com/pull/1' });
+    fixture.world.pull = consolePull(fixture.world, fixture.repo, rendering, {
+      html_url: 'https://evil.example.com/pull/1',
+    });
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'workflow').pr).toBeUndefined();
     expect(JSON.stringify(setup)).not.toContain('evil.example.com');
@@ -412,7 +504,13 @@ describe('nothing of GitHub’s answers leaks (sentinel)', () => {
     fixture.world.environment = {
       ...fixture.world.environment,
       created_at: DATE_SENTINEL,
-      protection_rules: [{ id: 1, type: 'required_reviewers', reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }] }],
+      protection_rules: [
+        {
+          id: 1,
+          type: 'required_reviewers',
+          reviewers: [{ type: 'User', reviewer: { login: REVIEWER_SENTINEL } }],
+        },
+      ],
     };
     fixture.world.secrets = [OTHER_SECRET_SENTINEL];
     const logs: string[] = [];
@@ -480,14 +578,28 @@ describe('two accounts and members (security note row "Cross-tenant or member tr
     const path = `/api/v1/projects/${fixture.slug}/actions-setup`;
 
     const ownerOfB = await seedSessionUser('owner');
-    const foreign = await sendAsSession(ownerOfB, 'GET', path, undefined, { github, origin: SETUP_ORIGIN }, bindings);
+    const foreign = await sendAsSession(
+      ownerOfB,
+      'GET',
+      path,
+      undefined,
+      { github, origin: SETUP_ORIGIN },
+      bindings,
+    );
     expect(foreign.status).toBe(404);
     expect(await slugOf(foreign)).toBe('project-not-found');
 
     const memberId = await seedUser('member');
     await seedMembership(OWNER_ACCOUNT_ID, memberId, 'member');
     const member = { cookie: await seedSession(memberId) };
-    const refused = await sendAsSession(member, 'GET', path, undefined, { github, origin: SETUP_ORIGIN }, bindings);
+    const refused = await sendAsSession(
+      member,
+      'GET',
+      path,
+      undefined,
+      { github, origin: SETUP_ORIGIN },
+      bindings,
+    );
     expect(refused.status).toBe(403);
     expect(await slugOf(refused)).toBe('owner-only');
 
@@ -542,14 +654,20 @@ describe('the default branch, the PR path and the versions (#870)', () => {
     await env.DB.prepare(
       `INSERT INTO operator_stops (name, stopped_at, reason) VALUES ('actions-setup-write', '2026-11-21T10:00:00Z', 'drill')`,
     ).run();
-    expect((await setupOf(fixture, undefined, { ALLOW_ACTIONS_SETUP_WRITE: 'true' })).workflowPr).toBe('disabled');
+    expect((await setupOf(fixture, undefined, { ALLOW_ACTIONS_SETUP_WRITE: 'true' })).workflowPr).toBe(
+      'disabled',
+    );
   });
 
   it('names the environment’s minimum runner version, or null when it is unset or malformed', async () => {
     const fixture = await seedReadyProject();
-    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1.0' })).versions.minRunner).toBe('0.1.0');
+    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1.0' })).versions.minRunner).toBe(
+      '0.1.0',
+    );
     expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '' })).versions.minRunner).toBeNull();
-    expect((await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1 beta' })).versions.minRunner).toBeNull();
+    expect(
+      (await setupOf(fixture, undefined, { RUNNER_MINIMUM_VERSION: '0.1 beta' })).versions.minRunner,
+    ).toBeNull();
   });
 });
 
@@ -559,7 +677,9 @@ describe('an earlier rendering on the default branch (#870)', () => {
     fixture.world.workflow = earlierRelease(rendering.text);
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'workflow').status).toBe('outdated');
-    expect(itemOf(setup, 'workflow').link).toBe(`https://github.com/${fixture.repo}/blob/main/.github/workflows/team-console-runner.yml`);
+    expect(itemOf(setup, 'workflow').link).toBe(
+      `https://github.com/${fixture.repo}/blob/main/.github/workflows/team-console-runner.yml`,
+    );
     expect(setup.ready).toBe(true);
     expect(setup.versions.current).toEqual({ runner: '0.0.9', node: '22.1.0', claudeCode: '2.0.0' });
     expect(setup.versions.runnerSupport).toBe('supported');
@@ -609,7 +729,10 @@ describe('a PR left open for an earlier rendering (#870)', () => {
     fixture.world.workflow = earlierRelease(rendering.text, '0.0.8');
     fixture.world.setupBranches = [actionsSetupBranchOf(rendering.sha256), EARLIER_BRANCH];
     fixture.world.pullBranch = EARLIER_BRANCH;
-    fixture.world.pull = { ...pull, head: { ...(pull['head'] as Record<string, unknown>), ref: EARLIER_BRANCH } };
+    fixture.world.pull = {
+      ...pull,
+      head: { ...(pull['head'] as Record<string, unknown>), ref: EARLIER_BRANCH },
+    };
     fixture.world.pullFiles = ['.github/workflows/team-console-runner.yml'];
     fixture.world.pullWorkflow = file;
   }
@@ -624,19 +747,29 @@ describe('a PR left open for an earlier rendering (#870)', () => {
       provenance: 'console',
       stale: true,
     });
-    expect(fixture.stub.calls.filter((call) => !isAllowedSetupPath(fixture.repo, call)).map((call) => call.url.pathname)).toEqual([]);
+    expect(
+      fixture.stub.calls
+        .filter((call) => !isAllowedSetupPath(fixture.repo, call))
+        .map((call) => call.url.pathname),
+    ).toEqual([]);
   });
 
   it('is changed when its file differs beyond the release values', async () => {
     const fixture = await seedReadyProject();
     withStalePull(fixture, `${earlierRelease(rendering.text)}# appended\n`);
-    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({ provenance: 'changed', stale: true });
+    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({
+      provenance: 'changed',
+      stale: true,
+    });
   });
 
   it('is foreign when someone else opened it', async () => {
     const fixture = await seedReadyProject();
     withStalePull(fixture, earlierRelease(rendering.text), { user: { login: 'someone', type: 'User' } });
-    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({ provenance: 'foreign', stale: true });
+    expect(itemOf(await setupOf(fixture), 'workflow').pr).toMatchObject({
+      provenance: 'foreign',
+      stale: true,
+    });
   });
 
   it('is not looked for when the file on the default branch is already the rendering', async () => {
@@ -666,7 +799,9 @@ describe('a PR left open for an earlier rendering (#870)', () => {
     fixture.world.workflow = null;
     const setup = await setupOf(fixture);
     expect(itemOf(setup, 'workflow').pr).toBeUndefined();
-    expect(fixture.stub.calls.filter((call) => call.url.pathname === `/repos/${fixture.repo}/pulls`)).toHaveLength(1);
+    expect(
+      fixture.stub.calls.filter((call) => call.url.pathname === `/repos/${fixture.repo}/pulls`),
+    ).toHaveLength(1);
   });
 
   it('answers 502 github-unavailable when the branch listing fails, with no partial items', async () => {
@@ -692,11 +827,19 @@ describe('the workflow judgement kept for Needs you (#874)', () => {
     const fixture = await seedReadyProject();
     fixture.world.workflow = `${rendering.text} `;
     const setup = await setupOf(fixture);
-    expect(await storedOf(fixture.slug)).toEqual({ status: 'modified', sha256: rendering.sha256, checkedAt: setup.checkedAt });
+    expect(await storedOf(fixture.slug)).toEqual({
+      status: 'modified',
+      sha256: rendering.sha256,
+      checkedAt: setup.checkedAt,
+    });
 
     fixture.world.workflow = rendering.text;
     const again = await setupOf(fixture);
-    expect(await storedOf(fixture.slug)).toEqual({ status: 'ok', sha256: rendering.sha256, checkedAt: again.checkedAt });
+    expect(await storedOf(fixture.slug)).toEqual({
+      status: 'ok',
+      sha256: rendering.sha256,
+      checkedAt: again.checkedAt,
+    });
   });
 
   it('records nothing when the check could not read the file', async () => {
@@ -714,7 +857,11 @@ describe('the workflow judgement kept for Needs you (#874)', () => {
       .bind(fixture.slug)
       .run();
     await setupOf(fixture);
-    expect(await storedOf(fixture.slug)).toEqual({ status: 'missing', sha256: null, checkedAt: '2999-01-01T00:00:00.000Z' });
+    expect(await storedOf(fixture.slug)).toEqual({
+      status: 'missing',
+      sha256: null,
+      checkedAt: '2999-01-01T00:00:00.000Z',
+    });
   });
 
   it('answers the check even when the write fails, and logs it', async () => {

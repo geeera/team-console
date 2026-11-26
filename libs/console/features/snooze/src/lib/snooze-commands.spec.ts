@@ -211,9 +211,11 @@ describe('SnoozeCommands', () => {
     const pending = commands.snooze(TARGET);
     await settle();
     press('[data-testid="snooze-ok"]');
-    http
-      .expectOne(URL)
-      .flush('<html>sign in</html>', { status: 401, statusText: 'Unauthorized', headers: { 'Content-Type': 'text/html' } });
+    http.expectOne(URL).flush('<html>sign in</html>', {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: { 'Content-Type': 'text/html' },
+    });
     await settle();
     expect(text(dialog()?.querySelector('[role="alert"]'))).toBe(
       'Сессия истекла. Войдите снова — ничего не изменено.',
@@ -273,9 +275,11 @@ describe('SnoozeCommands', () => {
     };
     projects.applySnooze('tc', snoozed);
     const pending = commands.turnBackOn(TARGET);
-    http
-      .expectOne(URL)
-      .flush('<html>sign in</html>', { status: 401, statusText: 'Unauthorized', headers: { 'Content-Type': 'text/html' } });
+    http.expectOne(URL).flush('<html>sign in</html>', {
+      status: 401,
+      statusText: 'Unauthorized',
+      headers: { 'Content-Type': 'text/html' },
+    });
     expect(await pending).toMatchObject({
       tone: 'warning',
       verb: 'Сессия истекла. Войдите снова — уведомления Team Console пока отложены.',

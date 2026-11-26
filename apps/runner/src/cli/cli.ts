@@ -40,7 +40,14 @@ import { openRequestChannel, systemSetupHost, userOpener } from '../setup/host';
 import { runnerHalfReport } from '../setup/runner-half';
 import { selfCheck, type SetupHost } from '../setup/self-check';
 import { enrolmentOf, runContainerSetup } from '../setup/container-setup';
-import { SetupError, installedPrefixOf, isSetupStep, runSetup, type OpenRequestChannel, type SetupStep } from '../setup/setup';
+import {
+  SetupError,
+  installedPrefixOf,
+  isSetupStep,
+  runSetup,
+  type OpenRequestChannel,
+  type SetupStep,
+} from '../setup/setup';
 import { ToolchainError } from '../setup/toolchain';
 
 /** Everything the CLI reads from the process, passed in so the specs drive it without touching the real host. */
@@ -108,7 +115,7 @@ const USAGE = [
   '        git and node for jobs, captures the Claude sign-in as _tcrunner without showing it, starts the service and',
   '        runs self-check. --only re-runs some steps; each is safe to repeat.',
   '  setup --url <console origin> --image <name@sha256:…> [--replace-credential]',
-  '        Linux, in the runner image as tcrunner (the console\'s Linux command): enrols TC_RUNNER_HOME for the container',
+  "        Linux, in the runner image as tcrunner (the console's Linux command): enrols TC_RUNNER_HOME for the container",
   '        backend with the request id in TC_ENROLMENT, asks for the Anthropic API key without showing it, and checks',
   '        that the console accepts the runner.',
   '  self-check  (with sudo) Check config, key, console, service, credential, toolchain and isolation; one line each.',
@@ -121,9 +128,9 @@ const USAGE = [
   '        can read an argument with ps while enrol runs. --enrolment <request id> (Add runner) needs no code: the',
   '        console shows the fingerprint printed here, and the owner approves there.',
   '  run-once  Claim one job, run it and exit (exit 0 also when there is none or the runner is paused).',
-  '  run-once --oidc [--request-token -]  Inside a GitHub Actions run: exchange the run\'s OIDC token for the job in',
+  "  run-once --oidc [--request-token -]  Inside a GitHub Actions run: exchange the run's OIDC token for the job in",
   '        TC_JOB_ID, run it and exit. Reads only its env (TC_CONSOLE_URL, TC_JOB_ID, TC_CONSOLE_AUDIENCE,',
-  '        TC_INFERENCE_API_KEY and GitHub\'s) and, with --request-token -, ACTIONS_ID_TOKEN_REQUEST_TOKEN as one line',
+  "        TC_INFERENCE_API_KEY and GitHub's) and, with --request-token -, ACTIONS_ID_TOKEN_REQUEST_TOKEN as one line",
   '        of stdin instead of the env; keeps nothing; prints only the job id.',
   '  run --loop  Claim and run jobs until Ctrl-C.',
   '  update [--check]  Install the release the console names after `gh attestation verify` accepts it',
@@ -230,7 +237,9 @@ async function runEnrol(args: readonly string[], deps: CliDeps): Promise<number>
   try {
     // Read only once the flags are complete, so a usage slip never swallows a piped code. The intent door has none.
     const code =
-      values.enrolment === undefined ? await enrolCodeOf(values.code, deps.env, deps.readCodeLine) : values.code;
+      values.enrolment === undefined
+        ? await enrolCodeOf(values.code, deps.env, deps.readCodeLine)
+        : values.code;
     if (code === undefined && values.enrolment === undefined) {
       deps.stderr(missing);
       return EXIT_USAGE;
@@ -290,7 +299,15 @@ function launchedNodeOf(deps: CliDeps): string {
 }
 
 // CONTAINER_HOST: rootless podman's socket of the Linux one command (#634 PR 7), which puts its client in remote mode.
-const RUNTIME_ENV = ['PATH', 'HOME', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG', 'XDG_RUNTIME_DIR', 'CONTAINER_HOST'];
+const RUNTIME_ENV = [
+  'PATH',
+  'HOME',
+  'DOCKER_HOST',
+  'DOCKER_CONTEXT',
+  'DOCKER_CONFIG',
+  'XDG_RUNTIME_DIR',
+  'CONTAINER_HOST',
+];
 
 function pick(env: CliDeps['env'], names: readonly string[]): Record<string, string> {
   const picked: Record<string, string> = {};
@@ -572,11 +589,22 @@ async function runLinuxSetup(
   },
   deps: CliDeps,
 ): Promise<number> {
-  if (values.only !== undefined || values.release !== undefined || values.sha256 !== undefined || values['from-pkg'] === true) {
-    return usageError(deps, 'On Linux, setup takes --url, --image and --replace-credential only (the request id comes in TC_ENROLMENT).');
+  if (
+    values.only !== undefined ||
+    values.release !== undefined ||
+    values.sha256 !== undefined ||
+    values['from-pkg'] === true
+  ) {
+    return usageError(
+      deps,
+      'On Linux, setup takes --url, --image and --replace-credential only (the request id comes in TC_ENROLMENT).',
+    );
   }
   if (values.credential !== undefined && values.credential !== 'api-key') {
-    return usageError(deps, 'The container backend runs on an Anthropic API key: --credential api-key, or leave it out.');
+    return usageError(
+      deps,
+      'The container backend runs on an Anthropic API key: --credential api-key, or leave it out.',
+    );
   }
   try {
     const home = runnerHomeOf(deps.env, deps.homeDir);
@@ -607,7 +635,10 @@ async function runLinuxSetup(
             {
               home,
               config,
-              terminal: deps.terminal ?? { stdout: (text) => process.stdout.write(text), stderr: (text) => process.stderr.write(text) },
+              terminal: deps.terminal ?? {
+                stdout: (text) => process.stdout.write(text),
+                stderr: (text) => process.stderr.write(text),
+              },
               log: deps.stdout,
               tmpRoot: deps.tmpRoot ?? tmpdir(),
               spawnClaude: deps.spawnClaude ?? hostSpawnClaude,
@@ -659,7 +690,10 @@ async function runSetupCommand(args: readonly string[], deps: CliDeps): Promise<
   }
   const only = values.only?.split(',').map((step) => step.trim());
   if (only !== undefined && (only.length === 0 || !only.every(isSetupStep))) {
-    return usageError(deps, '--only takes steps from install,enrol,toolchain,credential,service,check, comma-separated.');
+    return usageError(
+      deps,
+      '--only takes steps from install,enrol,toolchain,credential,service,check, comma-separated.',
+    );
   }
   if ((values.release === undefined) !== (values.sha256 === undefined)) {
     return usageError(deps, '--release and --sha256 go together.');
@@ -715,7 +749,10 @@ async function runSelfCheck(args: readonly string[], deps: CliDeps): Promise<num
   if (args.length === 1 && args[0] === '--runner-half') {
     // The runner's half, as `_tcrunner`: one JSON line for root's check, no secret in it.
     const home = runnerHomeOf(deps.env, deps.homeDir);
-    const report = await runnerHalfReport(home, { fetch: deps.fetch, ...(deps.keys === undefined ? {} : { keys: deps.keys }) });
+    const report = await runnerHalfReport(home, {
+      fetch: deps.fetch,
+      ...(deps.keys === undefined ? {} : { keys: deps.keys }),
+    });
     deps.stdout(JSON.stringify(report));
     return EXIT_OK;
   }
@@ -763,13 +800,18 @@ async function runSetupCredential(args: readonly string[], deps: CliDeps): Promi
     const config = await loadRunnerConfig(home);
     const claude = config.toolchain?.claude;
     if (values.kind === 'setup-token' && (claude === undefined || !claude.startsWith('/'))) {
-      throw new CredentialSetupError('config.json names no claude for jobs yet: run setup --only toolchain first');
+      throw new CredentialSetupError(
+        'config.json names no claude for jobs yet: run setup --only toolchain first',
+      );
     }
     await setUpCredential(
       {
         home,
         config,
-        terminal: deps.terminal ?? { stdout: (text) => process.stdout.write(text), stderr: (text) => process.stderr.write(text) },
+        terminal: deps.terminal ?? {
+          stdout: (text) => process.stdout.write(text),
+          stderr: (text) => process.stderr.write(text),
+        },
         log: deps.stdout,
         tmpRoot: deps.tmpRoot ?? tmpdir(),
         spawnClaude: deps.spawnClaude ?? hostSpawnClaude,
@@ -793,9 +835,15 @@ async function runSetupCredential(args: readonly string[], deps: CliDeps): Promi
 
 /** `setup-toolchain --path <dirs> --claude <path>`, as `_tcrunner`: what root's probe found, into config.json. */
 async function runSetupToolchain(args: readonly string[], deps: CliDeps): Promise<number> {
-  const values = parsed<{ path?: string; claude?: string }>(args, { path: { type: 'string' }, claude: { type: 'string' } });
+  const values = parsed<{ path?: string; claude?: string }>(args, {
+    path: { type: 'string' },
+    claude: { type: 'string' },
+  });
   if (typeof values === 'string' || values.path === undefined || values.claude === undefined) {
-    return usageError(deps, typeof values === 'string' ? values : 'setup-toolchain needs --path and --claude.');
+    return usageError(
+      deps,
+      typeof values === 'string' ? values : 'setup-toolchain needs --path and --claude.',
+    );
   }
   const toolchain = { path: values.path, claude: values.claude };
   try {
@@ -826,7 +874,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       if (rest.length === 1 && rest[0] === '--oidc') {
         return runOidc(deps, false);
       }
-      if (rest.length === 3 && rest[0] === '--oidc' && rest[1] === '--request-token' && rest[2] === REQUEST_TOKEN_STDIN) {
+      if (
+        rest.length === 3 &&
+        rest[0] === '--oidc' &&
+        rest[1] === '--request-token' &&
+        rest[2] === REQUEST_TOKEN_STDIN
+      ) {
         return runOidc(deps, true);
       }
       return rest.length === 0

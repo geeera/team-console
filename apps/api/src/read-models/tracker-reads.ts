@@ -52,7 +52,13 @@ export class TrackerReads {
       ask:
         ask === null
           ? null
-          : { id: ask.id, ask: ask.ask, category: ask.category, commands: ask.commands, recommended: ask.recommended },
+          : {
+              id: ask.id,
+              ask: ask.ask,
+              category: ask.category,
+              commands: ask.commands,
+              recommended: ask.recommended,
+            },
     }));
   }
 

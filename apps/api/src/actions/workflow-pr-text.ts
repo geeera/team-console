@@ -95,6 +95,9 @@ export function workflowPrBodyOf(
   ].join('\n');
 }
 
-export function workflowCommitMessageOf(kind: ActionsWorkflowPrKind, rendering: RunnerWorkflowRendering): string {
+export function workflowCommitMessageOf(
+  kind: ActionsWorkflowPrKind,
+  rendering: RunnerWorkflowRendering,
+): string {
   return `${workflowPrTitleOf(kind, rendering)}\n\nsha256 ${rendering.sha256}\n`;
 }

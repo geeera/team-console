@@ -77,11 +77,19 @@ export const Loading: Story = { args: { scenario: 'loading' } };
 /** Lanes with items only, the kind word first under each title. */
 export const Loaded: Story = {};
 /** A later sprint uses the same folder with the «Later» kicker. */
-export const Later: Story = { args: { folder: { kind: 'later', sprint: { ...SPRINT, number: 6, title: 'Sprint 06' }, openCount: 5 } } };
+export const Later: Story = {
+  args: { folder: { kind: 'later', sprint: { ...SPRINT, number: 6, title: 'Sprint 06' }, openCount: 5 } },
+};
 /** One lane of 75: 30 rows, then «Show 30 more · 45 left». */
-export const LargeLane: Story = { args: { scenario: 'large', folder: { kind: 'backlog', sprint: null, openCount: 75 } } };
-export const EmptyNext: Story = { args: { scenario: 'empty', folder: { kind: 'next', sprint: SPRINT, openCount: 0 } } };
-export const EmptyBacklog: Story = { args: { scenario: 'empty', folder: { kind: 'backlog', sprint: null, openCount: 0 } } };
+export const LargeLane: Story = {
+  args: { scenario: 'large', folder: { kind: 'backlog', sprint: null, openCount: 75 } },
+};
+export const EmptyNext: Story = {
+  args: { scenario: 'empty', folder: { kind: 'next', sprint: SPRINT, openCount: 0 } },
+};
+export const EmptyBacklog: Story = {
+  args: { scenario: 'empty', folder: { kind: 'backlog', sprint: null, openCount: 0 } },
+};
 /** An alert inside the folder with Try again; the rest of the board is untouched. */
 export const Failed: Story = { args: { scenario: 'error' } };
 /** Loads by itself on the `online` event; Try again too. */

@@ -1,7 +1,14 @@
 import { isUlid } from './account';
 import { isString } from './guards';
 import { isJobDto, type ClaimResponse } from './job';
-import { isEd25519PublicJwk, isRunnerId, isRunnerVersion, runnerHostOf, type Ed25519PublicJwk, type RunnerHostDto } from './runner';
+import {
+  isEd25519PublicJwk,
+  isRunnerId,
+  isRunnerVersion,
+  runnerHostOf,
+  type Ed25519PublicJwk,
+  type RunnerHostDto,
+} from './runner';
 import { isAccessSource, type AccessSource } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
 
@@ -231,7 +238,15 @@ export const isActionsSetupItemId = (value: unknown): value is ActionsSetupItemI
  * else changed; jobs still run on it, so it does not hold the switch back. `unsupported`: the same, but its runner is
  * below the environment's `RUNNER_MINIMUM_VERSION`, so it does.
  */
-export const ACTIONS_SETUP_STATUSES = ['ok', 'missing', 'wrong', 'outdated', 'unsupported', 'modified', 'unknown'] as const;
+export const ACTIONS_SETUP_STATUSES = [
+  'ok',
+  'missing',
+  'wrong',
+  'outdated',
+  'unsupported',
+  'modified',
+  'unknown',
+] as const;
 export type ActionsSetupStatus = (typeof ACTIONS_SETUP_STATUSES)[number];
 export const isActionsSetupStatus = (value: unknown): value is ActionsSetupStatus =>
   (ACTIONS_SETUP_STATUSES as readonly unknown[]).includes(value);
@@ -240,10 +255,15 @@ export const isActionsSetupStatus = (value: unknown): value is ActionsSetupStatu
  * Items that warn and never hold the switch back (owner decision 2 on #759): required reviewers or a wait timer on
  * the Environment are the customer's stronger control; every run then waits for them and may hit the no-show limit.
  */
-export const ACTIONS_SETUP_ADVISORY_ITEMS: readonly ActionsSetupItemId[] = Object.freeze(['protection-rules']);
+export const ACTIONS_SETUP_ADVISORY_ITEMS: readonly ActionsSetupItemId[] = Object.freeze([
+  'protection-rules',
+]);
 
 /** Statuses that never hold the switch back, whatever the item: an older but supported rendering still runs. */
-export const ACTIONS_SETUP_PASSING_STATUSES: readonly ActionsSetupStatus[] = Object.freeze(['ok', 'outdated']);
+export const ACTIONS_SETUP_PASSING_STATUSES: readonly ActionsSetupStatus[] = Object.freeze([
+  'ok',
+  'outdated',
+]);
 
 /**
  * The console's pull request on its own head branch. `foreign`: someone else opened a PR from that branch (or in
@@ -379,7 +399,12 @@ const GITHUB_UI_URL_MAX_LENGTH = 2048;
  * bracket, backslash or whitespace either: the page puts the string into an attribute as it is.
  */
 export function isGitHubUiUrl(value: unknown): value is string {
-  if (!isString(value) || value.length > GITHUB_UI_URL_MAX_LENGTH || /[\s"'<>\\]/.test(value) || !URL.canParse(value)) {
+  if (
+    !isString(value) ||
+    value.length > GITHUB_UI_URL_MAX_LENGTH ||
+    /[\s"'<>\\]/.test(value) ||
+    !URL.canParse(value)
+  ) {
     return false;
   }
   const url = new URL(value);
@@ -397,7 +422,11 @@ export function isGitHubUiUrl(value: unknown): value is string {
 /** The items that hold the switch back: neither ok nor outdated, and not advisory. */
 export function blockingItemsOf(items: readonly ActionsSetupItemDto[]): ActionsSetupItemId[] {
   return items
-    .filter((item) => !ACTIONS_SETUP_PASSING_STATUSES.includes(item.status) && !ACTIONS_SETUP_ADVISORY_ITEMS.includes(item.id))
+    .filter(
+      (item) =>
+        !ACTIONS_SETUP_PASSING_STATUSES.includes(item.status) &&
+        !ACTIONS_SETUP_ADVISORY_ITEMS.includes(item.id),
+    )
     .map((item) => item.id);
 }
 

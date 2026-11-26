@@ -41,7 +41,10 @@ import { Switch } from './switch';
           aria-describedby="story-switch-triage-why"
           [ngModel]="false"
         ></button>
-        <p id="story-switch-triage-why" style="margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--text-2)">
+        <p
+          id="story-switch-triage-why"
+          style="margin: var(--space-1) 0 0; font-size: var(--fs-xs); color: var(--text-2)"
+        >
           {{ 'stories.switch.triageReason' | transloco }}
         </p>
       </div>

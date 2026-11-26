@@ -31,11 +31,16 @@ test.beforeAll(async ({ stack }, testInfo) => {
 const folder = (page: import('@playwright/test').Page, name: RegExp) =>
   page.locator('tc-board-folder').filter({ has: page.getByRole('heading', { level: 2, name }) });
 
-test('remembers which folders were open and opens them again, by itself, on the next visit', async ({ page }) => {
+test('remembers which folders were open and opens them again, by itself, on the next visit', async ({
+  page,
+}) => {
   await page.goto(`/p/${SLUG}/board`);
   const laterFolder = folder(page, /Позже\s+Sprint 03/);
   await laterFolder.getByRole('button', { name: /Показать задачи/ }).click();
-  await expect(laterFolder.getByRole('button', { name: /Скрыть задачи/ })).toHaveAttribute('aria-expanded', 'true');
+  await expect(laterFolder.getByRole('button', { name: /Скрыть задачи/ })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
 
   await page.reload();
   const laterAfterReload = folder(page, /Позже\s+Sprint 03/);
@@ -52,21 +57,26 @@ test('remembers which folders were open and opens them again, by itself, on the 
   // Hiding it again is remembered too.
   await laterAfterReload.getByRole('button', { name: /Скрыть задачи/ }).click();
   await page.reload();
-  await expect(folder(page, /Позже\s+Sprint 03/).getByRole('button', { name: /Показать задачи/ })).toHaveAttribute(
-    'aria-expanded',
-    'false',
-  );
+  await expect(
+    folder(page, /Позже\s+Sprint 03/).getByRole('button', { name: /Показать задачи/ }),
+  ).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('`?section=backlog` opens, loads and focuses the backlog folder', async ({ page }) => {
   await page.goto(`/p/${SLUG}/board?section=backlog`);
   const backlogFolder = folder(page, /Бэклог\s+Задачи без спринта/);
-  await expect(backlogFolder.getByRole('button', { name: /Скрыть задачи/ })).toHaveAttribute('aria-expanded', 'true');
+  await expect(backlogFolder.getByRole('button', { name: /Скрыть задачи/ })).toHaveAttribute(
+    'aria-expanded',
+    'true',
+  );
   await expect(backlogFolder.getByRole('heading', { level: 2 })).toBeFocused();
   await expect(backlogFolder.locator('[data-testid="folder-empty"]')).toHaveCount(0);
 
   const nextFolder = folder(page, /Следующий спринт\s+Sprint 02/);
-  await expect(nextFolder.getByRole('button', { name: /Показать задачи/ })).toHaveAttribute('aria-expanded', 'false');
+  await expect(nextFolder.getByRole('button', { name: /Показать задачи/ })).toHaveAttribute(
+    'aria-expanded',
+    'false',
+  );
 });
 
 test.describe('in English', () => {
@@ -75,7 +85,10 @@ test.describe('in English', () => {
   test('`?section=next` opens and focuses the next-sprint folder', async ({ page }) => {
     await page.goto(`/p/${SLUG}/board?section=next`);
     const nextFolder = folder(page, /Next sprint\s+Sprint 02/);
-    await expect(nextFolder.getByRole('button', { name: /Hide tasks/ })).toHaveAttribute('aria-expanded', 'true');
+    await expect(nextFolder.getByRole('button', { name: /Hide tasks/ })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
     await expect(nextFolder.getByRole('heading', { level: 2 })).toBeFocused();
   });
 });

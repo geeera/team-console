@@ -47,8 +47,7 @@ export interface RunnerFailure {
 }
 
 export type RunnerResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly failure: RunnerFailure };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly failure: RunnerFailure };
 
 /** A call with no answer in this long is reported as `timeout`. */
 export const RUNNER_CALL_TIMEOUT_MS = 20_000;
@@ -146,7 +145,9 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
   }
   if (failure.kind === 'conflict') {
     // Mismatch and changed read alike to the owner: the machine behind the request is not the one they saw.
-    return failure.slug === 'enrolment-intent-limit' ? 'runners.wizard.err.limit' : 'runners.wizard.err.changed';
+    return failure.slug === 'enrolment-intent-limit'
+      ? 'runners.wizard.err.limit'
+      : 'runners.wizard.err.changed';
   }
   if (failure.kind === 'not-found' && failure.slug === 'enrolment-not-found') {
     return 'runners.err.enrolmentGone';

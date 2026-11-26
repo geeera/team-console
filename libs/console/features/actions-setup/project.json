@@ -4,9 +4,5 @@
   "sourceRoot": "libs/console/features/actions-setup/src",
   "prefix": "tc",
   "projectType": "library",
-  "tags": [
-    "type:lib",
-    "scope:console",
-    "layer:features"
-  ]
+  "tags": ["type:lib", "scope:console", "layer:features"]
 }

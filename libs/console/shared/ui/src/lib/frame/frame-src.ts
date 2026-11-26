@@ -21,9 +21,7 @@ function isLoopbackOrIp(hostname: string): boolean {
 }
 
 function isInFrameFamily(hostname: string): boolean {
-  return FRAME_HOST_SUFFIXES.some(
-    (suffix) => hostname.endsWith(suffix) && hostname.length > suffix.length,
-  );
+  return FRAME_HOST_SUFFIXES.some((suffix) => hostname.endsWith(suffix) && hostname.length > suffix.length);
 }
 
 /**

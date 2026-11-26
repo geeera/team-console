@@ -12,7 +12,9 @@ export const STORY_WORKFLOW = {
 };
 
 /** Offline-free stand-ins for the slices' API calls, shared by the Actions setup stories; `workflow` overrides the file read. */
-export function actionsStoryProviders(options: { workflow?: ActionsSetupApi['workflow'] } = {}): (EnvironmentProviders | Provider)[] {
+export function actionsStoryProviders(
+  options: { workflow?: ActionsSetupApi['workflow'] } = {},
+): (EnvironmentProviders | Provider)[] {
   return [
     provideRouter([]),
     { provide: NetworkStatus, useValue: { online: signal(true) } },
@@ -23,6 +25,11 @@ export function actionsStoryProviders(options: { workflow?: ActionsSetupApi['wor
         openWorkflowPr: async () => ({ ok: true, value: { number: 42, url: STORY_PR_URL, kind: 'setup' } }),
       },
     },
-    { provide: RunnersApi, useValue: { setDispatch: async () => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } }) } },
+    {
+      provide: RunnersApi,
+      useValue: {
+        setDispatch: async () => ({ ok: true, value: { dispatch: 'actions', defaultBranch: 'main' } }),
+      },
+    },
   ];
 }

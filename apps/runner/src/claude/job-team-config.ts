@@ -56,15 +56,24 @@ function costOf(view: ResolvedTeamConfigDto, role: JobRole): Readonly<Record<Cos
   return {
     prompt_caching: cost.prompt_caching ? 'applied' : 'off',
     batch_api: cost.batch_api ? 'unsupported' : 'off',
-    reviewer_context: cost.reviewer_context === 'repo' ? 'off' : role === 'reviewer' ? 'applied' : 'not-applicable',
+    reviewer_context:
+      cost.reviewer_context === 'repo' ? 'off' : role === 'reviewer' ? 'applied' : 'not-applicable',
   };
 }
 
 /** A pinned id of the allow-list and a turn limit in bound: the guard checked both; argv is built from nothing else. */
 function assertLaunchValues(model: string, maxTurns: number): void {
   const { min, max } = TEAM_CONFIG_BOUNDS.maxTurns;
-  if (!(MODEL_ALLOW_LIST as readonly string[]).includes(model) || !Number.isSafeInteger(maxTurns) || maxTurns < min || maxTurns > max) {
-    throw new LaunchRefusal('team-config-invalid', 'the claim’s team configuration names a model or a turn limit outside its bounds');
+  if (
+    !(MODEL_ALLOW_LIST as readonly string[]).includes(model) ||
+    !Number.isSafeInteger(maxTurns) ||
+    maxTurns < min ||
+    maxTurns > max
+  ) {
+    throw new LaunchRefusal(
+      'team-config-invalid',
+      'the claim’s team configuration names a model or a turn limit outside its bounds',
+    );
   }
 }
 
@@ -87,7 +96,10 @@ export function launchPlanOf(role: string, teamConfig: unknown): JobLaunchPlan {
     };
   }
   if (!isResolvedTeamConfig(teamConfig)) {
-    throw new LaunchRefusal('team-config-invalid', 'the claim’s team configuration is not a valid team-config/v1 view');
+    throw new LaunchRefusal(
+      'team-config-invalid',
+      'the claim’s team configuration is not a valid team-config/v1 view',
+    );
   }
   const entry = teamConfig.roles[jobRole];
   assertLaunchValues(entry.model, entry.max_turns);

@@ -293,7 +293,10 @@ describe('refuseServiceWrite and its recheck by identity kind (#443)', () => {
   }
 
   it('passes the owner without a single read', async () => {
-    const { first, recheck, reads } = await probe({ kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS }, deployed);
+    const { first, recheck, reads } = await probe(
+      { kind: 'user', door: 'access', userId: null, memberships: ACCESS_OWNER_MEMBERSHIPS },
+      deployed,
+    );
     expect([first.status, recheck.status]).toEqual([200, 200]);
     expect(reads).toEqual([]);
   });

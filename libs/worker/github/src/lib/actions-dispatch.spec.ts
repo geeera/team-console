@@ -51,9 +51,16 @@ describe('the actions-dispatch scoped mint and dispatchRunnerWorkflow', () => {
   });
 
   it('mints a token for one repository by id with actions: write only, and dispatches the runner workflow with it', async () => {
-    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    const token = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+      noAudit,
+    );
     const mint = calls.find((call) => call.path.endsWith('/access_tokens'));
-    expect(JSON.parse(mint?.body ?? '{}')).toEqual({ repository_ids: [TEAM_CONSOLE.id], permissions: { actions: 'write' } });
+    expect(JSON.parse(mint?.body ?? '{}')).toEqual({
+      repository_ids: [TEAM_CONSOLE.id],
+      permissions: { actions: 'write' },
+    });
     const runId = await dispatchRunnerWorkflow(
       recordingFetch,
       token,
@@ -77,33 +84,69 @@ describe('the actions-dispatch scoped mint and dispatchRunnerWorkflow', () => {
     ['200 with a run id that is no positive integer', () => Response.json({ workflow_run_id: '12' })],
   ] as const)('refuses a dispatch answered %s with 502 github-unexpected', async (_label, answer) => {
     const error = await rejection(
-      dispatchRunnerWorkflow(async () => answer(), new ScopedInstallationToken('actions-dispatch', 1, 1, installationToken('x')), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(
+        async () => answer(),
+        new ScopedInstallationToken('actions-dispatch', 1, 1, installationToken('x')),
+        parseRepoName(TEAM_CONSOLE.repo),
+        'dev',
+        '01M7K0DGZ2FKYQNH7RVHYQN6BS',
+      ),
     );
     expect(error.problem.type).toBe('github-unexpected');
   });
 
   it('never caches the dispatch token: every call mints anew', async () => {
-    const first = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
-    const second = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    const first = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+      noAudit,
+    );
+    const second = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+      noAudit,
+    );
     expect(first.bearer()).not.toBe(second.bearer());
     expect(calls.filter((call) => call.path.endsWith('/access_tokens'))).toHaveLength(2);
   });
 
   it('throws GitHub’s 422 when the installation lacks actions: write on the repository', async () => {
-    const error = await rejection(auth.mintScoped('actions-dispatch', { installationId: PRIVATE_PRODUCT.installation, repositoryId: PRIVATE_PRODUCT.id }, noAudit));
+    const error = await rejection(
+      auth.mintScoped(
+        'actions-dispatch',
+        { installationId: PRIVATE_PRODUCT.installation, repositoryId: PRIVATE_PRODUCT.id },
+        noAudit,
+      ),
+    );
     expect(error.githubStatus).toBe(422);
   });
 
   it('refuses the dispatch with a token of another repository (404), and with a read-only token (403)', async () => {
-    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    const token = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+      noAudit,
+    );
     const other = await rejection(
-      dispatchRunnerWorkflow(mock.fetch, token, parseRepoName(PRIVATE_PRODUCT.repo), 'main', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(
+        mock.fetch,
+        token,
+        parseRepoName(PRIVATE_PRODUCT.repo),
+        'main',
+        '01M7K0DGZ2FKYQNH7RVHYQN6BS',
+      ),
     );
     expect(other.githubStatus).toBe(404);
 
     const read = await auth.tokenSourceFor(parseRepoName(TEAM_CONSOLE.repo)).getToken();
     const readOnly = await rejection(
-      dispatchRunnerWorkflow(mock.fetch, new ScopedInstallationToken('actions-dispatch', TEAM_CONSOLE.installation, TEAM_CONSOLE.id, read), parseRepoName(TEAM_CONSOLE.repo), 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+      dispatchRunnerWorkflow(
+        mock.fetch,
+        new ScopedInstallationToken('actions-dispatch', TEAM_CONSOLE.installation, TEAM_CONSOLE.id, read),
+        parseRepoName(TEAM_CONSOLE.repo),
+        'dev',
+        '01M7K0DGZ2FKYQNH7RVHYQN6BS',
+      ),
     );
     expect(readOnly.githubStatus).toBe(403);
   });
@@ -139,16 +182,26 @@ describe('revokeScoped of a dispatch token (#723 item 1)', () => {
     };
     const logger = recordingLogger();
     const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
-    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
+    const token = await auth.mintScoped(
+      'actions-dispatch',
+      { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+      noAudit,
+    );
     const repo = parseRepoName(TEAM_CONSOLE.repo);
     await dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS');
     await auth.revokeScoped(token);
 
     const [post, del] = calls.filter((call) => call.path.endsWith('/dispatches') || call.method === 'DELETE');
     expect(post?.method).toBe('POST');
-    expect(del).toEqual({ method: 'DELETE', path: '/installation/token', authorization: `Bearer ${token.bearer()}` });
+    expect(del).toEqual({
+      method: 'DELETE',
+      path: '/installation/token',
+      authorization: `Bearer ${token.bearer()}`,
+    });
     expect(logger.entries).toEqual([]);
-    const reused = await rejection(dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'));
+    const reused = await rejection(
+      dispatchRunnerWorkflow(fetch, token, repo, 'dev', '01M7K0DGZ2FKYQNH7RVHYQN6BS'),
+    );
     expect(reused.githubStatus).toBe(401);
   });
 
@@ -161,20 +214,28 @@ describe('revokeScoped of a dispatch token (#723 item 1)', () => {
       },
       { reason: 'github-unavailable' },
     ],
-  ] as const)('only logs a failed revoke when %s, never the token, and never throws', async (_label, answer, logged) => {
-    const mock = await createMockGitHub();
-    const fetch: FetchLike = async (input, init) => (init.method === 'DELETE' ? answer() : mock.fetch(input, init));
-    const logger = recordingLogger();
-    const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
-    const token = await auth.mintScoped('actions-dispatch', { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id }, noAudit);
-    await expect(auth.revokeScoped(token)).resolves.toBeUndefined();
-    expect(logger.entries).toEqual([
-      {
-        level: 'warn',
-        message: 'dispatch installation token not revoked',
-        fields: { installationId: TEAM_CONSOLE.installation, ...logged },
-      },
-    ]);
-    expect(JSON.stringify(logger.entries)).not.toContain(token.bearer());
-  });
+  ] as const)(
+    'only logs a failed revoke when %s, never the token, and never throws',
+    async (_label, answer, logged) => {
+      const mock = await createMockGitHub();
+      const fetch: FetchLike = async (input, init) =>
+        init.method === 'DELETE' ? answer() : mock.fetch(input, init);
+      const logger = recordingLogger();
+      const auth = new GitHubAppAuth(mock.credentials, { fetch, logger });
+      const token = await auth.mintScoped(
+        'actions-dispatch',
+        { installationId: TEAM_CONSOLE.installation, repositoryId: TEAM_CONSOLE.id },
+        noAudit,
+      );
+      await expect(auth.revokeScoped(token)).resolves.toBeUndefined();
+      expect(logger.entries).toEqual([
+        {
+          level: 'warn',
+          message: 'dispatch installation token not revoked',
+          fields: { installationId: TEAM_CONSOLE.installation, ...logged },
+        },
+      ]);
+      expect(JSON.stringify(logger.entries)).not.toContain(token.bearer());
+    },
+  );
 });

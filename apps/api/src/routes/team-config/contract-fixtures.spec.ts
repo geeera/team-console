@@ -36,7 +36,12 @@ import { pullRequestsGitHub, seedTrackerProject, send, type SeededProject } from
 interface Fixture {
   readonly route: string;
   readonly as: { readonly kind: string; readonly role: string; readonly items: readonly number[] };
-  readonly request: { readonly method: string; readonly path: string; readonly ifMatch?: string; readonly body?: unknown };
+  readonly request: {
+    readonly method: string;
+    readonly path: string;
+    readonly ifMatch?: string;
+    readonly body?: unknown;
+  };
   readonly response: { readonly status: number; readonly body: unknown };
 }
 
@@ -54,18 +59,33 @@ type Setup = (project: SeededProject) => Promise<Seeded | void>;
 const FIXED_AT = '2026-11-12T10:00:00.000Z';
 const P = '/api/v1/projects';
 
-async function save(project: SeededProject, config: unknown, ifMatch: string, reason?: string): Promise<void> {
-  const response = await send('PUT', `${P}/${project.slug}/team-config`, { config, ...(reason === undefined ? {} : { reason }) }, { ifMatch });
+async function save(
+  project: SeededProject,
+  config: unknown,
+  ifMatch: string,
+  reason?: string,
+): Promise<void> {
+  const response = await send(
+    'PUT',
+    `${P}/${project.slug}/team-config`,
+    { config, ...(reason === undefined ? {} : { reason }) },
+    { ifMatch },
+  );
   if (response.status !== 200) {
     throw new Error(`seeding a team configuration answered ${String(response.status)}`);
   }
 }
 
-const savedOnce: Setup = async (project) => save(project, { schema: 'team-config/v1', access: { source: 'api_key' } }, '"0"');
+const savedOnce: Setup = async (project) =>
+  save(project, { schema: 'team-config/v1', access: { source: 'api_key' } }, '"0"');
 
 const twoRevisions: Setup = async (project) => {
   await save(project, { schema: 'team-config/v1', access: { source: 'api_key' } }, '"0"', 'First import');
-  await save(project, { schema: 'team-config/v1', access: { source: 'api_key' }, preset: 'economy', language: 'en' }, '"1"');
+  await save(
+    project,
+    { schema: 'team-config/v1', access: { source: 'api_key' }, preset: 'economy', language: 'en' },
+    '"1"',
+  );
 };
 
 const HOSTED_RUNNER = '01M6YSNJ0000000000HXSTFX01';
@@ -76,11 +96,18 @@ const hostedRunner: Setup = async () => {
     `INSERT INTO runners (id, account_id, name, public_key_jwk, capabilities, hosted, isolation, allowed_projects, version, enrolled_at)
      VALUES (?1, ?2, 'hosted', ?3, '{"local":false,"maxConcurrency":1}', 1, 'container', '[]', '0.1.0', ?4)`,
   )
-    .bind(HOSTED_RUNNER, OWNER_ACCOUNT_ID, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'f'.repeat(43) }), FIXED_AT)
+    .bind(
+      HOSTED_RUNNER,
+      OWNER_ACCOUNT_ID,
+      JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'f'.repeat(43) }),
+      FIXED_AT,
+    )
     .run();
   return {
     cleanup: async () => {
-      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`).bind(HOSTED_RUNNER, FIXED_AT).run();
+      await env.DB.prepare(`UPDATE runners SET revoked_at = ?2 WHERE id = ?1`)
+        .bind(HOSTED_RUNNER, FIXED_AT)
+        .run();
     },
   };
 };
@@ -114,7 +141,13 @@ const withProjectYml: Setup = async () => {
     () => null,
     (call) =>
       call.url.pathname.endsWith('/contents/.product-team/project.yml')
-        ? json(200, { type: 'file', size: bytes.length, sha: 'c'.repeat(40), encoding: 'base64', content: btoa(binary) })
+        ? json(200, {
+            type: 'file',
+            size: bytes.length,
+            sha: 'c'.repeat(40),
+            encoding: 'base64',
+            content: btoa(binary),
+          })
         : null,
   );
   return { github };
@@ -140,7 +173,10 @@ const SETUPS: Readonly<Record<string, readonly [Fixture, Setup]>> = {
   'revisions.list': [revisionsList, twoRevisions],
   'revisions.get': [revisionsGet, twoRevisions],
   'resolved.job': [resolvedJob, savedOnce],
-  'resolved.other-project': [resolvedOtherProject, async () => ({ projectSlug: (await seedTrackerProject()).slug })],
+  'resolved.other-project': [
+    resolvedOtherProject,
+    async () => ({ projectSlug: (await seedTrackerProject()).slug }),
+  ],
   'claim.with-config': [claimWithConfig, claimable],
 };
 
@@ -151,7 +187,12 @@ function stabilised(value: unknown, ids: Map<string, Map<string, number>>, key =
     return value.map((entry) => stabilised(entry, ids));
   }
   if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([member, entry]) => [member, stabilised(entry, ids, member)]));
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([member, entry]) => [
+        member,
+        stabilised(entry, ids, member),
+      ]),
+    );
   }
   if (typeof value === 'string' && (key.endsWith('At') || key === 'leaseUntil')) {
     return FIXED_AT;
@@ -172,7 +213,8 @@ function stabilised(value: unknown, ids: Map<string, Map<string, number>>, key =
   return value;
 }
 
-const toProject = (text: string, project: SeededProject): string => text.replaceAll('/tc/', `/${project.slug}/`);
+const toProject = (text: string, project: SeededProject): string =>
+  text.replaceAll('/tc/', `/${project.slug}/`);
 const fromProject = (text: string, project: SeededProject): string =>
   text.replaceAll(project.slug, 'tc').replaceAll(`acme/${project.slug}`, 'acme/tc');
 
@@ -224,7 +266,10 @@ describe('the team-config contract fixtures (#687, as #610)', () => {
       await seeded.cleanup?.();
     }
     const text = await response.text();
-    const actual = { status: response.status, body: stabilised(JSON.parse(fromProject(text, project)) as unknown, new Map()) };
+    const actual = {
+      status: response.status,
+      body: stabilised(JSON.parse(fromProject(text, project)) as unknown, new Map()),
+    };
     if (JSON.stringify(actual) !== JSON.stringify(fixture.response)) {
       console.log(`FIXTURE ${name} ${JSON.stringify(actual)}`);
     }
@@ -234,7 +279,17 @@ describe('the team-config contract fixtures (#687, as #610)', () => {
   // Threat model C12 row 2: what a job reads is the resolved view and nothing else — a key set, not a snapshot.
   it('keeps resolved.job free of budget, preset, reason, author and diff', () => {
     const body = resolvedJob.response.body as unknown as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(['access', 'caps', 'cost', 'gates', 'language', 'revision', 'roles', 'schema', 'sprint']);
+    expect(Object.keys(body).sort()).toEqual([
+      'access',
+      'caps',
+      'cost',
+      'gates',
+      'language',
+      'revision',
+      'roles',
+      'schema',
+      'sprint',
+    ]);
     const keysOf = (value: unknown): string[] =>
       typeof value === 'object' && value !== null
         ? Object.entries(value).flatMap(([key, member]) => [key, ...keysOf(member)])

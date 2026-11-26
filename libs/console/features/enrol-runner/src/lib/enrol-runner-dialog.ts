@@ -225,7 +225,9 @@ export class EnrolRunnerDialog {
   protected readonly nameMaxLength = RUNNER_NAME_MAX_LENGTH;
   protected readonly ttlMinutes = Math.round(ENROLMENT_CODE_TTL_SECONDS / 60);
   protected readonly name = signal(this.data.prefill?.name ?? '');
-  protected readonly scope = signal<RunnerProjectScope>(this.data.prefill?.projectScope ?? DEFAULT_RUNNER_PROJECT_SCOPE);
+  protected readonly scope = signal<RunnerProjectScope>(
+    this.data.prefill?.projectScope ?? DEFAULT_RUNNER_PROJECT_SCOPE,
+  );
   protected readonly projects = signal<readonly string[]>(this.data.prefill?.allowedProjects ?? []);
   protected readonly running = signal(false);
   protected readonly failure = signal<string | null>(null);

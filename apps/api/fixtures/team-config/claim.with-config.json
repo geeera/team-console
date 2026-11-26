@@ -38,12 +38,8 @@
       "leaseSeconds": 300,
       "scope": {
         "projectScope": "selected",
-        "allowedProjects": [
-          "tc"
-        ],
-        "projects": [
-          "tc"
-        ]
+        "allowedProjects": ["tc"],
+        "projects": ["tc"]
       },
       "teamConfig": {
         "schema": "team-config/v1",
@@ -168,11 +164,7 @@
         "gates": {
           "qa": "always",
           "reviewer": "code",
-          "code_paths": [
-            "apps/**",
-            "libs/**",
-            "tools/**"
-          ],
+          "code_paths": ["apps/**", "libs/**", "tools/**"],
           "max_rework_rounds": 1
         },
         "caps": {

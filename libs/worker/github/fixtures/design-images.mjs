@@ -102,7 +102,8 @@ const textFiles = {
 };
 
 // Replace this folder's entries only; everything else in the fixture stays as it is.
-const keep = (entries) => Object.fromEntries(Object.entries(entries).filter(([path]) => !path.startsWith(`${FOLDER}/`)));
+const keep = (entries) =>
+  Object.fromEntries(Object.entries(entries).filter(([path]) => !path.startsWith(`${FOLDER}/`)));
 repo.files = { ...keep(repo.files ?? {}), ...textFiles };
 repo.binaryFiles = { ...keep(repo.binaryFiles ?? {}), ...binaryFiles };
 
@@ -117,7 +118,11 @@ const pull = {
   user: { login: 'geeera', type: 'User' },
   state: 'open',
   // The branch lives in the project's own repository: a fork's pull request is never a design source.
-  head: { sha: '17600176001760017600176001760017600176aa', ref: 'design/90004-demo-screen', repo: { full_name: REPO } },
+  head: {
+    sha: '17600176001760017600176001760017600176aa',
+    ref: 'design/90004-demo-screen',
+    repo: { full_name: REPO },
+  },
 };
 repo.pulls = [pull, ...(repo.pulls ?? []).filter((item) => item.number !== PULL)];
 

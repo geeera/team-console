@@ -33,7 +33,9 @@ describe('plainAskOf', () => {
     expect(plainAskOf('/approve онбординг · /reject что поменять')).toBeNull();
     expect(plainAskOf('Напиши «сделал», когда переключишь источник GitHub Pages')).toBeNull();
     expect(
-      plainAskOf('Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит'),
+      plainAskOf(
+        'Напиши «сделал», когда заведёшь аккаунты по чеклисту из #7 · /reject причина, если что-то не подходит',
+      ),
     ).toBeNull();
   });
 
@@ -45,9 +47,9 @@ describe('plainAskOf', () => {
   });
 
   it('keeps HTML in the ask as inert text and leaves URLs and paths alone', () => {
-    expect(plainAskOf('/approve <img src=x onerror=alert(document.cookie)> (рекомендую) · /reject why')).toEqual(
-      text('<img src=x onerror=alert(document.cookie)>'),
-    );
+    expect(
+      plainAskOf('/approve <img src=x onerror=alert(document.cookie)> (рекомендую) · /reject why'),
+    ).toEqual(text('<img src=x onerror=alert(document.cookie)>'));
     expect(plainAskOf('/approve см. https://example.org/a/b и docs/x (рекомендую)')).toEqual(
       text('См. https://example.org/a/b и docs/x'),
     );
@@ -75,7 +77,9 @@ describe('plainDetailsOf', () => {
 
 describe('askOutcomesOf (#276 fallback)', () => {
   it('reads each side’s option without its command or mark', () => {
-    expect(askOutcomesOf('`/approve` to enable branch protection (recommended) · `/reject why` to keep it')).toEqual({
+    expect(
+      askOutcomesOf('`/approve` to enable branch protection (recommended) · `/reject why` to keep it'),
+    ).toEqual({
       ifApproved: 'Enable branch protection',
       ifRejected: 'Why to keep it',
     });

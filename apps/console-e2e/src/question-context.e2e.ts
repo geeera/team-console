@@ -145,9 +145,9 @@ for (const path of ['/needs-you', '/p/team-console/questions']) {
       expect(second?.y ?? 0).toBeGreaterThan((first?.y ?? 0) + (first?.height ?? 0));
     }
     // Nothing sticks out sideways (the #281 scroll-regions rule), with the wider page too.
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(
-      true,
-    );
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth),
+    ).toBe(true);
     await expectAccessible(page, `${path}, card grid`);
   });
 }
@@ -200,9 +200,9 @@ test('on the phone, the design card’s answer buttons are in the first screen o
   test.skip((page.viewportSize()?.width ?? 0) >= 520, 'the fold check is for the 390 × 844 phone');
   await page.goto('/needs-you');
   const design = card(page, 90004);
-  await design.getByRole('heading', { name: 'Экран дизайна и демо' }).evaluate((heading) =>
-    heading.closest('li')?.scrollIntoView({ block: 'start' }),
-  );
+  await design
+    .getByRole('heading', { name: 'Экран дизайна и демо' })
+    .evaluate((heading) => heading.closest('li')?.scrollIntoView({ block: 'start' }));
   const buttons = await design.locator('[data-command]').last().boundingBox();
   const viewport = page.viewportSize()?.height ?? 0;
   expect((buttons?.y ?? Infinity) + (buttons?.height ?? 0)).toBeLessThanOrEqual(viewport);

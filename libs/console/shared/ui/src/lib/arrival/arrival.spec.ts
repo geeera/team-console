@@ -1,6 +1,11 @@
 import { ARRIVAL_CLASS, markArrival, prefersReducedMotion } from './arrival';
 
-function setUp(): { card: HTMLElement; title: HTMLElement; outside: HTMLButtonElement; scroll: ReturnType<typeof vi.fn> } {
+function setUp(): {
+  card: HTMLElement;
+  title: HTMLElement;
+  outside: HTMLButtonElement;
+  scroll: ReturnType<typeof vi.fn>;
+} {
   document.body.innerHTML = `
     <article id="card"><h2 id="title" tabindex="-1">#42</h2><button id="inside" type="button">Go</button></article>
     <button id="outside" type="button">Elsewhere</button>

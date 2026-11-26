@@ -55,11 +55,16 @@ let nextPickerId = 0;
             {{ 'teamConfig.model.' + keyOf(model) | transloco }}
             @if (model === data.presetModel) {
               <span class="picker__in-preset">
-                · {{ 'teamConfig.picker.inPreset' | transloco: { preset: ('teamConfig.preset.' + data.preset | transloco) } }}
+                ·
+                {{
+                  'teamConfig.picker.inPreset'
+                    | transloco: { preset: ('teamConfig.preset.' + data.preset | transloco) }
+                }}
               </span>
             }
             <small tc-choice-hint [id]="id + '-' + keyOf(model)">
-              {{ 'teamConfig.model.hint.' + keyOf(model) | transloco }} <code class="picker__id">{{ model }}</code>
+              {{ 'teamConfig.model.hint.' + keyOf(model) | transloco }}
+              <code class="picker__id">{{ model }}</code>
             </small>
           </label>
         }
@@ -93,7 +98,9 @@ let nextPickerId = 0;
       </button>
     </ng-template>
     <ng-template tcSheetFooter="secondary">
-      <button tc-button type="button" (click)="ref.close()">{{ 'teamConfig.common.cancel' | transloco }}</button>
+      <button tc-button type="button" (click)="ref.close()">
+        {{ 'teamConfig.common.cancel' | transloco }}
+      </button>
     </ng-template>
   `,
   styles: `
@@ -137,7 +144,9 @@ export class ModelPickerSheet {
   private readonly hasPickedEffort = signal(false);
 
   protected readonly keyOf = modelKeyOf;
-  protected readonly excludedNames = computed(() => this.excluded.map((model) => this.nameOf(model)).join(', '));
+  protected readonly excludedNames = computed(() =>
+    this.excluded.map((model) => this.nameOf(model)).join(', '),
+  );
 
   protected pickModel(model: TeamModel): void {
     this.picked.set(model);

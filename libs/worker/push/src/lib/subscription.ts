@@ -17,7 +17,11 @@ export const MAX_ENDPOINT_LENGTH = 1024;
 /** Exact hosts of the push services the console sends to (threat model on #11, row 1). */
 const EXACT_HOSTS: ReadonlySet<string> = new Set(['fcm.googleapis.com', 'updates.push.services.mozilla.com']);
 /** Host suffixes; a label must precede them (`web.push.apple.com`, `wns2-…notify.windows.com`). */
-const HOST_SUFFIXES: readonly string[] = ['.push.apple.com', '.push.services.mozilla.com', '.notify.windows.com'];
+const HOST_SUFFIXES: readonly string[] = [
+  '.push.apple.com',
+  '.push.services.mozilla.com',
+  '.notify.windows.com',
+];
 
 /**
  * Whether the Worker may POST to this URL: `https:` on the default port, no credentials, and a host on the push
@@ -44,7 +48,9 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   const host = url.hostname;
   return (
     EXACT_HOSTS.has(host) ||
-    HOST_SUFFIXES.some((suffix) => host.endsWith(suffix) && /^[a-z0-9-]+$/.test(host.slice(0, -suffix.length)))
+    HOST_SUFFIXES.some(
+      (suffix) => host.endsWith(suffix) && /^[a-z0-9-]+$/.test(host.slice(0, -suffix.length)),
+    )
   );
 }
 

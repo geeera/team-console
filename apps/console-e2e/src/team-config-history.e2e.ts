@@ -32,9 +32,17 @@ async function stored(api: APIRequestContext): Promise<TeamConfigDto> {
   return (await response.json()) as TeamConfigDto;
 }
 
-async function save(api: APIRequestContext, config: object, revision: number, reason?: string): Promise<void> {
+async function save(
+  api: APIRequestContext,
+  config: object,
+  revision: number,
+  reason?: string,
+): Promise<void> {
   const response = await api.put(API, {
-    data: { config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, ...config }, ...(reason === undefined ? {} : { reason }) },
+    data: {
+      config: { schema: TEAM_CONFIG_SCHEMA, access: { source: 'api_key' }, ...config },
+      ...(reason === undefined ? {} : { reason }),
+    },
     headers: { 'If-Match': `"${String(revision)}"` },
   });
   expect(response.status(), await response.text()).toBe(200);
@@ -67,12 +75,19 @@ test('the history lists revisions, opens one as a diff in words and raw JSON, an
   const api = await prepared(stack, testInfo.workerIndex);
   const dialogs = forbidScripts(page);
   try {
-    await save(api, { roles: { qa: { model: 'claude-sonnet-5', effort: 'medium' } }, budget: { monthly_usd: 200 } }, 0, SCRIPT_REASON);
+    await save(
+      api,
+      { roles: { qa: { model: 'claude-sonnet-5', effort: 'medium' } }, budget: { monthly_usd: 200 } },
+      0,
+      SCRIPT_REASON,
+    );
     const firstLanguage = (await stored(api)).resolved.language;
     await save(api, { language: firstLanguage === 'en' ? 'ru' : 'en' }, 1);
     await openTeam(page);
     // The current revision has no reason; revision 1's reason is in the history, as text.
-    await expect(page.getByTestId('team-revision')).toContainText(ru('teamConfig.history.revision', { n: 2 }));
+    await expect(page.getByTestId('team-revision')).toContainText(
+      ru('teamConfig.history.revision', { n: 2 }),
+    );
     await expect(page.getByTestId('team-revision-reason')).toHaveCount(0);
 
     await tabTo(page, page.getByTestId('team-history'), page.getByTestId('team-import'));
@@ -82,20 +97,30 @@ test('the history lists revisions, opens one as a diff in words and raw JSON, an
     const rows = sheet.locator('[data-testid^="history-row-"]');
     await expect(rows).toHaveCount(2);
     await expect(rows.nth(0)).toHaveAttribute('data-testid', 'history-row-2');
-    await expect(sheet.getByTestId('history-row-2').getByTestId('history-reason')).toHaveText(ru('teamConfig.history.noReason'));
+    await expect(sheet.getByTestId('history-row-2').getByTestId('history-reason')).toHaveText(
+      ru('teamConfig.history.noReason'),
+    );
     await expect(sheet.getByTestId('history-row-1').getByTestId('history-reason')).toHaveText(SCRIPT_REASON);
     await expect(page.locator('img[src="x"]')).toHaveCount(0);
     await expectAccessible(page, 'Settings › Team, history');
 
-    await tabTo(page, sheet.getByTestId('history-row-1').getByRole('button'), sheet.getByTestId('history-row-2').getByRole('button'));
+    await tabTo(
+      page,
+      sheet.getByTestId('history-row-1').getByRole('button'),
+      sheet.getByTestId('history-row-2').getByRole('button'),
+    );
     await page.keyboard.press('Enter');
     const revision = sheet.getByTestId('revision');
-    await expect(revision.getByRole('heading', { name: ru('teamConfig.history.revision', { n: 1 }) })).toBeFocused();
+    await expect(
+      revision.getByRole('heading', { name: ru('teamConfig.history.revision', { n: 1 }) }),
+    ).toBeFocused();
     await expect(revision.getByTestId('revision-reason')).toHaveText(SCRIPT_REASON);
     await expect(page.locator('img[src="x"]')).toHaveCount(0);
     const table = revision.getByRole('table');
     await expect(table.locator('[data-path="roles.qa.model"]')).toContainText('Sonnet 5');
-    await expect(table.locator('[data-path="budget.monthly_usd"]')).toContainText(ru('teamConfig.history.notSet'));
+    await expect(table.locator('[data-path="budget.monthly_usd"]')).toContainText(
+      ru('teamConfig.history.notSet'),
+    );
     await expect(revision.getByRole('button', { name: /восстанов|restore/i })).toHaveCount(0);
     await expectAccessible(page, 'Settings › Team, revision diff');
 
@@ -103,10 +128,17 @@ test('the history lists revisions, opens one as a diff in words and raw JSON, an
     await tabTo(page, toggle);
     await page.keyboard.press('Enter');
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-    const raw = JSON.parse((await revision.getByTestId('revision-raw').textContent()) ?? '') as Record<string, unknown>;
+    const raw = JSON.parse((await revision.getByTestId('revision-raw').textContent()) ?? '') as Record<
+      string,
+      unknown
+    >;
     expect(raw['roles.qa.model']).toEqual({ to: 'claude-sonnet-5' });
 
-    await tabTo(page, revision.getByTestId('revision-use'), revision.getByRole('heading', { name: ru('teamConfig.history.revision', { n: 1 }) }));
+    await tabTo(
+      page,
+      revision.getByTestId('revision-use'),
+      revision.getByRole('heading', { name: ru('teamConfig.history.revision', { n: 1 }) }),
+    );
     await page.keyboard.press('Enter');
     await expect(sheet).toHaveCount(0);
     const bar = page.getByRole('region', { name: ru('teamConfig.bar.label') });
@@ -140,7 +172,10 @@ test('a history that fails to load is its own error with Try again; the form beh
     let failing = true;
     await page.route(`**${API}/revisions?**`, async (route: Route) => {
       if (failing) {
-        await route.fulfill({ status: 503, json: { type: problemTypeOf('unavailable'), title: 'x', status: 503 } });
+        await route.fulfill({
+          status: 503,
+          json: { type: problemTypeOf('unavailable'), title: 'x', status: 503 },
+        });
         return;
       }
       await route.fallback();
@@ -180,7 +215,12 @@ test('import from project.yml: a failure offers Try again, the draft shows what 
         await route.fulfill({
           status: 422,
           contentType: 'application/problem+json',
-          json: { type: problemTypeOf('team-config-import-invalid'), title: 'x', status: 422, field: 'project.yml' },
+          json: {
+            type: problemTypeOf('team-config-import-invalid'),
+            title: 'x',
+            status: 422,
+            field: 'project.yml',
+          },
         });
         return;
       }
@@ -226,7 +266,12 @@ test('on a 375 px phone the history, a revision and the import never scroll side
 }, testInfo) => {
   const api = await prepared(stack, testInfo.workerIndex);
   try {
-    await save(api, { roles: { qa: { model: 'claude-sonnet-5' } }, gates: { code_paths: ['apps/**', 'libs/**'] } }, 0, SCRIPT_REASON.repeat(4));
+    await save(
+      api,
+      { roles: { qa: { model: 'claude-sonnet-5' } }, gates: { code_paths: ['apps/**', 'libs/**'] } },
+      0,
+      SCRIPT_REASON.repeat(4),
+    );
     await page.setViewportSize({ width: 375, height: 812 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await openTeam(page);

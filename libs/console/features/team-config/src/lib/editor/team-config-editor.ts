@@ -148,7 +148,9 @@ export class TeamConfigEditor {
 
   protected readonly online = inject(NetworkStatus).online;
   protected readonly isPhone = isPhoneSignal();
-  protected readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  protected readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   protected readonly roles = TEAM_ROLES;
   protected readonly presets = TEAM_CONFIG_PRESETS;
@@ -192,11 +194,15 @@ export class TeamConfigEditor {
   });
   protected readonly budgetSummary = computed(() => {
     const usd = this.draft()?.monthlyUsd ?? null;
-    return usd === null ? this.t('teamConfig.value.noBudget') : this.t('teamConfig.limits.perMonth', { usd: localUsdOf(usd, this.lang()) });
+    return usd === null
+      ? this.t('teamConfig.value.noBudget')
+      : this.t('teamConfig.limits.perMonth', { usd: localUsdOf(usd, this.lang()) });
   });
   protected readonly rulesSummary = computed(() => {
     const draft = this.draft();
-    return draft === null ? '' : `${this.t('teamConfig.rules.gate.qa')}: ${valueTextOf(this.t, this.lang(), 'gates.qa', draft.gates.qa)}`;
+    return draft === null
+      ? ''
+      : `${this.t('teamConfig.rules.gate.qa')}: ${valueTextOf(this.t, this.lang(), 'gates.qa', draft.gates.qa)}`;
   });
   /** Why "Review and save" cannot open now; `null` when it can. */
   protected readonly reviewOffReason = computed((): string | null => {
@@ -209,7 +215,9 @@ export class TeamConfigEditor {
     }
     return this.store.isDirty() ? null : this.t('teamConfig.bar.nothing');
   });
-  protected readonly showBar = computed(() => !this.readOnly() && (this.store.isDirty() || this.typedInvalid().size > 0));
+  protected readonly showBar = computed(
+    () => !this.readOnly() && (this.store.isDirty() || this.typedInvalid().size > 0),
+  );
   protected readonly theirChangeRows = computed(() => this.rowsOf(this.store.theirChanges()));
   protected readonly projectLabel = computed(() => this.projectName() ?? this.slug());
   /** The budget stopped the team this month (UX spec §4 "Budget stopped"). */
@@ -231,7 +239,9 @@ export class TeamConfigEditor {
   protected readonly budgetEdit = computed((): { readonly usd: number | null } | null => {
     const base = this.store.base();
     const draft = this.draft();
-    return base === null || draft === null || base.monthlyUsd === draft.monthlyUsd ? null : { usd: draft.monthlyUsd };
+    return base === null || draft === null || base.monthlyUsd === draft.monthlyUsd
+      ? null
+      : { usd: draft.monthlyUsd };
   });
   private focusHandled = false;
 
@@ -338,7 +348,10 @@ export class TeamConfigEditor {
       return;
     }
     const first = changesOf(now, next)[0];
-    this.store.replace(next, changesOf(now, next).map((change) => change.path));
+    this.store.replace(
+      next,
+      changesOf(now, next).map((change) => change.path),
+    );
     this.typedInvalid.set(new Set());
     this.epoch.update((epoch) => epoch + 1);
     this.announce(message);
@@ -377,7 +390,9 @@ export class TeamConfigEditor {
     const draft = this.draft();
     if (draft !== null) {
       this.store.replace(withPreset(draft, draft.preset));
-      this.announce(this.t('teamConfig.preset.resetDone', { preset: this.t(`teamConfig.preset.${draft.preset}`) }));
+      this.announce(
+        this.t('teamConfig.preset.resetDone', { preset: this.t(`teamConfig.preset.${draft.preset}`) }),
+      );
     }
   }
 
@@ -396,7 +411,10 @@ export class TeamConfigEditor {
       this.announce(this.t('teamConfig.access.blocked'));
       return;
     }
-    const ref = this.sheet.open<boolean>(SubscriptionSheet, { title: this.t('teamConfig.access.confirmTitle'), role: 'alertdialog' });
+    const ref = this.sheet.open<boolean>(SubscriptionSheet, {
+      title: this.t('teamConfig.access.confirmTitle'),
+      role: 'alertdialog',
+    });
     if ((await firstValueFrom(ref.closed)) === true) {
       this.store.edit('access.source', 'subscription');
     }
@@ -429,7 +447,10 @@ export class TeamConfigEditor {
     const now = this.draft();
     if (pick !== undefined && now !== null) {
       const paths = [`roles.${role}.model`, `roles.${role}.effort`];
-      this.store.replace(withLeaf(withLeaf(now, paths[0] as string, pick.model), paths[1] as string, pick.effort), paths);
+      this.store.replace(
+        withLeaf(withLeaf(now, paths[0] as string, pick.model), paths[1] as string, pick.effort),
+        paths,
+      );
     }
   }
 
@@ -493,7 +514,10 @@ export class TeamConfigEditor {
       this.store.setError('gates.code_paths', { key: 'teamConfig.rules.paths.lastOne' });
       return;
     }
-    this.store.edit('gates.code_paths', draft.gates.code_paths.filter((_, at) => at !== index));
+    this.store.edit(
+      'gates.code_paths',
+      draft.gates.code_paths.filter((_, at) => at !== index),
+    );
   }
 
   protected addCodePath(input: HTMLInputElement): void {
@@ -504,13 +528,22 @@ export class TeamConfigEditor {
     }
     const { codePaths, codePathLength } = TEAM_CONFIG_BOUNDS;
     const isValid =
-      glob.length <= codePathLength.max && !glob.includes('..') && !glob.startsWith('/') && !glob.includes('\\');
+      glob.length <= codePathLength.max &&
+      !glob.includes('..') &&
+      !glob.startsWith('/') &&
+      !glob.includes('\\');
     if (!isValid) {
-      this.store.setError('gates.code_paths', { key: 'teamConfig.rules.paths.invalid', params: { max: codePathLength.max } });
+      this.store.setError('gates.code_paths', {
+        key: 'teamConfig.rules.paths.invalid',
+        params: { max: codePathLength.max },
+      });
       return;
     }
     if (draft.gates.code_paths.length >= codePaths.max) {
-      this.store.setError('gates.code_paths', { key: 'teamConfig.rules.paths.tooMany', params: { max: codePaths.max } });
+      this.store.setError('gates.code_paths', {
+        key: 'teamConfig.rules.paths.tooMany',
+        params: { max: codePaths.max },
+      });
       return;
     }
     if (!draft.gates.code_paths.includes(glob)) {
@@ -630,7 +663,8 @@ export class TeamConfigEditor {
 
   // ── Words ─────────────────────────────────────────────────────────────────────────────────────────────────
 
-  protected readonly t = (key: string, params?: Record<string, unknown>): string => this.transloco.translate(key, params);
+  protected readonly t = (key: string, params?: Record<string, unknown>): string =>
+    this.transloco.translate(key, params);
 
   /** The review's rows; a budget change in a waived month says it ends the waiver (the approved wireframe). */
   private reviewRowsOf(changes: readonly DraftChange[]): ChangeRow[] {
@@ -639,7 +673,9 @@ export class TeamConfigEditor {
     if (waived === null) {
       return rows;
     }
-    const note = this.t('teamConfig.budget.waivedReview', { month: budgetMonthOf(waived.month, this.lang()) });
+    const note = this.t('teamConfig.budget.waivedReview', {
+      month: budgetMonthOf(waived.month, this.lang()),
+    });
     return rows.map((row) => (row.path === 'budget.monthly_usd' ? { ...row, note } : row));
   }
 

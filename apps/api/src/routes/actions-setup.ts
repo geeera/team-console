@@ -77,7 +77,11 @@ export function createActionsSetupRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
         if (!(await isSetupWriteAllowed(c.env))) {
           return workflowPrRefusal(c, { kind: 'write-disabled' });
         }
-        const limited = await workflowPrRateRefusal(c, { slug: row.slug, accountId: row.account_id }, github.now());
+        const limited = await workflowPrRateRefusal(
+          c,
+          { slug: row.slug, accountId: row.account_id },
+          github.now(),
+        );
         if (limited !== null) {
           return limited;
         }
@@ -87,7 +91,8 @@ export function createActionsSetupRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
             github,
             logger: c.get('logger'),
             requestOrigin: new URL(c.req.url).origin,
-            audit: (kind, details) => jobAuditOf(c, row.account_id, new Date().toISOString(), kind, row.slug, details),
+            audit: (kind, details) =>
+              jobAuditOf(c, row.account_id, new Date().toISOString(), kind, row.slug, details),
           },
           row,
           target,
@@ -102,10 +107,7 @@ export function createActionsSetupRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
         return c.json(outcome.pr, 201);
       },
     )
-    .get(
-    '/:slug/actions-setup/workflow',
-    trackerAccess(`GET ${P}/actions-setup/workflow`),
-    async (c) => {
+    .get('/:slug/actions-setup/workflow', trackerAccess(`GET ${P}/actions-setup/workflow`), async (c) => {
       const consoleOrigin = c.env.CONSOLE_PUBLIC_ORIGIN ?? '';
       const outcome = await renderRunnerWorkflow({ consoleOrigin, environment: c.env.ENVIRONMENT });
       if (!outcome.ok) {
@@ -121,6 +123,5 @@ export function createActionsSetupRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
       const { text, sha256, pins } = outcome.rendering;
       const body: ActionsWorkflowDto = { text, sha256, version: pins.runner };
       return c.json(body);
-    },
-  );
+    });
 }

@@ -154,7 +154,9 @@ export function workflowStepOf(setup: ActionsSetupDto): WorkflowStepView {
       return { kind: 'pr-foreign', pr, link, action: null };
     }
     // A PR for an earlier rendering does not stand in the way: the new one opens from another branch.
-    return pr.stale === true ? { kind: 'pr-stale', pr, link, action } : { kind: 'pr-open', pr, link, action: null };
+    return pr.stale === true
+      ? { kind: 'pr-stale', pr, link, action }
+      : { kind: 'pr-open', pr, link, action: null };
   }
   if (action === null) {
     return { kind: 'unknown', pr: null, link, action: null };

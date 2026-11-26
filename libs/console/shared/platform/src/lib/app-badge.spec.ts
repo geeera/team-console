@@ -10,7 +10,9 @@ describe('setAppBadge', () => {
   it('clears the icon at 0 instead of showing a zero', async () => {
     const setBadge = vi.fn();
     const clearBadge = vi.fn().mockResolvedValue(undefined);
-    await expect(setAppBadge({ setAppBadge: setBadge, clearAppBadge: clearBadge }, 0)).resolves.toBe('cleared');
+    await expect(setAppBadge({ setAppBadge: setBadge, clearAppBadge: clearBadge }, 0)).resolves.toBe(
+      'cleared',
+    );
     expect(clearBadge).toHaveBeenCalledOnce();
     expect(setBadge).not.toHaveBeenCalled();
   });

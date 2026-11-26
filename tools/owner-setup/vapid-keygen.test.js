@@ -18,7 +18,11 @@ for (let i = 0; i < RUNS; i++) {
 
   const pub = Buffer.from(publicKeyB64, 'base64url');
   assert.strictEqual(pub.length, 65, `run ${i}: public key decoded to ${pub.length} bytes, expected 65`);
-  assert.strictEqual(pub[0], 0x04, `run ${i}: public key does not start with 0x04 (got 0x${pub[0].toString(16)})`);
+  assert.strictEqual(
+    pub[0],
+    0x04,
+    `run ${i}: public key does not start with 0x04 (got 0x${pub[0].toString(16)})`,
+  );
 
   // Every run must be a fresh key, not a cached/degenerate value.
   assert.notStrictEqual(privateKeyB64, '', `run ${i}: empty private key`);

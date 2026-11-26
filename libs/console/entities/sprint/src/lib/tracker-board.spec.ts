@@ -87,9 +87,9 @@ describe('boardSectionsOf (#556)', () => {
 
   it('keeps a lane in the order the tracker listed it: the queue, not the number (#456)', () => {
     const { backlog } = boardSectionsOf([], [item({ number: 9 }), item({ number: 3 }), item({ number: 5 })]);
-    expect(backlog.lanes.find((lane) => lane.status === 'approved')?.issues.map((issue) => issue.number)).toEqual([
-      9, 3, 5,
-    ]);
+    expect(
+      backlog.lanes.find((lane) => lane.status === 'approved')?.issues.map((issue) => issue.number),
+    ).toEqual([9, 3, 5]);
   });
 
   it('has no current or future section without open sprints, and an empty backlog without items', () => {

@@ -92,7 +92,10 @@ describe('RunnerCard', () => {
     TestBed.resetTestingModule();
 
     const suspect = await render(
-      runnerFixture({ suspect: { at: '2026-11-11T09:00:00.000Z', reason: 'two-pollers' }, pause: { reason: 'manual', until } }),
+      runnerFixture({
+        suspect: { at: '2026-11-11T09:00:00.000Z', reason: 'two-pollers' },
+        pause: { reason: 'manual', until },
+      }),
     );
     expect(text(suspect, 'runner-presence')).toBe('Требует проверки');
     expect(text(suspect, 'runner-pause')).toContain('Приостановлен на своей машине');
@@ -104,7 +107,11 @@ describe('RunnerCard', () => {
   // #668: an ephemeral GitHub Actions identity is named by its run, never by its stored `actions:<id>`.
   it('names a GitHub Actions identity by its run, and any other runner by its name', async () => {
     const actions = await render(
-      runnerFixture({ name: 'actions:9876543210', isolation: 'actions-ephemeral', allowedProjects: ['storify'] }),
+      runnerFixture({
+        name: 'actions:9876543210',
+        isolation: 'actions-ephemeral',
+        allowedProjects: ['storify'],
+      }),
     );
     expect(actions.querySelector('h3')?.textContent?.trim()).toBe('GitHub Actions, запуск 9876543210');
     expect(actions.textContent).toContain('GitHub Actions');
@@ -118,7 +125,9 @@ describe('RunnerCard', () => {
   // #827: a runner from before enrollers were recorded says so; the claim itself is the page's projected action.
   it('notes a runner with no recorded enroller, worded by whether the caller may claim it', async () => {
     const unrecorded = await render(runnerFixture({ enroller: 'unrecorded' }));
-    expect(unrecorded.querySelector('[data-testid="runner-enroller"]')?.getAttribute('data-state')).toBe('unrecorded');
+    expect(unrecorded.querySelector('[data-testid="runner-enroller"]')?.getAttribute('data-state')).toBe(
+      'unrecorded',
+    );
     expect(text(unrecorded, 'runner-enroller')).toContain('подключите его заново');
     TestBed.resetTestingModule();
     expect(text(await render(runnerFixture({ enroller: 'claimable' })), 'runner-enroller')).toContain(
@@ -126,7 +135,9 @@ describe('RunnerCard', () => {
     );
     for (const enroller of ['recorded', 'not-applicable'] as const) {
       TestBed.resetTestingModule();
-      expect((await render(runnerFixture({ enroller }))).querySelector('[data-testid="runner-enroller"]')).toBeNull();
+      expect(
+        (await render(runnerFixture({ enroller }))).querySelector('[data-testid="runner-enroller"]'),
+      ).toBeNull();
     }
   });
 
@@ -153,10 +164,14 @@ describe('RunnerCard', () => {
     expect(text(root, 'runner-projects')).toBe('сейчас: team-console, storify');
     const unfit = [...root.querySelectorAll('[data-testid="runner-unfit"]')];
     expect(unfit.map((chip) => chip.getAttribute('data-slug'))).toEqual(['storify']);
-    expect(unfit[0]?.textContent?.trim()).toBe('storify не подходит: проект на API-ключе, раннер с подпиской');
+    expect(unfit[0]?.textContent?.trim()).toBe(
+      'storify не подходит: проект на API-ключе, раннер с подпиской',
+    );
     TestBed.resetTestingModule();
 
-    const none = await render(runnerFixture({ projectScope: 'all', allowedProjects: [], servedProjects: [] }));
+    const none = await render(
+      runnerFixture({ projectScope: 'all', allowedProjects: [], servedProjects: [] }),
+    );
     expect(text(none, 'runner-projects')).toBe('пока ни одного');
     expect(none.querySelector('[data-testid="runner-unfit"]')).toBeNull();
   });
@@ -179,7 +194,9 @@ describe('RunnerProjectsPicker', () => {
     TestBed.configureTestingModule({ providers: [provideConsoleI18n()] });
     const fixture = TestBed.createComponent(PickerHost);
     await fixture.whenStable();
-    const boxes = [...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    const boxes = [
+      ...(fixture.nativeElement as HTMLElement).querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
+    ];
     expect(boxes.map((box) => box.checked)).toEqual([true, false]);
     boxes[1]?.click();
     boxes[0]?.click();

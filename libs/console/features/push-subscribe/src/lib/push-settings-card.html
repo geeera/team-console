@@ -9,13 +9,7 @@
   <p tc-status-card-body>{{ 'push.install.body' | transloco }}</p>
   <!-- The steps live once on the page, in Settings › App, which owns installing (#761). -->
   <div tc-status-card-actions>
-    <button
-      tc-button
-      wrap
-      type="button"
-      data-testid="push-go-to-app"
-      (click)="installGuideRequested.emit()"
-    >
+    <button tc-button wrap type="button" data-testid="push-go-to-app" (click)="installGuideRequested.emit()">
       {{ 'push.install.goToApp' | transloco }}
     </button>
   </div>
@@ -58,22 +52,20 @@
     <span class="push__badge-count" aria-hidden="true">{{ needsYou.total() }}</span>
     <span>{{ 'push.on.badge' | transloco: { n: needsYou.total() } }}</span>
   </p>
-  }
-  @if (store.testOutcome(); as outcome) { @if (outcome.kind === 'sent') {
-    <section tc-callout tone="success" data-testid="push-test-sent">
-      <p class="push__res-title">{{ 'push.test.sent' | transloco }}</p>
-      <p>{{ 'push.test.sentBody' | translocoPlural: outcome.devices }}</p>
-    </section>
-    } @else if (outcome.kind === 'wait') {
-    <section tc-callout tone="warning" data-testid="push-test-wait">
-      <p class="push__res-title">{{ 'push.test.wait' | transloco: { s: outcome.seconds } }}</p>
-    </section>
-    } @else {
-    <section tc-callout tone="danger" data-testid="push-test-failed">
-      <p class="push__res-title">{{ 'push.test.failed' | transloco }}</p>
-    </section>
-    } }
-  @if (!network.online()) {
+  } @if (store.testOutcome(); as outcome) { @if (outcome.kind === 'sent') {
+  <section tc-callout tone="success" data-testid="push-test-sent">
+    <p class="push__res-title">{{ 'push.test.sent' | transloco }}</p>
+    <p>{{ 'push.test.sentBody' | translocoPlural: outcome.devices }}</p>
+  </section>
+  } @else if (outcome.kind === 'wait') {
+  <section tc-callout tone="warning" data-testid="push-test-wait">
+    <p class="push__res-title">{{ 'push.test.wait' | transloco: { s: outcome.seconds } }}</p>
+  </section>
+  } @else {
+  <section tc-callout tone="danger" data-testid="push-test-failed">
+    <p class="push__res-title">{{ 'push.test.failed' | transloco }}</p>
+  </section>
+  } } @if (!network.online()) {
   <p tc-status-card-note [id]="ids.offline">
     <tc-icon name="offline" size="sm" />{{ 'push.offlineOn' | transloco }}
   </p>
@@ -91,8 +83,7 @@
     >
       @if (!store.isTesting()) {
       <tc-icon name="bell" />
-      }
-      {{ (store.isTesting() ? 'push.test.sending' : 'push.test.send') | transloco }}
+      } {{ (store.isTesting() ? 'push.test.sending' : 'push.test.send') | transloco }}
     </button>
     <button
       tc-button
@@ -145,8 +136,7 @@
     >
       @if (!store.isBusy()) {
       <tc-icon name="bell" />
-      }
-      {{ enableKey() | transloco }}
+      } {{ enableKey() | transloco }}
     </button>
   </div>
 </div>

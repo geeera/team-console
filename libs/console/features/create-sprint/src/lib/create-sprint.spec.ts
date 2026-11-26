@@ -254,7 +254,11 @@ describe('CreateSprintDialog (#457)', () => {
       // A "drops" (the owner never sees the 201, but the server committed it) — B and the second A succeed.
       return attempt === 1
         ? { ok: false, failure: { kind: 'network', field: null, retryAfter: null } }
-        : { ok: true, replayed: false, value: { ...SPRINT_2, number: 3, title: 'Checkout', dueOn: '2026-12-11' } };
+        : {
+            ok: true,
+            replayed: false,
+            value: { ...SPRINT_2, number: 3, title: 'Checkout', dueOn: '2026-12-11' },
+          };
     });
     await submit(); // A, key-1, dropped
     await type('Checkout'); // B

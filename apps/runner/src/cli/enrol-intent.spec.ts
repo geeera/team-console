@@ -3,7 +3,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runnerKeyFingerprintOf, type Ed25519PublicJwk } from '@shared/contracts';
 import { loadRunnerConfig } from '../config/config';
-import { ACCOUNT_ID, RUNNER_ID, fakeConsole, json, problem, sentinels, type RecordedRequest } from '../testing/fake-console';
+import {
+  ACCOUNT_ID,
+  RUNNER_ID,
+  fakeConsole,
+  json,
+  problem,
+  sentinels,
+  type RecordedRequest,
+} from '../testing/fake-console';
 import { EnrolIntentError, enrol } from './enrol';
 
 const API = 'http://127.0.0.1:22300';
@@ -62,7 +70,13 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
     const requests: RecordedRequest[] = [];
     let polls = 0;
     const fetch = async (url: string, init: RequestInit): Promise<Response> => {
-      const request: RecordedRequest = { url, method: init.method ?? 'GET', headers: {}, body: init.body as string, redirect: init.redirect };
+      const request: RecordedRequest = {
+        url,
+        method: init.method ?? 'GET',
+        headers: {},
+        body: init.body as string,
+        redirect: init.redirect,
+      };
       requests.push(request);
       if (url.endsWith('/enrol/start')) {
         const publicKey = bodyOf(request)['publicKey'] as Ed25519PublicJwk;
@@ -86,12 +100,27 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
   it('binds, prints the fingerprint it computed, polls at the interval and writes key and config once approved', async () => {
     const { fetch, requests } = honestConsole();
     const config = await runEnrol(fetch);
-    expect(config).toMatchObject({ runnerId: RUNNER_ID, projectScope: 'all', credential: { kind: 'setup-token' } });
+    expect(config).toMatchObject({
+      runnerId: RUNNER_ID,
+      projectScope: 'all',
+      credential: { kind: 'setup-token' },
+    });
     await expect(loadRunnerConfig(home)).resolves.toMatchObject({ runnerId: RUNNER_ID });
 
     const start = bodyOf(requests[0] as RecordedRequest);
-    expect(Object.keys(start).sort()).toEqual(['capabilities', 'host', 'intentId', 'isolation', 'publicKey', 'version']);
-    expect(start).toMatchObject({ intentId: INTENT, isolation: 'user', capabilities: { accessSources: ['subscription'] } });
+    expect(Object.keys(start).sort()).toEqual([
+      'capabilities',
+      'host',
+      'intentId',
+      'isolation',
+      'publicKey',
+      'version',
+    ]);
+    expect(start).toMatchObject({
+      intentId: INTENT,
+      isolation: 'user',
+      capabilities: { accessSources: ['subscription'] },
+    });
     const fingerprint = await runnerKeyFingerprintOf(start['publicKey'] as Ed25519PublicJwk);
     // The account name is console text: no escape sequence reaches the terminal.
     expect(out).toEqual([
@@ -126,17 +155,22 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
     await expect(readdir(home)).resolves.toEqual([]);
   });
 
-  it.each(['start', 'poll'] as const)('turns a 404 on %s into "start again", writing nothing', async (where) => {
-    const { fetch } = honestConsole(0);
-    const gone = async (url: string, init: RequestInit): Promise<Response> =>
-      url.endsWith(`/enrol/${where}`) ? problem(404, 'enrolment-not-found') : await fetch(url, init);
-    await expect(runEnrol(gone)).rejects.toThrow(/start again from Settings › Runners › Add runner/);
-    await expect(readdir(home)).resolves.toEqual([]);
-  });
+  it.each(['start', 'poll'] as const)(
+    'turns a 404 on %s into "start again", writing nothing',
+    async (where) => {
+      const { fetch } = honestConsole(0);
+      const gone = async (url: string, init: RequestInit): Promise<Response> =>
+        url.endsWith(`/enrol/${where}`) ? problem(404, 'enrolment-not-found') : await fetch(url, init);
+      await expect(runEnrol(gone)).rejects.toThrow(/start again from Settings › Runners › Add runner/);
+      await expect(readdir(home)).resolves.toEqual([]);
+    },
+  );
 
   it('gives up once the request is past its collection window', async () => {
     const { fetch } = honestConsole(1000);
-    await expect(runEnrol(fetch, '2026-11-21T10:13:00.000Z')).rejects.toThrow(/expired before it was approved/);
+    await expect(runEnrol(fetch, '2026-11-21T10:13:00.000Z')).rejects.toThrow(
+      /expired before it was approved/,
+    );
   });
 
   it('refuses a request id that is not one, before any request', async () => {
@@ -145,7 +179,10 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
       enrol({ url: API, enrolment: 'not-an-id', backend: 'user' }, { home, fetch: fake.fetch, host }),
     ).rejects.toThrow(/--enrolment must be the request id/);
     await expect(
-      enrol({ url: API, enrolment: INTENT, code: sentinels.enrolmentCode, backend: 'user' }, { home, fetch: fake.fetch, host }),
+      enrol(
+        { url: API, enrolment: INTENT, code: sentinels.enrolmentCode, backend: 'user' },
+        { home, fetch: fake.fetch, host },
+      ),
     ).rejects.toThrow(/not both or neither/);
     expect(fake.requests).toHaveLength(0);
   });

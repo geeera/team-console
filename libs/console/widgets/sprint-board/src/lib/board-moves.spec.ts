@@ -29,7 +29,11 @@ describe('placedInLane', () => {
   });
 
   it('ignores closed rows and other sprints when counting the lane, and clamps a position past its end', () => {
-    const withNoise = [...items, task(9, { state: 'closed', closedReason: 'not-planned' }), task(8, { sprint: 6 })];
+    const withNoise = [
+      ...items,
+      task(9, { state: 'closed', closedReason: 'not-planned' }),
+      task(8, { sprint: 6 }),
+    ];
     const placed = placedInLane(withNoise, task(2, { queue: { position: 7, total: 3 } }));
     expect(numbersOf(placed)).toEqual([1, 3, 2]);
     expect(placed.map((item) => item.number)).toContain(9);
@@ -80,7 +84,8 @@ describe('itemsAfterMove', () => {
 
   beforeAll(() => {
     // jsdom has no matchMedia; Sheet (read by focusAfterRender) asks it whether the viewport is a phone.
-    window.matchMedia ??= ((media: string) => ({ matches: false, media }) as MediaQueryList) as typeof window.matchMedia;
+    window.matchMedia ??= ((media: string) =>
+      ({ matches: false, media }) as MediaQueryList) as typeof window.matchMedia;
   });
 
   beforeEach(async () => {
@@ -128,10 +133,12 @@ describe('itemsAfterMove', () => {
 
   it('adds the task back on Undo without tracking it as a new arrival', () => {
     const arrivals = signal<readonly number[]>([7]);
-    root.querySelector('tc-lane')?.insertAdjacentHTML(
-      'beforeend',
-      '<tc-list-row data-number="4"><button data-move="4" type="button">4</button></tc-list-row>',
-    );
+    root
+      .querySelector('tc-lane')
+      ?.insertAdjacentHTML(
+        'beforeend',
+        '<tc-list-row data-number="4"><button data-move="4" type="button">4</button></tc-list-row>',
+      );
     const move: ItemMove = { item: task(4), from: null, to: 5, isUndo: true };
     const next = itemsAfterMove(move, 5, items, context(arrivals));
     expect(next.map((item) => item.number)).toEqual([1, 2, 3, 4]);
@@ -149,10 +156,12 @@ describe('itemsAfterMove', () => {
 
   it('returns focus to its own ⋯ on Undo, instead of the neighbour that leaving would use', async () => {
     const arrivals = signal<readonly number[]>([]);
-    root.querySelector('tc-lane')?.insertAdjacentHTML(
-      'beforeend',
-      '<tc-list-row data-number="4"><button data-move="4" type="button">4</button></tc-list-row>',
-    );
+    root
+      .querySelector('tc-lane')
+      ?.insertAdjacentHTML(
+        'beforeend',
+        '<tc-list-row data-number="4"><button data-move="4" type="button">4</button></tc-list-row>',
+      );
     const button4 = root.querySelector('[data-move="4"]') as HTMLButtonElement;
     const move: ItemMove = { item: task(4), from: null, to: 5, isUndo: true };
     itemsAfterMove(move, 5, items, context(arrivals));

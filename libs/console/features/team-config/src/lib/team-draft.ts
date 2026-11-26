@@ -104,7 +104,9 @@ const isPlainRecord = (value: unknown): value is Readonly<Record<string, unknown
 
 /** The leaves an imported document names, by document path (arrays are leaves): only those go into the draft. */
 function importedLeavesOf(imported: TeamConfig): Array<readonly [string, unknown]> {
-  const known = new Set(leavesOf(draftOfDocument({ schema: TEAM_CONFIG_SCHEMA }, 'api_key')).map(([path]) => path));
+  const known = new Set(
+    leavesOf(draftOfDocument({ schema: TEAM_CONFIG_SCHEMA }, 'api_key')).map(([path]) => path),
+  );
   const leaves: Array<readonly [string, unknown]> = [];
   const walk = (value: unknown, path: string): void => {
     if (isPlainRecord(value)) {
@@ -149,11 +151,20 @@ export function leavesOf(draft: TeamDraft): ReadonlyArray<readonly [string, unkn
   }
   leaves.push(['budget.monthly_usd', draft.monthlyUsd]);
   leaves.push(['gates.qa', draft.gates.qa], ['gates.reviewer', draft.gates.reviewer]);
-  leaves.push(['gates.code_paths', draft.gates.code_paths], ['gates.max_rework_rounds', draft.gates.max_rework_rounds]);
+  leaves.push(
+    ['gates.code_paths', draft.gates.code_paths],
+    ['gates.max_rework_rounds', draft.gates.max_rework_rounds],
+  );
   for (const mode of CAP_MODES) {
-    leaves.push([`caps.${mode}.dev_tasks`, draft.caps[mode].dev_tasks], [`caps.${mode}.parallel_devs`, draft.caps[mode].parallel_devs]);
+    leaves.push(
+      [`caps.${mode}.dev_tasks`, draft.caps[mode].dev_tasks],
+      [`caps.${mode}.parallel_devs`, draft.caps[mode].parallel_devs],
+    );
   }
-  leaves.push(['sprint.length_days', draft.sprint.length_days], ['sprint.freeze_days', draft.sprint.freeze_days]);
+  leaves.push(
+    ['sprint.length_days', draft.sprint.length_days],
+    ['sprint.freeze_days', draft.sprint.freeze_days],
+  );
   leaves.push(['language', draft.language]);
   leaves.push(
     ['cost.prompt_caching', draft.cost.prompt_caching],
@@ -178,7 +189,10 @@ export function withLeaf(draft: TeamDraft, path: string, value: unknown): TeamDr
       return { ...draft, monthlyUsd: value as number | null };
     case 'roles': {
       const role = second as TeamRole;
-      return { ...draft, roles: { ...draft.roles, [role]: { ...draft.roles[role], [third as string]: value } } };
+      return {
+        ...draft,
+        roles: { ...draft.roles, [role]: { ...draft.roles[role], [third as string]: value } },
+      };
     }
     case 'caps': {
       const mode = second as CapMode;
@@ -222,14 +236,18 @@ export function resetRole(draft: TeamDraft, role: TeamRole): TeamDraft {
 /** Every role on `preset`'s settings (the overrides go), switches kept: choosing a preset and `Reset to <preset>`. */
 export function withPreset(draft: TeamDraft, preset: TeamConfigPreset): TeamDraft {
   const roles = Object.fromEntries(
-    TEAM_ROLES.map((role) => [role, { ...TEAM_CONFIG_PRESET_ROLES[preset][role], enabled: draft.roles[role].enabled }]),
+    TEAM_ROLES.map((role) => [
+      role,
+      { ...TEAM_CONFIG_PRESET_ROLES[preset][role], enabled: draft.roles[role].enabled },
+    ]),
   ) as Record<TeamRole, TeamRoleSettings>;
   return { ...draft, preset, roles };
 }
 
 /** How many roles would run on another model after choosing `preset` ("7 models change"). */
 export function modelsChangedBy(draft: TeamDraft, preset: TeamConfigPreset): number {
-  return TEAM_ROLES.filter((role) => draft.roles[role].model !== TEAM_CONFIG_PRESET_ROLES[preset][role].model).length;
+  return TEAM_ROLES.filter((role) => draft.roles[role].model !== TEAM_CONFIG_PRESET_ROLES[preset][role].model)
+    .length;
 }
 
 /**
@@ -244,12 +262,17 @@ export function documentOf(draft: TeamDraft, stored: TeamConfig | null): TeamCon
       const preset = TEAM_CONFIG_PRESET_ROLES[draft.preset][role];
       const settings = draft.roles[role];
       const keys = ROLE_KEYS.filter(
-        (key) => settings[key] !== preset[key] && !(key === 'enabled' && (hasNoSwitch(role) || isNeverOff(role))),
+        (key) =>
+          settings[key] !== preset[key] && !(key === 'enabled' && (hasNoSwitch(role) || isNeverOff(role))),
       );
       return keys.length === 0 ? [] : [[role, Object.fromEntries(keys.map((key) => [key, settings[key]]))]];
     }),
   );
-  const section = <T extends object>(kept: Partial<T> | undefined, was: T, now: T): Partial<T> | undefined => {
+  const section = <T extends object>(
+    kept: Partial<T> | undefined,
+    was: T,
+    now: T,
+  ): Partial<T> | undefined => {
     const changed = Object.fromEntries(
       Object.entries(now).filter(([key, value]) => !same(value, (was as Record<string, unknown>)[key])),
     ) as Partial<T>;

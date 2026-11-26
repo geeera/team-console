@@ -31,7 +31,9 @@ const start = (overrides: Record<string, unknown> = {}): Record<string, unknown>
   ...overrides,
 });
 
-const intentDto = (overrides: Partial<Record<keyof EnrolmentIntentDto, unknown>> = {}): Record<string, unknown> => ({
+const intentDto = (
+  overrides: Partial<Record<keyof EnrolmentIntentDto, unknown>> = {},
+): Record<string, unknown> => ({
   id: INTENT,
   state: 'bound',
   name: 'Mac',
@@ -85,12 +87,21 @@ describe('checkCreateEnrolmentIntentInput', () => {
   });
 
   it('takes selected with its list', () => {
-    const input = { name: 'Mac', isolation: 'container', projectScope: 'selected', allowedProjects: ['team-console'] };
+    const input = {
+      name: 'Mac',
+      isolation: 'container',
+      projectScope: 'selected',
+      allowedProjects: ['team-console'],
+    };
     expect(checkCreateEnrolmentIntentInput(input)).toEqual({ ok: true, value: input });
   });
 
   it.each([
-    ['a list beside all', { name: 'x', isolation: 'user', projectScope: 'all', allowedProjects: ['a'] }, 'allowedProjects'],
+    [
+      'a list beside all',
+      { name: 'x', isolation: 'user', projectScope: 'all', allowedProjects: ['a'] },
+      'allowedProjects',
+    ],
     ['a list with no scope', { name: 'x', isolation: 'user', allowedProjects: ['a'] }, 'allowedProjects'],
     ['no backend', { name: 'x' }, 'isolation'],
     ['the Actions backend', { name: 'x', isolation: 'actions-ephemeral' }, 'isolation'],
@@ -116,12 +127,28 @@ describe('checkStartEnrolmentInput', () => {
     ['a private key', { publicKey: { ...KEY, d: 'y'.repeat(43) } }, 'publicKey'],
     ['an intent id that is no ULID', { intentId: 'abc' }, 'intentId'],
     ['the Actions backend', { isolation: 'actions-ephemeral' }, 'isolation'],
-    ['a bidi override in the hostname', { host: { os: 'darwin', arch: 'arm64', hostname: 'a‮b' } }, 'host.hostname'],
-    ['a pop-directional-isolate in the arch', { host: { os: 'darwin', arch: 'arm⁩', hostname: 'a' } }, 'host.arch'],
-    ['a newline in the hostname', { host: { os: 'darwin', arch: 'arm64', hostname: 'a\nb' } }, 'host.hostname'],
+    [
+      'a bidi override in the hostname',
+      { host: { os: 'darwin', arch: 'arm64', hostname: 'a‮b' } },
+      'host.hostname',
+    ],
+    [
+      'a pop-directional-isolate in the arch',
+      { host: { os: 'darwin', arch: 'arm⁩', hostname: 'a' } },
+      'host.arch',
+    ],
+    [
+      'a newline in the hostname',
+      { host: { os: 'darwin', arch: 'arm64', hostname: 'a\nb' } },
+      'host.hostname',
+    ],
     ['a zero-width joiner in the os', { host: { os: 'dar‍win', arch: 'arm64', hostname: 'a' } }, 'host.os'],
     ['a hostname of spaces', { host: { os: 'darwin', arch: 'arm64', hostname: '   ' } }, 'host.hostname'],
-    ['a hostname over 128 characters', { host: { os: 'darwin', arch: 'arm64', hostname: 'h'.repeat(129) } }, 'host.hostname'],
+    [
+      'a hostname over 128 characters',
+      { host: { os: 'darwin', arch: 'arm64', hostname: 'h'.repeat(129) } },
+      'host.hostname',
+    ],
   ])('refuses %s', (_, overrides, field) => {
     expect(checkStartEnrolmentInput(start(overrides))).toMatchObject({ ok: false, field });
   });
@@ -138,12 +165,27 @@ describe('checkPollEnrolmentInput and checkApproveEnrolmentIntentInput', () => {
       ok: true,
       value: { intentId: INTENT, pollToken: 't' },
     });
-    expect(checkPollEnrolmentInput({ intentId: INTENT, pollToken: 't', extra: 1 })).toMatchObject({ ok: false, field: 'body' });
+    expect(checkPollEnrolmentInput({ intentId: INTENT, pollToken: 't', extra: 1 })).toMatchObject({
+      ok: false,
+      field: 'body',
+    });
     expect(checkPollEnrolmentInput({ intentId: INTENT })).toMatchObject({ ok: false, field: 'pollToken' });
-    expect(checkPollEnrolmentInput({ intentId: INTENT, pollToken: 't'.repeat(129) })).toMatchObject({ ok: false, field: 'pollToken' });
-    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'J3XC-NZN9' })).toEqual({ ok: true, value: { fingerprint: 'J3XC-NZN9' } });
-    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'j3xc-nzn9' })).toMatchObject({ ok: false, field: 'fingerprint' });
-    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'J3XC-NZN9', name: 'x' })).toMatchObject({ ok: false, field: 'body' });
+    expect(checkPollEnrolmentInput({ intentId: INTENT, pollToken: 't'.repeat(129) })).toMatchObject({
+      ok: false,
+      field: 'pollToken',
+    });
+    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'J3XC-NZN9' })).toEqual({
+      ok: true,
+      value: { fingerprint: 'J3XC-NZN9' },
+    });
+    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'j3xc-nzn9' })).toMatchObject({
+      ok: false,
+      field: 'fingerprint',
+    });
+    expect(checkApproveEnrolmentIntentInput({ fingerprint: 'J3XC-NZN9', name: 'x' })).toMatchObject({
+      ok: false,
+      field: 'body',
+    });
   });
 });
 
@@ -172,7 +214,14 @@ describe('the DTO guards', () => {
     expect(isEnrolmentIntentDto(intentDto())).toBe(true);
     expect(
       isEnrolmentIntentDto(
-        intentDto({ state: 'pending', host: null, version: null, fingerprint: null, boundAt: null, boundCountry: null }),
+        intentDto({
+          state: 'pending',
+          host: null,
+          version: null,
+          fingerprint: null,
+          boundAt: null,
+          boundCountry: null,
+        }),
       ),
     ).toBe(true);
     expect(isEnrolmentIntentDto(intentDto({ state: 'approved', runnerId: INTENT }))).toBe(true);
@@ -200,22 +249,43 @@ describe('the DTO guards', () => {
     expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, ...none })).toBe(false);
     const installCommands = { version: '0.2.0', 'darwin-arm64': 'curl …', 'darwin-x64': 'curl …' };
     expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, installCommands })).toBe(true);
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, linuxInstall: null })).toBe(false);
-    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null })).toBe(false);
+    expect(
+      isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, linuxInstall: null }),
+    ).toBe(false);
+    expect(
+      isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null }),
+    ).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'linux-x64': 'x' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'darwin-x64': '' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, version: 'v0.2.0' })).toBe(false);
     // #634 PR 7: the Linux pair names the image by digest, and the enrol step runs that very image.
     const image = `ghcr.io/geeera/team-console-runner:0.2.0@sha256:${'a'.repeat(64)}`;
-    const linuxInstall = { version: '0.2.0', image, prepare: 'PREPARE', enrol: `podman run … ${image} setup` };
+    const linuxInstall = {
+      version: '0.2.0',
+      image,
+      prepare: 'PREPARE',
+      enrol: `podman run … ${image} setup`,
+    };
     expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, linuxInstall })).toBe(true);
-    expect(isLinuxInstallCommandsDto({ ...linuxInstall, image: 'ghcr.io/geeera/team-console-runner:0.2.0' })).toBe(false);
-    expect(isLinuxInstallCommandsDto({ ...linuxInstall, image: `ghcr.io/x/y:0.2.0@sha256:${'a'.repeat(64)}` })).toBe(false);
+    expect(
+      isLinuxInstallCommandsDto({ ...linuxInstall, image: 'ghcr.io/geeera/team-console-runner:0.2.0' }),
+    ).toBe(false);
+    expect(
+      isLinuxInstallCommandsDto({ ...linuxInstall, image: `ghcr.io/x/y:0.2.0@sha256:${'a'.repeat(64)}` }),
+    ).toBe(false);
     expect(isLinuxInstallCommandsDto({ ...linuxInstall, version: '0.3.0' })).toBe(false);
-    expect(isLinuxInstallCommandsDto({ ...linuxInstall, enrol: 'podman run another-image setup' })).toBe(false);
+    expect(isLinuxInstallCommandsDto({ ...linuxInstall, enrol: 'podman run another-image setup' })).toBe(
+      false,
+    );
     expect(isLinuxInstallCommandsDto({ ...linuxInstall, prepare: '' })).toBe(false);
     expect(isLinuxInstallCommandsDto({ ...linuxInstall, extra: 'x' })).toBe(false);
-    const bind = { pollToken: 'tcep_x', fingerprint: 'J3XC-NZN9', intervalSeconds: 5, expiresAt, accountName: 'Acme' };
+    const bind = {
+      pollToken: 'tcep_x',
+      fingerprint: 'J3XC-NZN9',
+      intervalSeconds: 5,
+      expiresAt,
+      accountName: 'Acme',
+    };
     expect(isStartEnrolmentResponse(bind)).toBe(true);
     expect(isStartEnrolmentResponse({ ...bind, intervalSeconds: 0 })).toBe(false);
     expect(isStartEnrolmentResponse({ ...bind, fingerprint: 'nope' })).toBe(false);

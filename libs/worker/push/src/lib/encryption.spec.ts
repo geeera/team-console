@@ -32,9 +32,13 @@ async function rfcSenderKeyPair(): Promise<CryptoKeyPair> {
     y: encodeBase64Url(point.slice(33, 65)),
   };
   return {
-    privateKey: await crypto.subtle.importKey('jwk', { ...jwk, d: RFC.asPrivate }, { name: 'ECDH', namedCurve: 'P-256' }, false, [
-      'deriveBits',
-    ]),
+    privateKey: await crypto.subtle.importKey(
+      'jwk',
+      { ...jwk, d: RFC.asPrivate },
+      { name: 'ECDH', namedCurve: 'P-256' },
+      false,
+      ['deriveBits'],
+    ),
     publicKey: await crypto.subtle.importKey('jwk', jwk, { name: 'ECDH', namedCurve: 'P-256' }, true, []),
   };
 }
@@ -47,12 +51,16 @@ describe('aes128gcm payload encryption (RFC 8291)', () => {
   it('reproduces the Appendix A message from its salt and sender key', async () => {
     const pair = await rfcSenderKeyPair();
     vi.spyOn(crypto.subtle, 'generateKey').mockResolvedValueOnce(pair);
-    vi.spyOn(crypto, 'getRandomValues').mockImplementationOnce(<T extends ArrayBufferView | null>(array: T): T => {
-      (array as unknown as Uint8Array).set(bytesOf(RFC.salt));
-      return array;
-    });
+    vi.spyOn(crypto, 'getRandomValues').mockImplementationOnce(
+      <T extends ArrayBufferView | null>(array: T): T => {
+        (array as unknown as Uint8Array).set(bytesOf(RFC.salt));
+        return array;
+      },
+    );
 
-    const message = await encryptNotification(subscription, new TextEncoder().encode(RFC.plaintext), { pad: false });
+    const message = await encryptNotification(subscription, new TextEncoder().encode(RFC.plaintext), {
+      pad: false,
+    });
 
     expect(encodeBase64Url(message)).toBe(RFC.message);
   });

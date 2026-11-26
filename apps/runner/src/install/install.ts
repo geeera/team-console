@@ -195,7 +195,8 @@ export async function stableNodeOf(given: string, host: Pick<InstallHost, 'realp
   return link;
 }
 
-const isRootOnly = (facts: PathFacts | null): boolean => facts !== null && facts.uid === 0 && (facts.mode & 0o022) === 0;
+const isRootOnly = (facts: PathFacts | null): boolean =>
+  facts !== null && facts.uid === 0 && (facts.mode & 0o022) === 0;
 const parentOf = (path: string): string => path.slice(0, path.lastIndexOf('/')) || '/';
 
 const LS = '/bin/ls';
@@ -293,7 +294,10 @@ export async function assertRootOwnedPrefix(host: InstallHost, prefix: string): 
   // above resolves to. A tarball extracted by hand is flat and has neither.
   const releases = `${prefix}/${RELEASES_DIR}`;
   const releasesFacts = await host.stat(releases);
-  if (releasesFacts !== null && (releasesFacts.kind !== 'directory' || !(await rootOnly(releases, releasesFacts)))) {
+  if (
+    releasesFacts !== null &&
+    (releasesFacts.kind !== 'directory' || !(await rootOnly(releases, releasesFacts)))
+  ) {
     refuse(releases);
   }
   const current = `${prefix}/${CURRENT_LINK}`;

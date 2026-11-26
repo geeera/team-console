@@ -22,7 +22,9 @@ export type StoppedMonth = TeamBudgetMonthDto & { readonly budgetUsd: number };
       <h2 tc-callout-title id="tc-team-budget-title" class="budget__title">
         <tc-icon name="pause" size="sm" />{{ 'teamConfig.budget.title' | transloco }}
       </h2>
-      <p class="budget__body" data-testid="team-budget-body">{{ 'budget.stop.body' | transloco: figures() }}</p>
+      <p class="budget__body" data-testid="team-budget-body">
+        {{ 'budget.stop.body' | transloco: figures() }}
+      </p>
       @if (canManage()) {
         <div class="budget__actions">
           <button
@@ -39,7 +41,9 @@ export type StoppedMonth = TeamBudgetMonthDto & { readonly budgetUsd: number };
           </button>
         </div>
       } @else {
-        <p class="budget__body budget__readonly" data-testid="team-budget-readonly">{{ 'budget.stop.readonly' | transloco }}</p>
+        <p class="budget__body budget__readonly" data-testid="team-budget-readonly">
+          {{ 'budget.stop.readonly' | transloco }}
+        </p>
       }
     </section>
   `,
@@ -70,7 +74,9 @@ export type StoppedMonth = TeamBudgetMonthDto & { readonly budgetUsd: number };
 export class BudgetCallout {
   private readonly budgetResume = inject(BudgetResume);
   private readonly transloco = inject(TranslocoService);
-  private readonly lang = toSignal(this.transloco.langChanges$, { initialValue: this.transloco.getActiveLang() });
+  private readonly lang = toSignal(this.transloco.langChanges$, {
+    initialValue: this.transloco.getActiveLang(),
+  });
 
   readonly slug = input.required<string>();
   readonly projectName = input.required<string>();

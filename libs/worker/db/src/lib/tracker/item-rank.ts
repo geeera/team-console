@@ -69,7 +69,12 @@ export function planQueueMove(lane: readonly LaneRow[], id: number, move: QueueM
       return { kind: 'noop' };
     }
     // `rankBetween(null, …)` always has room: nothing is below the first item.
-    return { kind: 'move', rank: rankBetween(null, first.rank) ?? first.rank - RANK_GAP, neighbour: null, rebalance: false };
+    return {
+      kind: 'move',
+      rank: rankBetween(null, first.rank) ?? first.rank - RANK_GAP,
+      neighbour: null,
+      rebalance: false,
+    };
   }
   const neighbour = lane[move === 'up' ? index - 1 : index + 1];
   if (neighbour === undefined) {

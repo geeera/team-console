@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { ActionsSetupApi, type ActionsCheckProblem } from '@console/entities/actions-setup';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, CopyCode, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
@@ -25,7 +34,10 @@ export const WORKFLOW_FILE_PATH = '.github/workflows/team-console-runner.yml';
             kind="error"
             compact
             data-testid="workflow-file-error"
-            [title]="(problem()?.kind === 'misconfigured' ? 'actions.file.misconfigured' : 'actions.file.err') | transloco"
+            [title]="
+              (problem()?.kind === 'misconfigured' ? 'actions.file.misconfigured' : 'actions.file.err')
+                | transloco
+            "
           >
             @if (problem()?.kind !== 'misconfigured') {
               <button tc-button tc-state-action size="sm" type="button" (click)="retry()">
@@ -51,8 +63,15 @@ export const WORKFLOW_FILE_PATH = '.github/workflows/team-console-runner.yml';
               [failedNote]="'settings.common.copyFailed' | transloco"
             />
             @if (createUrl(); as url) {
-              <a class="file__link" data-testid="workflow-file-create" [href]="url" target="_blank" rel="noopener noreferrer">
-                {{ 'actions.file.create' | transloco }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
+              <a
+                class="file__link"
+                data-testid="workflow-file-create"
+                [href]="url"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {{ 'actions.file.create' | transloco
+                }}<span class="tc-sr-only"> {{ 'settings.common.external' | transloco }}</span>
                 <tc-icon name="external" size="sm" />
               </a>
             }

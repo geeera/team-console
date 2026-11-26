@@ -13,7 +13,8 @@ export const outFile = join(workspaceRoot, 'dist/apps/runner/team-console-runner
 const RUNNER_LAUNCHER = 'team-console-runner';
 
 /** `MAJOR.MINOR.PATCH[-pre]`, the shape `compareRunnerVersions` orders; the release workflow passes the tag's. */
-const RELEASE_LABEL = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
+const RELEASE_LABEL =
+  /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$/;
 
 /**
  * What `src/version.ts` reports: `TC_RUNNER_VERSION` when set (refused unless it is a release label), else the

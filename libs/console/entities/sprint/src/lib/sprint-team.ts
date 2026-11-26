@@ -1,5 +1,13 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  DestroyRef,
+  inject,
+  input,
+  signal,
+} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { localDayOf, localTimeOf, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, IconName, List, ListRow, LiveDot } from '@console/shared/ui';
@@ -98,7 +106,11 @@ export class SprintRunList {
   readonly teamState = input<TeamRunState | null>(null);
 
   protected readonly isWorking = computed(() => this.teamState() === 'running');
-  protected readonly stamps = computed(() => this.runs().slice(0, RECENT_RUNS_LIMIT).map((run) => run.state));
+  protected readonly stamps = computed(() =>
+    this.runs()
+      .slice(0, RECENT_RUNS_LIMIT)
+      .map((run) => run.state),
+  );
 
   /** The dot breathes only while the tab is on screen; a hidden tab's animation would run for nobody. */
   protected readonly isPageVisible = signal(this.document.visibilityState !== 'hidden');

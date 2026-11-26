@@ -90,7 +90,9 @@ export class TeamConfigRepo {
 
   async findCurrent(projectSlug: string): Promise<TeamConfigRecord | null> {
     const row = await this.db
-      .prepare(`SELECT project_slug, revision, config, updated_at, updated_by FROM team_configs WHERE project_slug = ?1`)
+      .prepare(
+        `SELECT project_slug, revision, config, updated_at, updated_by FROM team_configs WHERE project_slug = ?1`,
+      )
       .bind(projectSlug)
       .first<CurrentRow>();
     return row === null
@@ -107,14 +109,20 @@ export class TeamConfigRepo {
   /** A revision of the project, addressed by `(project_slug, revision)` only. */
   async findRevision(projectSlug: string, revision: number): Promise<TeamConfigRevisionRecord | null> {
     const row = await this.db
-      .prepare(`SELECT ${REVISION_COLUMNS} FROM team_config_revisions WHERE project_slug = ?1 AND revision = ?2`)
+      .prepare(
+        `SELECT ${REVISION_COLUMNS} FROM team_config_revisions WHERE project_slug = ?1 AND revision = ?2`,
+      )
       .bind(projectSlug, revision)
       .first<RevisionRow>();
     return row === null ? null : toRevision(row);
   }
 
   /** Oldest first after `after`, at most `limit + 1` so the caller sees the next page. */
-  async listRevisions(projectSlug: string, after: number, limit: number): Promise<TeamConfigRevisionRecord[]> {
+  async listRevisions(
+    projectSlug: string,
+    after: number,
+    limit: number,
+  ): Promise<TeamConfigRevisionRecord[]> {
     const { results } = await this.db
       .prepare(
         `SELECT ${REVISION_COLUMNS} FROM team_config_revisions WHERE project_slug = ?1 AND revision > ?2
@@ -176,7 +184,16 @@ export class TeamConfigRepo {
           `INSERT INTO team_config_revisions (id, project_slug, revision, config, diff, reason, created_at, created_by)
            SELECT ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8 WHERE ${AUDITED_WRITE_HAPPENED_SQL}`,
         )
-        .bind(write.id, write.projectSlug, next, json, JSON.stringify(write.diff), write.reason, write.at, write.by),
+        .bind(
+          write.id,
+          write.projectSlug,
+          next,
+          json,
+          JSON.stringify(write.diff),
+          write.reason,
+          write.at,
+          write.by,
+        ),
       this.db
         .prepare(
           `UPDATE projects SET access_source = ?2
@@ -190,7 +207,9 @@ export class TeamConfigRepo {
     }
     const after = await this.findCurrent(write.projectSlug);
     const revision = after?.revision ?? 0;
-    return revision === write.expectedRevision ? { kind: 'access-source-hosted' } : { kind: 'stale', revision };
+    return revision === write.expectedRevision
+      ? { kind: 'access-source-hosted' }
+      : { kind: 'stale', revision };
   }
 
   /**

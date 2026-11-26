@@ -52,5 +52,8 @@ export const ClearDesk: Story = { render: () => ({ template: clearDesk }) };
 export const ClearDeskPressed: Story = { render: () => ({ template: clearDeskPressed }) };
 export const ClearDeskDark: Story = { ...darkTheme, render: () => ({ template: clearDeskPressed }) };
 /** Reduced motion: the stamp is simply there, with no strike. */
-export const ClearDeskReducedMotion: Story = { ...reducedMotion, render: () => ({ template: clearDeskPressed }) };
+export const ClearDeskReducedMotion: Story = {
+  ...reducedMotion,
+  render: () => ({ template: clearDeskPressed }),
+};
 export const ClearDeskPhone: Story = { ...phoneViewport, render: () => ({ template: clearDesk }) };

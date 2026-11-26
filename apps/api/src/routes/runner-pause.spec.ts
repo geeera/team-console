@@ -1,6 +1,12 @@
 import { env } from 'cloudflare:test';
 import { OWNER_ACCOUNT_ID, type ClaimResponse, type RunnerListDto } from '@shared/contracts';
-import { cancelJobsInFlight, enqueueJob, enrolRunner, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import {
+  cancelJobsInFlight,
+  enqueueJob,
+  enrolRunner,
+  sendAsRunner,
+  type TestRunner,
+} from '../testing/runner-kit';
 import { seedAccountProject, seedSessionUser, sendAsSession, type SessionUser } from '../testing/session-kit';
 import { seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 import { RUNNER_EXCLUSION_BUDGET } from '@worker/db';
@@ -32,7 +38,11 @@ async function pause(runner: TestRunner, body: unknown): Promise<Response> {
   return sendAsRunner(runner, 'POST', PAUSE, body);
 }
 
-async function listed(accountId: string, runnerId: string, as?: SessionUser): Promise<RunnerListDto['runners'][number] | undefined> {
+async function listed(
+  accountId: string,
+  runnerId: string,
+  as?: SessionUser,
+): Promise<RunnerListDto['runners'][number] | undefined> {
   const path = `/api/v1/accounts/${accountId}/runners`;
   const response = as === undefined ? await send('GET', path) : await sendAsSession(as, 'GET', path);
   expect(response.status).toBe(200);
@@ -58,7 +68,9 @@ describe('POST /api/v1/runner/pause and /resume', () => {
     expect(((await paused.json()) as RunnerPauseResponse).pause).toEqual({ reason: 'usage-limit', until });
     expect(await claim(runner)).toBeNull();
     expect((await listed(OWNER_ACCOUNT_ID, runner.id))?.pause).toEqual({ reason: 'usage-limit', until });
-    const audit = await env.DB.prepare(`SELECT actor_kind, actor, details FROM audit_events WHERE kind = 'runner.paused' AND target = ?1`)
+    const audit = await env.DB.prepare(
+      `SELECT actor_kind, actor, details FROM audit_events WHERE kind = 'runner.paused' AND target = ?1`,
+    )
       .bind(runner.id)
       .first<{ actor_kind: string; actor: string; details: string }>();
     expect(audit).toMatchObject({ actor_kind: 'runner', actor: runner.id });
@@ -67,7 +79,9 @@ describe('POST /api/v1/runner/pause and /resume', () => {
 
     // A repeated post (a restart mirroring state.json) answers the same and audits nothing more.
     expect((await pause(runner, { reason: 'usage-limit', until })).status).toBe(200);
-    const audits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.paused' AND target = ?1`)
+    const audits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.paused' AND target = ?1`,
+    )
       .bind(runner.id)
       .first<{ n: number }>();
     expect(audits?.n).toBe(1);
@@ -88,7 +102,9 @@ describe('POST /api/v1/runner/pause and /resume', () => {
     expect((await pause(runner, { reason: 'rate-limit', until: inMinutes(5) })).status).toBe(200);
     expect(await claim(runner)).toBeNull();
     // Time passes: the row keeps the old pause, which no longer counts.
-    await env.DB.prepare(`UPDATE runners SET paused_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(runner.id).run();
+    await env.DB.prepare(`UPDATE runners SET paused_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+      .bind(runner.id)
+      .run();
     expect((await listed(OWNER_ACCOUNT_ID, runner.id))?.pause).toBeNull();
     expect((await claim(runner))?.job.projectSlug).toBe(project.slug);
   });
@@ -99,7 +115,11 @@ describe('POST /api/v1/runner/pause and /resume', () => {
     ['until more than 24 hours ahead', { reason: 'usage-limit', until: inMinutes(24 * 60 + 5) }, 'until'],
     ['until in the past', { reason: 'usage-limit', until: inMinutes(-5) }, 'until'],
     ['until that is not a UTC timestamp', { reason: 'usage-limit', until: 'tomorrow' }, 'until'],
-    ['a runner id in the body', { reason: 'manual', until: inMinutes(30), runnerId: '01M6YSNJ0000000000000NOPE1' }, 'body'],
+    [
+      'a runner id in the body',
+      { reason: 'manual', until: inMinutes(30), runnerId: '01M6YSNJ0000000000000NOPE1' },
+      'body',
+    ],
   ])('refuses %s with 422 and writes nothing', async (_, body, field) => {
     const runner = await enrolRunner(OWNER_ACCOUNT_ID);
     const response = await pause(runner, body);
@@ -111,7 +131,9 @@ describe('POST /api/v1/runner/pause and /resume', () => {
 
   it('refuses a revoked runner at the door', async () => {
     const runner = await enrolRunner(OWNER_ACCOUNT_ID);
-    expect((await send('POST', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}/revoke`, {})).status).toBe(200);
+    expect(
+      (await send('POST', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}/revoke`, {})).status,
+    ).toBe(200);
     const response = await pause(runner, { reason: 'manual', until: inMinutes(30) });
     expect(response.status).toBe(401);
     expect((await sendAsRunner(runner, 'POST', RESUME, {})).status).toBe(401);
@@ -133,7 +155,9 @@ describe('POST /api/v1/runner/pause and /resume', () => {
     expect((await listed(other.account.id, theirRunner.id, other))?.pause).toBeNull();
     // A's runner is never in B's list, paused or not.
     expect(await listed(other.account.id, myRunner.id, other)).toBeUndefined();
-    const theirAudits = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.paused' AND account_id = ?1`)
+    const theirAudits = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.paused' AND account_id = ?1`,
+    )
       .bind(other.account.id)
       .first<{ n: number }>();
     expect(theirAudits?.n).toBe(0);
@@ -148,10 +172,15 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
     const second = await enqueueJob(project.slug, { kind: 'slot-qa' });
     expect((await claim(runner))?.job.id).toBe(first);
     expect(await claim(runner)).toBeNull();
-    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`).bind(second).first<{ state: string; runner_id: string | null }>();
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`)
+      .bind(second)
+      .first<{ state: string; runner_id: string | null }>();
     expect(row).toEqual({ state: 'queued', runner_id: null });
 
-    const finish = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${first}/finish`, { result: 'finished', summary: 'ok' });
+    const finish = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${first}/finish`, {
+      result: 'finished',
+      summary: 'ok',
+    });
     expect(finish.status).toBe(200);
     expect((await claim(runner))?.job.id).toBe(second);
   });
@@ -184,19 +213,28 @@ describe('the claim and maxConcurrency (threat model C4 "rogue runner")', () => 
 
 // #596: `metrics.reason` is the runner's own word, so only a pause row backs it.
 describe('the failure streak and limit failures', () => {
-  const streakOf = async (slug: string): Promise<{ paused_by: string | null; failed_streak: number } | null> =>
+  const streakOf = async (
+    slug: string,
+  ): Promise<{ paused_by: string | null; failed_streak: number } | null> =>
     env.DB.prepare(`SELECT paused_by, failed_streak FROM team_state WHERE project_slug = ?1`)
       .bind(slug)
       .first<{ paused_by: string | null; failed_streak: number }>();
   const excludedRows = async (runnerId: string): Promise<{ target: string; details: string }[]> =>
     (
-      await env.DB.prepare(`SELECT target, details FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1 ORDER BY id`)
+      await env.DB.prepare(
+        `SELECT target, details FROM audit_events WHERE kind = 'job.streak-excluded' AND actor = ?1 ORDER BY id`,
+      )
         .bind(runnerId)
         .all<{ target: string; details: string }>()
     ).results;
 
   /** Claims one job and finishes it failed; `pauseFirst` posts the runner's pause, as the runner does on a limit. */
-  async function failOne(runner: TestRunner, slug: string, metrics: Record<string, unknown>, pauseFirst: boolean): Promise<string> {
+  async function failOne(
+    runner: TestRunner,
+    slug: string,
+    metrics: Record<string, unknown>,
+    pauseFirst: boolean,
+  ): Promise<string> {
     await enqueueJob(slug);
     const claimed = await claim(runner);
     expect(claimed).not.toBeNull();
@@ -204,7 +242,11 @@ describe('the failure streak and limit failures', () => {
     if (pauseFirst) {
       expect((await pause(runner, { reason: metrics['reason'], until: inMinutes(30) })).status).toBe(200);
     }
-    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, { result: 'failed', summary: 'stopped', metrics });
+    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/finish`, {
+      result: 'failed',
+      summary: 'stopped',
+      metrics,
+    });
     expect(response.status).toBe(200);
     if (pauseFirst) {
       expect((await sendAsRunner(runner, 'POST', RESUME, {})).status).toBe(200);
@@ -217,7 +259,12 @@ describe('the failure streak and limit failures', () => {
     const runner = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [project.slug] });
     await failOne(runner, project.slug, { reason: 'exit', exitCode: 1 }, false);
     await failOne(runner, project.slug, { reason: 'exit', exitCode: 1 }, false);
-    const usage = await failOne(runner, project.slug, { reason: 'usage-limit', retryAt: inMinutes(60) }, true);
+    const usage = await failOne(
+      runner,
+      project.slug,
+      { reason: 'usage-limit', retryAt: inMinutes(60) },
+      true,
+    );
     const rate = await failOne(runner, project.slug, { reason: 'rate-limit', retryAt: inMinutes(10) }, true);
     expect(await streakOf(project.slug)).toEqual({ paused_by: null, failed_streak: 2 });
     const rows = await excludedRows(runner.id);
@@ -240,7 +287,9 @@ describe('the failure streak and limit failures', () => {
     for (const runner of [...runners, ...runners]) {
       await failOne(runner, project.slug, { reason: 'usage-limit', retryAt: inMinutes(60) }, true);
     }
-    const excluded = (await Promise.all(runners.map(async (runner) => (await excludedRows(runner.id)).length))).reduce((a, b) => a + b, 0);
+    const excluded = (
+      await Promise.all(runners.map(async (runner) => (await excludedRows(runner.id)).length))
+    ).reduce((a, b) => a + b, 0);
     expect(excluded).toBe(RUNNER_EXCLUSION_BUDGET);
     expect(await streakOf(project.slug)).toEqual({ paused_by: null, failed_streak: 1 });
     for (const runner of runners.slice(0, 2)) {

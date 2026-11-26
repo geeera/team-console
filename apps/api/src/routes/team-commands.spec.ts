@@ -654,7 +654,9 @@ describe('a console-tracker project: the state is team_state (#738), and Run now
   const PAUSED_AT = '2026-10-01T11:00:00.000Z';
 
   beforeEach(async () => {
-    await env.DB.prepare(`UPDATE projects SET tracker = 'console', key_prefix = 'TC' WHERE slug = 'tc'`).run();
+    await env.DB.prepare(
+      `UPDATE projects SET tracker = 'console', key_prefix = 'TC' WHERE slug = 'tc'`,
+    ).run();
   });
 
   // Both rows reference the project, which the next case's reset deletes.
@@ -720,7 +722,9 @@ describe('a console-tracker project: the state is team_state (#738), and Run now
     expect(refused.status).toBe(409);
     await expect(slugOf(refused)).resolves.toMatchObject({ slug: 'run-paused' });
     expect(h.routines.fires).toEqual([]);
-    expect(await env.DB.prepare(`SELECT COUNT(*) AS n FROM slot_requests`).first<{ n: number }>()).toEqual({ n: 0 });
+    expect(await env.DB.prepare(`SELECT COUNT(*) AS n FROM slot_requests`).first<{ n: number }>()).toEqual({
+      n: 0,
+    });
     // Paused comes first: even a slot not set up for Run now answers run-paused, with nothing read from GitHub.
     const calls = h.calls.length;
     await expect(slugOf(await run(h, 'qa'))).resolves.toMatchObject({ slug: 'run-paused' });

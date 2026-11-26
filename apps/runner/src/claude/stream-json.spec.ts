@@ -47,7 +47,8 @@ describe('stream-json parser', () => {
 
   it('reads the token counts of the result’s usage, each a non-negative whole number or null (#685)', () => {
     const resultWith = (usage: unknown) =>
-      parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', usage })).result?.usage;
+      parseStreamLine(JSON.stringify({ type: 'result', subtype: 'success', result: 'ok', usage })).result
+        ?.usage;
     expect(
       resultWith({
         input_tokens: 10,
@@ -57,7 +58,14 @@ describe('stream-json parser', () => {
         server_tool_use: { web_search_requests: 1 },
       }),
     ).toEqual({ inputTokens: 10, outputTokens: 20, cacheReadInputTokens: 30, cacheCreationInputTokens: 40 });
-    expect(resultWith({ input_tokens: 10, output_tokens: -1, cache_read_input_tokens: 1.5, cache_creation_input_tokens: '4' })).toEqual({
+    expect(
+      resultWith({
+        input_tokens: 10,
+        output_tokens: -1,
+        cache_read_input_tokens: 1.5,
+        cache_creation_input_tokens: '4',
+      }),
+    ).toEqual({
       inputTokens: 10,
       outputTokens: null,
       cacheReadInputTokens: null,
@@ -119,8 +127,14 @@ describe('prompts', () => {
   });
 
   it('puts the job-invariant lines first, so jobs on one plugin tree share the prefix (prompt_caching)', () => {
-    const a = promptOf({ job: { kind: 'review', role: 'reviewer', items: [7], projectSlug: 'a' }, pluginRoot: '/r/plugin/t' });
-    const b = promptOf({ job: { kind: 'slot-pm', role: 'pm', items: [], projectSlug: 'b' }, pluginRoot: '/r/plugin/t' });
+    const a = promptOf({
+      job: { kind: 'review', role: 'reviewer', items: [7], projectSlug: 'a' },
+      pluginRoot: '/r/plugin/t',
+    });
+    const b = promptOf({
+      job: { kind: 'slot-pm', role: 'pm', items: [], projectSlug: 'b' },
+      pluginRoot: '/r/plugin/t',
+    });
     const shared = a.split('\n').slice(0, 2).join('\n');
     expect(b.startsWith(`${shared}\n`)).toBe(true);
     expect(shared).not.toMatch(/review|reviewer|#7/);

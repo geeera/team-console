@@ -90,8 +90,13 @@ function accountSuspended(c: Context): Response {
 }
 
 /** What the owner sees: a pending or bound intent past its time is `expired`, whatever the row still says. */
-export function intentStateAt(intent: Pick<EnrolmentIntentRecord, 'state' | 'expiresAt'>, now: string): EnrolmentIntentState {
-  return (intent.state === 'pending' || intent.state === 'bound') && intent.expiresAt <= now ? 'expired' : intent.state;
+export function intentStateAt(
+  intent: Pick<EnrolmentIntentRecord, 'state' | 'expiresAt'>,
+  now: string,
+): EnrolmentIntentState {
+  return (intent.state === 'pending' || intent.state === 'bound') && intent.expiresAt <= now
+    ? 'expired'
+    : intent.state;
 }
 
 function intentDtoOf(intent: EnrolmentIntentRecord, now: string): EnrolmentIntentDto {
@@ -155,16 +160,36 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
         return isolationRefusal;
       }
       if ((await foreignSlugsOf(c, account, allowedProjects)).length > 0) {
-        return invalid(c, 'allowed-projects-invalid', 'allowedProjects', 'allowedProjects must name active projects of this account');
+        return invalid(
+          c,
+          'allowed-projects-invalid',
+          'allowedProjects',
+          'allowedProjects must name active projects of this account',
+        );
       }
       const now = new Date();
       const at = now.toISOString();
       const expiresAt = new Date(now.getTime() + ENROLMENT_INTENT_TTL_SECONDS * 1000).toISOString();
       const intentId = newUlid(now.getTime());
       const outcome = await new EnrolmentIntentsRepo(c.env.DB).create(
-        { id: intentId, ...intentOwnerOf(c, account), name, projectScope, allowedProjects, isolation, at, expiresAt },
+        {
+          id: intentId,
+          ...intentOwnerOf(c, account),
+          name,
+          projectScope,
+          allowedProjects,
+          isolation,
+          at,
+          expiresAt,
+        },
         { liveMax: ENROLMENT_INTENTS_LIVE_MAX, perHour: ENROLMENT_INTENTS_PER_HOUR },
-        auditOf(c, account, at, 'enrolment-intent.created', intentId, { name, projectScope, allowedProjects, isolation, expiresAt }),
+        auditOf(c, account, at, 'enrolment-intent.created', intentId, {
+          name,
+          projectScope,
+          allowedProjects,
+          isolation,
+          expiresAt,
+        }),
       );
       if (outcome === 'live-limit') {
         return conflict(
@@ -233,11 +258,19 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
         // R-INT-1: the owner approves the key they were shown, never one bound since.
         if (intent.bind?.fingerprint !== fingerprint) {
           c.get('logger').warn('enrolment refused', { reason: 'fingerprint-mismatch' });
-          return conflict(c, 'enrolment-fingerprint-mismatch', 'The fingerprint is not the one of the runner that asked');
+          return conflict(
+            c,
+            'enrolment-fingerprint-mismatch',
+            'The fingerprint is not the one of the runner that asked',
+          );
         }
         // Approved already with this very key (a repeated click): the same answer, nothing written again.
         return state === 'bound'
-          ? conflict(c, 'enrolment-intent-changed', 'The request changed while it was being approved: read it again')
+          ? conflict(
+              c,
+              'enrolment-intent-changed',
+              'The request changed while it was being approved: read it again',
+            )
           : c.json(intentDtoOf(intent, at));
       };
 
@@ -318,7 +351,12 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
       const limits = new DoorRateLimits(c.env.DB, 'enrol', now.getTime());
       const rateLimited = (scope: DoorLimitScope): Response => {
         logger.warn('enrolment refused', { reason: 'rate-limited', scope });
-        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: limits.retryAfter() });
+        return problem(c, {
+          type: 'rate-limited',
+          title: 'Too Many Requests',
+          status: 429,
+          retryAfter: limits.retryAfter(),
+        });
       };
       if (!(await limits.hitAddress(c.req.header('CF-Connecting-IP'), ENROL_RATE_LIMIT_PER_MINUTE, logger))) {
         return rateLimited('ip');
@@ -326,7 +364,9 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
       // Every refusal before a pending intent is junk; once the junk bucket is over, all of it answers 429 alike.
       const junk = async (reason: string, refusal: () => Response): Promise<Response> => {
         logger.warn('enrolment refused', { reason });
-        return (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE)) ? refusal() : rateLimited('unverified');
+        return (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE))
+          ? refusal()
+          : rateLimited('unverified');
       };
 
       const input = checkStartEnrolmentInput(await jsonBody(c));
@@ -345,7 +385,11 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
           // R-INT-1: the real `setup` learns that another machine holds its request, and says so.
           return () =>
             junk('intent-bound', () =>
-              conflict(c, 'enrolment-intent-bound', 'Another machine already asked on this request: reject it in the console'),
+              conflict(
+                c,
+                'enrolment-intent-bound',
+                'Another machine already asked on this request: reject it in the console',
+              ),
             );
         }
         return null;
@@ -372,7 +416,12 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
       // R-INT-6: the backend is the owner's choice; a runner set up for another one does not bind.
       if (value.isolation !== intent.isolation) {
         logger.warn('enrolment refused', { reason: 'isolation-mismatch' });
-        return invalid(c, 'enrolment-isolation-mismatch', 'isolation', 'This request was made for another isolation backend');
+        return invalid(
+          c,
+          'enrolment-isolation-mismatch',
+          'isolation',
+          'This request was made for another isolation backend',
+        );
       }
 
       const pollToken = randomOpaqueToken(ENROLMENT_POLL_TOKEN_PREFIX);
@@ -428,14 +477,28 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
       const limits = new DoorRateLimits(c.env.DB, 'enrol', now.getTime());
       const rateLimited = (scope: DoorLimitScope): Response => {
         logger.warn('enrolment refused', { reason: 'rate-limited', scope });
-        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: limits.retryAfter() });
+        return problem(c, {
+          type: 'rate-limited',
+          title: 'Too Many Requests',
+          status: 429,
+          retryAfter: limits.retryAfter(),
+        });
       };
-      if (!(await limits.hitAddress(c.req.header('CF-Connecting-IP'), ENROL_POLL_RATE_LIMIT_PER_MINUTE, logger, 'poll-ip'))) {
+      if (
+        !(await limits.hitAddress(
+          c.req.header('CF-Connecting-IP'),
+          ENROL_POLL_RATE_LIMIT_PER_MINUTE,
+          logger,
+          'poll-ip',
+        ))
+      ) {
         return rateLimited('ip');
       }
       const junk = async (reason: string, refusal: () => Response): Promise<Response> => {
         logger.warn('enrolment refused', { reason });
-        return (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE)) ? refusal() : rateLimited('unverified');
+        return (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE))
+          ? refusal()
+          : rateLimited('unverified');
       };
 
       const input = checkPollEnrolmentInput(await jsonBody(c));
@@ -471,7 +534,10 @@ export function createRunnerEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>>
         });
       }
       if (state === 'bound') {
-        const pending: PollEnrolmentPendingDto = { state: 'bound', intervalSeconds: ENROLMENT_INTENT_POLL_SECONDS };
+        const pending: PollEnrolmentPendingDto = {
+          state: 'bound',
+          intervalSeconds: ENROLMENT_INTENT_POLL_SECONDS,
+        };
         return c.json(pending, 202);
       }
       const runnerId = await intents.collect(intent.id, tokenHash, at, ENROLMENT_INTENT_COLLECT_SECONDS);

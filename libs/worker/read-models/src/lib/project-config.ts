@@ -193,8 +193,6 @@ export function embedOriginsOf(text: string, consoleOrigin: string): string[] {
   }
   const origins = EMBED_URL_FIELDS.map((field) => embedOriginOf(nestedValue(root, field)));
   return [
-    ...new Set(
-      origins.filter((origin): origin is string => origin !== null && origin !== consoleOrigin),
-    ),
+    ...new Set(origins.filter((origin): origin is string => origin !== null && origin !== consoleOrigin)),
   ];
 }

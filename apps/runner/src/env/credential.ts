@@ -46,7 +46,10 @@ const isFromEnv = (credential: CredentialConfig): credential is Extract<Credenti
  * in, so it takes the key from its env alone; a host runner never reads a credential from its env.
  */
 export function isCredentialAllowed(credential: CredentialConfig, backend: RunnerIsolation): boolean {
-  return CREDENTIAL_BACKENDS[credential.kind].includes(backend) && isFromEnv(credential) === (backend === 'actions-ephemeral');
+  return (
+    CREDENTIAL_BACKENDS[credential.kind].includes(backend) &&
+    isFromEnv(credential) === (backend === 'actions-ephemeral')
+  );
 }
 
 /** Kinds that carry a Claude subscription (OAuth) login; never on a hosted or Actions job. */
@@ -139,7 +142,9 @@ export function parseCredentialConfig(value: unknown): CredentialConfig | null {
 
 /** What a refusal says about the pairing: the source too, since an env key and a file key share a kind. */
 const describeCredential = (credential: CredentialConfig): string =>
-  isFromEnv(credential) ? `${credential.kind} credential from ${credential.env}` : `${credential.kind} credential`;
+  isFromEnv(credential)
+    ? `${credential.kind} credential from ${credential.env}`
+    : `${credential.kind} credential`;
 
 export function assertCredentialAllowed(credential: CredentialConfig, backend: RunnerIsolation): void {
   if (!isCredentialAllowed(credential, backend)) {

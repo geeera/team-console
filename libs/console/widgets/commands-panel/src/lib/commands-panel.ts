@@ -33,7 +33,16 @@ import {
   TranslocoPipe,
   TranslocoService,
 } from '@console/shared/i18n';
-import { Banner, Button, Icon, IconButton, LiveDot, Receipt, StateBlock, type ReceiptTone } from '@console/shared/ui';
+import {
+  Banner,
+  Button,
+  Icon,
+  IconButton,
+  LiveDot,
+  Receipt,
+  StateBlock,
+  type ReceiptTone,
+} from '@console/shared/ui';
 import { isInFreeze, isSnoozeActive, TEAM_SLOTS, type SlotStatusDto, type TeamSlot } from '@shared/contracts';
 import { CommandsSetup, type SetupLine, type SetupView } from './commands-setup';
 import { CommandsStatus, type SprintFacts } from './commands-status';

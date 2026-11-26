@@ -1,4 +1,9 @@
-import { TEAM_CONFIG_PRESET_ROLES, TEAM_CONFIG_SCHEMA, checkTeamConfig, type TeamConfig } from '@shared/contracts';
+import {
+  TEAM_CONFIG_PRESET_ROLES,
+  TEAM_CONFIG_SCHEMA,
+  checkTeamConfig,
+  type TeamConfig,
+} from '@shared/contracts';
 import {
   changesOf,
   documentOf,
@@ -77,7 +82,11 @@ describe('overrides and presets', () => {
 describe('documentOf', () => {
   it('stores roles as overrides of the preset only, and keeps the stored sections it did not touch', () => {
     const view = teamConfigViewOf(stored);
-    const draft = withLeaf(withLeaf(draftOf(view), 'roles.dev.model', 'claude-fable-5-1'), 'sprint.length_days', 21);
+    const draft = withLeaf(
+      withLeaf(draftOf(view), 'roles.dev.model', 'claude-fable-5-1'),
+      'sprint.length_days',
+      21,
+    );
     const document = documentOf(draft, view.config);
     expect(document.roles).toEqual({
       qa: { model: 'claude-sonnet-5', effort: 'medium' },
@@ -106,7 +115,9 @@ describe('documentOf', () => {
 
   it('writes a budget cleared to no limit as null', () => {
     const view = teamConfigViewOf(stored);
-    expect(documentOf(withLeaf(draftOf(view), 'budget.monthly_usd', null), view.config).budget).toEqual({ monthly_usd: null });
+    expect(documentOf(withLeaf(draftOf(view), 'budget.monthly_usd', null), view.config).budget).toEqual({
+      monthly_usd: null,
+    });
   });
 });
 

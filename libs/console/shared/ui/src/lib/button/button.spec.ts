@@ -5,7 +5,9 @@ import { Button, ButtonVariant, IconButton } from './button';
 @Component({
   imports: [Button, IconButton],
   template: `
-    <button tc-button [variant]="variant()" [loading]="loading()" [dot]="dot()" [wrap]="wrap()" type="button">Save</button>
+    <button tc-button [variant]="variant()" [loading]="loading()" [dot]="dot()" [wrap]="wrap()" type="button">
+      Save
+    </button>
     <button tc-icon-button [dot]="dot()" type="button" aria-label="Close">x</button>
   `,
 })

@@ -57,7 +57,9 @@ describe('team status model', () => {
   it('accepts the budget stop and the month’s budget of a console-tracker team (#738, #737), and refuses malformed ones', () => {
     const month = { month: '2026-11', spentUsd: 20, budgetUsd: 5, waivedAt: '2026-11-16T10:06:00.000Z' };
     expect(isTeamStatusDto({ ...teamStatus(), state: 'paused-by-budget', budget: month })).toBe(true);
-    expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, budgetUsd: null, waivedAt: null } })).toBe(true);
+    expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, budgetUsd: null, waivedAt: null } })).toBe(
+      true,
+    );
     expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, spentUsd: -1 } })).toBe(false);
     expect(isTeamStatusDto({ ...teamStatus(), budget: { ...month, waivedAt: 1 } })).toBe(false);
     expect(isTeamStatusDto({ ...teamStatus(), budget: undefined })).toBe(false);
@@ -74,7 +76,12 @@ describe('team status model', () => {
     const calendar = { today: '2026-10-05', freezeDays: 2, nextTitle: 'Sprint 05' };
     const full = teamStatus({ sprint, progress: { done: 1, total: 3 }, calendar });
     expect(isTeamStatusDto(full)).toBe(true);
-    expect(isTeamStatusDto({ ...full, sprint: { ...sprint, next: { number: 5, title: 'Sprint 05', due: '2026-10-28' } } })).toBe(true);
+    expect(
+      isTeamStatusDto({
+        ...full,
+        sprint: { ...sprint, next: { number: 5, title: 'Sprint 05', due: '2026-10-28' } },
+      }),
+    ).toBe(true);
     expect(isTeamStatusDto({ ...full, sprint: { ...sprint, due: '14.10.2026' } })).toBe(false);
     expect(isTeamStatusDto({ ...full, sprint: { ...sprint, freeze: null } })).toBe(false);
     expect(isTeamStatusDto({ ...full, progress: { done: 4, total: 3 } })).toBe(false);

@@ -107,9 +107,7 @@ describe('job lifecycle', () => {
     // deadline fires before a process exists to kill, losing the `signal` this test checks for (#594).
     let fireDeadline: (() => void) | null = null;
     class LaunchThenDeadline extends NoneBackend {
-      override async launch(
-        ...args: Parameters<NoneBackend['launch']>
-      ): ReturnType<NoneBackend['launch']> {
+      override async launch(...args: Parameters<NoneBackend['launch']>): ReturnType<NoneBackend['launch']> {
         const launched = await super.launch(...args);
         fireDeadline?.();
         return launched;
@@ -148,9 +146,7 @@ describe('job lifecycle', () => {
         settleLaunch = resolve;
       });
       class RecordingLaunch extends NoneBackend {
-        override async launch(
-          ...args: Parameters<NoneBackend['launch']>
-        ): ReturnType<NoneBackend['launch']> {
+        override async launch(...args: Parameters<NoneBackend['launch']>): ReturnType<NoneBackend['launch']> {
           try {
             const launched = await super.launch(...args);
             launchedPid = launched.pid;
@@ -347,10 +343,7 @@ describe('job lifecycle', () => {
   describe('launch refusals: failed with metrics.reason, the CLI never starts', () => {
     const marker = (): string => join(fixture.root, 'cli-started');
 
-    async function refusedWith(
-      overrides: Partial<RunnerConfig>,
-      jobOverrides = {},
-    ): Promise<string | null> {
+    async function refusedWith(overrides: Partial<RunnerConfig>, jobOverrides = {}): Promise<string | null> {
       const client = recordingConsole();
       // A CLI that would leave a marker if it ever ran.
       const cli = join(fixture.root, 'cli.sh');

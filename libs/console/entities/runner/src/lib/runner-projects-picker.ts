@@ -20,7 +20,9 @@ export interface RunnerProjectOption {
     <fieldset class="runner-projects">
       <legend class="runner-projects__legend">{{ legend() }}</legend>
       @if (projects().length === 0) {
-        <p class="runner-projects__empty" data-testid="runner-projects-empty">{{ 'runners.projects.none' | transloco }}</p>
+        <p class="runner-projects__empty" data-testid="runner-projects-empty">
+          {{ 'runners.projects.none' | transloco }}
+        </p>
       } @else {
         <tc-list>
           @for (project of projects(); track project.slug) {
@@ -74,7 +76,11 @@ export class RunnerProjectsPicker {
 
   protected toggle(slug: string, checked: boolean): void {
     this.selected.update((current) =>
-      checked ? (current.includes(slug) ? current : [...current, slug]) : current.filter((entry) => entry !== slug),
+      checked
+        ? current.includes(slug)
+          ? current
+          : [...current, slug]
+        : current.filter((entry) => entry !== slug),
     );
   }
 }

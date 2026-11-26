@@ -25,7 +25,13 @@ import {
   type ActionsProject,
   type TestIssuer,
 } from '../testing/actions-oidc-kit';
-import { cancelJobsInFlight, enrolRunner, runnerJwt, sendAsRunner, type TestRunner } from '../testing/runner-kit';
+import {
+  cancelJobsInFlight,
+  enrolRunner,
+  runnerJwt,
+  sendAsRunner,
+  type TestRunner,
+} from '../testing/runner-kit';
 import {
   INSTALLATION_ID,
   TOKEN_SENTINEL,
@@ -36,7 +42,13 @@ import {
   type StubGitHub,
 } from '../testing/github-kit';
 import { seedTrackerProject } from '../testing/tracker-kit';
-import { SETUP_ORIGIN, answerSetupRead, readyWorld, renderingFor, type SetupWorld } from '../testing/actions-setup-kit';
+import {
+  SETUP_ORIGIN,
+  answerSetupRead,
+  readyWorld,
+  renderingFor,
+  type SetupWorld,
+} from '../testing/actions-setup-kit';
 import type { RunnerWorkflowRendering } from '@shared/actions-workflow';
 import { sweepQueue } from './sweep';
 
@@ -75,7 +87,11 @@ interface World {
 function runStarted(runs: string[]): Response {
   const runId = nextRunId();
   runs.push(runId);
-  return json(200, { workflow_run_id: Number(runId), run_url: 'https://api.github.com/x', html_url: 'https://github.com/x' });
+  return json(200, {
+    workflow_run_id: Number(runId),
+    run_url: 'https://api.github.com/x',
+    html_url: 'https://github.com/x',
+  });
 }
 
 interface Fixture {
@@ -127,26 +143,45 @@ async function seedProject(
     .bind(slug, options.installationId ?? INSTALLATION_ID)
     .run();
   if ((options.source ?? 'api_key') === 'api_key') {
-    const project: ActionsProject = { slug, accountId: OWNER_ACCOUNT_ID, repoId: row.repo_id, repo: row.repo, defaultBranch: 'trunk' };
+    const project: ActionsProject = {
+      slug,
+      accountId: OWNER_ACCOUNT_ID,
+      repoId: row.repo_id,
+      repo: row.repo,
+      defaultBranch: 'trunk',
+    };
     expect(await saveAccessSource(project, 'api_key', 0)).toBe('saved');
   }
   const world: World = {
     defaultBranch: 'trunk',
     repoId: row.repo_id,
-    scriptedMint: () => json(422, { message: 'The permissions requested are not granted to this installation.' }),
+    scriptedMint: () =>
+      json(422, { message: 'The permissions requested are not granted to this installation.' }),
     runs: [],
     dispatch: () => runStarted(world.runs),
     revoke: () => new Response(null, { status: 204 }),
-    setup: { ...readyWorld(row.repo_id, rendering), defaultBranch: 'trunk', branchPolicies: [{ id: 1, name: 'trunk', type: 'branch' }] },
+    setup: {
+      ...readyWorld(row.repo_id, rendering),
+      defaultBranch: 'trunk',
+      branchPolicies: [{ id: 1, name: 'trunk', type: 'branch' }],
+    },
   };
   world.setup.installationId = options.installationId ?? INSTALLATION_ID;
   const stub = stubGitHub((call) => {
     if (call.method === 'GET' && call.url.pathname === `/repos/${row.repo}`) {
       return world.repoId === null
         ? json(404, { message: 'Not Found' })
-        : json(200, { id: world.repoId, full_name: row.repo, default_branch: world.defaultBranch, private: true });
+        : json(200, {
+            id: world.repoId,
+            full_name: row.repo,
+            default_branch: world.defaultBranch,
+            private: true,
+          });
     }
-    if (call.method === 'POST' && call.url.pathname === `/app/installations/${String(SCRIPTED_INSTALLATION)}/access_tokens`) {
+    if (
+      call.method === 'POST' &&
+      call.url.pathname === `/app/installations/${String(SCRIPTED_INSTALLATION)}/access_tokens`
+    ) {
       return world.scriptedMint(call);
     }
     if (call.method === 'POST' && DISPATCHES.test(call.url.pathname)) {
@@ -157,7 +192,14 @@ async function seedProject(
     }
     return answerSetupRead(world.setup, row.repo, rendering, call) ?? json(404, { message: 'Not Found' });
   });
-  return { slug, repo: row.repo, repoId: row.repo_id, world, stub, github: new ApiGitHub({ fetch: stub.fetch }) };
+  return {
+    slug,
+    repo: row.repo,
+    repoId: row.repo_id,
+    world,
+    stub,
+    github: new ApiGitHub({ fetch: stub.fetch }),
+  };
 }
 
 async function call(
@@ -182,7 +224,13 @@ const switchTo = (fixture: Fixture, dispatch: string, logs?: string[]): Promise<
   call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/dispatch`, { dispatch }, logs);
 
 async function runNow(fixture: Fixture, logs?: string[]): Promise<JobDto> {
-  const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'slot-dev' }, logs);
+  const response = await call(
+    fixture,
+    'POST',
+    `/api/v1/projects/${fixture.slug}/jobs`,
+    { kind: 'slot-dev' },
+    logs,
+  );
   expect(response.status).toBe(201);
   return (await response.json()) as JobDto;
 }
@@ -193,9 +241,17 @@ async function problemSlug(response: Response): Promise<string | null> {
 }
 
 async function jobRow(id: string) {
-  return env.DB.prepare(`SELECT state, dispatch, dispatched_at, actions_run_id, result FROM jobs WHERE id = ?1`)
+  return env.DB.prepare(
+    `SELECT state, dispatch, dispatched_at, actions_run_id, result FROM jobs WHERE id = ?1`,
+  )
     .bind(id)
-    .first<{ state: string; dispatch: string; dispatched_at: string | null; actions_run_id: string | null; result: string | null }>();
+    .first<{
+      state: string;
+      dispatch: string;
+      dispatched_at: string | null;
+      actions_run_id: string | null;
+      result: string | null;
+    }>();
 }
 
 /** The `workflow_run_id` GitHub answered the fixture's dispatch at `index` with. */
@@ -252,7 +308,9 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
     expect(JSON.parse(audit?.details ?? '{}')).toEqual({ from: 'pull', to: 'actions' });
 
     expect((await switchTo(fixture, 'pull')).status).toBe(200);
-    expect(await call(fixture, 'GET', `/api/v1/projects/${fixture.slug}/dispatch`).then(async (r) => r.json())).toEqual({
+    expect(
+      await call(fixture, 'GET', `/api/v1/projects/${fixture.slug}/dispatch`).then(async (r) => r.json()),
+    ).toEqual({
       dispatch: 'pull',
       defaultBranch: 'trunk',
     });
@@ -285,9 +343,13 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
     const response = await switchTo(fixture, 'actions');
     expect(response.status).toBe(422);
     expect(await problemSlug(response)).toBe('access-source-hosted');
-    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`).bind(fixture.slug).first<{ dispatch: string }>();
+    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ dispatch: string }>();
     expect(row?.dispatch).toBe('pull');
-    const audit = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'project.dispatch-changed' AND target = ?1`)
+    const audit = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'project.dispatch-changed' AND target = ?1`,
+    )
       .bind(fixture.slug)
       .first<{ n: number }>();
     expect(audit?.n).toBe(0);
@@ -295,18 +357,31 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
 
   it.each([
     ['pinned', { mode: 'pinned', runner: '01M6YSNJ0000000000000RUNR1' }],
-    ['failover', { mode: 'failover', preferred: '01M6YSNJ0000000000000RUNR1', fallback: ['01M6YSNJ0000000000000RUNR2'], offline_after_seconds: 300 }],
-  ])('switches to actions under a %s placement and keeps it, for the local-only jobs (#728)', async (_mode, policy) => {
-    const fixture = await seedProject();
-    await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`).bind(fixture.slug, JSON.stringify(policy)).run();
-    const switched = await switchTo(fixture, 'actions');
-    expect(switched.status).toBe(200);
-    const row = await env.DB.prepare(`SELECT dispatch, runner_policy FROM projects WHERE slug = ?1`)
-      .bind(fixture.slug)
-      .first<{ dispatch: string; runner_policy: string }>();
-    expect(row?.dispatch).toBe('actions');
-    expect(JSON.parse(row?.runner_policy ?? 'null')).toEqual(policy);
-  });
+    [
+      'failover',
+      {
+        mode: 'failover',
+        preferred: '01M6YSNJ0000000000000RUNR1',
+        fallback: ['01M6YSNJ0000000000000RUNR2'],
+        offline_after_seconds: 300,
+      },
+    ],
+  ])(
+    'switches to actions under a %s placement and keeps it, for the local-only jobs (#728)',
+    async (_mode, policy) => {
+      const fixture = await seedProject();
+      await env.DB.prepare(`UPDATE projects SET runner_policy = ?2 WHERE slug = ?1`)
+        .bind(fixture.slug, JSON.stringify(policy))
+        .run();
+      const switched = await switchTo(fixture, 'actions');
+      expect(switched.status).toBe(200);
+      const row = await env.DB.prepare(`SELECT dispatch, runner_policy FROM projects WHERE slug = ?1`)
+        .bind(fixture.slug)
+        .first<{ dispatch: string; runner_policy: string }>();
+      expect(row?.dispatch).toBe('actions');
+      expect(JSON.parse(row?.runner_policy ?? 'null')).toEqual(policy);
+    },
+  );
 
   it('takes a pinned placement on a project already on actions, per project and as the account default (#728)', async () => {
     const fixture = await seedProject();
@@ -330,12 +405,17 @@ describe('PUT /api/v1/projects/:slug/dispatch', () => {
   it('still refuses actions for a subscription project under a pinned placement (C12 row 6, #728)', async () => {
     const fixture = await seedProject({ source: 'subscription' });
     const mac = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
-    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, { mode: 'pinned', runner: mac.id });
+    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, {
+      mode: 'pinned',
+      runner: mac.id,
+    });
     expect(pin.status).toBe(200);
     const refused = await switchTo(fixture, 'actions');
     expect(refused.status).toBe(422);
     expect(await problemSlug(refused)).toBe('access-source-hosted');
-    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`).bind(fixture.slug).first<{ dispatch: string }>();
+    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ dispatch: string }>();
     expect(row?.dispatch).toBe('pull');
   });
 });
@@ -347,7 +427,9 @@ describe('PUT …/dispatch {actions} runs the readiness check (#759 PR 3)', () =
       .first<{ dispatch: string; default_branch: string | null }>();
   const switchAudits = async (slug: string): Promise<number> =>
     (
-      await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'project.dispatch-changed' AND target = ?1`)
+      await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'project.dispatch-changed' AND target = ?1`,
+      )
         .bind(slug)
         .first<{ n: number }>()
     )?.n ?? -1;
@@ -361,7 +443,12 @@ describe('PUT …/dispatch {actions} runs the readiness check (#759 PR 3)', () =
     expect(response.status).toBe(422);
     const body: unknown = await response.json();
     expect(isProblemDetails(body) && problemSlugOf(body.type)).toBe(ACTIONS_NOT_READY);
-    expect((body as { field: string; items: string[] }).items).toEqual(['environment', 'branch-policy', 'secret', 'workflow']);
+    expect((body as { field: string; items: string[] }).items).toEqual([
+      'environment',
+      'branch-policy',
+      'secret',
+      'workflow',
+    ]);
     expect((body as { field: string }).field).toBe('dispatch');
     expect(await dispatchRow(fixture.slug)).toEqual({ dispatch: 'pull', default_branch: null });
     expect(await switchAudits(fixture.slug)).toBe(0);
@@ -407,13 +494,17 @@ describe('PUT …/dispatch {actions} runs the readiness check (#759 PR 3)', () =
 
   it('answers 503 console-origin-misconfigured on a console served elsewhere, and writes nothing', async () => {
     const fixture = await seedProject();
-    const response = await fetchApi(`/api/v1/projects/${fixture.slug}/dispatch`, localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }), {
-      method: 'PUT',
-      origin: 'http://localhost:4200',
-      github: fixture.github,
-      headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dispatch: 'actions' }),
-    });
+    const response = await fetchApi(
+      `/api/v1/projects/${fixture.slug}/dispatch`,
+      localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }),
+      {
+        method: 'PUT',
+        origin: 'http://localhost:4200',
+        github: fixture.github,
+        headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispatch: 'actions' }),
+      },
+    );
     expect(response.status).toBe(503);
     expect(await problemSlug(response)).toBe('console-origin-misconfigured');
     expect(await dispatchRow(fixture.slug)).toEqual({ dispatch: 'pull', default_branch: null });
@@ -437,11 +528,17 @@ describe('placement on an Actions project applies to its pull jobs (#728)', () =
     const fixture = await seedProject();
     const mac = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
     const linux = await enrolRunner(OWNER_ACCOUNT_ID, { allowedProjects: [fixture.slug] });
-    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, { mode: 'pinned', runner: mac.id });
+    const pin = await call(fixture, 'PUT', `/api/v1/projects/${fixture.slug}/runner-policy`, {
+      mode: 'pinned',
+      runner: mac.id,
+    });
     expect(pin.status).toBe(200);
     expect((await switchTo(fixture, 'actions')).status).toBe(200);
 
-    const local = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'slot-dev', needsLocal: true });
+    const local = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, {
+      kind: 'slot-dev',
+      needsLocal: true,
+    });
     expect(local.status).toBe(201);
     const localJob = (await local.json()) as JobDto;
     expect(localJob.dispatch).toBe('pull');
@@ -453,7 +550,10 @@ describe('placement on an Actions project applies to its pull jobs (#728)', () =
     expect(claimed.status).toBe(200);
     expect(((await claimed.json()) as ClaimResponse).job.id).toBe(localJob.id);
 
-    const queued = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'review', role: 'qa' });
+    const queued = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, {
+      kind: 'review',
+      role: 'qa',
+    });
     expect(queued.status).toBe(201);
     const ordinary = (await queued.json()) as JobDto;
     expect(ordinary.dispatch).toBe('actions');
@@ -476,13 +576,24 @@ describe('enqueue of an Actions job', () => {
 
     const [mint] = actionsMints(fixture.stub);
     expect(mint?.url.pathname).toBe(`/app/installations/${String(INSTALLATION_ID)}/access_tokens`);
-    expect(JSON.parse(mint?.body ?? '')).toEqual({ repository_ids: [fixture.repoId], permissions: { actions: 'write' } });
+    expect(JSON.parse(mint?.body ?? '')).toEqual({
+      repository_ids: [fixture.repoId],
+      permissions: { actions: 'write' },
+    });
     const [dispatched] = dispatchCalls(fixture.stub);
-    expect(dispatched?.url.pathname).toBe(`/repos/${fixture.repo}/actions/workflows/team-console-runner.yml/dispatches`);
-    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'trunk', inputs: { job_id: job.id }, return_run_details: true });
+    expect(dispatched?.url.pathname).toBe(
+      `/repos/${fixture.repo}/actions/workflows/team-console-runner.yml/dispatches`,
+    );
+    expect(JSON.parse(dispatched?.body ?? '')).toEqual({
+      ref: 'trunk',
+      inputs: { job_id: job.id },
+      return_run_details: true,
+    });
     expect(dispatched?.headers.get('authorization')).toMatch(new RegExp(`^Bearer ${TOKEN_SENTINEL}\\d+$`));
     // Never cached: a second job mints its own token.
-    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`).bind(job.id, new Date().toISOString()).run();
+    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE id = ?1`)
+      .bind(job.id, new Date().toISOString())
+      .run();
     await runNow(fixture);
     expect(actionsMints(fixture.stub)).toHaveLength(2);
   });
@@ -500,8 +611,14 @@ describe('enqueue of an Actions job', () => {
     fixture.world.defaultBranch = 'main';
     const job = await runNow(fixture);
     const [dispatched] = dispatchCalls(fixture.stub);
-    expect(JSON.parse(dispatched?.body ?? '')).toEqual({ ref: 'main', inputs: { job_id: job.id }, return_run_details: true });
-    const row = await env.DB.prepare(`SELECT default_branch FROM projects WHERE slug = ?1`).bind(fixture.slug).first<{ default_branch: string }>();
+    expect(JSON.parse(dispatched?.body ?? '')).toEqual({
+      ref: 'main',
+      inputs: { job_id: job.id },
+      return_run_details: true,
+    });
+    const row = await env.DB.prepare(`SELECT default_branch FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ default_branch: string }>();
     expect(row?.default_branch).toBe('main');
   });
 
@@ -510,7 +627,11 @@ describe('enqueue of an Actions job', () => {
     await alreadyOnActions(fixture);
     const job = await runNow(fixture);
     expect(job.state).toBe('failed');
-    expect(job.result).toEqual({ summary: 'dispatch-failed: permission missing', metrics: { reason: 'dispatch-failed' }, acted: false });
+    expect(job.result).toEqual({
+      summary: 'dispatch-failed: permission missing',
+      metrics: { reason: 'dispatch-failed' },
+      acted: false,
+    });
     expect(dispatchCalls(fixture.stub)).toHaveLength(0);
   });
 
@@ -543,7 +664,9 @@ describe('enqueue of an Actions job', () => {
     expect((await switchTo(fixture, 'actions')).status).toBe(200);
     fixture.world.dispatch = () => json(403, { message: 'Resource not accessible by integration' });
     await runNow(fixture);
-    const stored = await env.DB.prepare(`SELECT actions_workflow_status AS status FROM projects WHERE slug = ?1`)
+    const stored = await env.DB.prepare(
+      `SELECT actions_workflow_status AS status FROM projects WHERE slug = ?1`,
+    )
       .bind(fixture.slug)
       .first<{ status: string | null }>();
     expect(stored?.status).toBe('ok');
@@ -563,7 +686,11 @@ describe('enqueue of an Actions job', () => {
     const job = await runNow(fixture);
     expect(job.result?.['summary']).toBe('dispatch-failed: github error');
     expect(dispatchCalls(fixture.stub)).toHaveLength(0);
-    expect(fixture.stub.calls.some((entry) => entry.method === 'DELETE' && entry.url.pathname === '/installation/token')).toBe(true);
+    expect(
+      fixture.stub.calls.some(
+        (entry) => entry.method === 'DELETE' && entry.url.pathname === '/installation/token',
+      ),
+    ).toBe(true);
   });
 
   it('refuses a token GitHub minted with more than actions: write', async () => {
@@ -575,7 +702,13 @@ describe('enqueue of an Actions job', () => {
         expires_at: new Date(Date.now() + 3_600_000).toISOString(),
         permissions: { actions: 'write', contents: 'write' },
         repository_selection: 'selected',
-        repositories: [{ id: (JSON.parse(mint.body ?? '{}') as { repository_ids: number[] }).repository_ids[0], name: 'x', full_name: 'acme/x' }],
+        repositories: [
+          {
+            id: (JSON.parse(mint.body ?? '{}') as { repository_ids: number[] }).repository_ids[0],
+            name: 'x',
+            full_name: 'acme/x',
+          },
+        ],
       });
     const job = await runNow(fixture);
     expect(job.result?.['summary']).toBe('dispatch-failed: github error');
@@ -586,17 +719,24 @@ describe('enqueue of an Actions job', () => {
     const fixture = await seedProject({ source: 'subscription' });
     // Only a write that bypasses the switch could leave this state; the enqueue trigger is the last line.
     await env.DB.prepare(`UPDATE projects SET dispatch = 'actions' WHERE slug = ?1`).bind(fixture.slug).run();
-    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'slot-dev' });
+    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, {
+      kind: 'slot-dev',
+    });
     expect(response.status).toBe(422);
     expect(await problemSlug(response)).toBe('access-source-hosted');
-    const jobs = await env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE project_slug = ?1`).bind(fixture.slug).first<{ n: number }>();
+    const jobs = await env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE project_slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ n: number }>();
     expect(jobs?.n).toBe(0);
   });
 
   it('keeps a needs_local job on pull on an Actions project (#695 item 2)', async () => {
     const fixture = await seedProject();
     expect((await switchTo(fixture, 'actions')).status).toBe(200);
-    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'slot-dev', needsLocal: true });
+    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, {
+      kind: 'slot-dev',
+      needsLocal: true,
+    });
     expect(response.status).toBe(201);
     const job = (await response.json()) as JobDto;
     expect(job.dispatch).toBe('pull');
@@ -626,7 +766,9 @@ describe('the dispatch token never reaches a log (sentinel)', () => {
     await runNow(fixture, logs);
     // GitHub's own text is never copied either, even when it echoes something token-shaped.
     fixture.world.dispatch = () => json(403, { message: `Bad credentials ${TOKEN_SENTINEL}` });
-    await env.DB.prepare(`UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE project_slug = ?1 AND state = 'queued'`)
+    await env.DB.prepare(
+      `UPDATE jobs SET state = 'cancelled', finished_at = ?2 WHERE project_slug = ?1 AND state = 'queued'`,
+    )
       .bind(fixture.slug, new Date().toISOString())
       .run();
     await runNow(fixture, logs);
@@ -691,7 +833,11 @@ describe('the dispatch admission (#722, #716)', () => {
   });
 
   /** Saves revision `expected + 1` of the project's team configuration as `members` (on an API key). */
-  async function saveConfig(fixture: Fixture, expected: number, members: Record<string, unknown>): Promise<void> {
+  async function saveConfig(
+    fixture: Fixture,
+    expected: number,
+    members: Record<string, unknown>,
+  ): Promise<void> {
     const at = new Date().toISOString();
     const saved = await new TeamConfigRepo(env.DB).save({
       projectSlug: fixture.slug,
@@ -724,7 +870,10 @@ describe('the dispatch admission (#722, #716)', () => {
   }
 
   async function review(fixture: Fixture, role: string): Promise<JobDto> {
-    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, { kind: 'review', role });
+    const response = await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/jobs`, {
+      kind: 'review',
+      role,
+    });
     expect(response.status).toBe(201);
     return (await response.json()) as JobDto;
   }
@@ -738,11 +887,17 @@ describe('the dispatch admission (#722, #716)', () => {
 
     // The first job's run: its OIDC exchange, then its finish under the ephemeral identity.
     const firstRun = (await jobRow(first.id))?.actions_run_id ?? undefined;
-    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(actionsProjectOf(fixture), firstRun)), first.id);
+    const exchange = await exchangeBodyOf(
+      await actionsToken(issuer, runClaimsOf(actionsProjectOf(fixture), firstRun)),
+      first.id,
+    );
     const exchanged = await postExchange(exchange.body, issuer.bindings);
     expect(exchanged.status).toBe(200);
     const { runner } = (await exchanged.json()) as OidcExchangeResponse;
-    const jwt = await runnerJwt({ id: runner.id, privateKey: exchange.privateKey }, { audience: runner.audience });
+    const jwt = await runnerJwt(
+      { id: runner.id, privateKey: exchange.privateKey },
+      { audience: runner.audience },
+    );
     const finished = await fetchApi(`/api/v1/runner/jobs/${first.id}/finish`, issuer.bindings, {
       method: 'POST',
       github: fixture.github,
@@ -780,7 +935,9 @@ describe('the dispatch admission (#722, #716)', () => {
 
     // Switched off while it waits: the resume alone does not start it.
     await saveConfig(fixture, 2, { roles: { analyst: { enabled: false } } });
-    expect((await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/team/resume`, {})).status).toBe(201);
+    expect((await call(fixture, 'POST', `/api/v1/projects/${fixture.slug}/team/resume`, {})).status).toBe(
+      201,
+    );
     await sweepQueue(localEnv(), new Date(Date.now() + 30 * 60_000), logger, fixture.github);
     expect(await jobRow(held.id)).toMatchObject({ state: 'queued', dispatched_at: null });
     expect(dispatchCalls(fixture.stub)).toHaveLength(0);
@@ -864,7 +1021,10 @@ describe('the account’s entitled concurrency at dispatch (#746)', () => {
       defaultBranch: fixture.world.defaultBranch,
     };
     const firstRun = (await jobRow(first.id))?.actions_run_id ?? undefined;
-    const exchange = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(project, firstRun)), first.id);
+    const exchange = await exchangeBodyOf(
+      await actionsToken(issuer, runClaimsOf(project, firstRun)),
+      first.id,
+    );
     const exchanged = await postExchange(exchange.body, issuer.bindings);
     expect(exchanged.status).toBe(200);
     const { runner } = (await exchanged.json()) as OidcExchangeResponse;
@@ -911,7 +1071,9 @@ describe('the account’s entitled concurrency at dispatch (#746)', () => {
       const refused = await postExchange(exchange.body, issuer.bindings);
       expect(refused.status).toBe(409);
       expect(await jobRow(job.id)).toMatchObject({ state: 'queued' });
-      const ephemeral = await env.DB.prepare(`SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = ?1`)
+      const ephemeral = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM runners WHERE isolation = 'actions-ephemeral' AND allowed_projects = ?1`,
+      )
         .bind(JSON.stringify([fixture.slug]))
         .first<{ n: number }>();
       expect(ephemeral?.n).toBe(0);
@@ -957,7 +1119,11 @@ describe('the dispatch token is revoked after its call (#723 item 1)', () => {
   });
 
   it.each([
-    ['refuses the dispatch (403)', () => json(403, { message: 'Resource not accessible by integration' }), 'permission missing'],
+    [
+      'refuses the dispatch (403)',
+      () => json(403, { message: 'Resource not accessible by integration' }),
+      'permission missing',
+    ],
     ['answers 204 without naming the run', () => new Response(null, { status: 204 }), 'github error'],
     ['is unavailable (503)', () => json(503, { message: 'unavailable' }), 'github unavailable'],
   ])('revokes the token when GitHub %s, and fails the job as %s', async (_label, answer, failure) => {
@@ -1020,7 +1186,10 @@ describe('the run is bound to the console’s dispatch (#723 item 2)', () => {
   });
 
   async function exchangeAs(fixture: Fixture, jobId: string, runId: string): Promise<Response> {
-    const request = await exchangeBodyOf(await actionsToken(issuer, runClaimsOf(projectOf(fixture), runId)), jobId);
+    const request = await exchangeBodyOf(
+      await actionsToken(issuer, runClaimsOf(projectOf(fixture), runId)),
+      jobId,
+    );
     return postExchange(request.body, issuer.bindings);
   }
 
@@ -1049,7 +1218,10 @@ describe('the run is bound to the console’s dispatch (#723 item 2)', () => {
     expect(job.state).toBe('failed');
     expect(job.result?.['summary']).toBe('dispatch-failed: github error');
     expect((await jobRow(job.id))?.actions_run_id).toBeNull();
-    expect(await (await exchangeAs(fixture, job.id, nextRunId())).json()).toMatchObject({ status: 409, claim: 'job_id' });
+    expect(await (await exchangeAs(fixture, job.id, nextRunId())).json()).toMatchObject({
+      status: 409,
+      claim: 'job_id',
+    });
   });
 });
 
@@ -1078,7 +1250,11 @@ describe('POST /projects/:slug/jobs reads an Actions job once (#725)', () => {
       const job = await runNow(fixture);
       expect(reads).toHaveBeenCalledTimes(1);
       expect(job.state).toBe('failed');
-      expect(job.result).toEqual({ summary: 'dispatch-failed: workflow missing', metrics: { reason: 'dispatch-failed' }, acted: false });
+      expect(job.result).toEqual({
+        summary: 'dispatch-failed: workflow missing',
+        metrics: { reason: 'dispatch-failed' },
+        acted: false,
+      });
     } finally {
       reads.mockRestore();
     }

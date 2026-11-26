@@ -202,7 +202,12 @@ async function readKeychainItemMigrating(keychain: Keychain, home: string): Prom
   const legacy = legacyKeychainAccountOf(home);
   if (current === null) {
     await storeInKeychain(keychain, home, await keyFromKeychain(legacySecret, keychain, home));
-  } else if (!sameKey(await keyFromKeychain(legacySecret, keychain, home), await keyFromKeychain(current, keychain, home))) {
+  } else if (
+    !sameKey(
+      await keyFromKeychain(legacySecret, keychain, home),
+      await keyFromKeychain(current, keychain, home),
+    )
+  ) {
     return current;
   }
   try {

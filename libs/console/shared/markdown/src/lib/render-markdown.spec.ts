@@ -114,7 +114,9 @@ describe('renderMarkdown', () => {
   });
 
   it('renders ordinary markdown as prose', () => {
-    const { html } = renderMarkdown('# Title\n\nSome **bold** and `code`.\n\n- one\n- two\n\n| a | b |\n|---|---|\n| 1 | 2 |');
+    const { html } = renderMarkdown(
+      '# Title\n\nSome **bold** and `code`.\n\n- one\n- two\n\n| a | b |\n|---|---|\n| 1 | 2 |',
+    );
     const root = parse(html);
     expect(root.querySelector('h1')?.textContent).toBe('Title');
     expect(root.querySelector('strong')?.textContent).toBe('bold');
@@ -158,7 +160,9 @@ describe('renderMarkdown', () => {
   });
 
   it('names an image without alt text by its file name', () => {
-    const anchor = parse(renderMarkdown('<img src="https://example.com/a/b%20c.png">').html).querySelector('a');
+    const anchor = parse(renderMarkdown('<img src="https://example.com/a/b%20c.png">').html).querySelector(
+      'a',
+    );
     expect(anchor?.textContent).toBe('b c.png');
   });
 

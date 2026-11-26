@@ -3,9 +3,27 @@ import { OWNER_ACCOUNT_ID, type ClaimResponse, type JobDto, type JobEventListDto
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
 import { IdempotencyKeysRepo } from '@worker/db';
 import { localEnv } from '../testing/github-kit';
-import { cancelJob, cancelJobsInFlight, commitDuringAuthentication, enqueueJob, enrolRunner, narrowRunner, revokeRunner, sendAsJob, sendAsRunner, setProjectAccessSource, type TestRunner } from '../testing/runner-kit';
+import {
+  cancelJob,
+  cancelJobsInFlight,
+  commitDuringAuthentication,
+  enqueueJob,
+  enrolRunner,
+  narrowRunner,
+  revokeRunner,
+  sendAsJob,
+  sendAsRunner,
+  setProjectAccessSource,
+  type TestRunner,
+} from '../testing/runner-kit';
 import type { RunnerSelfDto } from '@shared/contracts';
-import { seedAccountProject, seedMembership, seedSessionUser, seedUser, sendAsSession } from '../testing/session-kit';
+import {
+  seedAccountProject,
+  seedMembership,
+  seedSessionUser,
+  seedUser,
+  sendAsSession,
+} from '../testing/session-kit';
 import { countRows, seedItem, seedTrackerProject, send, slugOf } from '../testing/tracker-kit';
 
 // #467, ADR 0006 "Claim"/"Run"/"Report", ADR 0008 decisions 2, 8 and 12; threat model C9 ("a runner claiming
@@ -38,15 +56,26 @@ describe('POST /api/v1/runner/jobs/claim', () => {
 
     const jobId = await enqueueJob(project.slug, { items: [3, 1] });
     const claimed = await claim(runner);
-    expect(claimed?.job).toMatchObject({ id: jobId, state: 'claimed', runnerId: runner.id, attempt: 1, role: 'orchestrator', items: [3, 1] });
+    expect(claimed?.job).toMatchObject({
+      id: jobId,
+      state: 'claimed',
+      runnerId: runner.id,
+      attempt: 1,
+      role: 'orchestrator',
+      items: [3, 1],
+    });
     expect(claimed?.jobToken.startsWith(JOB_TOKEN_PREFIX)).toBe(true);
     expect(claimed?.leaseSeconds).toBe(300);
     // One job, once: the next poll finds nothing, and the token is stored hashed only.
     expect(await claim(runner)).toBeNull();
-    const row = await env.DB.prepare(`SELECT token_hash FROM jobs WHERE id = ?1`).bind(jobId).first<{ token_hash: string }>();
+    const row = await env.DB.prepare(`SELECT token_hash FROM jobs WHERE id = ?1`)
+      .bind(jobId)
+      .first<{ token_hash: string }>();
     expect(row?.token_hash).toMatch(/^[0-9a-f]{64}$/);
     expect(row?.token_hash).not.toContain(claimed?.jobToken.slice(4, 20));
-    const audit = await env.DB.prepare(`SELECT actor_kind, actor FROM audit_events WHERE kind = 'job.claimed' AND target = ?1`)
+    const audit = await env.DB.prepare(
+      `SELECT actor_kind, actor FROM audit_events WHERE kind = 'job.claimed' AND target = ?1`,
+    )
       .bind(jobId)
       .first<{ actor_kind: string; actor: string }>();
     expect(audit).toEqual({ actor_kind: 'runner', actor: runner.id });
@@ -63,7 +92,9 @@ describe('POST /api/v1/runner/jobs/claim', () => {
       .bind(runner.id, JSON.stringify([theirs.slug]))
       .run();
     expect(await claim(runner)).toBeNull();
-    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`).bind(theirJob).first<{ state: string; runner_id: null }>();
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`)
+      .bind(theirJob)
+      .first<{ state: string; runner_id: null }>();
     expect(row).toEqual({ state: 'queued', runner_id: null });
   });
 
@@ -85,17 +116,30 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     expect(claimed?.scope.projects).toContain(project.slug);
     expect(claimed?.scope.projects).not.toContain(theirs.slug);
     // Its job token writes nothing in B, and `/runner/self` lists nothing of B.
-    const foreign = await sendAsJob(runner, claimed?.jobToken ?? '', 'POST', `/api/v1/projects/${theirs.slug}/items`, { title: 'x', kind: 'task' });
+    const foreign = await sendAsJob(
+      runner,
+      claimed?.jobToken ?? '',
+      'POST',
+      `/api/v1/projects/${theirs.slug}/items`,
+      { title: 'x', kind: 'task' },
+    );
     expect(foreign.status).toBe(404);
     const self = await sendAsRunner(runner, 'GET', '/api/v1/runner/self');
     expect(self.status).toBe(200);
     const text = await self.text();
     const body = JSON.parse(text) as RunnerSelfDto;
-    expect(body.runner).toMatchObject({ id: runner.id, accountId: OWNER_ACCOUNT_ID, projectScope: 'all', allowedProjects: [] });
+    expect(body.runner).toMatchObject({
+      id: runner.id,
+      accountId: OWNER_ACCOUNT_ID,
+      projectScope: 'all',
+      allowedProjects: [],
+    });
     expect(body.projects.map((row) => row.slug)).toContain(project.slug);
     expect(text).not.toContain(theirs.slug);
     expect(text).not.toContain(other.account.id);
-    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`).bind(theirJob).first<{ state: string; runner_id: null }>();
+    const row = await env.DB.prepare(`SELECT state, runner_id FROM jobs WHERE id = ?1`)
+      .bind(theirJob)
+      .first<{ state: string; runner_id: null }>();
     expect(row).toEqual({ state: 'queued', runner_id: null });
   });
 
@@ -107,7 +151,9 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     await enqueueJob(project.slug);
     const declared = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] });
     expect(declared.status).toBe(204);
-    const stored = await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`).bind(runner.id).first<{ capabilities: string }>();
+    const stored = await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`)
+      .bind(runner.id)
+      .first<{ capabilities: string }>();
     expect(JSON.parse(stored?.capabilities ?? '{}')).toMatchObject({ accessSources: ['subscription'] });
     const widened = await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['api_key'] });
     expect(widened.status).toBe(200);
@@ -143,10 +189,16 @@ describe('POST /api/v1/runner/jobs/claim', () => {
       const mac = await runnerFor([project.slug]);
       const vps = await runnerFor([project.slug]);
       await enqueueJob(project.slug);
-      const pin = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, { mode: 'pinned', runner: mac.id });
+      const pin = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, {
+        mode: 'pinned',
+        runner: mac.id,
+      });
       expect(pin.status).toBe(200);
       expect(await claim(vps)).toBeNull();
-      const repin = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, { mode: 'pinned', runner: vps.id });
+      const repin = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, {
+        mode: 'pinned',
+        runner: vps.id,
+      });
       expect(repin.status).toBe(200);
       expect((await claim(vps))?.job.runnerId).toBe(vps.id);
     });
@@ -160,7 +212,9 @@ describe('POST /api/v1/runner/jobs/claim', () => {
       const policy = { mode: 'failover', preferred: mac.id, fallback: [vps.id], offline_after_seconds: 300 };
       expect((await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, policy)).status).toBe(200);
       expect(await claim(vps)).toBeNull();
-      await env.DB.prepare(`UPDATE runners SET last_seen_at = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(mac.id).run();
+      await env.DB.prepare(`UPDATE runners SET last_seen_at = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+        .bind(mac.id)
+        .run();
       expect((await claim(vps))?.job.runnerId).toBe(vps.id);
     });
 
@@ -171,16 +225,31 @@ describe('POST /api/v1/runner/jobs/claim', () => {
       const other = await seedSessionUser('owner');
       const foreign = await enrolRunner(other.account.id, { as: other });
       await enqueueJob(project.slug);
-      const bad = await send('PUT', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runner-policy`, { mode: 'pinned', runner: foreign.id });
+      const bad = await send('PUT', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runner-policy`, {
+        mode: 'pinned',
+        runner: foreign.id,
+      });
       expect(bad.status).toBe(422);
       expect(await slugOf(bad)).toBe('runner-policy-invalid');
-      const badProject = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, { mode: 'pinned', runner: foreign.id });
+      const badProject = await send('PUT', `/api/v1/projects/${project.slug}/runner-policy`, {
+        mode: 'pinned',
+        runner: foreign.id,
+      });
       expect(badProject.status).toBe(422);
-      expect((await send('PUT', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runner-policy`, { mode: 'pinned', runner: mac.id })).status).toBe(200);
+      expect(
+        (
+          await send('PUT', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runner-policy`, {
+            mode: 'pinned',
+            runner: mac.id,
+          })
+        ).status,
+      ).toBe(200);
       expect(await claim(vps)).toBeNull();
       expect((await claim(mac))?.job.runnerId).toBe(mac.id);
       await send('PUT', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runner-policy`, { mode: 'any' });
-      const audit = await env.DB.prepare(`SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.policy-changed'`).first<{ n: number }>();
+      const audit = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.policy-changed'`,
+      ).first<{ n: number }>();
       expect(audit?.n).toBeGreaterThanOrEqual(2);
     });
   });
@@ -190,23 +259,33 @@ describe('POST /api/v1/runner/jobs/claim', () => {
     const theirs = await seedAccountProject(other.account, { tracker: 'console' });
     await enqueueJob(theirs.slug, {}, other);
     const theirRunner = await enrolRunner(other.account.id, { as: other, allowedProjects: [theirs.slug] });
-    await env.DB.prepare(`UPDATE accounts SET suspended_at = '2026-11-10T00:00:00.000Z' WHERE id = ?1`).bind(other.account.id).run();
+    await env.DB.prepare(`UPDATE accounts SET suspended_at = '2026-11-10T00:00:00.000Z' WHERE id = ?1`)
+      .bind(other.account.id)
+      .run();
     expect(await claim(theirRunner)).toBeNull();
 
     const project = await seedTrackerProject();
     const runner = await runnerFor([project.slug]);
     await enqueueJob(project.slug);
-    await env.DB.prepare(`UPDATE projects SET archived_at = '2026-11-10T00:00:00.000Z' WHERE slug = ?1`).bind(project.slug).run();
+    await env.DB.prepare(`UPDATE projects SET archived_at = '2026-11-10T00:00:00.000Z' WHERE slug = ?1`)
+      .bind(project.slug)
+      .run();
     expect(await claim(runner)).toBeNull();
   });
 
   it('refuses a none-isolation runner on production', async () => {
     const project = await seedTrackerProject();
     const runner = await runnerFor([project.slug], { isolation: 'none' });
-    const response = await sendAsRunner(runner, 'POST', CLAIM, {}, {
-      bindings: localEnv({ ENVIRONMENT: 'production', AUTH_MODE: undefined }),
-      jwt: { audience: 'team-console:production' },
-    });
+    const response = await sendAsRunner(
+      runner,
+      'POST',
+      CLAIM,
+      {},
+      {
+        bindings: localEnv({ ENVIRONMENT: 'production', AUTH_MODE: undefined }),
+        jwt: { audience: 'team-console:production' },
+      },
+    );
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('runner-isolation-none');
   });
@@ -228,7 +307,11 @@ describe('the account’s entitled concurrency at the claim (#746, ADR 0008 deci
     env.DB.prepare(`UPDATE accounts SET entitlements = ?2 WHERE id = ?1`).bind(accountId, json).run();
 
   it('free tier, two runners: the second claim answers 204 with Retry-After until the first job ends', async () => {
-    const { owner, slug, runners: [mac, vps] } = await freeAccount(2);
+    const {
+      owner,
+      slug,
+      runners: [mac, vps],
+    } = await freeAccount(2);
     if (mac === undefined || vps === undefined) {
       throw new Error('two runners were enrolled');
     }
@@ -239,7 +322,10 @@ describe('the account’s entitled concurrency at the claim (#746, ADR 0008 deci
     // `claim` asserts the 204's Retry-After.
     expect(await claim(vps)).toBeNull();
 
-    const finished = await sendAsRunner(mac, 'POST', `/api/v1/runner/jobs/${first?.job.id ?? ''}/finish`, { result: 'finished', summary: 'done' });
+    const finished = await sendAsRunner(mac, 'POST', `/api/v1/runner/jobs/${first?.job.id ?? ''}/finish`, {
+      result: 'finished',
+      summary: 'done',
+    });
     expect(finished.status).toBe(200);
     expect((await claim(vps))?.job.id).toBe(second);
   });
@@ -265,15 +351,23 @@ describe('the account’s entitled concurrency at the claim (#746, ADR 0008 deci
   });
 
   it('two claims at once for the account’s last slot: one 200, one 204', async () => {
-    const { owner, slug, runners: [mac, vps] } = await freeAccount(2);
+    const {
+      owner,
+      slug,
+      runners: [mac, vps],
+    } = await freeAccount(2);
     if (mac === undefined || vps === undefined) {
       throw new Error('two runners were enrolled');
     }
     await enqueueJob(slug, { kind: 'review', role: 'qa' }, owner);
     await enqueueJob(slug, { kind: 'review', role: 'security' }, owner);
-    const statuses = await Promise.all([mac, vps].map(async (runner) => (await sendAsRunner(runner, 'POST', CLAIM, {})).status));
+    const statuses = await Promise.all(
+      [mac, vps].map(async (runner) => (await sendAsRunner(runner, 'POST', CLAIM, {})).status),
+    );
     expect(statuses.sort()).toEqual([200, 204]);
-    const live = await env.DB.prepare(`SELECT COUNT(*) AS n FROM jobs WHERE project_slug = ?1 AND state = 'claimed'`)
+    const live = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM jobs WHERE project_slug = ?1 AND state = 'claimed'`,
+    )
       .bind(slug)
       .first<{ n: number }>();
     expect(live?.n).toBe(1);
@@ -297,7 +391,9 @@ describe('the job token (R4) and the job’s life', () => {
     expect(otherProject.status).toBe(404);
     expect(await slugOf(otherProject)).toBe('project-not-found');
 
-    const alone = await send('GET', `/api/v1/projects/${project.slug}/items`, undefined, { headers: { Authorization: `Bearer ${jobToken}` } });
+    const alone = await send('GET', `/api/v1/projects/${project.slug}/items`, undefined, {
+      headers: { Authorization: `Bearer ${jobToken}` },
+    });
     expect(alone.status).toBe(401);
     expect(await slugOf(alone)).toBe('job-runner-missing');
 
@@ -305,7 +401,12 @@ describe('the job token (R4) and the job’s life', () => {
     expect(mismatch.status).toBe(403);
     expect(await slugOf(mismatch)).toBe('job-runner-mismatch');
 
-    const unknown = await sendAsJob(runner, `${JOB_TOKEN_PREFIX}${'z'.repeat(43)}`, 'GET', `/api/v1/projects/${project.slug}/items`);
+    const unknown = await sendAsJob(
+      runner,
+      `${JOB_TOKEN_PREFIX}${'z'.repeat(43)}`,
+      'GET',
+      `/api/v1/projects/${project.slug}/items`,
+    );
     expect(unknown.status).toBe(401);
     expect(await slugOf(unknown)).toBe('job-token-invalid');
 
@@ -327,12 +428,18 @@ describe('the job token (R4) and the job’s life', () => {
 
     const secret = `${JOB_TOKEN_PREFIX}${'q'.repeat(43)}`;
     const lines: string[] = [];
-    const events = await sendAsRunner(runner, 'POST', `${base}/events`, {
-      events: [
-        { level: 'info', kind: 'started', payload: { skill: 'slot-dev' } },
-        { level: 'info', kind: 'log', payload: { line: `export TC_JOB_TOKEN=${secret}` } },
-      ],
-    }, { logSink: (line) => lines.push(line) });
+    const events = await sendAsRunner(
+      runner,
+      'POST',
+      `${base}/events`,
+      {
+        events: [
+          { level: 'info', kind: 'started', payload: { skill: 'slot-dev' } },
+          { level: 'info', kind: 'log', payload: { line: `export TC_JOB_TOKEN=${secret}` } },
+        ],
+      },
+      { logSink: (line) => lines.push(line) },
+    );
     expect(events.status).toBe(201);
     expect(await events.json()).toEqual({ lastSeq: 3, capped: false });
     expect(lines.join('\n')).not.toContain(secret);
@@ -342,19 +449,30 @@ describe('the job token (R4) and the job’s life', () => {
     expect(stored.map((event) => event.kind)).toEqual(['notice', 'started', 'log']);
     expect(JSON.stringify(stored)).not.toContain(secret);
     expect(JSON.stringify(stored)).toContain('[redacted:job-token]');
-    expect(((await (await send('GET', `/api/v1/projects/${project.slug}/jobs/${job.id}`)).json()) as JobDto).state).toBe('running');
+    expect(
+      ((await (await send('GET', `/api/v1/projects/${project.slug}/jobs/${job.id}`)).json()) as JobDto).state,
+    ).toBe('running');
 
     const bad = await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'done' });
     expect(bad.status).toBe(422);
-    const finish = await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: `used ${secret}`, acted: true });
+    const finish = await sendAsRunner(runner, 'POST', `${base}/finish`, {
+      result: 'finished',
+      summary: `used ${secret}`,
+      acted: true,
+    });
     expect(finish.status).toBe(200);
-    expect((await finish.json()) as JobDto).toMatchObject({ state: 'finished', result: { summary: 'used [redacted:job-token]', acted: true } });
+    expect((await finish.json()) as JobDto).toMatchObject({
+      state: 'finished',
+      result: { summary: 'used [redacted:job-token]', acted: true },
+    });
 
     expect((await sendAsRunner(runner, 'POST', `${base}/heartbeat`, {})).status).toBe(409);
     const dead = await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`);
     expect(dead.status).toBe(401);
     // Run now may be repeated once the first job is done.
-    expect((await send('POST', `/api/v1/projects/${project.slug}/jobs`, { kind: 'slot-dev' })).status).toBe(201);
+    expect((await send('POST', `/api/v1/projects/${project.slug}/jobs`, { kind: 'slot-dev' })).status).toBe(
+      201,
+    );
   });
 
   it('requeues a lapsed lease once with a fresh token, then loses the job and counts the streak', async () => {
@@ -362,18 +480,28 @@ describe('the job token (R4) and the job’s life', () => {
     const runner = await runnerFor([project.slug]);
     await enqueueJob(project.slug);
     const first = (await claim(runner)) as ClaimResponse;
-    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(first.job.id).run();
+    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+      .bind(first.job.id)
+      .run();
 
     const second = (await claim(runner)) as ClaimResponse;
     expect(second.job).toMatchObject({ id: first.job.id, attempt: 2, state: 'claimed' });
     expect(second.jobToken).not.toBe(first.jobToken);
-    expect((await sendAsJob(runner, first.jobToken, 'GET', `/api/v1/projects/${project.slug}/items`)).status).toBe(401);
+    expect(
+      (await sendAsJob(runner, first.jobToken, 'GET', `/api/v1/projects/${project.slug}/items`)).status,
+    ).toBe(401);
 
-    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(first.job.id).run();
+    await env.DB.prepare(`UPDATE jobs SET lease_until = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+      .bind(first.job.id)
+      .run();
     expect(await claim(runner)).toBeNull();
-    const lost = (await (await send('GET', `/api/v1/projects/${project.slug}/jobs/${first.job.id}`)).json()) as JobDto;
+    const lost = (await (
+      await send('GET', `/api/v1/projects/${project.slug}/jobs/${first.job.id}`)
+    ).json()) as JobDto;
     expect(lost).toMatchObject({ state: 'lost', result: { reason: 'lost' } });
-    const streak = await env.DB.prepare(`SELECT failed_streak FROM team_state WHERE project_slug = ?1`).bind(project.slug).first<{ failed_streak: number }>();
+    const streak = await env.DB.prepare(`SELECT failed_streak FROM team_state WHERE project_slug = ?1`)
+      .bind(project.slug)
+      .first<{ failed_streak: number }>();
     expect(streak?.failed_streak).toBe(1);
   });
 
@@ -383,14 +511,23 @@ describe('the job token (R4) and the job’s life', () => {
     for (let round = 0; round < 3; round += 1) {
       await enqueueJob(project.slug);
       const { job } = (await claim(runner)) as ClaimResponse;
-      const finish = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${job.id}/finish`, { result: 'failed', summary: 'boom' });
+      const finish = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${job.id}/finish`, {
+        result: 'failed',
+        summary: 'boom',
+      });
       expect(finish.status).toBe(200);
     }
     await enqueueJob(project.slug);
     expect(await claim(runner)).toBeNull();
-    const state = await env.DB.prepare(`SELECT paused_by, failed_streak FROM team_state WHERE project_slug = ?1`).bind(project.slug).first<{ paused_by: string; failed_streak: number }>();
+    const state = await env.DB.prepare(
+      `SELECT paused_by, failed_streak FROM team_state WHERE project_slug = ?1`,
+    )
+      .bind(project.slug)
+      .first<{ paused_by: string; failed_streak: number }>();
     expect(state).toEqual({ paused_by: 'system:failure-streak', failed_streak: 3 });
-    const audit = await env.DB.prepare(`SELECT actor_kind, actor, details FROM audit_events WHERE kind = 'team.paused' AND target = ?1`)
+    const audit = await env.DB.prepare(
+      `SELECT actor_kind, actor, details FROM audit_events WHERE kind = 'team.paused' AND target = ?1`,
+    )
       .bind(project.slug)
       .first<{ actor_kind: string; actor: string; details: string }>();
     expect(audit).toMatchObject({ actor_kind: 'system', actor: 'failure-streak' });
@@ -405,14 +542,21 @@ describe('the job token (R4) and the job’s life', () => {
     await enqueueJob(project.slug);
     const { job } = (await claim(runner)) as ClaimResponse;
     const base = `/api/v1/runner/jobs/${job.id}`;
-    const badEvents = await sendAsRunner(runner, 'POST', `${base}/events`, { events: [{ level: 'loud', kind: 'log', payload: {} }] });
+    const badEvents = await sendAsRunner(runner, 'POST', `${base}/events`, {
+      events: [{ level: 'loud', kind: 'log', payload: {} }],
+    });
     expect(badEvents.status).toBe(422);
     expect(await slugOf(badEvents)).toBe('job-events-invalid');
     expect(((await badEvents.json()) as { field: string }).field).toBe('events[0].level');
-    const badFinish = await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: 1 });
+    const badFinish = await sendAsRunner(runner, 'POST', `${base}/finish`, {
+      result: 'finished',
+      summary: 1,
+    });
     expect(badFinish.status).toBe(422);
     expect(await slugOf(badFinish)).toBe('job-finish-invalid');
-    expect((await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: 'ok' })).status).toBe(200);
+    expect(
+      (await sendAsRunner(runner, 'POST', `${base}/finish`, { result: 'finished', summary: 'ok' })).status,
+    ).toBe(200);
     for (const [path, body] of [
       ['events', { events: [{ level: 'info', kind: 'log', payload: {} }] }],
       ['finish', { result: 'failed', summary: 'again' }],
@@ -429,12 +573,21 @@ describe('the job token (R4) and the job’s life', () => {
     const runner = await runnerFor([kept.slug, lost.slug]);
     await enqueueJob(lost.slug);
     const { jobToken, job } = (await claim(runner)) as ClaimResponse;
-    const narrowed = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, { projectScope: 'selected', allowedProjects: [kept.slug] });
+    const narrowed = await send('PATCH', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}`, {
+      projectScope: 'selected',
+      allowedProjects: [kept.slug],
+    });
     expect(narrowed.status).toBe(200);
-    const after = (await (await send('GET', `/api/v1/projects/${lost.slug}/jobs/${job.id}`)).json()) as JobDto;
+    const after = (await (
+      await send('GET', `/api/v1/projects/${lost.slug}/jobs/${job.id}`)
+    ).json()) as JobDto;
     expect(after).toMatchObject({ state: 'cancelled', result: { reason: 'runner-allow-list' } });
-    expect((await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${lost.slug}/items`)).status).toBe(401);
-    expect((await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${job.id}/heartbeat`, {})).status).toBe(404);
+    expect((await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${lost.slug}/items`)).status).toBe(
+      401,
+    );
+    expect((await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${job.id}/heartbeat`, {})).status).toBe(
+      404,
+    );
   });
 
   it('never extends a lease past started_at + maxMinutes (#490 review)', async () => {
@@ -447,7 +600,9 @@ describe('the job token (R4) and the job’s life', () => {
     expect(beat.status).toBe(200);
     const { leaseUntil } = (await beat.json()) as { leaseUntil: string };
     expect(Date.parse(leaseUntil) - Date.parse(job.claimedAt ?? '')).toBeLessThanOrEqual(2 * 60 * 1000);
-    await env.DB.prepare(`UPDATE jobs SET started_at = '2026-01-01T00:00:00.000Z' WHERE id = ?1`).bind(job.id).run();
+    await env.DB.prepare(`UPDATE jobs SET started_at = '2026-01-01T00:00:00.000Z' WHERE id = ?1`)
+      .bind(job.id)
+      .run();
     const late = await sendAsRunner(runner, 'POST', `${base}/heartbeat`, {});
     expect(late.status).toBe(409);
     expect(await slugOf(late)).toBe('job-lease-expired');
@@ -458,9 +613,16 @@ describe('the job token (R4) and the job’s life', () => {
     const runner = await runnerFor([project.slug]);
     await enqueueJob(project.slug);
     const { jobToken } = (await claim(runner)) as ClaimResponse;
-    const response = await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, {
-      jwt: { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 },
-    });
+    const response = await sendAsJob(
+      runner,
+      jobToken,
+      'GET',
+      `/api/v1/projects/${project.slug}/items`,
+      undefined,
+      {
+        jwt: { issuedAt: Math.floor(Date.now() / 1000) + 3600, lifetimeSeconds: 300 },
+      },
+    );
     expect(response.status).toBe(401);
     expect(await slugOf(response)).toBe('runner-jwt-invalid');
   });
@@ -472,9 +634,13 @@ describe('the job token (R4) and the job’s life', () => {
     const { jobToken, job } = (await claim(runner)) as ClaimResponse;
     const revoke = await send('POST', `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/${runner.id}/revoke`, {});
     expect(revoke.status).toBe(200);
-    const after = (await (await send('GET', `/api/v1/projects/${project.slug}/jobs/${job.id}`)).json()) as JobDto;
+    const after = (await (
+      await send('GET', `/api/v1/projects/${project.slug}/jobs/${job.id}`)
+    ).json()) as JobDto;
     expect(after).toMatchObject({ state: 'cancelled', result: { reason: 'runner-revoked' } });
-    expect((await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`)).status).toBe(401);
+    expect((await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`)).status).toBe(
+      401,
+    );
   });
 
   it('never lets a job token, as a bearer or in a body, reach a log line', async () => {
@@ -484,8 +650,12 @@ describe('the job token (R4) and the job’s life', () => {
     const lines: string[] = [];
     const response = await sendAsRunner(runner, 'POST', CLAIM, {}, { logSink: (line) => lines.push(line) });
     const { jobToken } = (await response.json()) as ClaimResponse;
-    await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, { logSink: (line) => lines.push(line) });
-    await sendAsJob(runner, `${jobToken}x`, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, { logSink: (line) => lines.push(line) });
+    await sendAsJob(runner, jobToken, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, {
+      logSink: (line) => lines.push(line),
+    });
+    await sendAsJob(runner, `${jobToken}x`, 'GET', `/api/v1/projects/${project.slug}/items`, undefined, {
+      logSink: (line) => lines.push(line),
+    });
     const log = lines.join('\n');
     expect(log).not.toContain(jobToken.slice(4, 24));
     expect(log).toContain('job-token-invalid');
@@ -499,7 +669,9 @@ describe('the job token (R4) and the job’s life', () => {
     expect(((await list.json()) as { jobs: JobDto[] }).jobs.map((job) => job.id)).toEqual([jobId]);
     const foreign = await sendAsSession(other, 'GET', `/api/v1/projects/${project.slug}/jobs/${jobId}`);
     expect(foreign.status).toBe(404);
-    expect((await send('GET', `/api/v1/projects/${project.slug}/jobs/01M6YSNJ0000000000000NOPE1`)).status).toBe(404);
+    expect(
+      (await send('GET', `/api/v1/projects/${project.slug}/jobs/01M6YSNJ0000000000000NOPE1`)).status,
+    ).toBe(404);
   });
 });
 
@@ -529,35 +701,61 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
   }
 
   async function expectUntouched(jobId: string, leaseUntil: string | null): Promise<void> {
-    const row = await env.DB.prepare(`SELECT state, lease_until AS leaseUntil FROM jobs WHERE id = ?1`).bind(jobId).first<{ state: string; leaseUntil: string | null }>();
+    const row = await env.DB.prepare(`SELECT state, lease_until AS leaseUntil FROM jobs WHERE id = ?1`)
+      .bind(jobId)
+      .first<{ state: string; leaseUntil: string | null }>();
     expect(row).toEqual({ state: 'claimed', leaseUntil });
-    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`).bind(jobId).first<{ n: number }>();
+    const events = await env.DB.prepare(`SELECT COUNT(*) AS n FROM job_events WHERE job_id = ?1`)
+      .bind(jobId)
+      .first<{ n: number }>();
     expect(events?.n).toBe(1);
   }
 
   async function leaseOf(jobId: string): Promise<string | null> {
-    return (await env.DB.prepare(`SELECT lease_until AS l FROM jobs WHERE id = ?1`).bind(jobId).first<{ l: string | null }>())?.l ?? null;
+    return (
+      (
+        await env.DB.prepare(`SELECT lease_until AS l FROM jobs WHERE id = ?1`)
+          .bind(jobId)
+          .first<{ l: string | null }>()
+      )?.l ?? null
+    );
   }
 
-  it.each(paths)('%s: refuses with 404 once the project is gone from the stored list before the call', async (path) => {
-    const { runner, jobId, kept } = await claimedJob();
-    const lease = await leaseOf(jobId);
-    await narrowRunner(runner.id, [kept])();
-    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
-    expect(response.status).toBe(404);
-    expect(await slugOf(response)).toBe('job-not-found');
-    await expectUntouched(jobId, lease);
-  });
+  it.each(paths)(
+    '%s: refuses with 404 once the project is gone from the stored list before the call',
+    async (path) => {
+      const { runner, jobId, kept } = await claimedJob();
+      const lease = await leaseOf(jobId);
+      await narrowRunner(runner.id, [kept])();
+      const response = await sendAsRunner(
+        runner,
+        'POST',
+        `/api/v1/runner/jobs/${jobId}/${path}`,
+        bodies[path],
+      );
+      expect(response.status).toBe(404);
+      expect(await slugOf(response)).toBe('job-not-found');
+      await expectUntouched(jobId, lease);
+    },
+  );
 
-  it.each(paths)('%s: refuses with 404 when a narrowing commits between authentication and the write', async (path) => {
-    const { runner, jobId, kept } = await claimedJob();
-    const lease = await leaseOf(jobId);
-    commitDuringAuthentication(narrowRunner(runner.id, [kept]));
-    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
-    expect(response.status).toBe(404);
-    expect(await slugOf(response)).toBe('job-not-found');
-    await expectUntouched(jobId, lease);
-  });
+  it.each(paths)(
+    '%s: refuses with 404 when a narrowing commits between authentication and the write',
+    async (path) => {
+      const { runner, jobId, kept } = await claimedJob();
+      const lease = await leaseOf(jobId);
+      commitDuringAuthentication(narrowRunner(runner.id, [kept]));
+      const response = await sendAsRunner(
+        runner,
+        'POST',
+        `/api/v1/runner/jobs/${jobId}/${path}`,
+        bodies[path],
+      );
+      expect(response.status).toBe(404);
+      expect(await slugOf(response)).toBe('job-not-found');
+      await expectUntouched(jobId, lease);
+    },
+  );
 
   it.each(paths)('%s: a revoked runner gets 401 runner-revoked, as on the claim', async (path) => {
     const { runner, jobId } = await claimedJob();
@@ -572,15 +770,23 @@ describe('the stored allow-list and revoke on heartbeat, events and finish (#553
     await expectUntouched(jobId, lease);
   });
 
-  it.each(paths)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (path) => {
-    const { runner, jobId } = await claimedJob();
-    const lease = await leaseOf(jobId);
-    commitDuringAuthentication(revokeRunner(runner.id));
-    const response = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/${path}`, bodies[path]);
-    expect(response.status).toBe(401);
-    expect(await slugOf(response)).toBe('runner-revoked');
-    await expectUntouched(jobId, lease);
-  });
+  it.each(paths)(
+    '%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write',
+    async (path) => {
+      const { runner, jobId } = await claimedJob();
+      const lease = await leaseOf(jobId);
+      commitDuringAuthentication(revokeRunner(runner.id));
+      const response = await sendAsRunner(
+        runner,
+        'POST',
+        `/api/v1/runner/jobs/${jobId}/${path}`,
+        bodies[path],
+      );
+      expect(response.status).toBe(401);
+      expect(await slugOf(response)).toBe('runner-revoked');
+      await expectUntouched(jobId, lease);
+    },
+  );
 
   it.each(paths)('%s: still succeeds while the stored list keeps the project', async (path) => {
     const { runner, jobId, lost } = await claimedJob();
@@ -623,11 +829,18 @@ describe('tracker writes under a job token judge the stored runner and job insid
   function writeAsJob(held: HeldJob, write: Write): Promise<Response> {
     return write === 'comment'
       ? sendAsJob(held.runner, held.jobToken, 'POST', `${held.itemPath}/comments`, { body: 'Picked up' })
-      : sendAsJob(held.runner, held.jobToken, 'POST', `/api/v1/projects/${held.lost}/items`, { title: 'Follow-up', kind: 'chore' });
+      : sendAsJob(held.runner, held.jobToken, 'POST', `/api/v1/projects/${held.lost}/items`, {
+          title: 'Follow-up',
+          kind: 'chore',
+        });
   }
 
-  async function writtenRows(slug: string): Promise<{ items: number; comments: number; events: number; completedKeys: number }> {
-    const completedKeys = await env.DB.prepare('SELECT COUNT(*) AS n FROM idempotency_keys WHERE status IS NOT NULL').first<{ n: number }>();
+  async function writtenRows(
+    slug: string,
+  ): Promise<{ items: number; comments: number; events: number; completedKeys: number }> {
+    const completedKeys = await env.DB.prepare(
+      'SELECT COUNT(*) AS n FROM idempotency_keys WHERE status IS NOT NULL',
+    ).first<{ n: number }>();
     return {
       items: await countRows('items', slug),
       comments: await countRows('comments', slug),
@@ -636,36 +849,44 @@ describe('tracker writes under a job token judge the stored runner and job insid
     };
   }
 
+  it.each(writes)(
+    '%s: refuses with 403 job-runner-mismatch when a narrowing commits between authentication and the write',
+    async (write) => {
+      const held = await heldJob();
+      const before = await writtenRows(held.lost);
+      commitDuringAuthentication(narrowRunner(held.runner.id, [held.kept]));
+      const response = await writeAsJob(held, write);
+      expect(response.status).toBe(403);
+      expect(await slugOf(response)).toBe('job-runner-mismatch');
+      expect(await writtenRows(held.lost)).toEqual(before);
+    },
+  );
 
-  it.each(writes)('%s: refuses with 403 job-runner-mismatch when a narrowing commits between authentication and the write', async (write) => {
-    const held = await heldJob();
-    const before = await writtenRows(held.lost);
-    commitDuringAuthentication(narrowRunner(held.runner.id, [held.kept]));
-    const response = await writeAsJob(held, write);
-    expect(response.status).toBe(403);
-    expect(await slugOf(response)).toBe('job-runner-mismatch');
-    expect(await writtenRows(held.lost)).toEqual(before);
-  });
+  it.each(writes)(
+    '%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write',
+    async (write) => {
+      const held = await heldJob();
+      const before = await writtenRows(held.lost);
+      commitDuringAuthentication(revokeRunner(held.runner.id));
+      const response = await writeAsJob(held, write);
+      expect(response.status).toBe(401);
+      expect(await slugOf(response)).toBe('runner-revoked');
+      expect(await writtenRows(held.lost)).toEqual(before);
+    },
+  );
 
-  it.each(writes)('%s: refuses with 401 runner-revoked when a revoke commits between authentication and the write', async (write) => {
-    const held = await heldJob();
-    const before = await writtenRows(held.lost);
-    commitDuringAuthentication(revokeRunner(held.runner.id));
-    const response = await writeAsJob(held, write);
-    expect(response.status).toBe(401);
-    expect(await slugOf(response)).toBe('runner-revoked');
-    expect(await writtenRows(held.lost)).toEqual(before);
-  });
-
-  it.each(writes)('%s: refuses with 401 job-token-invalid when a cancel commits between authentication and the write', async (write) => {
-    const held = await heldJob();
-    const before = await writtenRows(held.lost);
-    commitDuringAuthentication(cancelJob(held.jobId));
-    const response = await writeAsJob(held, write);
-    expect(response.status).toBe(401);
-    expect(await slugOf(response)).toBe('job-token-invalid');
-    expect(await writtenRows(held.lost)).toEqual(before);
-  });
+  it.each(writes)(
+    '%s: refuses with 401 job-token-invalid when a cancel commits between authentication and the write',
+    async (write) => {
+      const held = await heldJob();
+      const before = await writtenRows(held.lost);
+      commitDuringAuthentication(cancelJob(held.jobId));
+      const response = await writeAsJob(held, write);
+      expect(response.status).toBe(401);
+      expect(await slugOf(response)).toBe('job-token-invalid');
+      expect(await writtenRows(held.lost)).toEqual(before);
+    },
+  );
 
   it.each(writes)('%s: still writes while the stored list keeps the project', async (write) => {
     const held = await heldJob();
@@ -684,11 +905,22 @@ describe('tracker writes under a job token judge the stored runner and job insid
    */
   function takeOverAfterClaim(retry: 'completes' | 'releases', change: () => Promise<unknown>): void {
     const claimKey = IdempotencyKeysRepo.prototype.claim;
-    vi.spyOn(IdempotencyKeysRepo.prototype, 'claim').mockImplementationOnce(async function (this: IdempotencyKeysRepo, key, hash, nowMs, holdMs) {
+    vi.spyOn(IdempotencyKeysRepo.prototype, 'claim').mockImplementationOnce(async function (
+      this: IdempotencyKeysRepo,
+      key,
+      hash,
+      nowMs,
+      holdMs,
+    ) {
       const first = await claimKey.call(this, key, hash, nowMs, holdMs);
       expect(await claimKey.call(this, key, hash, nowMs + holdMs, holdMs)).toEqual({ state: 'claimed' });
       if (retry === 'completes') {
-        await this.completeStatement(key, hash, { status: 201, kind: 'item', ref: { value: '1' } }, nowMs + 86_400_000).run();
+        await this.completeStatement(
+          key,
+          hash,
+          { status: 201, kind: 'item', ref: { value: '1' } },
+          nowMs + 86_400_000,
+        ).run();
       } else {
         await this.release(key, hash);
       }
@@ -739,7 +971,11 @@ describe('the job token under owner decision D3 (#794)', () => {
     await seedMembership(owner.account.id, second, 'owner');
     const theirs = await seedAccountProject(owner.account, { tracker: 'console' });
     await setCreator(theirs.slug, second);
-    const runner = await enrolRunner(owner.account.id, { as: owner, projectScope: 'selected', allowedProjects: [theirs.slug] });
+    const runner = await enrolRunner(owner.account.id, {
+      as: owner,
+      projectScope: 'selected',
+      allowedProjects: [theirs.slug],
+    });
     const jobId = await enqueueJob(theirs.slug, {}, owner);
     const claimed = await claim(runner);
     expect(claimed?.job.id).toBe(jobId);
@@ -751,24 +987,40 @@ describe('the job token under owner decision D3 (#794)', () => {
   it('refuses a live job’s token once its runner’s stored scope goes from selected to all and D3 drops the project', async () => {
     const held = await otherOwnersJob();
     // The row alone, as a write that commits past any cancel batch would leave it: the token is still stored.
-    await env.DB.prepare(`UPDATE runners SET project_scope = 'all', allowed_projects = '[]' WHERE id = ?1`).bind(held.runner.id).run();
+    await env.DB.prepare(`UPDATE runners SET project_scope = 'all', allowed_projects = '[]' WHERE id = ?1`)
+      .bind(held.runner.id)
+      .run();
 
     const read = await readAsJob(held.runner, held.jobToken, held.slug, held.jobId);
     expect(read.status).toBe(403);
     expect(await slugOf(read)).toBe('job-runner-mismatch');
-    const heartbeat = await sendAsRunner(held.runner, 'POST', `/api/v1/runner/jobs/${held.jobId}/heartbeat`, {});
+    const heartbeat = await sendAsRunner(
+      held.runner,
+      'POST',
+      `/api/v1/runner/jobs/${held.jobId}/heartbeat`,
+      {},
+    );
     expect(heartbeat.status).toBe(404);
     expect(await slugOf(heartbeat)).toBe('job-not-found');
   });
 
   it('cancels the job a selected→all change drops under D3, in the change’s own batch', async () => {
     const held = await otherOwnersJob();
-    const patched = await sendAsSession(held.owner, 'PATCH', `/api/v1/accounts/${held.owner.account.id}/runners/${held.runner.id}`, {
-      projectScope: 'all',
-      allowedProjects: [],
-    });
+    const patched = await sendAsSession(
+      held.owner,
+      'PATCH',
+      `/api/v1/accounts/${held.owner.account.id}/runners/${held.runner.id}`,
+      {
+        projectScope: 'all',
+        allowedProjects: [],
+      },
+    );
     expect(patched.status).toBe(200);
-    expect(await env.DB.prepare(`SELECT state, token_hash, result FROM jobs WHERE id = ?1`).bind(held.jobId).first()).toEqual({
+    expect(
+      await env.DB.prepare(`SELECT state, token_hash, result FROM jobs WHERE id = ?1`)
+        .bind(held.jobId)
+        .first(),
+    ).toEqual({
       state: 'cancelled',
       token_hash: null,
       result: '{"reason":"runner-allow-list"}',
@@ -796,7 +1048,9 @@ describe('the job token under owner decision D3 (#794)', () => {
     const read = await readAsJob(runner, jobToken, project.slug, jobId);
     expect(read.status).toBe(403);
     expect(await slugOf(read)).toBe('job-runner-mismatch');
-    const events = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/events`, { events: [{ level: 'info', kind: 'log', payload: {} }] });
+    const events = await sendAsRunner(runner, 'POST', `/api/v1/runner/jobs/${jobId}/events`, {
+      events: [{ level: 'info', kind: 'log', payload: {} }],
+    });
     expect(events.status).toBe(404);
   });
 });

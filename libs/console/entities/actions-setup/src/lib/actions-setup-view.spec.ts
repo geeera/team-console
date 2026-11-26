@@ -28,7 +28,9 @@ describe('actions setup steps', () => {
   });
 
   it('never reads an unknown secret as ok', () => {
-    const setup = actionsSetupFixture({ items: { 'app-permissions': { status: 'missing' }, secret: { status: 'unknown' } } });
+    const setup = actionsSetupFixture({
+      items: { 'app-permissions': { status: 'missing' }, secret: { status: 'unknown' } },
+    });
     expect(stepStateOf(setup, 'environment')).toBe('missing');
     expect(subCheckToneOf(itemOf(setup, 'secret'))).toBe('unknown');
     expect(actionsSummaryOf(setup)).toEqual({ kind: 'missing', n: 2 });
@@ -50,11 +52,17 @@ describe('actions setup steps', () => {
   it('can open a PR only with the app’s permissions and the PR path on (#870)', () => {
     expect(canOpenPrOf(actionsSetupFixture())).toBe(true);
     expect(canOpenPrOf(actionsSetupFixture({ workflowPr: 'disabled' }))).toBe(false);
-    expect(canOpenPrOf(actionsSetupFixture({ items: { 'app-permissions': { status: 'missing' } } }))).toBe(false);
+    expect(canOpenPrOf(actionsSetupFixture({ items: { 'app-permissions': { status: 'missing' } } }))).toBe(
+      false,
+    );
   });
 
   it('shows drift when switched on and no longer ready, and on when ready', () => {
-    expect(actionsSummaryOf(actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }))).toEqual({ kind: 'drift', n: 1 });
+    expect(
+      actionsSummaryOf(
+        actionsSetupFixture({ dispatch: 'actions', items: { secret: { status: 'missing' } } }),
+      ),
+    ).toEqual({ kind: 'drift', n: 1 });
     expect(actionsSummaryOf(actionsSetupFixture({ dispatch: 'actions' }))).toEqual({ kind: 'on' });
   });
 });
@@ -71,21 +79,33 @@ describe('workflowStepOf', () => {
   });
 
   it('points at the console PR when one is open, and never says merge for a foreign one', () => {
-    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: PR } } }))).toMatchObject({ kind: 'pr-open', action: null });
+    expect(
+      workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: PR } } })),
+    ).toMatchObject({ kind: 'pr-open', action: null });
     for (const provenance of ['foreign', 'changed'] as const) {
-      expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { ...PR, provenance } } } })).kind).toBe('pr-foreign');
+      expect(
+        workflowStepOf(
+          actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { ...PR, provenance } } } }),
+        ).kind,
+      ).toBe('pr-foreign');
     }
   });
 
   it('calls the console’s PR for an earlier rendering stale, and still offers a new one (#870)', () => {
     const stale = { ...PR, stale: true } as const;
-    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'outdated', pr: stale } } }))).toMatchObject({
+    expect(
+      workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'outdated', pr: stale } } })),
+    ).toMatchObject({
       kind: 'pr-stale',
       pr: stale,
       action: 'bump',
     });
     expect(
-      workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'missing', pr: { ...stale, provenance: 'changed' } } } })),
+      workflowStepOf(
+        actionsSetupFixture({
+          items: { workflow: { status: 'missing', pr: { ...stale, provenance: 'changed' } } },
+        }),
+      ),
     ).toMatchObject({ kind: 'pr-foreign', action: null });
   });
 
@@ -94,21 +114,30 @@ describe('workflowStepOf', () => {
       versions: { current: { runner: '0.1.0', node: '22.1.0', claudeCode: null } },
     });
     expect(workflowVersionsOf(setup)).toEqual({ old: '0.1.0', new: '0.2.0' });
-    expect(workflowVersionsOf(actionsSetupFixture({ versions: { current: null } }))).toEqual({ old: null, new: '0.2.0' });
+    expect(workflowVersionsOf(actionsSetupFixture({ versions: { current: null } }))).toEqual({
+      old: null,
+      new: '0.2.0',
+    });
   });
 
   it('calls an open PR left over once the file is ok', () => {
-    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'ok', pr: PR } } })).kind).toBe('leftover');
+    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'ok', pr: PR } } })).kind).toBe(
+      'leftover',
+    );
     expect(workflowStepOf(actionsSetupFixture()).kind).toBe('ok');
   });
 
   it('keeps only github.com links', () => {
     const blob = 'https://github.com/geeera/storify/blob/main/.github/workflows/team-console-runner.yml';
-    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'modified', link: blob } } })).link).toBe(blob);
+    expect(
+      workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'modified', link: blob } } })).link,
+    ).toBe(blob);
   });
 
   it('reads an unknown file as unknown, with nothing to open', () => {
-    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'unknown' } } }))).toMatchObject({ kind: 'unknown', action: null });
+    expect(workflowStepOf(actionsSetupFixture({ items: { workflow: { status: 'unknown' } } }))).toMatchObject(
+      { kind: 'unknown', action: null },
+    );
   });
 });
 
@@ -124,12 +153,15 @@ describe('notReadyItemKeysOf', () => {
 });
 
 describe('notReadyMessageOf', () => {
-  const translate = (key: string, params?: Record<string, unknown>): string => `${key}${params === undefined ? '' : JSON.stringify(params)}`;
+  const translate = (key: string, params?: Record<string, unknown>): string =>
+    `${key}${params === undefined ? '' : JSON.stringify(params)}`;
 
   it('names the items, or says it bare when the refusal named none', () => {
     expect(notReadyMessageOf(['secret'], 'storify', translate)).toBe(
       'runners.err.actionsNotReady{"project":"storify","items":"actions.item.secret"}',
     );
-    expect(notReadyMessageOf([], 'storify', translate)).toBe('runners.err.actionsNotReadyBare{"project":"storify"}');
+    expect(notReadyMessageOf([], 'storify', translate)).toBe(
+      'runners.err.actionsNotReadyBare{"project":"storify"}',
+    );
   });
 });

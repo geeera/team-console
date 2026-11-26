@@ -34,7 +34,9 @@ describe('security headers (#126)', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
   });
 
   it('sets the same headers on a Problem Details 404', async () => {
@@ -42,7 +44,9 @@ describe('security headers (#126)', () => {
 
     expect(response.status).toBe(404);
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
-    expect(response.headers.get('content-security-policy')).toBe("default-src 'none'; frame-ancestors 'none'");
+    expect(response.headers.get('content-security-policy')).toBe(
+      "default-src 'none'; frame-ancestors 'none'",
+    );
   });
 });
 

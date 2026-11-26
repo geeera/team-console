@@ -16,12 +16,16 @@ describe('runnerGitEnv', () => {
     });
   });
 
-  it.each(['SSH_ASKPASS', 'SSH_ASKPASS_REQUIRE', 'GIT_ASKPASS', 'GIT_SSL_NO_VERIFY', 'GIT_SSH_COMMAND', 'LD_PRELOAD'])(
-    'still refuses %s: it names a program or weakens TLS',
-    (name) => {
-      expect(runnerGitEnv({ [name]: 'x' })).toEqual({ GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
-    },
-  );
+  it.each([
+    'SSH_ASKPASS',
+    'SSH_ASKPASS_REQUIRE',
+    'GIT_ASKPASS',
+    'GIT_SSL_NO_VERIFY',
+    'GIT_SSH_COMMAND',
+    'LD_PRELOAD',
+  ])('still refuses %s: it names a program or weakens TLS', (name) => {
+    expect(runnerGitEnv({ [name]: 'x' })).toEqual({ GIT_TERMINAL_PROMPT: '0', LC_ALL: 'C' });
+  });
 
   it('drops every other variable of the runner, secrets included', () => {
     expect(

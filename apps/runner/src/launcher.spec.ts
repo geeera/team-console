@@ -1,5 +1,15 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { ACL_POLICY_CASES } from './testing/acl-policy-cases';
@@ -126,7 +136,10 @@ describe('bin/team-console-runner', () => {
         .replaceAll('/bin/ls -lde', `${join(root, 'fakes', 'ls')} -lde`)
         .replaceAll('/usr/bin/stat -', `${join(root, 'fakes', 'stat')} -`)
         // Homebrew's fallbacks point into the temp directory, where no spec puts a node unless it says so.
-        .replace('/opt/homebrew/bin/node /usr/local/bin/node', `${join(root, 'brew', 'node')} ${join(root, 'local', 'node')}`),
+        .replace(
+          '/opt/homebrew/bin/node /usr/local/bin/node',
+          `${join(root, 'brew', 'node')} ${join(root, 'local', 'node')}`,
+        ),
     );
     chmodSync(launcher, 0o755);
     const result = spawnSync('/bin/sh', [launcher, 'version'], {
@@ -237,7 +250,12 @@ describe('bin/team-console-runner', () => {
     rootOwned(root);
     const result = run(0);
     expect(result.status).toBe(0);
-    expect(argsOf(result)).toEqual([target, '--disable-sigusr1', join(release, 'team-console-runner.mjs'), 'version']);
+    expect(argsOf(result)).toEqual([
+      target,
+      '--disable-sigusr1',
+      join(release, 'team-console-runner.mjs'),
+      'version',
+    ]);
   });
 
   // #894: the sudoers rule hands out <prefix>/bin/job-exec, so whoever can change it runs code as _tcjob.
@@ -282,7 +300,9 @@ describe('bin/team-console-runner', () => {
     const node = join(prefix, 'node');
     // Honest while links are resolved (the first ask for the node or the bundle), then straight to `/` for the
     // ownership walk, skipping every directory the login user owns.
-    const realDirname = spawnSync('/bin/sh', ['-c', 'command -v dirname'], { encoding: 'utf8' }).stdout.trim();
+    const realDirname = spawnSync('/bin/sh', ['-c', 'command -v dirname'], {
+      encoding: 'utf8',
+    }).stdout.trim();
     exe(
       join(userBin, 'dirname'),
       [
@@ -367,7 +387,9 @@ describe('bin/team-console-runner', () => {
       exe(join(prefix, 'node'), '#!/bin/sh\nexec /usr/bin/env\n');
     };
     const envOf = (result: Run): Map<string, string> =>
-      new Map(argsOf(result).map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+      new Map(
+        argsOf(result).map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
+      );
     const hostile = {
       OPENSSL_CONF: '/tmp/evil.cnf',
       LD_PRELOAD: '/tmp/evil.so',
@@ -391,7 +413,10 @@ describe('bin/team-console-runner', () => {
       }
       // What the shell that plays node exports by itself (PWD, SHLVL, _) is not the caller's.
       const shellOwn = new Set(['PWD', 'OLDPWD', 'SHLVL', '_']);
-      expect([...env.keys()].filter((name) => !shellOwn.has(name)).sort()).toEqual(['PATH', 'TC_RUNNER_HOME']);
+      expect([...env.keys()].filter((name) => !shellOwn.has(name)).sort()).toEqual([
+        'PATH',
+        'TC_RUNNER_HOME',
+      ]);
     });
 
     it('keeps the allowlisted variables and sets PATH to the fixed one', () => {
@@ -425,7 +450,10 @@ describe('bin/team-console-runner', () => {
     });
 
     it('as a user, passes the environment through untouched', () => {
-      exe(join(userBin, 'node'), '#!/bin/sh\nprintf \'%s\\n\' "${OPENSSL_CONF-unset}" "${GH_TOKEN-unset}" "$PATH"\n');
+      exe(
+        join(userBin, 'node'),
+        '#!/bin/sh\nprintf \'%s\\n\' "${OPENSSL_CONF-unset}" "${GH_TOKEN-unset}" "$PATH"\n',
+      );
       const result = run(501, { env: { OPENSSL_CONF: '/etc/ssl/custom.cnf', GH_TOKEN: 'kept' } });
       expect(argsOf(result)).toEqual(['/etc/ssl/custom.cnf', 'kept', `${userBin}:${join(root, 'tools')}`]);
     });
@@ -448,7 +476,20 @@ describe('bin/team-console-runner', () => {
       rootOwned(dir);
     }
     const marker = join(root, 'path-used');
-    for (const tool of ['readlink', 'basename', 'dirname', 'env', 'ls', 'stat', 'uname', 'id', 'printf', 'test', '[', 'pwd']) {
+    for (const tool of [
+      'readlink',
+      'basename',
+      'dirname',
+      'env',
+      'ls',
+      'stat',
+      'uname',
+      'id',
+      'printf',
+      'test',
+      '[',
+      'pwd',
+    ]) {
       exe(join(userBin, tool), `#!/bin/sh\necho ${tool} >> '${marker}'\nexit 1\n`);
     }
     const result = run(0);

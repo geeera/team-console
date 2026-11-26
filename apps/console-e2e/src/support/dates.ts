@@ -56,7 +56,14 @@ export function instantInZone(day: string, time: string, timeZone: string): Date
     }).formatToParts(instant);
     const part = (type: Intl.DateTimeFormatPartTypes): number =>
       Number(parts.find((candidate) => candidate.type === type)?.value);
-    const wall = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+    const wall = Date.UTC(
+      part('year'),
+      part('month') - 1,
+      part('day'),
+      part('hour'),
+      part('minute'),
+      part('second'),
+    );
     return wall - instant.getTime();
   };
   // Two passes: the first guess may sit on the other side of a DST change than the answer.

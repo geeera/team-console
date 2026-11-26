@@ -39,7 +39,9 @@ export const ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE = 300;
 const ENROLMENT_CODE = new RegExp(`^${ENROLMENT_CODE_PREFIX}${OPAQUE_TOKEN_TAIL}$`);
 
 /** The release the environment names (vars); an unset or malformed var is `null`, never a guess. */
-export function runnerReleaseOf(env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RUNNER_MINIMUM_VERSION'>): RunnerReleaseDto {
+export function runnerReleaseOf(
+  env: Pick<ApiEnv, 'RUNNER_RELEASE_VERSION' | 'RUNNER_MINIMUM_VERSION'>,
+): RunnerReleaseDto {
   return {
     version: isRunnerVersion(env.RUNNER_RELEASE_VERSION) ? env.RUNNER_RELEASE_VERSION : null,
     minimumVersion: isRunnerVersion(env.RUNNER_MINIMUM_VERSION) ? env.RUNNER_MINIMUM_VERSION : null,
@@ -91,7 +93,12 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const limits = new DoorRateLimits(c.env.DB, 'enrol', now.getTime());
       const rateLimited = (scope: DoorLimitScope): Response => {
         logger.warn('enrolment refused', { reason: 'rate-limited', scope });
-        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter: limits.retryAfter() });
+        return problem(c, {
+          type: 'rate-limited',
+          title: 'Too Many Requests',
+          status: 429,
+          retryAfter: limits.retryAfter(),
+        });
       };
       if (!(await limits.hitAddress(c.req.header('CF-Connecting-IP'), ENROL_RATE_LIMIT_PER_MINUTE, logger))) {
         return rateLimited('ip');
@@ -99,7 +106,9 @@ export function createRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       // Every refusal before a live code is junk, a used or expired code included: one answer for all of them keeps
       // codes unenumerable (threat model C4) even while the junk bucket is over and answers 429.
       const junk = async (refusal: () => Response): Promise<Response> =>
-        (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE)) ? refusal() : rateLimited('unverified');
+        (await limits.hitUnverified(ENROL_RATE_LIMIT_UNVERIFIED_PER_MINUTE))
+          ? refusal()
+          : rateLimited('unverified');
 
       const input = checkEnrolRunnerInput(await jsonBody(c));
       if (!input.ok) {

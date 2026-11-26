@@ -3,14 +3,24 @@ import { Router } from '@angular/router';
 import { Toaster } from '@console/shared/ui';
 import { FOCUS_APP_SETTINGS_STATE, PUSH_NUDGE_KEY } from './nudge-memory';
 import { PushNudge } from './push-nudge';
-import { configurePush, DESKTOP, fakeSubscription, IPHONE_APP, settle, type PushWorld } from './testing.spec-helpers';
+import {
+  configurePush,
+  DESKTOP,
+  fakeSubscription,
+  IPHONE_APP,
+  settle,
+  type PushWorld,
+} from './testing.spec-helpers';
 import type { PlatformInfo } from '@console/shared/platform';
 
 describe('PushNudge', () => {
   let root: HTMLElement;
   let nudge: PushNudge;
 
-  async function render(platform: PlatformInfo = DESKTOP, before?: (world: PushWorld) => void): Promise<PushWorld> {
+  async function render(
+    platform: PlatformInfo = DESKTOP,
+    before?: (world: PushWorld) => void,
+  ): Promise<PushWorld> {
     const world = await configurePush(platform);
     before?.(world);
     const fixture = TestBed.createComponent(PushNudge);

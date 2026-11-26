@@ -21,7 +21,12 @@ export const OIDC_EXCHANGE_PATH = '/api/v1/runner/oidc-exchange';
 /** The enrolment intent's two calls (#634): the runner binds its key, then polls for the owner's approval. */
 export const ENROL_START_PATH = '/api/v1/runner/enrol/start';
 export const ENROL_POLL_PATH = '/api/v1/runner/enrol/poll';
-const IDENTITY_LESS_PATHS: readonly string[] = [ENROL_PATH, OIDC_EXCHANGE_PATH, ENROL_START_PATH, ENROL_POLL_PATH];
+const IDENTITY_LESS_PATHS: readonly string[] = [
+  ENROL_PATH,
+  OIDC_EXCHANGE_PATH,
+  ENROL_START_PATH,
+  ENROL_POLL_PATH,
+];
 /** The header a job's proxied call carries the runner JWT in (2-A's job token middleware). */
 export const RUNNER_JWT_HEADER = 'X-Runner-Jwt';
 

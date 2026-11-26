@@ -120,7 +120,7 @@ describe('extractInlineStyles', () => {
   });
 
   it('finds a raw value inside an Angular styles: [...] array', () => {
-    const ts = "@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}";
+    const ts = '@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}';
     const blocks = extractInlineStyles(ts);
     expect(blocks).toHaveLength(1);
     expect(findRawValues(only(blocks).css).map((v) => `${v.kind}:${v.value}`)).toEqual(['colour:crimson']);
@@ -140,7 +140,7 @@ describe('extractInlineStyles', () => {
   });
 
   it('does not double-count the array form as the single-string form', () => {
-    const ts = "@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}";
+    const ts = '@Component({ styles: [`:host { color: crimson; }`] })\nclass Foo {}';
     expect(extractInlineStyles(ts)).toHaveLength(1);
   });
 

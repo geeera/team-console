@@ -98,7 +98,10 @@ export interface LocalStackOptions {
 }
 
 /** `portOffset` keeps two integration files that run in parallel off each other's port. */
-export async function startLocalStack(portOffset: number, options: LocalStackOptions = {}): Promise<LocalStack> {
+export async function startLocalStack(
+  portOffset: number,
+  options: LocalStackOptions = {},
+): Promise<LocalStack> {
   const dir = await mkdtemp(join(tmpdir(), 'tcr-int-'));
   const state = join(dir, 'state');
   const assets = join(dir, 'assets');

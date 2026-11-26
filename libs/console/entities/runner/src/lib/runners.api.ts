@@ -66,7 +66,9 @@ export type RunnerPolicyScope =
   | { readonly kind: 'project'; readonly slug: string };
 
 function policyUrlOf(scope: RunnerPolicyScope): string {
-  return scope.kind === 'account' ? `${accountUrl(scope.accountId)}/runner-policy` : projectRunnerPolicyUrl(scope.slug);
+  return scope.kind === 'account'
+    ? `${accountUrl(scope.accountId)}/runner-policy`
+    : projectRunnerPolicyUrl(scope.slug);
 }
 
 /** A 204: HttpClient reads the empty body as `null`. */
@@ -97,14 +99,22 @@ export class RunnersApi {
   }
 
   /** The code is in the answer once; the caller shows it and keeps it nowhere else. */
-  createEnrolmentCode(accountId: string, input: CreateEnrolmentCodeInput): Promise<RunnerResult<EnrolmentCodeDto>> {
-    return this.call(this.http.post<unknown>(`${runnersUrl(accountId)}/enrolment-code`, input), isEnrolmentCodeDto);
+  createEnrolmentCode(
+    accountId: string,
+    input: CreateEnrolmentCodeInput,
+  ): Promise<RunnerResult<EnrolmentCodeDto>> {
+    return this.call(
+      this.http.post<unknown>(`${runnersUrl(accountId)}/enrolment-code`, input),
+      isEnrolmentCodeDto,
+    );
   }
 
   /** How many owners the account has (#634 PR 4, D3): the wizard words the scope for several owners. */
   async ownerCount(accountId: string): Promise<RunnerResult<number>> {
     const read = await this.call(this.http.get<unknown>(`${accountUrl(accountId)}/members`), isMemberList);
-    return read.ok ? { ok: true, value: read.value.members.filter((member) => member.role === 'owner').length } : read;
+    return read.ok
+      ? { ok: true, value: read.value.members.filter((member) => member.role === 'owner').length }
+      : read;
   }
 
   /**
@@ -169,11 +179,17 @@ export class RunnersApi {
 
   /** #827: the sole owner records themselves as the enroller of a runner from before that was recorded. */
   claimEnroller(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
-    return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/claim-enroller`, {}), isRunnerDto);
+    return this.call(
+      this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/claim-enroller`, {}),
+      isRunnerDto,
+    );
   }
 
   clearSuspect(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
-    return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/clear-suspect`, {}), isRunnerDto);
+    return this.call(
+      this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/clear-suspect`, {}),
+      isRunnerDto,
+    );
   }
 
   /** `id` is a pending code's `PendingEnrolmentDto.id` (its hash); the Worker answers 204. */
@@ -204,7 +220,10 @@ export class RunnersApi {
     return this.call(this.http.put<unknown>(projectDispatchUrl(slug), { dispatch }), isProjectDispatchDto);
   }
 
-  private async call<T>(request: Observable<unknown>, is: (value: unknown) => value is T): Promise<RunnerResult<T>> {
+  private async call<T>(
+    request: Observable<unknown>,
+    is: (value: unknown) => value is T,
+  ): Promise<RunnerResult<T>> {
     try {
       const body = await firstValueFrom(request.pipe(timeout(RUNNER_CALL_TIMEOUT_MS)));
       return is(body) ? { ok: true, value: body } : MALFORMED;

@@ -46,7 +46,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function invalidSubscription(c: Context, detail: string): Response {
-  return problem(c, { type: 'push-invalid-subscription', title: 'Invalid push subscription', status: 422, detail });
+  return problem(c, {
+    type: 'push-invalid-subscription',
+    title: 'Invalid push subscription',
+    status: 422,
+    detail,
+  });
 }
 
 function invalid(c: Context, detail: string): Response {

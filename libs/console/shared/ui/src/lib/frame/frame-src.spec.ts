@@ -26,7 +26,10 @@ describe('frameSrcOf', () => {
     ['the allowed host as a subdomain', 'https://x.team-console-storybook.pages.dev/'],
     ['the allowed origin inside the path', 'https://evil.pages.dev/https://team-console-storybook.pages.dev'],
     ['the allowed origin in the query', 'https://evil.pages.dev/?u=https://team-console-storybook.pages.dev'],
-    ['credentials before an allowed-looking host', 'https://team-console-storybook.pages.dev@evil.pages.dev/'],
+    [
+      'credentials before an allowed-looking host',
+      'https://team-console-storybook.pages.dev@evil.pages.dev/',
+    ],
     ['credentials on the allowed host', 'https://user:pass@team-console-storybook.pages.dev/'],
     ['a username only', 'https://user@team-console-storybook.pages.dev/'],
     ['another port', 'https://team-console-storybook.pages.dev:8443/'],
@@ -34,7 +37,10 @@ describe('frameSrcOf', () => {
     // Not https.
     ['plain http', 'http://team-console-storybook.pages.dev/'],
     ['javascript:', 'javascript:alert(1)'],
-    ['javascript: with the allowed origin in it', 'javascript://team-console-storybook.pages.dev/%0aalert(1)'],
+    [
+      'javascript: with the allowed origin in it',
+      'javascript://team-console-storybook.pages.dev/%0aalert(1)',
+    ],
     ['data:', 'data:text/html,<script>alert(1)</script>'],
     ['blob:', `blob:${STORYBOOK}/1234`],
     ['about:blank', 'about:blank'],

@@ -68,12 +68,10 @@ describe('AddProject', () => {
   it('maps a refusal by its type and step, nothing saved', async () => {
     const { adder, http, projects } = setup();
     const result = adder.add('geeera/no-yml', 'no-yml');
-    http
-      .expectOne(PROJECTS_URL)
-      .flush(problem('project-yml-missing', 409, { step: 'project-yml' }), {
-        status: 409,
-        statusText: 'Conflict',
-      });
+    http.expectOne(PROJECTS_URL).flush(problem('project-yml-missing', 409, { step: 'project-yml' }), {
+      status: 409,
+      statusText: 'Conflict',
+    });
     const answer = await result;
     expect(answer.kind).toBe('refused');
     expect(answer.kind === 'refused' && answer.outcome.kind).toBe('refused');

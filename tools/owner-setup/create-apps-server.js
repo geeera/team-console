@@ -119,7 +119,10 @@ const manifest = {
 };
 
 function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
 }
 
 function manifestPageHtml(redirectUrl) {
@@ -227,7 +230,9 @@ const server = http.createServer((req, res) => {
   if (!isLoopbackHost(req)) {
     res.writeHead(421, { 'Content-Type': 'text/plain' });
     res.end('misdirected request');
-    console.error(`warning: rejected a request with Host '${req.headers.host}', expected '127.0.0.1:${listeningPort}'`);
+    console.error(
+      `warning: rejected a request with Host '${req.headers.host}', expected '127.0.0.1:${listeningPort}'`,
+    );
     return;
   }
 
@@ -342,7 +347,8 @@ server.listen(REQUESTED_PORT, '127.0.0.1', () => {
   // browser hitting this same page a second time raced the `listeningPort` capture above (caught while
   // developing this test).
   if (env('CREATE_APPS_NO_OPEN', '') !== '1') {
-    const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+    const opener =
+      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
     try {
       require('node:child_process')
         .spawn(opener, [`http://127.0.0.1:${listeningPort}/`], { stdio: 'ignore', detached: true })

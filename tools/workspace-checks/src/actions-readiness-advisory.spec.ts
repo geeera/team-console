@@ -13,7 +13,10 @@ import * as ts from 'typescript';
 const API_SRC = 'apps/api/src';
 const READINESS_MODULE = `${API_SRC}/actions/readiness.ts`;
 /** The only modules that may run the check: the readiness route and the switch. */
-const READINESS_CALLERS: readonly string[] = [`${API_SRC}/routes/actions-setup.ts`, `${API_SRC}/routes/project-dispatch.ts`];
+const READINESS_CALLERS: readonly string[] = [
+  `${API_SRC}/routes/actions-setup.ts`,
+  `${API_SRC}/routes/project-dispatch.ts`,
+];
 /** The readiness answer's helpers from `@shared/contracts`; the exchange path must not judge anything by them. */
 const READINESS_NAMES: ReadonlySet<string> = new Set([
   'checkActionsReadiness',
@@ -61,7 +64,12 @@ interface Imports {
 }
 
 function importsOf(file: string): Imports {
-  const source = ts.createSourceFile(file, readFileSync(join(workspaceRoot, file), 'utf8'), ts.ScriptTarget.ES2022, true);
+  const source = ts.createSourceFile(
+    file,
+    readFileSync(join(workspaceRoot, file), 'utf8'),
+    ts.ScriptTarget.ES2022,
+    true,
+  );
   const specifiers: string[] = [];
   const names: string[] = [];
   for (const statement of source.statements) {
@@ -91,7 +99,9 @@ describe('the Actions readiness check is advisory (#759, ADR 0008 R8)', () => {
   });
 
   it('is run only by the readiness route and the switch', () => {
-    expect(SOURCES.filter((file) => file !== READINESS_MODULE && importsReadiness(file))).toEqual([...READINESS_CALLERS]);
+    expect(SOURCES.filter((file) => file !== READINESS_MODULE && importsReadiness(file))).toEqual([
+      ...READINESS_CALLERS,
+    ]);
   });
 
   it.each(EXCHANGE_PATH)('%s never reads readiness', (file) => {

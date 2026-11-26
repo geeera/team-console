@@ -1,5 +1,9 @@
 import { env } from 'cloudflare:test';
-import { actionsSetupBranchOf, renderRunnerWorkflow, type RunnerWorkflowRendering } from '@shared/actions-workflow';
+import {
+  actionsSetupBranchOf,
+  renderRunnerWorkflow,
+  type RunnerWorkflowRendering,
+} from '@shared/actions-workflow';
 import { ACTIONS_ENVIRONMENT, ACTIONS_INFERENCE_KEY_SECRET } from '@shared/contracts';
 import { mintScopeOf } from '@worker/github/testing';
 import { INSTALLATION_ID, TOKEN_SENTINEL, json, type GitHubCall } from './github-kit';
@@ -80,7 +84,13 @@ export async function renderingFor(origin = SETUP_ORIGIN): Promise<RunnerWorkflo
 export function readyWorld(repoId: number, rendering: RunnerWorkflowRendering): SetupWorld {
   return {
     installationId: INSTALLATION_ID,
-    permissions: { metadata: 'read', contents: 'read', pull_requests: 'read', actions: 'write', environments: 'read' },
+    permissions: {
+      metadata: 'read',
+      contents: 'read',
+      pull_requests: 'read',
+      actions: 'write',
+      environments: 'read',
+    },
     suspended: false,
     htmlUrl: `https://github.com/settings/installations/${String(INSTALLATION_ID)}`,
     otherMint: 'minted',
@@ -101,7 +111,13 @@ export function readyWorld(repoId: number, rendering: RunnerWorkflowRendering): 
     pullFiles: [],
     pullWorkflow: null,
     unavailable: null,
-    write: { headSha: HEAD_SHA, branchExists: false, commitSha: COMMIT_SHA, pullHeadSha: null, failing: null },
+    write: {
+      headSha: HEAD_SHA,
+      branchExists: false,
+      commitSha: COMMIT_SHA,
+      pullHeadSha: null,
+      failing: null,
+    },
   };
 }
 
@@ -150,7 +166,12 @@ const notFound = (): Response => json(404, { message: 'Not Found' });
  * matched exactly, so a read the check is not meant to make (the secrets list, `…/variables`) is a 404 here and the
  * path allowlist spec names it.
  */
-export function answerSetupRead(world: SetupWorld, repo: string, rendering: RunnerWorkflowRendering, call: GitHubCall): Response | null {
+export function answerSetupRead(
+  world: SetupWorld,
+  repo: string,
+  rendering: RunnerWorkflowRendering,
+  call: GitHubCall,
+): Response | null {
   const path = call.url.pathname;
   if (world.unavailable !== null && path.endsWith(world.unavailable)) {
     return json(503, { message: 'Service Unavailable' });
@@ -186,7 +207,12 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
     return null;
   }
   if (path === `/repos/${repo}`) {
-    return json(200, { id: world.repoId, full_name: repo, default_branch: world.defaultBranch, private: true });
+    return json(200, {
+      id: world.repoId,
+      full_name: repo,
+      default_branch: world.defaultBranch,
+      private: true,
+    });
   }
   if (path === environment) {
     return world.environment === null ? notFound() : json(200, world.environment);
@@ -198,7 +224,11 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
   }
   if (path === `${environment}/secrets/${ACTIONS_INFERENCE_KEY_SECRET}`) {
     return world.secrets.includes(ACTIONS_INFERENCE_KEY_SECRET)
-      ? json(200, { name: ACTIONS_INFERENCE_KEY_SECRET, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-02T00:00:00Z' })
+      ? json(200, {
+          name: ACTIONS_INFERENCE_KEY_SECRET,
+          created_at: '2026-11-01T00:00:00Z',
+          updated_at: '2026-11-02T00:00:00Z',
+        })
       : notFound();
   }
   if (path === workflowPath) {
@@ -209,7 +239,13 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
     return world.pullWorkflow === null ? notFound() : raw(world.pullWorkflow);
   }
   if (path === `/repos/${repo}/git/matching-refs/heads/team-console/runner-`) {
-    return json(200, world.setupBranches.map((branch) => ({ ref: `refs/heads/${branch}`, object: { sha: HEAD_SHA, type: 'commit' } })));
+    return json(
+      200,
+      world.setupBranches.map((branch) => ({
+        ref: `refs/heads/${branch}`,
+        object: { sha: HEAD_SHA, type: 'commit' },
+      })),
+    );
   }
   if (path === `/repos/${repo}/pulls`) {
     const [owner = ''] = repo.split('/');
@@ -220,7 +256,10 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
     return json(200, world.pull);
   }
   if (world.pull !== null && path === `/repos/${repo}/pulls/${String(world.pull['number'])}/files`) {
-    return json(200, world.pullFiles.map((filename) => ({ filename })));
+    return json(
+      200,
+      world.pullFiles.map((filename) => ({ filename })),
+    );
   }
   return null;
 }
@@ -230,7 +269,12 @@ export function answerSetupRead(world: SetupWorld, repo: string, rendering: Runn
  * branch, so the blob read on it answers `BLOB_SHA` while the default branch has a workflow file. A write the console
  * must never make (a `PATCH` or `DELETE` of a ref, a `PUT` elsewhere) is not answered here and so ends as a 404.
  */
-export function answerSetupWrite(world: SetupWorld, repo: string, rendering: RunnerWorkflowRendering, call: GitHubCall): Response | null {
+export function answerSetupWrite(
+  world: SetupWorld,
+  repo: string,
+  rendering: RunnerWorkflowRendering,
+  call: GitHubCall,
+): Response | null {
   const path = call.url.pathname;
   const branch = actionsSetupBranchOf(rendering.sha256);
   const workflowPath = `/repos/${repo}/contents/.github/workflows/team-console-runner.yml`;

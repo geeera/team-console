@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { loadRunnerConfig, saveRunnerConfig, type RunnerConfig } from '../config/config';
 import { generateRunnerKey, saveRunnerKey } from '../config/runner-key';
 import { hostExec } from '../host/exec';
-import { ACCOUNT_ID, RUNNER_ID, fakeConsole, json, sentinels, type FakeAnswer } from '../testing/fake-console';
+import {
+  ACCOUNT_ID,
+  RUNNER_ID,
+  fakeConsole,
+  json,
+  sentinels,
+  type FakeAnswer,
+} from '../testing/fake-console';
 import { RUNNER_VERSION } from '../version';
 import { EXIT_FAILED, EXIT_OK, EXIT_USAGE, runCli } from './cli';
 
@@ -86,11 +93,23 @@ describe('setup, self-check and the runner halves (#634 PR 2)', () => {
   it('setup-toolchain writes the toolchain through updateRunnerConfig and refuses a bad one', async () => {
     await mkdir(home, { mode: 0o700 });
     await saveRunnerConfig(home, config);
-    expect((await run(['setup-toolchain', '--path', '/opt/homebrew/bin:/usr/bin', '--claude', '/opt/homebrew/bin/claude'])).exit).toBe(EXIT_OK);
+    expect(
+      (
+        await run([
+          'setup-toolchain',
+          '--path',
+          '/opt/homebrew/bin:/usr/bin',
+          '--claude',
+          '/opt/homebrew/bin/claude',
+        ])
+      ).exit,
+    ).toBe(EXIT_OK);
     await expect(loadRunnerConfig(home)).resolves.toMatchObject({
       toolchain: { path: '/opt/homebrew/bin:/usr/bin', claude: '/opt/homebrew/bin/claude' },
     });
-    expect((await run(['setup-toolchain', '--path', 'relative', '--claude', 'claude'])).exit).toBe(EXIT_FAILED);
+    expect((await run(['setup-toolchain', '--path', 'relative', '--claude', 'claude'])).exit).toBe(
+      EXIT_FAILED,
+    );
   });
 
   it('setup-credential refuses a setup-token before the toolchain is known', async () => {
@@ -139,7 +158,9 @@ describe('setup, self-check and the runner halves (#634 PR 2)', () => {
     expect(sent).not.toMatch(/setup-token|api-key|claude-config-dir/);
     // A GET with the JWT header only: no body to carry a length, and no header but the runner's own.
     expect(request?.body ?? null).toBeNull();
-    expect(Object.keys(request?.headers ?? {}).filter((name) => name !== 'accept' && name !== 'authorization')).toEqual([]);
+    expect(
+      Object.keys(request?.headers ?? {}).filter((name) => name !== 'accept' && name !== 'authorization'),
+    ).toEqual([]);
   });
 
   it('self-check --runner-half names the stage that failed', async () => {

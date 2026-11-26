@@ -78,11 +78,15 @@ describe('integration: team configuration → claim → runner launch (#685)', (
     return job.id;
   }
 
-  async function runOnce(body: Record<string, unknown>): Promise<{ job: JobDto; events: readonly JobEventDto[]; raw: string }> {
+  async function runOnce(
+    body: Record<string, unknown>,
+  ): Promise<{ job: JobDto; events: readonly JobEventDto[]; raw: string }> {
     const id = await runNow(body);
     expect(await cli(['run-once'])).toBe(EXIT_OK);
     const jobText = await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${id}`)).text();
-    const eventsText = await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${id}/events?limit=100`)).text();
+    const eventsText = await (
+      await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${id}/events?limit=100`)
+    ).text();
     const job: unknown = JSON.parse(jobText);
     const events: unknown = JSON.parse(eventsText);
     if (!isJobDto(job) || !isJobEventListDto(events)) {
@@ -91,7 +95,12 @@ describe('integration: team configuration → claim → runner launch (#685)', (
     // The run's evidence (pasted into the PR): what the console holds for the job.
     console.info(
       `[${String(body['role'] ?? body['kind'])}] job ${job.id} ${job.state} role=${job.role} result=${JSON.stringify(job.result)}\n` +
-        events.events.map((event) => `  #${String(event.seq)} ${event.level} ${event.kind} ${JSON.stringify(event.payload)}`).join('\n'),
+        events.events
+          .map(
+            (event) =>
+              `  #${String(event.seq)} ${event.level} ${event.kind} ${JSON.stringify(event.payload)}`,
+          )
+          .join('\n'),
     );
     return { job, events: events.events, raw: `${jobText}\n${eventsText}` };
   }
@@ -181,7 +190,9 @@ describe('integration: team configuration → claim → runner launch (#685)', (
     // turns and effort, as does the next one.
     await configure(true);
     expect(await cli(['run-once'])).toBe(EXIT_OK);
-    const drained: unknown = JSON.parse(await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${waiting.job.id}`)).text());
+    const drained: unknown = JSON.parse(
+      await (await fetch(`${stack.origin}/api/v1/projects/${SLUG}/jobs/${waiting.job.id}`)).text(),
+    );
     expect(drained).toMatchObject({ state: 'finished' });
     const economy = await runOnce({ kind: 'slot-dev' });
     expect(economy.job.state).toBe('finished');
@@ -192,11 +203,19 @@ describe('integration: team configuration → claim → runner launch (#685)', (
       teamConfig: { revision: 1, source: 'api_key', model: 'claude-sonnet-5', maxTurns: 25, effort: 'low' },
       cost: { prompt_caching: 'applied', batch_api: 'off', reviewer_context: 'not-applicable' },
     });
-    expect(economy.job.result?.['metrics']).toMatchObject({ total_cost_usd: 0.0123, inputTokens: 1200, outputTokens: 340 });
+    expect(economy.job.result?.['metrics']).toMatchObject({
+      total_cost_usd: 0.0123,
+      inputTokens: 1200,
+      outputTokens: 340,
+    });
 
     // 3. T11: a reviewer gets the blob-less diff clone, security and qa the full one.
     const reviewer = await runOnce({ kind: 'review', role: 'reviewer' });
-    expect(reportOf(reviewer.job)).toMatchObject({ model: 'claude-sonnet-5', shallow: true, promisor: 'true' });
+    expect(reportOf(reviewer.job)).toMatchObject({
+      model: 'claude-sonnet-5',
+      shallow: true,
+      promisor: 'true',
+    });
     expect(teamNoticeOf(reviewer.events)).toMatchObject({ cost: { reviewer_context: 'applied' } });
     for (const role of ['security', 'qa']) {
       const full = await runOnce({ kind: 'review', role });

@@ -1,5 +1,11 @@
 import { isAccessSource, type AccessSource } from '@shared/contracts';
-import { JOB_USER, RUNNER_HOME_MODE, RUNNER_USER, SYSTEM_MANAGED_SETTINGS_PATH, managedSettingsText } from '../backends/user';
+import {
+  JOB_USER,
+  RUNNER_HOME_MODE,
+  RUNNER_USER,
+  SYSTEM_MANAGED_SETTINGS_PATH,
+  managedSettingsText,
+} from '../backends/user';
 import { CREDENTIAL_BACKENDS, SOURCE_CREDENTIAL_KINDS, type CredentialKind } from '../env/credential';
 import { InstallError, assertRootOwnedPrefix, type InstallHost } from '../install/install';
 import { LAUNCH_LABEL, jobExecOf } from '../install/templates';
@@ -88,7 +94,8 @@ export function parseRunnerHalfReport(text: string): RunnerHalfReport | null {
       (self['pausedUntil'] === null || typeof self['pausedUntil'] === 'string') &&
       Array.isArray(self['projects']) &&
       self['projects'].every(
-        (project: unknown) => isRecord(project) && typeof project['slug'] === 'string' && isAccessSource(project['accessSource']),
+        (project: unknown) =>
+          isRecord(project) && typeof project['slug'] === 'string' && isAccessSource(project['accessSource']),
       ));
   return failureOk && configOk && selfOk ? (value as unknown as RunnerHalfReport) : null;
 }
@@ -131,21 +138,32 @@ export async function runnerHalfOf(host: SetupHost): Promise<RunnerHalfReport | 
 
 function identityLines(report: RunnerHalfReport | null): CheckLine[] {
   if (report === null) {
-    return [fail('config and key', `the runner's own check as ${RUNNER_USER} gave no answer; run it by hand: sudo -u ${RUNNER_USER} … self-check --runner-half`)];
+    return [
+      fail(
+        'config and key',
+        `the runner's own check as ${RUNNER_USER} gave no answer; run it by hand: sudo -u ${RUNNER_USER} … self-check --runner-half`,
+      ),
+    ];
   }
   const { failure } = report;
   if (failure?.stage === 'config' || failure?.stage === 'key') {
-    return [fail('config and key', `${failure.message} (run setup --only enrol, or see docs/runbooks/runner.md)`)];
+    return [
+      fail('config and key', `${failure.message} (run setup --only enrol, or see docs/runbooks/runner.md)`),
+    ];
   }
-  const lines = [ok('config and key', `runner «${report.config?.name ?? '?'}», ${report.config?.backend ?? '?'} backend`)];
+  const lines = [
+    ok('config and key', `runner «${report.config?.name ?? '?'}», ${report.config?.backend ?? '?'} backend`),
+  ];
   if (failure !== null || report.self === null) {
     lines.push(fail('identity', `the console refused this runner's key: ${failure?.message ?? 'no answer'}`));
     return lines;
   }
   if (report.self.belowMinimum) {
-    lines.push(fail('identity', `this runner (${report.version}) is below the console's minimum version: update it`));
+    lines.push(
+      fail('identity', `this runner (${report.version}) is below the console's minimum version: update it`),
+    );
   } else {
-    lines.push(ok('identity', 'the console accepts this runner\'s key'));
+    lines.push(ok('identity', "the console accepts this runner's key"));
   }
   return lines;
 }
@@ -162,12 +180,18 @@ async function serviceLine(host: SetupHost, settleMs: number): Promise<CheckLine
   };
   const first = await pidOf();
   if (first === null) {
-    return fail(label, `${LAUNCH_LABEL} is not running: sudo launchctl bootstrap system /Library/LaunchDaemons/${LAUNCH_LABEL}.plist, then see logs/runner.log`);
+    return fail(
+      label,
+      `${LAUNCH_LABEL} is not running: sudo launchctl bootstrap system /Library/LaunchDaemons/${LAUNCH_LABEL}.plist, then see logs/runner.log`,
+    );
   }
   await host.sleep(settleMs);
   const second = await pidOf();
   if (second !== first) {
-    return fail(label, `${LAUNCH_LABEL} keeps restarting (pid ${first} → ${second ?? 'none'}): see <home>/logs/runner.log`);
+    return fail(
+      label,
+      `${LAUNCH_LABEL} keeps restarting (pid ${first} → ${second ?? 'none'}): see <home>/logs/runner.log`,
+    );
   }
   return ok(label, `running as pid ${first}, up past its first claim`);
 }
@@ -184,7 +208,12 @@ async function credentialLines(
   const kind = credential?.kind ?? null;
   const lines: CheckLine[] = [];
   if (credential === null) {
-    lines.push(warn(label, 'none configured: jobs fall back to the host\'s own Claude sign-in (setup --only credential)'));
+    lines.push(
+      warn(
+        label,
+        "none configured: jobs fall back to the host's own Claude sign-in (setup --only credential)",
+      ),
+    );
   } else if (credential.file !== null) {
     const path = `${home}/${credential.file}`;
     const facts = await host.stat(path);
@@ -194,7 +223,12 @@ async function credentialLines(
     } else if (facts.kind !== 'file' || facts.uid !== runnerUid || facts.mode !== 0o600) {
       lines.push(fail(label, `${credential.file} must be a regular file of ${RUNNER_USER}, mode 0600`));
     } else if (size === null || size < CREDENTIAL_MIN_BYTES || size > CREDENTIAL_MAX_BYTES) {
-      lines.push(fail(label, `${credential.file} does not hold one credential line: setup --only credential --replace`));
+      lines.push(
+        fail(
+          label,
+          `${credential.file} does not hold one credential line: setup --only credential --replace`,
+        ),
+      );
     } else {
       lines.push(ok(label, `${credential.kind}, present, ${String(size)} bytes`));
     }
@@ -202,7 +236,10 @@ async function credentialLines(
     lines.push(ok(label, `${credential.kind}`));
   }
   for (const project of projects) {
-    const fits = kind === null ? project.accessSource === 'subscription' : SOURCE_CREDENTIAL_KINDS[project.accessSource].includes(kind);
+    const fits =
+      kind === null
+        ? project.accessSource === 'subscription'
+        : SOURCE_CREDENTIAL_KINDS[project.accessSource].includes(kind);
     if (!fits) {
       lines.push(
         fail(
@@ -224,8 +261,10 @@ async function toolchainLines(host: SetupHost, report: RunnerHalfReport | null):
   const dirs = toolchain.path.split(':');
   const lines: CheckLine[] = [];
   for (const tool of ['claude', 'git', 'node'] as const satisfies readonly Tool[]) {
-    const configured = tool === 'claude' && toolchain.claude?.startsWith('/') === true ? [toolchain.claude] : null;
-    const candidates = configured ?? dirs.map((dir) => `${dir}/${tool === 'claude' ? (toolchain.claude ?? 'claude') : tool}`);
+    const configured =
+      tool === 'claude' && toolchain.claude?.startsWith('/') === true ? [toolchain.claude] : null;
+    const candidates =
+      configured ?? dirs.map((dir) => `${dir}/${tool === 'claude' ? (toolchain.claude ?? 'claude') : tool}`);
     let verdict: Awaited<ReturnType<typeof judgeCandidate>> = null;
     for (const candidate of candidates) {
       verdict = await judgeCandidate(host, tool, candidate);
@@ -234,12 +273,18 @@ async function toolchainLines(host: SetupHost, report: RunnerHalfReport | null):
       }
     }
     if (verdict === null) {
-      lines.push(tool === 'node' ? warn(tool, 'not on the job PATH') : fail(tool, 'not found on the job PATH: setup --only toolchain'));
+      lines.push(
+        tool === 'node'
+          ? warn(tool, 'not on the job PATH')
+          : fail(tool, 'not found on the job PATH: setup --only toolchain'),
+      );
     } else if (typeof verdict === 'string') {
       lines.push(fail(tool, `${verdict}: setup --only toolchain`));
     } else {
       const ownerWarning = ownerWarningOf(verdict);
-      lines.push(ownerWarning === null ? ok(tool, `${verdict.path}, runs as ${JOB_USER}`) : warn(tool, ownerWarning));
+      lines.push(
+        ownerWarning === null ? ok(tool, `${verdict.path}, runs as ${JOB_USER}`) : warn(tool, ownerWarning),
+      );
     }
   }
   return lines;
@@ -264,19 +309,32 @@ export function sudoRulesOf(listing: string): string[] {
 }
 
 /** L3 checks 1–4 and 8, read-only. */
-async function isolationLines(host: SetupHost, home: string, prefix: string, runnerUid: number | null): Promise<CheckLine[]> {
+async function isolationLines(
+  host: SetupHost,
+  home: string,
+  prefix: string,
+  runnerUid: number | null,
+): Promise<CheckLine[]> {
   const lines: CheckLine[] = [];
   const jobHome = await readAttribute(host, JOB_USER, 'NFSHomeDirectory');
   const jobShell = await readAttribute(host, JOB_USER, 'UserShell');
   lines.push(
     jobHome === '/var/empty' && jobShell === '/usr/bin/false'
       ? ok('L3-1 job user', `${JOB_USER}: home /var/empty, shell /usr/bin/false`)
-      : fail('L3-1 job user', `${JOB_USER} must have home /var/empty and shell /usr/bin/false: run setup --only install`),
+      : fail(
+          'L3-1 job user',
+          `${JOB_USER} must have home /var/empty and shell /usr/bin/false: run setup --only install`,
+        ),
   );
   for (const user of [JOB_USER, RUNNER_USER]) {
     const { code } = await host.exec(DSEDITGROUP, ['-o', 'checkmember', '-m', user, 'admin']);
     if (code === 0) {
-      lines.push(fail('L3-1 not admin', `${user} is in the admin group: remove it (dseditgroup -o edit -d ${user} -t user admin)`));
+      lines.push(
+        fail(
+          'L3-1 not admin',
+          `${user} is in the admin group: remove it (dseditgroup -o edit -d ${user} -t user admin)`,
+        ),
+      );
     }
   }
 
@@ -285,12 +343,14 @@ async function isolationLines(host: SetupHost, home: string, prefix: string, run
     homeFacts?.kind === 'directory' &&
     homeFacts.uid === runnerUid &&
     homeFacts.mode === RUNNER_HOME_MODE &&
-    (await Promise.all(
-      ['credentials', 'logs'].map(async (name) => {
-        const facts = await host.stat(`${home}/${name}`);
-        return facts?.kind === 'directory' && facts.uid === runnerUid && facts.mode === 0o700;
-      }),
-    )).every(Boolean);
+    (
+      await Promise.all(
+        ['credentials', 'logs'].map(async (name) => {
+          const facts = await host.stat(`${home}/${name}`);
+          return facts?.kind === 'directory' && facts.uid === runnerUid && facts.mode === 0o700;
+        }),
+      )
+    ).every(Boolean);
   const links: string[] = [];
   for (const dir of [home, `${home}/credentials`, `${home}/keys`]) {
     for (const name of (await host.list(dir)) ?? []) {
@@ -302,7 +362,10 @@ async function isolationLines(host: SetupHost, home: string, prefix: string, run
   const listed = await host.exec(SUDO, ['-n', '-u', JOB_USER, '--', '/bin/ls', home]);
   lines.push(
     dirsOk && links.length === 0 && listed.code !== 0
-      ? ok('L3-2 runner home', `${home} 0710, credentials and logs 0700, no links, ${JOB_USER} cannot list it`)
+      ? ok(
+          'L3-2 runner home',
+          `${home} 0710, credentials and logs 0700, no links, ${JOB_USER} cannot list it`,
+        )
       : fail(
           'L3-2 runner home',
           links.length > 0
@@ -316,9 +379,15 @@ async function isolationLines(host: SetupHost, home: string, prefix: string, run
   const settingsPath = SYSTEM_MANAGED_SETTINGS_PATH.darwin;
   const settings = await host.stat(settingsPath);
   lines.push(
-    settings?.kind === 'file' && settings.uid === 0 && settings.mode === 0o644 && (await host.read(settingsPath)) === managedSettingsText()
+    settings?.kind === 'file' &&
+      settings.uid === 0 &&
+      settings.mode === 0o644 &&
+      (await host.read(settingsPath)) === managedSettingsText()
       ? ok('L3-3 managed settings', 'root-owned 0644, as the installer wrote them')
-      : fail('L3-3 managed settings', `${settingsPath} differs from the installer's: run setup --only install`),
+      : fail(
+          'L3-3 managed settings',
+          `${settingsPath} differs from the installer's: run setup --only install`,
+        ),
   );
 
   const rules = sudoRulesOf((await host.exec(SUDO, ['-n', '-l', '-U', RUNNER_USER])).stdout);
@@ -326,7 +395,10 @@ async function isolationLines(host: SetupHost, home: string, prefix: string, run
   lines.push(
     rules.length === 1 && rules[0] === expected
       ? ok('L3-4 sudoers', `exactly one rule: ${expected}`)
-      : fail('L3-4 sudoers', `${RUNNER_USER} must have exactly the rule "${expected}" (found ${String(rules.length)}): check /etc/sudoers.d`),
+      : fail(
+          'L3-4 sudoers',
+          `${RUNNER_USER} must have exactly the rule "${expected}" (found ${String(rules.length)}): check /etc/sudoers.d`,
+        ),
   );
 
   try {
@@ -350,7 +422,12 @@ export async function selfCheck(host: SetupHost, context: SelfCheckContext): Pro
   const report = await runnerHalfOf(host);
   const lines: CheckLine[] = [...identityLines(report)];
   if (report !== null && report.version !== RUNNER_VERSION) {
-    lines.push(fail('L3-8 release files', `the installed bundle reports ${report.version}, this setup is ${RUNNER_VERSION}`));
+    lines.push(
+      fail(
+        'L3-8 release files',
+        `the installed bundle reports ${report.version}, this setup is ${RUNNER_VERSION}`,
+      ),
+    );
   }
   lines.push(await serviceLine(host, context.settleMs));
   lines.push(...(await credentialLines(host, home, report, runnerUid)));

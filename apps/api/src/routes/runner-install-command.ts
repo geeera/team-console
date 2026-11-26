@@ -105,10 +105,18 @@ export function macInstallCommandsOf(
     return null;
   }
   const commandOf = (platform: MacReleasePlatform): string | null =>
-    macInstallCommandOf({ origin, version: release.version, platform, sha256: release.sums[platform], intentId });
+    macInstallCommandOf({
+      origin,
+      version: release.version,
+      platform,
+      sha256: release.sums[platform],
+      intentId,
+    });
   const arm = commandOf('darwin-arm64');
   const intel = commandOf('darwin-x64');
-  return arm === null || intel === null ? null : { version: release.version, 'darwin-arm64': arm, 'darwin-x64': intel };
+  return arm === null || intel === null
+    ? null
+    : { version: release.version, 'darwin-arm64': arm, 'darwin-x64': intel };
 }
 
 /**
@@ -145,7 +153,8 @@ const UNIT_SERVICE_BASE = [
  * the maps. The bounding set keeps any other setuid binary to the same four; every container the service starts runs
  * with `no-new-privileges` and an empty bounding set.
  */
-export const PODMAN_UNIT_CAPABILITIES = 'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN';
+export const PODMAN_UNIT_CAPABILITIES =
+  'CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN';
 
 /**
  * Rootless podman's API of `tcrunner`, on a socket in that user's 0700 state directory: the only runtime socket the
@@ -287,7 +296,8 @@ export function linuxInstallCommandsOf(
 ): LinuxInstallCommandsDto | null {
   const named = namedRunnerImageOf(env);
   const originOk =
-    origin !== null && (HTTPS_ORIGIN.test(origin) || (env.ENVIRONMENT === 'local' && LOOPBACK_HTTP_ORIGIN.test(origin)));
+    origin !== null &&
+    (HTTPS_ORIGIN.test(origin) || (env.ENVIRONMENT === 'local' && LOOPBACK_HTTP_ORIGIN.test(origin)));
   if (named === null || origin === null || !originOk || !isEnrolmentIntentId(intentId)) {
     return null;
   }

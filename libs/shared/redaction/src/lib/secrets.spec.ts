@@ -213,7 +213,11 @@ describe('redactSecrets in loose mode (logs and audit rows)', () => {
     ['a routine trigger token cut short (#114)', 'anthropic-key', join('sk-', 'ant-', 'oat01')],
     ['a job token cut short', 'job-token', join(JOB_TOKEN_PREFIX, 'k'.repeat(10))],
     ['an enrolment code cut short', 'enrolment-code', join(ENROLMENT_CODE_PREFIX, 'e'.repeat(10))],
-    ['an enrolment poll token cut short', 'enrolment-poll-token', join(ENROLMENT_POLL_TOKEN_PREFIX, 'p'.repeat(10))],
+    [
+      'an enrolment poll token cut short',
+      'enrolment-poll-token',
+      join(ENROLMENT_POLL_TOKEN_PREFIX, 'p'.repeat(10)),
+    ],
     ['TC_JOB_TOKEN with a short value', 'job-token', join('TC_JOB', '_TOKEN=', 'abc')],
     [
       'a JWT whose payload is not a JSON object',

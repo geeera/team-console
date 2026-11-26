@@ -4,7 +4,12 @@ import { join } from 'node:path';
 import { loadRunnerConfig, saveRunnerConfig, type RunnerConfig } from '../config/config';
 import type { EnrolOptions } from '../cli/enrol';
 import { ACCOUNT_ID, RUNNER_ID } from '../testing/fake-console';
-import { enrolmentOf, runContainerSetup, type ContainerSetupDeps, type ContainerSetupOptions } from './container-setup';
+import {
+  enrolmentOf,
+  runContainerSetup,
+  type ContainerSetupDeps,
+  type ContainerSetupOptions,
+} from './container-setup';
 import type { RunnerHalfReport } from './self-check';
 import { SetupError } from './setup';
 
@@ -87,10 +92,14 @@ describe('setup in the runner’s container (Linux)', () => {
 
   it('enrols the container backend with an API key and the named image, then sets podman and asks for the key', async () => {
     expect(await runContainerSetup(options(), deps())).toBe(true);
-    expect(enrolled).toEqual([{ url: URL, enrolment: INTENT, backend: 'container', credential: 'api-key', image: IMAGE }]);
+    expect(enrolled).toEqual([
+      { url: URL, enrolment: INTENT, backend: 'container', credential: 'api-key', image: IMAGE },
+    ]);
     expect((await loadRunnerConfig(home)).container).toEqual({ image: IMAGE, runtime: 'podman' });
     expect(keys).toEqual([false]);
-    expect(out.at(-1)).toBe('Готово: раннер «build box» принят консолью; team-console-runner.service запускается следующей командой.');
+    expect(out.at(-1)).toBe(
+      'Готово: раннер «build box» принят консолью; team-console-runner.service запускается следующей командой.',
+    );
   });
 
   it('is safe to run again: an enrolled home and a present key are kept', async () => {
@@ -101,7 +110,9 @@ describe('setup in the runner’s container (Linux)', () => {
     expect(enrolled).toEqual([]);
     expect(keys).toEqual([]);
     expect(out).toContain(`enrol: already enrolled as «build box»; TC_ENROLMENT is not used`);
-    expect(out).toContain('credential: credentials/anthropic.key is present and kept (--replace-credential to replace it)');
+    expect(out).toContain(
+      'credential: credentials/anthropic.key is present and kept (--replace-credential to replace it)',
+    );
   });
 
   it('replaces the key only when asked', async () => {
@@ -126,7 +137,9 @@ describe('setup in the runner’s container (Linux)', () => {
   });
 
   it('needs the request id for a new runner', async () => {
-    await expect(runContainerSetup(options({ enrolment: undefined }), deps())).rejects.toThrow(/TC_ENROLMENT=<request id>/);
+    await expect(runContainerSetup(options({ enrolment: undefined }), deps())).rejects.toThrow(
+      /TC_ENROLMENT=<request id>/,
+    );
   });
 
   it('moves an enrolled runner’s jobs to the image of a new release’s command', async () => {
@@ -140,7 +153,11 @@ describe('setup in the runner’s container (Linux)', () => {
 
   const { credential: _credential, container: _container, ...bare } = enrolledConfig();
   it.each<[string, RunnerConfig, RegExp]>([
-    ['another console', enrolledConfig({ apiUrl: 'https://other.example' }), /enrolled with https:\/\/other\.example/],
+    [
+      'another console',
+      enrolledConfig({ apiUrl: 'https://other.example' }),
+      /enrolled with https:\/\/other\.example/,
+    ],
     ['another backend', { ...bare, backend: 'none' }, /holds a none runner/],
   ])('refuses a home enrolled with %s', async (_, config, reason) => {
     await saveRunnerConfig(home, config);

@@ -178,9 +178,7 @@ describe('GET /api/v1/needs-you: the project’s own pause (#739)', () => {
     });
     expect(paused.status, await paused.text()).toBe(201);
 
-    const body = (await (
-      await fetchApi('/api/v1/needs-you', localEnv(), bindings)
-    ).json()) as NeedsYouDto;
+    const body = (await (await fetchApi('/api/v1/needs-you', localEnv(), bindings)).json()) as NeedsYouDto;
     expect(body.projects.find((row) => row.slug === project.slug)).toMatchObject({ paused: true });
   });
 });
@@ -190,7 +188,9 @@ describe('GET /api/v1/needs-you: canManage (#735)', () => {
     const owner = await seedSessionUser('owner');
     const member = await seedSessionUser('member');
     // Both read the same project: the member joins the owner's account, not the other way round.
-    await env.DB.prepare('INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)')
+    await env.DB.prepare(
+      'INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)',
+    )
       .bind(owner.account.id, member.userId, 'member', '2026-11-10T00:00:00.000Z')
       .run();
     const project = await seedAccountProject(owner.account, { tracker: 'console' });

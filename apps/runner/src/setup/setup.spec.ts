@@ -1,5 +1,16 @@
 import { createHash } from 'node:crypto';
-import { chmod, lstat, mkdir, mkdtemp, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runnerKeyFingerprintOf, type Ed25519PublicJwk } from '@shared/contracts';
@@ -151,7 +162,12 @@ describe('setup (#634 PR 2)', () => {
     // `claude` as the toolchain found it is the stand-in on this machine.
     const spawnClaude: SpawnClaude = (command, args, env, cwd) => {
       state.claudeRuns += 1;
-      return hostSpawnClaude(command, args.map((arg) => (arg === CLAUDE ? fakeClaude : arg)), env, cwd);
+      return hostSpawnClaude(
+        command,
+        args.map((arg) => (arg === CLAUDE ? fakeClaude : arg)),
+        env,
+        cwd,
+      );
     };
     const childDeps = (stdout: (line: string) => void): CliDeps => ({
       env: { TC_RUNNER_HOME: home, TERM: 'xterm-256color' },
@@ -228,7 +244,10 @@ describe('setup (#634 PR 2)', () => {
         return { code: 0, stdout: `-r-xr-xr-x  1 root  wheel  0 Nov 22 00:00 ${args[1] ?? ''}\n` };
       }
       if (line === '/usr/bin/sudo -n -l -U _tcrunner') {
-        return { code: 0, stdout: `User _tcrunner may run the following commands on owner-mac:\n${state.sudoRules}` };
+        return {
+          code: 0,
+          stdout: `User _tcrunner may run the following commands on owner-mac:\n${state.sudoRules}`,
+        };
       }
       if (line.startsWith('/bin/launchctl print')) {
         return loaded ? { code: 0, stdout: '\tstate = running\n\tpid = 4242\n' } : { code: 113, stdout: '' };
@@ -253,22 +272,35 @@ describe('setup (#634 PR 2)', () => {
         }
         try {
           const facts = await lstat(local);
-          const kind = facts.isSymbolicLink() ? 'symlink' : facts.isDirectory() ? 'directory' : facts.isFile() ? 'file' : 'other';
+          const kind = facts.isSymbolicLink()
+            ? 'symlink'
+            : facts.isDirectory()
+              ? 'directory'
+              : facts.isFile()
+                ? 'file'
+                : 'other';
           return { uid: facts.uid, mode: facts.mode & 0o7777, kind, size: facts.size };
         } catch {
           // Missing on the fake Mac.
           return null;
         }
       },
-      realpath: async (path) => (mapped(path) ?? (stats[path] === undefined ? null : path)),
+      realpath: async (path) => mapped(path) ?? (stats[path] === undefined ? null : path),
       read: async (path) => files[path] ?? null,
       apply: async () => {
         throw new Error('the fake Mac is already installed; no step should run');
       },
-      runAsRunner: async (args) => await runCli(args, childDeps((line) => (state.terminal += `${line}\n`))),
+      runAsRunner: async (args) =>
+        await runCli(
+          args,
+          childDeps((line) => (state.terminal += `${line}\n`)),
+        ),
       queryAsRunner: async (args) => {
         let stdout = '';
-        const code = await runCli(args, childDeps((line) => (stdout += `${line}\n`)));
+        const code = await runCli(
+          args,
+          childDeps((line) => (stdout += `${line}\n`)),
+        );
         return { code, stdout };
       },
       list: async (path) => {
@@ -310,14 +342,20 @@ describe('setup (#634 PR 2)', () => {
     await expect(run(mac)).resolves.toBe(true);
 
     expect(mac.rootOut.at(-1)).toBe('Готово: раннер «Owner Mac» на связи.');
-    expect(mac.rootOut).toContain('ok   credential: setup-token, present, ' + String(TOKEN.length + 1) + ' bytes');
+    expect(mac.rootOut).toContain(
+      'ok   credential: setup-token, present, ' + String(TOKEN.length + 1) + ' bytes',
+    );
     expect(mac.rootOut).toContain('service: started com.team-console.runner');
 
     // The token: in the credential file, 0600, and nowhere root, the terminal or the console saw.
     const credential = join(home, 'credentials/claude-setup-token');
     expect(await readFile(credential, 'utf8')).toBe(`${TOKEN}\n`);
     expect((await stat(credential)).mode & 0o777).toBe(0o600);
-    for (const seen of [mac.rootOut.join('\n'), mac.terminal, ...mac.requests.map((request) => request.url + request.body)]) {
+    for (const seen of [
+      mac.rootOut.join('\n'),
+      mac.terminal,
+      ...mac.requests.map((request) => request.url + request.body),
+    ]) {
       expect(seen).not.toContain(TOKEN.slice(13, 45));
     }
     for (const request of mac.requests) {
@@ -325,7 +363,9 @@ describe('setup (#634 PR 2)', () => {
     }
 
     // What the operator saw: the fingerprint to compare and the CLI's own prompts; the page opened for them.
-    expect(mac.terminal).toMatch(/Compare this code with the one in the console, then press «Подтвердить» \(Approve\) there: [0-9A-Z]{4}-[0-9A-Z]{4}/);
+    expect(mac.terminal).toMatch(
+      /Compare this code with the one in the console, then press «Подтвердить» \(Approve\) there: [0-9A-Z]{4}-[0-9A-Z]{4}/,
+    );
     expect(mac.terminal).toContain(SIGN_IN);
     expect(mac.opened).toEqual([SIGN_IN]);
 
@@ -336,9 +376,17 @@ describe('setup (#634 PR 2)', () => {
       toolchain: { claude: CLAUDE, path: '/opt/homebrew/bin:/usr/bin:/usr/local/bin:/bin:/usr/sbin:/sbin' },
     });
     // Nothing third-party ran as root: every --version probe is `sudo -u _tcjob`.
-    expect(mac.execs.filter((line) => line.endsWith('--version')).every((line) => line.startsWith('/usr/bin/sudo -n -u _tcjob'))).toBe(true);
+    expect(
+      mac.execs
+        .filter((line) => line.endsWith('--version'))
+        .every((line) => line.startsWith('/usr/bin/sudo -n -u _tcjob')),
+    ).toBe(true);
     // Homebrew's claude belongs to the login user: setup goes on and says so.
-    expect(mac.rootOut.some((line) => line.startsWith('toolchain: warning: claude /opt/homebrew/bin/claude belongs to uid'))).toBe(true);
+    expect(
+      mac.rootOut.some((line) =>
+        line.startsWith('toolchain: warning: claude /opt/homebrew/bin/claude belongs to uid'),
+      ),
+    ).toBe(true);
     expect(await readdir(tmpRoot)).toEqual([]);
   });
 
@@ -348,7 +396,9 @@ describe('setup (#634 PR 2)', () => {
     const again = world();
     await expect(run(again)).resolves.toBe(true);
     expect(again.rootOut).toContain('enrol: already enrolled as «Owner Mac»; --enrolment is not used');
-    expect(again.rootOut).toContain('credential: credentials/claude-setup-token is present and kept (--replace-credential to replace it)');
+    expect(again.rootOut).toContain(
+      'credential: credentials/claude-setup-token is present and kept (--replace-credential to replace it)',
+    );
     expect(again.claudeRuns).toBe(0);
   });
 
@@ -363,7 +413,9 @@ describe('setup (#634 PR 2)', () => {
   it('refuses to re-enrol against another console', async () => {
     const mac = world();
     await run(mac);
-    await expect(run(world(), { url: 'https://other.example', only: ['enrol'] })).rejects.toThrow(/enrolled with http:\/\/127\.0\.0\.1:22300/);
+    await expect(run(world(), { url: 'https://other.example', only: ['enrol'] })).rejects.toThrow(
+      /enrolled with http:\/\/127\.0\.0\.1:22300/,
+    );
   });
 
   it('runs only the steps --only names, in setup order', async () => {
@@ -421,12 +473,29 @@ describe('setup (#634 PR 2)', () => {
       }
       await writeFile(join(tree, 'SHA256SUMS'), `${sums.join('\n')}\n`);
       const tarball = join(root, 'tcr.tgz');
-      await hostExec('/usr/bin/tar', ['-czf', tarball, '-C', tree, 'SHA256SUMS', 'team-console-runner.mjs', 'node', 'bin']);
-      return { tarball, sha256: createHash('sha256').update(await readFile(tarball)).digest('hex') };
+      await hostExec('/usr/bin/tar', [
+        '-czf',
+        tarball,
+        '-C',
+        tree,
+        'SHA256SUMS',
+        'team-console-runner.mjs',
+        'node',
+        'bin',
+      ]);
+      return {
+        tarball,
+        sha256: createHash('sha256')
+          .update(await readFile(tarball))
+          .digest('hex'),
+      };
     }
 
     const deps = (out: string[]) => ({
-      host: { exec: (command: string, args: readonly string[]) => hostExec(command, args, { env: { PATH: '/usr/bin:/bin' } }) } as unknown as SetupHost,
+      host: {
+        exec: (command: string, args: readonly string[]) =>
+          hostExec(command, args, { env: { PATH: '/usr/bin:/bin' } }),
+      } as unknown as SetupHost,
       out: (line: string) => out.push(line),
       tmpRoot,
     });

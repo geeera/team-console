@@ -28,7 +28,12 @@ let nextRunLogId = 0;
           [description]="'board.runs.unavailableHint' | transloco"
         />
       } @else if (team().recentRuns.length === 0) {
-        <tc-state-block kind="empty" compact data-testid="runs-empty" [title]="'board.runs.empty' | transloco" />
+        <tc-state-block
+          kind="empty"
+          compact
+          data-testid="runs-empty"
+          [title]="'board.runs.empty' | transloco"
+        />
       }
       @if (team().recentRuns.length > 0 || team().runLogUrl) {
         <tc-sprint-run-list

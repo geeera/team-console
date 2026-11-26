@@ -1,8 +1,12 @@
 <tc-list [attr.aria-labelledby]="labelledBy()">
   <tc-list-row data-testid="install-entry">
     <tc-app-tile tc-row-leading />
-    <span tc-row-title>{{ (isInstalled() ? 'settings.app.rowInstalled' : 'settings.app.row') | transloco }}</span>
-    <span tc-row-detail data-testid="install-entry-sub">{{ subtitleKey() | transloco: { app: appName() } }}</span>
+    <span tc-row-title
+      >{{ (isInstalled() ? 'settings.app.rowInstalled' : 'settings.app.row') | transloco }}</span
+    >
+    <span tc-row-detail data-testid="install-entry-sub"
+      >{{ subtitleKey() | transloco: { app: appName() } }}</span
+    >
     @if (chip(); as state) {
     <tc-chip tc-row-trailing data-testid="install-entry-chip" [tone]="state === 'on' ? 'success' : 'neutral'">
       {{ (state === 'on' ? 'settings.app.chipOn' : 'settings.app.chipOff') | transloco }}
@@ -35,11 +39,7 @@
     (click)="toggleGuide()"
   >
     {{ (isGuideOpen() ? 'install.card.hideSteps' : 'install.card.how') | transloco }}
-    <tc-icon
-      name="chevron-down"
-      size="sm"
-      class="tc-disclosure-chevron"
-    />
+    <tc-icon name="chevron-down" size="sm" class="tc-disclosure-chevron" />
   </button>
 </div>
 @if (isGuideOpen()) {

@@ -1,5 +1,9 @@
 import { env } from 'cloudflare:test';
-import { PushSubscriptionsRepo, PushTestSendsRepo, type NewPushSubscription } from './push-subscriptions.repo';
+import {
+  PushSubscriptionsRepo,
+  PushTestSendsRepo,
+  type NewPushSubscription,
+} from './push-subscriptions.repo';
 
 const repo = (): PushSubscriptionsRepo => new PushSubscriptionsRepo(env.DB);
 
@@ -105,12 +109,18 @@ describe('PushTestSendsRepo', () => {
 
   it('claims once per interval and says how long to wait', async () => {
     await expect(testSends().claim(100_000, 30_000)).resolves.toEqual({ claimed: true });
-    await expect(testSends().claim(110_000, 30_000)).resolves.toEqual({ claimed: false, retryAfterMs: 20_000 });
+    await expect(testSends().claim(110_000, 30_000)).resolves.toEqual({
+      claimed: false,
+      retryAfterMs: 20_000,
+    });
     await expect(testSends().claim(130_000, 30_000)).resolves.toEqual({ claimed: true });
   });
 
   it('lets only one of two simultaneous taps through', async () => {
-    const claims = await Promise.all([testSends().claim(200_000, 30_000), testSends().claim(200_001, 30_000)]);
+    const claims = await Promise.all([
+      testSends().claim(200_000, 30_000),
+      testSends().claim(200_001, 30_000),
+    ]);
     expect(claims.filter((claim) => claim.claimed)).toHaveLength(1);
   });
 });
