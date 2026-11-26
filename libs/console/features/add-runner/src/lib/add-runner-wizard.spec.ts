@@ -313,9 +313,10 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     );
   });
 
+  // #817: the API makes no request when it has no origin for a command, and answers 503 console-origin-misconfigured.
   it('offers the code path when the API has no command, and never builds one', async () => {
     const { toCommand, find, click, close } = await render({
-      created: () => ({ ok: true, value: { ...CREATED, command: null, installCommands: null } }),
+      created: () => failed('error', 'console-origin-misconfigured'),
     });
     await toCommand();
     expect(find('wizard-error')?.textContent).toContain('Консоль сейчас не может собрать команду');

@@ -432,7 +432,9 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await repo.collect(intent.id, 'a'.repeat(64), at(4), 120)).toBe(runnerId);
       expect(await repo.collect(intent.id, 'b'.repeat(64), at(5), 120)).toBeNull();
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'used', runnerId });
-      const collected = await env.DB.prepare(`SELECT collected_at FROM runner_enrolment_requests WHERE id = ?1`)
+      const collected = await env.DB.prepare(
+        `SELECT collected_at FROM runner_enrolment_requests WHERE id = ?1`,
+      )
         .bind(intent.id)
         .first<string>('collected_at');
       expect(collected).toBe(at(3));
