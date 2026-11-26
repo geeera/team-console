@@ -347,13 +347,34 @@ export function runnerName(value: unknown): string {
   return cleaned;
 }
 
-/** The `host` member of a runner's enrol or exchange body; module-internal to the contracts lib. */
+/**
+ * A control, format (the bidi overrides U+202A–202E and isolates U+2066–2069 among them) or line/paragraph separator
+ * character; module-internal to the contracts lib.
+ */
+export const UNSHOWN_CHARACTER = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
+
+/**
+ * A host field the owner is shown, in the runner list and at an intent's approval (R-INT-7): visible text only, so a
+ * hostname cannot rearrange or fake the screen.
+ */
+function hostField(field: string, value: unknown): string {
+  const checkedText = text(field, value, RUNNER_HOST_FIELD_MAX_LENGTH, 1);
+  if (UNSHOWN_CHARACTER.test(checkedText) || checkedText.trim().length === 0) {
+    throw new InputError(field, `${field} must be visible text without control or direction characters`);
+  }
+  return checkedText;
+}
+
+/**
+ * The `host` member of every body a runner describes itself in: `/runner/enrol`, the OIDC exchange and an intent's
+ * bind (#817: all three refuse the same characters). Module-internal to the contracts lib.
+ */
 export function runnerHostOf(value: unknown): RunnerHostDto {
   const fields = record(value, ['os', 'arch', 'hostname']);
   return {
-    os: text('host.os', fields['os'], RUNNER_HOST_FIELD_MAX_LENGTH, 1),
-    arch: text('host.arch', fields['arch'], RUNNER_HOST_FIELD_MAX_LENGTH, 1),
-    hostname: text('host.hostname', fields['hostname'], RUNNER_HOST_FIELD_MAX_LENGTH, 1),
+    os: hostField('host.os', fields['os']),
+    arch: hostField('host.arch', fields['arch']),
+    hostname: hostField('host.hostname', fields['hostname']),
   };
 }
 

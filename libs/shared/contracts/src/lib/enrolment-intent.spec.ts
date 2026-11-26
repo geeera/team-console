@@ -8,6 +8,7 @@ import {
   isLinuxInstallCommandsDto,
   isRunnerInstallCommandsDto,
   isEnrolmentIntentDto,
+  isEnrolmentIntentListDto,
   isPollEnrolmentPendingDto,
   isRunnerKeyFingerprint,
   isStartEnrolmentResponse,
@@ -269,19 +270,34 @@ describe('the DTO guards', () => {
     expect(isEnrolmentIntentDto(intentDto(overrides))).toBe(false);
   });
 
+  it('narrow the owner’s open list: at most three checked intents (#817)', () => {
+    expect(isEnrolmentIntentListDto({ intents: [] })).toBe(true);
+    expect(isEnrolmentIntentListDto({ intents: [intentDto(), intentDto({ state: 'pending' })] })).toBe(true);
+    expect(isEnrolmentIntentListDto({ intents: [intentDto(), intentDto(), intentDto(), intentDto()] })).toBe(
+      false,
+    );
+    expect(isEnrolmentIntentListDto({ intents: [intentDto({ state: 'done' })] })).toBe(false);
+    expect(isEnrolmentIntentListDto({ intents: intentDto() })).toBe(false);
+    expect(isEnrolmentIntentListDto([intentDto()])).toBe(false);
+  });
+
   it('narrow the creation, the bind and the pending poll', () => {
     const expiresAt = '2026-11-18T10:10:00.000Z';
-    const none = { command: null, installCommands: null, linuxInstall: null };
+    const command = 'sudo … setup';
+    const none = { command, installCommands: null, linuxInstall: null };
     expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none })).toBe(true);
     expect(isEnrolmentIntentCreatedDto({ intentId: 'x', expiresAt, ...none })).toBe(false);
+    // #817: a created intent always carries its command; with none the API makes no intent (503).
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, command: null })).toBe(false);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, command: '' })).toBe(false);
     const installCommands = { version: '0.2.0', 'darwin-arm64': 'curl …', 'darwin-x64': 'curl …' };
     expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, ...none, installCommands })).toBe(true);
-    expect(
-      isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, linuxInstall: null }),
-    ).toBe(false);
-    expect(
-      isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command: null, installCommands: null }),
-    ).toBe(false);
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command, linuxInstall: null })).toBe(
+      false,
+    );
+    expect(isEnrolmentIntentCreatedDto({ intentId: INTENT, expiresAt, command, installCommands: null })).toBe(
+      false,
+    );
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'linux-x64': 'x' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, 'darwin-x64': '' })).toBe(false);
     expect(isRunnerInstallCommandsDto({ ...installCommands, version: 'v0.2.0' })).toBe(false);

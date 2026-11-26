@@ -2,6 +2,7 @@ import { isUlid } from './account';
 import { isNullable, isString, isTimestamp } from './guards';
 import {
   RUNNER_HOST_FIELD_MAX_LENGTH,
+  UNSHOWN_CHARACTER,
   capabilities,
   isEd25519PublicJwk,
   isEnrolmentIsolation,
@@ -129,10 +130,11 @@ export interface EnrolmentIntentCreatedDto {
   readonly expiresAt: string;
   /**
    * The `setup` invocation for this intent on a Mac where the release is already installed, built by the API from its
-   * configured origin; `null` when that origin is not configured or not safe to paste, so the wizard never assembles
-   * a command from client state.
+   * configured origin. Never absent (#817): when that origin is not configured or not safe to paste, the API makes no
+   * intent and answers 503 `console-origin-misconfigured` instead, so the wizard never assembles a command from
+   * client state and no unusable intent holds one of the account's open slots.
    */
-  readonly command: string | null;
+  readonly command: string;
   /**
    * The first-install one-liners. `null` unless this environment names a release whose sums passed the deploy-time
    * attestation check and the Worker's format check, that release ships its own `node` (S2), and the origin is https.
@@ -161,6 +163,14 @@ export interface EnrolmentIntentDto extends RunnerProjectScopeDto {
   readonly boundCountry: string | null;
   /** The runner the approval created; the wizard watches `GET …/runners` for it. */
   readonly runnerId: string | null;
+}
+
+/**
+ * `GET …/runners/enrolment-intents` (#817): the caller's own open intents (pending or bound, unexpired), newest first
+ * and never more than `ENROLMENT_INTENTS_LIVE_MAX`, so the owner can withdraw one the cap holds against them.
+ */
+export interface EnrolmentIntentListDto {
+  readonly intents: readonly EnrolmentIntentDto[];
 }
 
 /** `POST …/enrolment-intents/:intent/approve`: the fingerprint the wizard displayed, compared with the bound key. */
@@ -203,8 +213,8 @@ export interface PollEnrolmentPendingDto {
   readonly intervalSeconds: number;
 }
 
-const UNSAFE_HOST_TEXT = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u;
-const UNSAFE_TEXT_ALL = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu;
+const UNSAFE_HOST_TEXT = UNSHOWN_CHARACTER;
+const UNSAFE_TEXT_ALL = new RegExp(UNSHOWN_CHARACTER.source, 'gu');
 
 /** The longest account name `start` returns, in code points; the runner refuses a longer one (R-INT-3). */
 export const ENROLMENT_ACCOUNT_NAME_MAX = 64;
@@ -219,26 +229,6 @@ export const hasUnshownText = (value: string): boolean => UNSAFE_HOST_TEXT.test(
 export function shownTextOf(value: string, max: number): string {
   const cleaned = value.replace(UNSAFE_TEXT_ALL, '').replace(/\s+/gu, ' ').trim();
   return [...cleaned].slice(0, max).join('').trim();
-}
-
-/**
- * A host field shown to the owner at approval (R-INT-7): no control character and no format character (the bidi
- * overrides U+202A–202E and isolates U+2066–2069 among them), so a hostname cannot rearrange or fake the screen.
- */
-function shownHostText(field: string, value: string): string {
-  if (UNSAFE_HOST_TEXT.test(value) || value.trim().length === 0) {
-    throw new InputError(field, `${field} must be visible text without control or direction characters`);
-  }
-  return value;
-}
-
-function shownHostOf(value: unknown): RunnerHostDto {
-  const host = runnerHostOf(value);
-  return {
-    os: shownHostText('host.os', host.os),
-    arch: shownHostText('host.arch', host.arch),
-    hostname: shownHostText('host.hostname', host.hostname),
-  };
 }
 
 function intentId(value: unknown): string {
@@ -274,7 +264,8 @@ export function checkStartEnrolmentInput(body: unknown): InputCheck<StartEnrolme
     return {
       intentId: intentId(fields['intentId']),
       publicKey: { kty: 'OKP', crv: 'Ed25519', x: publicKey.x },
-      host: shownHostOf(fields['host']),
+      // R-INT-7: shown to the owner at approval; `runnerHostOf` refuses control and direction characters.
+      host: runnerHostOf(fields['host']),
       capabilities: capabilities(fields['capabilities']),
       isolation: oneOf('isolation', fields['isolation'], isEnrolmentIsolation),
       version: oneOf('version', fields['version'], isRunnerVersion),
@@ -348,6 +339,14 @@ export function isEnrolmentIntentDto(value: unknown): value is EnrolmentIntentDt
   );
 }
 
+export function isEnrolmentIntentListDto(value: unknown): value is EnrolmentIntentListDto {
+  if (!isRecord(value) || !Array.isArray(value['intents'])) {
+    return false;
+  }
+  const intents: readonly unknown[] = value['intents'];
+  return intents.length <= ENROLMENT_INTENTS_LIVE_MAX && intents.every(isEnrolmentIntentDto);
+}
+
 export function isRunnerInstallCommandsDto(value: unknown): value is RunnerInstallCommandsDto {
   return (
     isRecord(value) &&
@@ -379,7 +378,8 @@ export function isEnrolmentIntentCreatedDto(value: unknown): value is EnrolmentI
     isRecord(value) &&
     isEnrolmentIntentId(value['intentId']) &&
     isTimestamp(value['expiresAt']) &&
-    isNullable(value['command'], isString) &&
+    isString(value['command']) &&
+    value['command'] !== '' &&
     isNullable(value['installCommands'], isRunnerInstallCommandsDto) &&
     isNullable(value['linuxInstall'], isLinuxInstallCommandsDto)
   );

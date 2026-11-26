@@ -83,6 +83,47 @@ describe('what an enrolment code can grant (#668)', () => {
   });
 });
 
+// #817: the host fields reach the owner's runner list from `/runner/enrol` and the OIDC exchange too, so both refuse
+// what an intent's bind refuses (R-INT-7).
+describe('host fields on /runner/enrol and the OIDC exchange', () => {
+  const enrolBody = {
+    code: 'tce_x',
+    publicKey: KEY,
+    host: BODY.host,
+    capabilities: { local: false, maxConcurrency: 1 },
+    isolation: 'container',
+    version: '0.4.0',
+  };
+  const doors = [
+    ['/runner/enrol', (host: unknown) => checkEnrolRunnerInput({ ...enrolBody, host })],
+    ['the OIDC exchange', (host: unknown) => checkOidcExchangeInput({ ...BODY, host })],
+  ] as const;
+
+  it.each(doors)('%s keeps plain text in any script', (_, check) => {
+    const host = { os: 'linux', arch: 'x64', hostname: 'сборщик-1' };
+    expect(check(host)).toMatchObject({ ok: true, value: { host } });
+  });
+
+  it.each(
+    doors.flatMap(([door, check]) =>
+      [
+        ['a right-to-left override', { os: 'linux', arch: 'x64', hostname: 'a‮b' }, 'host.hostname'],
+        ['a first-strong isolate', { os: 'linux', arch: 'x6⁨4', hostname: 'h' }, 'host.arch'],
+        ['a left-to-right mark', { os: '‎linux', arch: 'x64', hostname: 'h' }, 'host.os'],
+        ['a line separator', { os: 'linux', arch: 'x64', hostname: 'a b' }, 'host.hostname'],
+        ['an escape', { os: 'linux', arch: 'x64', hostname: 'a\u001B[2Jb' }, 'host.hostname'],
+        ['nothing but spaces', { os: 'linux', arch: 'x64', hostname: '  ' }, 'host.hostname'],
+      ].map(([what, host, field]) => [door, what, check, host, field] as const),
+    ),
+  )('%s refuses %s', (_, __, check, host, field) => {
+    expect(check(host)).toMatchObject({
+      ok: false,
+      field,
+      detail: `${String(field)} must be visible text without control or direction characters`,
+    });
+  });
+});
+
 describe('isActionsWorkflowDto (#759)', () => {
   const dto = { text: 'name: x\n', sha256: 'a'.repeat(64), version: '0.1.0' };
 
