@@ -22,7 +22,10 @@ test.beforeEach(async ({ stack, hasTouch }) => {
 
 const title = (page: Page): Locator => page.locator('h1.tc-page__title');
 
-/** Without this the press could pass for the wrong reason: Chrome's scroll anchoring hides a size change above. */
+/**
+ * Without this the press could pass for the wrong reason: once the page is scrolled, Chrome's scroll anchoring
+ * compensates a size change above the viewport, and a press point off screen would make the browser scroll first.
+ */
 async function expectPressable(page: Page, target: Locator): Promise<void> {
   expect(await page.evaluate(() => window.scrollY), 'the page is not scrolled').toBe(0);
   const box = await target.boundingBox();
@@ -32,8 +35,9 @@ async function expectPressable(page: Page, target: Locator): Promise<void> {
   if (box === null || viewport === null) {
     return;
   }
-  expect(box.y, 'the target is inside the viewport').toBeGreaterThanOrEqual(0);
-  expect(box.y + box.height, 'the target is inside the viewport').toBeLessThanOrEqual(viewport.height);
+  const centre = box.y + box.height / 2;
+  expect(centre, 'the press point is inside the viewport').toBeGreaterThan(0);
+  expect(centre, 'the press point is inside the viewport').toBeLessThan(viewport.height);
 }
 
 test('Settings: the first mouse press after arrival turns push on, the focused title stays hidden', async ({
@@ -60,7 +64,7 @@ test('Settings: the first mouse press after arrival turns push on, the focused t
   await expectAccessible(page, 'Settings at phone width, push on');
 });
 
-test('Needs you: after the nudge is dismissed, the next mouse press answers the card', async ({
+test('Needs you: after the nudge is dismissed, the next mouse press opens the batch approval', async ({
   page,
   context,
   stack,
@@ -69,20 +73,20 @@ test('Needs you: after the nudge is dismissed, the next mouse press answers the 
   await emulatePush(context, subscription, { permission: 'default', isSubscribed: false });
 
   await page.goto('/needs-you');
-  const card = page.locator('li[data-number="72"]');
-  await expect(card).toBeVisible();
+  await expect(page.locator('li[data-number]').first()).toBeVisible();
   // A plain click: it is the dismissal that moves focus to the title, the press under test is the next one.
   await page.getByTestId('push-nudge-later').click();
   await expect(page.getByTestId('push-nudge')).toHaveCount(0);
   await expect(title(page)).toBeFocused();
   // Soft, so a regression of the directive itself is named and the press below still shows its effect.
   await expect.soft(title(page)).toHaveClass(/\btc-sr-only\b/);
-  const approve = card.locator('[data-command="approve"]');
-  await expectPressable(page, approve);
+  // The first card's answers sit below the fold; this control shares the title's row and moves when it resizes.
+  const batch = page.getByTestId('batch-approve');
+  await expectPressable(page, batch);
 
-  await heldMousePress(page, approve);
+  await heldMousePress(page, batch);
 
-  await expect(card.locator('tc-receipt')).toBeVisible();
+  await expect(page.getByRole('alertdialog', { name: ru('commands.batch.title') })).toBeVisible();
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
-  await expectAccessible(page, 'Needs you at phone width, answered');
+  await expectAccessible(page, 'Needs you at phone width, batch approval open');
 });
