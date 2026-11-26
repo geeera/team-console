@@ -783,7 +783,9 @@ describe('runtime tree check', () => {
         packages: Record<string, { dependencies?: Record<string, string> }>;
       };
       for (const [name, dependent] of Object.entries(PINNED_BY_OVERRIDE)) {
-        expect(Object.keys(lock.packages[`node_modules/${dependent}`]?.dependencies ?? {}), name).toContain(name);
+        expect(Object.keys(lock.packages[`node_modules/${dependent}`]?.dependencies ?? {}), name).toContain(
+          name,
+        );
       }
     });
 
