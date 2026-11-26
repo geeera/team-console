@@ -8,7 +8,7 @@
 // Besides the packages: `.bin` holds only the executables its packages declare, each a regular file reached
 // through no other link; nothing else in node_modules is a symlink, setuid, setgid or a special file; and the
 // manifest the tree was pruned under still carries the overrides, in npm's shape and with the pins named below.
-// And no optional package is on disk that only absent packages depend on (#1012); `--prune-unreachable` removes
+// And no optional package is on disk that only absent packages depend on (#1012); `--prune-unneeded` removes
 // those, because `npm prune` keeps them: the Dockerfile runs that mode between `npm prune` and the check.
 import {
   existsSync,
