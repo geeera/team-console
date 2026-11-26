@@ -19,10 +19,9 @@ concurrency:
   group: security-${{ github.event_name == 'pull_request' && github.event.pull_request.number || format('push-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# The gitleaks and Semgrep pins (exact version and image digest) live in .github/scanners/*.Dockerfile, where
+# Dependabot's `docker` ecosystem bumps them (#48); tools/ci/scanner-image.sh reads them and refuses a looser pin.
 env:
-  GITLEAKS_VERSION: 8.30.1
-  GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-  SEMGREP_IMAGE: semgrep/semgrep:1.177.0@sha256:acaac22ffc7b7cc5926de0751b223bce0b2491c33d18422fa72f632c78d81198
   ACTIONLINT_VERSION: 1.7.12
   ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
   SHELLCHECK_VERSION: 0.11.0
@@ -40,19 +39,30 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      # The binary instead of gitleaks-action: no token, no PR-comment write scope, checksum-verified.
-      # `--retry` (PR #458: a bare curl failed the whole job on a one-off 504 from GitHub's release CDN) only
-      # retries curl's own default transient set (connect/timeout errors and 408/429/5xx) with backoff — never
-      # on a real 404, so a genuinely missing asset (wrong version/arch) still fails fast instead of retrying
-      # for a minute. The checksum check right after still has the final say on what actually got downloaded.
+      # The binary instead of gitleaks-action: no token, no PR-comment write scope. It is the static binary of
+      # the project's own image, pulled by digest (#48: the pin in .github/scanners/gitleaks.Dockerfile is one
+      # Dependabot bumps), and it still runs on the runner with the runner's git, as the release binary did.
+      # Docker verifies the content against the digest, which is what the sha256 of the release archive was for.
+      # The pull is retried (PR #458: a one-off 5xx from the release CDN failed the whole job); a pin that does
+      # not exist fails all three attempts within seconds.
       - name: Install gitleaks
         run: |
           set -euo pipefail
-          archive="gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-          curl -fsSL --retry 5 --retry-delay 2 --retry-connrefused -o "${RUNNER_TEMP}/${archive}" \
-            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/${archive}"
-          echo "${GITLEAKS_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
-          tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" gitleaks
+          image="$(bash tools/ci/scanner-image.sh gitleaks)"
+          for attempt in 1 2 3; do
+            if docker pull --quiet "${image}"; then
+              break
+            fi
+            if [ "${attempt}" -eq 3 ]; then
+              echo "::error title=secret-scan::could not pull ${image}"
+              exit 1
+            fi
+            sleep $((attempt * 2))
+          done
+          container="$(docker create "${image}")"
+          docker cp "${container}:/usr/bin/gitleaks" "${RUNNER_TEMP}/gitleaks"
+          docker rm "${container}" > /dev/null
+          "${RUNNER_TEMP}/gitleaks" version
 
       - name: Scan the git history for secrets
         # pull_request (#171): only this PR's own commits, `git log <base>..HEAD` — HEAD is the PR's merge commit and
@@ -99,7 +109,9 @@ jobs:
       # Registry rulesets instead of `--config auto`, which requires sending metrics.
       - name: Semgrep
         run: |
-          docker run --rm -v "${GITHUB_WORKSPACE}:/src" -w /src "${SEMGREP_IMAGE}" \
+          set -euo pipefail
+          image="$(bash tools/ci/scanner-image.sh semgrep)"
+          docker run --rm -v "${GITHUB_WORKSPACE}:/src" -w /src "${image}" \
             semgrep scan --config p/default --config p/typescript --config p/github-actions \
             --metrics=off --error --severity ERROR
 
@@ -167,6 +179,7 @@ jobs:
 
       # Owner-run scripts live outside the workflow files actionlint already covers (tools/owner-setup/*.sh
       # is bash the owner runs locally with real credentials — it gets the same bar as CI's own scripts).
+      # tools/ci/*.sh is CI's own bash that lives outside a workflow file (#48).
       # tools/owner-setup/lib/*.sh (sourced by set-secrets.sh and create-apps.sh, #61 REVIEW round 1) is
       # passed in the same invocation, not checked separately: shellcheck only follows a `source=` hint
       # without `-x` when the target is itself one of the files given on the command line.
@@ -174,7 +187,7 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          scripts=(tools/owner-setup/*.sh tools/owner-setup/lib/*.sh)
+          scripts=(tools/owner-setup/*.sh tools/owner-setup/lib/*.sh tools/ci/*.sh)
           if [ "${#scripts[@]}" -eq 0 ]; then
             echo "::notice::no tools/owner-setup/*.sh scripts yet"
             exit 0
@@ -192,6 +205,11 @@ jobs:
       # npm on PATH, so this would have caught #180 before it reached review.
       - name: Test the dependency-audit gate end to end from a path with a space (tools/ci/audit-gate.mjs)
         run: node tools/ci/audit-gate.e2e.test.mjs
+
+      # #48: the gitleaks and Semgrep pins are read from .github/scanners/*.Dockerfile through this script. The
+      # committed pins must pass; a floating tag, a missing digest, another image or a second instruction must not.
+      - name: Test the scanner pin reader (tools/ci/scanner-image.sh)
+        run: bash tools/ci/scanner-image.test.sh
 
       # #973: ci.yml's scope decisions list changed paths through this script. Real scratch repositories with a
       # rename out of scope and names git would quote (a quote, a backslash, a tab, a line break, non-ASCII).
