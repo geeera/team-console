@@ -93,6 +93,10 @@ describe('PushSender.sendToAll', () => {
     lines.length = 0;
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   const sender = (): PushSender =>
     new PushSender({ vapid, fetch: service.fetch, logger, environment: 'production' });
 
@@ -124,7 +128,11 @@ describe('PushSender.sendToAll', () => {
   it('signs a VAPID JWT for the endpoint origin, valid at most 12 hours, with the https subject (row 4)', async () => {
     const device = await service.subscribe('fcm.googleapis.com');
     store.add(device);
-    const before = Math.floor(Date.now() / 1000);
+    // Freeze only Date: the signer (@block65/webcrypto-web-push) reads Date.now() internally for
+    // `exp`, and a real clock can tick a second between that read and `before` here, making
+    // `exp - before` land on 43201 instead of 43200 (#1049). WebCrypto still runs on real timers.
+    const frozenNowMs = Date.now();
+    vi.useFakeTimers({ now: frozenNowMs, toFake: ['Date'] });
 
     await sender().sendToAll(store, testNotification('ru'));
 
@@ -134,10 +142,8 @@ describe('PushSender.sendToAll', () => {
     expect(jwt?.header).toMatchObject({ alg: 'ES256', typ: 'JWT' });
     expect(jwt?.claims['aud']).toBe('https://fcm.googleapis.com');
     expect(jwt?.claims['sub']).toBe('https://github.com/geeera/team-console');
-    const exp = jwt?.claims['exp'];
-    expect(typeof exp).toBe('number');
-    expect((exp as number) - before).toBeLessThanOrEqual(12 * 60 * 60);
-    expect((exp as number) - before).toBeGreaterThan(0);
+    const before = Math.floor(frozenNowMs / 1000);
+    expect(jwt?.claims['exp']).toBe(before + 12 * 60 * 60);
   });
 
   it('prunes only the device that answers 410 when others answer 201 and 429', async () => {
