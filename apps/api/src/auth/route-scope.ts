@@ -128,6 +128,8 @@ export const ROUTE_SCOPES = {
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'account',
   // #634: enrolment intents of the owner's wizard; one of another account or another owner is 404 (R-INT-2).
   'POST /api/v1/accounts/:id/runners/enrolment-intents': 'account',
+  // #817: the caller's own open intents, never another owner's.
+  'GET /api/v1/accounts/:id/runners/enrolment-intents': 'account',
   'GET /api/v1/accounts/:id/runners/enrolment-intents/:intent': 'account',
   'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/approve': 'account',
   'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/withdraw': 'account',

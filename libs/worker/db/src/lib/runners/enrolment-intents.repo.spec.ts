@@ -180,6 +180,39 @@ describe('EnrolmentIntentsRepo', () => {
     });
   });
 
+  describe('listOpen', () => {
+    it('lists the creator’s pending and bound intents in their account, newest first, at most the limit', async () => {
+      // Another owner of the account and the same actor in another account: neither is Alice's here.
+      await created({ createdBy: 'bob', at: at(0) });
+      await created({ accountId: ACCOUNT_B, at: at(0) });
+      const older = await bound({ at: at(1) }, bindOf({ at: at(2) }));
+      const newer = await created({ at: at(3) });
+      const ids = async (limit: number): Promise<string[]> =>
+        (await repo.listOpen(ALICE, at(10), limit)).map((intent) => intent.id);
+
+      expect(await ids(3)).toEqual([newer.id, older.id]);
+      expect(await ids(1)).toEqual([newer.id]);
+      expect((await repo.listOpen(ALICE, at(10), 3))[1]).toMatchObject({
+        state: 'bound',
+        bind: { fingerprint: 'ABCD-EFGH' },
+      });
+    });
+
+    it('leaves out withdrawn, approved and expired intents', async () => {
+      const withdrawn = await created();
+      expect(
+        await repo.withdraw(ALICE, withdrawn.id, at(1), audit('enrolment-intent.withdrawn', withdrawn.id)),
+      ).toBe(true);
+      const approved = await bound();
+      await approveOf(approved.id);
+      const open = await created({ at: at(3), expiresAt: at(603) });
+
+      expect((await repo.listOpen(ALICE, at(10), 3)).map((intent) => intent.id)).toEqual([open.id]);
+      // At the second the ten minutes end, nothing is open any more.
+      expect(await repo.listOpen(ALICE, at(603), 3)).toEqual([]);
+    });
+  });
+
   describe('bind', () => {
     it('binds a pending intent whole, with the audit row', async () => {
       const intent = await bound();
@@ -321,6 +354,28 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'bound', runnerId: null });
     });
 
+    // #817: the gate's placeholders are all numbered; this pins that the fingerprint binds to the fingerprint column
+    // and the key to the key column, whatever else the account holds.
+    it('writes nothing for another fingerprint, even one another bound intent of the account carries', async () => {
+      const other = await bound({}, bindOf({ fingerprint: 'WXYZ-2345', publicKeyX: 'y'.repeat(43) }));
+      const intent = await bound();
+      const { intent: approved, runnerId } = await approveOf(intent.id, 'WXYZ-2345');
+      expect(approved).toBeNull();
+      expect(await env.DB.prepare(`SELECT id FROM runners WHERE id = ?1`).bind(runnerId).first()).toBeNull();
+      expect(await auditRows('runner.enrolled', runnerId)).toBe(0);
+      const rows = await env.DB.prepare(
+        `SELECT state, approved_at, approved_by, runner_id FROM runner_enrolment_requests WHERE id IN (?1, ?2)`,
+      )
+        .bind(intent.id, other.id)
+        .all();
+      expect(rows.results).toEqual([
+        { state: 'bound', approved_at: null, approved_by: null, runner_id: null },
+        { state: 'bound', approved_at: null, approved_by: null, runner_id: null },
+      ]);
+      // The right fingerprint still approves it afterwards: nothing was half-written.
+      expect((await approveOf(intent.id)).intent).toMatchObject({ state: 'approved' });
+    });
+
     it('writes nothing for a pending intent, a suspended account, or a second approval', async () => {
       const pending = await created();
       expect((await approveOf(pending.id)).intent).toBeNull();
@@ -367,14 +422,24 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await repo.admitPoll(intent.id, 'a'.repeat(64), at(14), 4)).toBe(true);
     });
 
-    it('collects an approved intent once, for the token’s holder', async () => {
+    it('collects an approved intent for the token’s holder, again within the window, keeping the first time', async () => {
       const intent = await bound();
       expect(await repo.collect(intent.id, 'a'.repeat(64), at(3), 120)).toBeNull();
       const { runnerId } = await approveOf(intent.id);
       expect(await repo.collect(intent.id, 'b'.repeat(64), at(3), 120)).toBeNull();
       expect(await repo.collect(intent.id, 'a'.repeat(64), at(3), 120)).toBe(runnerId);
-      expect(await repo.collect(intent.id, 'a'.repeat(64), at(4), 120)).toBeNull();
+      // #817: an answer lost on the way is asked for again and is the same runner.
+      expect(await repo.collect(intent.id, 'a'.repeat(64), at(4), 120)).toBe(runnerId);
+      expect(await repo.collect(intent.id, 'b'.repeat(64), at(5), 120)).toBeNull();
       expect(await repo.findById(intent.id)).toMatchObject({ state: 'used', runnerId });
+      const collected = await env.DB.prepare(
+        `SELECT collected_at FROM runner_enrolment_requests WHERE id = ?1`,
+      )
+        .bind(intent.id)
+        .first<string>('collected_at');
+      expect(collected).toBe(at(3));
+      // Past the window (the intent's ten minutes here) a used intent is collected no more.
+      expect(await repo.collect(intent.id, 'a'.repeat(64), at(600), 120)).toBeNull();
     });
 
     it('keeps the collection open to the later of the expiry and the grace after the approval', async () => {

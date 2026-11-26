@@ -649,11 +649,6 @@ export class AddRunnerWizard {
       return;
     }
     this.busy.set(null);
-    if (command === null) {
-      // The API would not offer a command (origin not configured): never build one here.
-      this.createRefused(null);
-      return;
-    }
     this.created.set({
       intentId,
       expiresAt,
@@ -669,10 +664,13 @@ export class AddRunnerWizard {
     this.focusHeading();
   }
 
-  /** `null`: the API answered with no command; the code path is offered instead. */
-  private createRefused(failure: RunnerFailure | null): void {
+  /**
+   * 503 `console-origin-misconfigured` (#817): the API has no origin to put in a command and made no request; the
+   * code path is offered instead, and the wizard never builds a command itself.
+   */
+  private createRefused(failure: RunnerFailure): void {
     this.phase.set('params');
-    if (failure === null) {
+    if (failure.slug === 'console-origin-misconfigured') {
       this.failure.set(this.t('runners.wizard.err.noCommand'));
       this.offerCode.set(true);
     } else {

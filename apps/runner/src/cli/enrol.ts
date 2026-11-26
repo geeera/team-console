@@ -343,9 +343,15 @@ async function enrolByIntent(
       if (error instanceof RunnerApiError && error.problem === 'slow-down') {
         continue;
       }
+      // 410 (#817): the console confirmed this machine's token and says the request will never enrol it.
+      if (error instanceof RunnerApiError && error.problem === 'enrolment-gone') {
+        throw new EnrolIntentError(
+          'the request was rejected in the console or expired: nothing was written on this machine; start again from Settings › Runners › Add runner',
+        );
+      }
       if (error instanceof RunnerApiError && error.problem === 'enrolment-not-found') {
         throw new EnrolIntentError(
-          'the request was rejected in the console, expired or was already used: nothing was written; start again from Settings › Runners › Add runner',
+          'the console does not know this request any more: nothing was written; start again from Settings › Runners › Add runner',
         );
       }
       throw error;

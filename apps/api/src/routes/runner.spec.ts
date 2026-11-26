@@ -148,6 +148,13 @@ describe('POST /api/v1/runner/enrol', () => {
       'capabilities.maxConcurrency',
     ],
     ['an extra member', { extra: 1 }, 'body'],
+    // #817: what the owner's runner list shows refuses what an intent's bind refuses (R-INT-7).
+    [
+      'a bidi override in the hostname',
+      { host: { os: 'darwin', arch: 'arm64', hostname: 'mac‮gpj.exe' } },
+      'host.hostname',
+    ],
+    ['a direction isolate in the os', { host: { os: 'dar⁦win', arch: 'arm64', hostname: 'm' } }, 'host.os'],
   ])('refuses %s with 422 and the field', async (_, overrides, field) => {
     const { code } = await createEnrolmentCode(OWNER_ACCOUNT_ID);
     const body = { ...enrolBodyOf(code, (await generateRunnerKey()).publicKeyJwk), ...overrides };

@@ -115,7 +115,7 @@ Errors (banner `tone="danger"`, `role="alert"`, under the form; the primary butt
 |---|---|---|
 | 409 `enrolment-intent-limit` | `runners.wizard.err.limit` | none |
 | 429 `rate-limited` (hourly) | `runners.wizard.err.hourly` | none |
-| 201 with `command: null` (origin not configured) | `runners.wizard.err.noCommand` | link «Подключить по коду» → hands over (decision 1) |
+| 503 `console-origin-misconfigured` (origin not configured; no request is made, #817) | `runners.wizard.err.noCommand` | link «Подключить по коду» → hands over (decision 1) |
 | 422 `allowed-projects-invalid` | `runners.err.allowedProjects` (reused) | none |
 | 422 other / `enrolment-intent-invalid` | `runners.err.invalid` (reused) | none |
 | 403 forbidden / suspended | `runners.err.forbidden` / `runners.wizard.err.suspended` | none |
@@ -240,7 +240,7 @@ Heading h3: «Подтверждено — ждём первый сигнал».
 |---|---|
 | install one-liner for this platform (the release's `SHA256SUMS` lists `node` and passed the S1 deploy check) | Variant A |
 | no one-liner (no `node` in the sums, sums unset, or malformed) | Variant B (runbook path) |
-| `command: null` | step 1 error `noCommand` + «Подключить по коду» |
+| 503 `console-origin-misconfigured` (#817; formerly `command: null`) | step 1 error `noCommand` + «Подключить по коду» |
 
 The client never builds or edits command text (AC). It does not look at `SHA256SUMS` itself. The decision is the
 API's, and so is the text.

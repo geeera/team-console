@@ -2,6 +2,7 @@ import {
   OWNER_ACCOUNT_ID,
   isEnrolmentIntentCreatedDto,
   isEnrolmentIntentDto,
+  isEnrolmentIntentListDto,
   isStartEnrolmentResponse,
   runnerKeyFingerprintOf,
 } from '@shared/contracts';
@@ -34,7 +35,7 @@ describe('integration: an enrolment intent against the local stack', () => {
     await stack.stop();
   }, 30_000);
 
-  it('creates, binds (first bind wins), approves by fingerprint, collects once, and the runner’s JWT is accepted', async () => {
+  it('creates, binds (first bind wins), approves by fingerprint, collects (again within the window), and the runner’s JWT is accepted', async () => {
     const { origin } = stack;
     const intents = `${origin}/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
     const door = (call: 'start' | 'poll', body: unknown): Promise<Response> =>
@@ -100,6 +101,12 @@ describe('integration: an enrolment intent against the local stack', () => {
       fingerprint: start.fingerprint,
       host: { hostname: 'integration.local' },
     });
+    // #817: the owner's list of open requests names it too.
+    const open: unknown = await (await fetch(intents)).json();
+    if (!isEnrolmentIntentListDto(open)) {
+      throw new Error('the answer is not an EnrolmentIntentListDto');
+    }
+    expect(open.intents.map((intent) => intent.id)).toContain(created.intentId);
     const wrong = await fetch(`${intents}/${created.intentId}/approve`, {
       method: 'POST',
       headers: owner,
@@ -113,7 +120,7 @@ describe('integration: an enrolment intent against the local stack', () => {
     });
     expect(approved.status).toBe(200);
 
-    // 6. The runner waits out the interval, as `setup` will, and collects its enrolment once.
+    // 6. The runner waits out the interval, as `setup` will, and collects its enrolment.
     await new Promise<void>((done) => setTimeout(done, start.intervalSeconds * 1000));
     const collected = await door('poll', { intentId: created.intentId, pollToken: start.pollToken });
     expect(collected.status).toBe(200);
@@ -128,8 +135,11 @@ describe('integration: an enrolment intent against the local stack', () => {
       audience: 'team-console:local',
       projectScope: 'all',
     });
+    // #817: an answer lost on the way is asked for again within the window, and it is the same runner.
     await new Promise<void>((done) => setTimeout(done, start.intervalSeconds * 1000));
-    expect((await door('poll', { intentId: created.intentId, pollToken: start.pollToken })).status).toBe(404);
+    const again = await door('poll', { intentId: created.intentId, pollToken: start.pollToken });
+    expect(again.status).toBe(200);
+    expect(((await again.json()) as { runnerId: string }).runnerId).toBe(enrolment.runnerId);
 
     // 7. The key that never left this process authenticates the enrolled runner.
     const client = new RunnerClient({

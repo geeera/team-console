@@ -213,6 +213,24 @@ describe('enrol --enrolment (#634 PR 2, R-INT-1)', () => {
     },
   );
 
+  // #817: the console proved this machine's token and says the request is gone: stop, do not poll on.
+  it('stops on a 410 from poll with "rejected or expired", writing nothing and polling no more', async () => {
+    const { fetch } = honestConsole(0);
+    let polls = 0;
+    const gone = async (url: string, init: RequestInit): Promise<Response> => {
+      if (url.endsWith('/enrol/poll')) {
+        polls += 1;
+        return problem(410, 'enrolment-gone');
+      }
+      return await fetch(url, init);
+    };
+    const failure = runEnrol(gone);
+    await expect(failure).rejects.toBeInstanceOf(EnrolIntentError);
+    await expect(failure).rejects.toThrow(/rejected in the console or expired.*start again/);
+    expect(polls).toBe(1);
+    await expect(readdir(home)).resolves.toEqual([]);
+  });
+
   it('gives up once the request is past its collection window', async () => {
     const { fetch } = honestConsole(1000);
     await expect(runEnrol(fetch, '2026-11-21T10:13:00.000Z')).rejects.toThrow(
