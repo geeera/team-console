@@ -97,6 +97,23 @@ test.describe('with two active projects', () => {
     await expect.poll(() => pageScroller(page).evaluate((el) => el.scrollTop)).toBe(300);
   });
 
+  // Questions is the default section, so a switch back that lands on it proves nothing: Artifacts is a screen only
+  // the saved last path can bring back (#147). The chat draft is not part of this: Chat is a placeholder (#203).
+  test('A → B → A returns to the last screen when it is not the default section', async ({ page }) => {
+    // Reached by the tab, as the owner does: a first load straight onto a section can run before the project list
+    // has arrived, and the shell then has no active project to remember the screen for.
+    await page.goto('/p/team-console/questions');
+    await expect(page.locator('li[data-number="72"]')).toBeVisible();
+    await page.getByRole('link', { name: ru('space.artifacts') }).click();
+    await expect(page).toHaveURL(/\/p\/team-console\/artifacts$/);
+
+    await switchTo(page, 'private-product');
+    await expect(page).toHaveURL(/\/p\/private-product\//);
+
+    await switchTo(page, 'team-console');
+    await expect(page).toHaveURL(/\/p\/team-console\/artifacts$/);
+  });
+
   // The chat tab is a placeholder until #17 ships (#203): every way to reach it lands on the default section.
   test('the chat tab is hidden; its deep link, its saved last section and the switcher all land on the default section', async ({
     page,

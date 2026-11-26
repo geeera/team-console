@@ -1,4 +1,4 @@
-# Dependabot config (SPEC decision, issue #41). github-actions only —
+# Dependabot config (SPEC decision, issue #41). github-actions, plus the two scanner pins of security.yml —
 # npm ecosystem is a separate owner decision, tracked in #44.
 version: 2
 updates:
@@ -14,5 +14,20 @@ updates:
       github-actions:
         patterns:
           - "*"
+    commit-message:
+      prefix: "ci"
+
+  # #48: the gitleaks and Semgrep images security.yml runs, pinned by version and digest in
+  # .github/scanners/*.Dockerfile. `directory` is not recursive, so this entry sees those files only — never the
+  # root Dockerfile or apps/runner/Dockerfile (the product's own images). One PR per scanner, not grouped: each
+  # bump's own security run shows what the new version finds.
+  - package-ecosystem: "docker"
+    directory: "/.github/scanners"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      timezone: "Europe/Kyiv"
+    target-branch: "dev"
+    open-pull-requests-limit: 2
     commit-message:
       prefix: "ci"

@@ -661,13 +661,26 @@ jobs:
       # job above), which already has the webkit binary and every OS dep baked in — nothing to cache or
       # apt-get here, and that is the shard this step kept failing for (chromium's deps are mostly already on
       # the `ubuntu-latest` image, so its own install-deps stays fast).
+      # #148: keyed on the installed @playwright/test version (read from the lockfile, which `npm ci` just
+      # installed exactly), not on the whole lockfile: an unrelated dependency bump no longer drops the
+      # browsers, and a hit can only hold the revision that exact version downloads. OS and arch are in the key
+      # because the binaries differ per platform.
+      - name: Read the installed Playwright version
+        if: matrix.project != 'iphone-webkit'
+        id: playwright-version
+        run: |
+          set -euo pipefail
+          version=$(node -p "require('./node_modules/@playwright/test/package.json').version")
+          [[ "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected Playwright version '${version}'"; exit 1; }
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+
       - name: Cache Playwright browser binaries
         if: matrix.project != 'iphone-webkit'
         id: playwright-cache
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+          key: ${{ runner.os }}-${{ runner.arch }}-playwright-${{ steps.playwright-version.outputs.version }}-${{ matrix.browser }}
 
       # #808: `install-deps`/`install --with-deps` shells out to `apt-get install`, which fails immediately
       # (rather than waiting) when another process — the runner's own unattended-upgrades, typically — holds
