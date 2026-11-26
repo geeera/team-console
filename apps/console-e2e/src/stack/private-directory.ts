@@ -1,4 +1,13 @@
-import { closeSync, constants, fchmodSync, fstatSync, lstatSync, mkdirSync, openSync, type Stats } from 'node:fs';
+import {
+  closeSync,
+  constants,
+  fchmodSync,
+  fstatSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  type Stats,
+} from 'node:fs';
 import { isAbsolute, join, relative, sep } from 'node:path';
 
 /** A directory of the stack only its owner may list, enter or write to. */
@@ -39,7 +48,9 @@ export function privateDirectory(dir: string): void {
     const opened = fstatSync(descriptor);
     const user = process.getuid?.();
     if (user !== undefined && opened.uid !== user) {
-      throw new Error(`${dir} belongs to another user (uid ${opened.uid}): the stack cannot make it its own.`);
+      throw new Error(
+        `${dir} belongs to another user (uid ${opened.uid}): the stack cannot make it its own.`,
+      );
     }
     fchmodSync(descriptor, PRIVATE_DIRECTORY_MODE);
   } finally {

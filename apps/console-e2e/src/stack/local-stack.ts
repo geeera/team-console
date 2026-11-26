@@ -17,7 +17,7 @@ import { startCloseRelay, type CloseRelay } from './close-relay';
 import { STACK_PARENT_PID } from './orphan-watch.mts';
 import { signal } from './process-signal';
 import { SERVE_WORKER_OPTIONS, type ServeWorkerOptions } from './serve-worker-options.mts';
-import { forgetServer, recordServer, serverArgs, startedAtOf, stopStaleServers } from './stale-servers';
+import { forgetServer, recordSpawnedServer, serverArgs, stopStaleServers } from './stale-servers';
 import { stackChildEnv, stackHome } from './stack-env';
 import { streamSuffix, type StackPorts } from './stack-ports';
 import { WORKSPACE_ROOT } from './workspace';
@@ -119,12 +119,14 @@ class StackProcess {
       // No pid means the spawn itself failed: nothing runs, so there is nothing to record or to stop later. The
       // failure is not lost — it arrives as the child's `error` event, and `waitForOk` reports it with the log.
       if (child.pid !== undefined) {
-        const startedAt = startedAtOf(child.pid);
-        if (startedAt === null) {
-          // Already dead: a record without a start time would name nothing a later start may stop (#1006).
-          appendLog(logPath, `=== ${label} (pid ${child.pid}) is not running any more: not recorded ===`);
-        } else {
-          recordServer(SERVERS_DIR, options.port, { pid: child.pid, token, label, startedAt });
+        const note = recordSpawnedServer(
+          SERVERS_DIR,
+          options.port,
+          { pid: child.pid, token, label },
+          WORKSPACE_ROOT,
+        );
+        if (note !== null) {
+          appendLog(logPath, `=== ${note} ===`);
         }
       }
       return new StackProcess(child, label, logPath, logStart, options.port);
