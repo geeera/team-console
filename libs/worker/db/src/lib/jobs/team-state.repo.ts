@@ -35,6 +35,15 @@ export interface BudgetStopRecord {
   readonly budgetUsd: number | null;
 }
 
+/**
+ * A project's console run (#1039, migration 0045): `runId` is `null` while idle; `steps` counts the run's steps against
+ * `ORCHESTRATE_MAX_STEPS`. `OrchestrationRepo` is the only writer of the two columns.
+ */
+export interface OrchestrationRunRecord {
+  readonly runId: string | null;
+  readonly steps: number;
+}
+
 /** Who paused on the failure streak, as `paused_by` records it. */
 export const FAILURE_STREAK_PAUSER = 'system:failure-streak';
 
@@ -129,6 +138,17 @@ export class TeamStateRepo {
     return row === null
       ? { projectSlug, pausedAt: null, pausedBy: null, failedStreak: 0 }
       : { projectSlug, pausedAt: row.paused_at, pausedBy: row.paused_by, failedStreak: row.failed_streak };
+  }
+
+  /** The two run columns; a project without a `team_state` row is idle. */
+  async orchestrationOf(projectSlug: string): Promise<OrchestrationRunRecord> {
+    const row = await this.db
+      .prepare(`SELECT orchestrate_run_id, orchestrate_steps FROM team_state WHERE project_slug = ?1`)
+      .bind(projectSlug)
+      .first<{ orchestrate_run_id: string | null; orchestrate_steps: number }>();
+    return row === null
+      ? { runId: null, steps: 0 }
+      : { runId: row.orchestrate_run_id, steps: row.orchestrate_steps };
   }
 
   /**

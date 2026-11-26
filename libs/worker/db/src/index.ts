@@ -181,7 +181,14 @@ export {
   TeamStateRepo,
   isTeamStatePaused,
 } from './lib/jobs/team-state.repo';
-export type { BudgetStopRecord, TeamStateRecord } from './lib/jobs/team-state.repo';
+export type { BudgetStopRecord, OrchestrationRunRecord, TeamStateRecord } from './lib/jobs/team-state.repo';
+export { OrchestrationRepo } from './lib/jobs/orchestration.repo';
+export type {
+  ChildrenFilter,
+  JobCancelReason,
+  StartOutcome,
+  WakeOutcome,
+} from './lib/jobs/orchestration.repo';
 export type { RateLimitOutcome } from './lib/runners/rate-limits.repo';
 export { IdempotencyKeysRepo } from './lib/tracker/idempotency-keys.repo';
 export type {
