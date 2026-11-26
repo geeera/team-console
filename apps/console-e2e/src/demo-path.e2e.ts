@@ -36,6 +36,20 @@ function recordAnswerPosts(page: Page): Request[] {
   return posts;
 }
 
+/** Long enough for a delayed duplicate send (a retry timer, a second effect) to land after the receipt. */
+const SETTLE_WINDOW_MS = 2500;
+const SETTLE_POLL_MS = 250;
+
+/** Runs `check` every poll interval until the window ends; the first failed check fails the test. */
+async function expectHoldsFor(windowMs: number, check: () => Promise<void>): Promise<void> {
+  const until = Date.now() + windowMs;
+  do {
+    await check();
+    await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS));
+  } while (Date.now() < until);
+  await check();
+}
+
 async function openNeedsYou(page: Page): Promise<void> {
   await page.goto('/needs-you');
   await expect(item(page, 72)).toBeVisible();
@@ -143,6 +157,13 @@ test('answers #72 with /approve in one tap — exactly one comment', async ({ pa
   expect(posts).toHaveLength(1);
   const after = await fakeComments(stack, 72);
   expect(after).toHaveLength(before.length + 1);
+  // A duplicate can go out well after the receipt (#147): the count must hold for the whole settle window.
+  await expectHoldsFor(SETTLE_WINDOW_MS, async () => {
+    expect(posts, 'no second answer POST after the receipt').toHaveLength(1);
+    expect(await fakeComments(stack, 72), 'no second comment after the receipt').toHaveLength(
+      before.length + 1,
+    );
+  });
   const comment = after.at(-1);
   expect(comment?.author).toBe('geeera');
   expect(commandLines(comment?.body ?? '')).toEqual([{ command: 'approve', text: '' }]);
