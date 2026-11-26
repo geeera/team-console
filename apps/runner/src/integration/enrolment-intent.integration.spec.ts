@@ -187,6 +187,13 @@ describe('integration: an enrolment intent against the local stack', () => {
         throw new Error('the intent was never bound');
       }
       expect(printed.at(-1)).toContain(shown.fingerprint);
+      // R-INT-3: the origin leads as the console's identity (a loopback stack is never built in); the name is text.
+      expect(printed.slice(0, 2)).toEqual([
+        `Console: ${origin}. THIS IS NOT A CONSOLE BUILT INTO THIS RUNNER: stop (Ctrl-C) unless you run it yourself.`,
+        expect.stringMatching(
+          /^Request sent to the account that console names «[^«»]+» \(its text, not checked by this runner\)\.$/u,
+        ),
+      ]);
       const approved = await fetch(`${intents}/${created.intentId}/approve`, {
         method: 'POST',
         headers: owner,
