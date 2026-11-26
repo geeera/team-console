@@ -310,6 +310,32 @@ export type {
   TeamStateDto,
 } from './lib/job';
 export {
+  CHILD_BASES,
+  CHILD_BRANCH_PREFIXES,
+  ORCHESTRATE_MAX_STEPS,
+  ORCHESTRATION_PROBLEMS,
+  ORCHESTRATION_STATES,
+  STEP_NEXTS,
+  TASK_ROLES,
+  checkCreateChildJobInput,
+  isChildJobListDto,
+  isOrchestrationDto,
+  isStepNext,
+  isTaskRole,
+} from './lib/orchestration';
+export type {
+  ChildBase,
+  ChildBranchPrefix,
+  ChildJobListDto,
+  CreateChildJobInput,
+  OrchestrationChildCounts,
+  OrchestrationDto,
+  OrchestrationProblemType,
+  OrchestrationState,
+  StepNext,
+  TaskRole,
+} from './lib/orchestration';
+export {
   ACTIONS_DISPATCH_FAILED,
   ACTIONS_DISPATCH_FAILURES,
   ACTIONS_ENVIRONMENT,

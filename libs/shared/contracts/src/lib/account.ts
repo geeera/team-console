@@ -82,7 +82,10 @@ export const AUDIT_EVENT_KINDS = [
   'runner.paused',
   'runner.resumed',
   'job.finished',
+  // The owner's cancel of one job (#1039), and a console run started and ended (by Stop, `done`, or the step cap).
   'job.cancelled',
+  'orchestration.started',
+  'orchestration.stopped',
   // A limit failure the failure streak left out, backed by the runner's pause (#596).
   'job.streak-excluded',
   'team.paused',
