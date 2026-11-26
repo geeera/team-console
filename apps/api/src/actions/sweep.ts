@@ -1,6 +1,6 @@
 import { ACTIONS_NO_SHOW, ACTIONS_NO_SHOW_MINUTES } from '@shared/contracts';
 import type { Logger } from '@worker/core';
-import { JobsRepo, TeamStateRepo } from '@worker/db';
+import { EnrolmentIntentsRepo, JobsRepo, TeamStateRepo } from '@worker/db';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { dispatchAdmittedActionsJobs } from './dispatch';
@@ -39,5 +39,40 @@ export async function sweepQueue(env: ApiEnv, now: Date, logger: Logger, github:
       noShows: noShows.length,
       dispatched,
     });
+  }
+}
+
+/**
+ * The most enrolment intents one sweep deletes (#821). A creation keeps its own account's rows few and three live
+ * intents at once is the cap, so this only bounds the statement; whatever is left goes in the next sweep.
+ */
+export const SWEEP_INTENTS_MAX = 500;
+
+/**
+ * The retention sweep of `runner_enrolment_requests` (#821): rows a day past their last use go, with the binder's
+ * host, country, key and fingerprint. Runs beside the queue's sweep on the same Cron.
+ */
+export async function sweepEnrolmentIntents(env: ApiEnv, now: Date, logger: Logger): Promise<void> {
+  const deleted = await new EnrolmentIntentsRepo(env.DB).deleteRetired(now.toISOString(), SWEEP_INTENTS_MAX);
+  if (deleted > 0) {
+    logger.info('enrolment intents swept', { deleted });
+  }
+}
+
+/**
+ * One sweep of the Cron, run on its own: a failure is logged under `failure` with the error's name (never its
+ * message, which may carry SQL or a value) and rethrown, so the invocation is marked failed and the other sweeps of
+ * the same Cron still run.
+ */
+export async function runLoggedSweep(
+  logger: Logger,
+  failure: string,
+  sweep: () => Promise<void>,
+): Promise<void> {
+  try {
+    await sweep();
+  } catch (error: unknown) {
+    logger.error(failure, { error: error instanceof Error ? error.name : 'unknown' });
+    throw error;
   }
 }

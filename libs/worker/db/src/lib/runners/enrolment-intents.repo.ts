@@ -1,4 +1,5 @@
 import {
+  ENROLMENT_INTENT_COLLECT_SECONDS,
   isAccessSource,
   type EnrolmentIsolation,
   type RunnerCapabilitiesDto,
@@ -107,8 +108,16 @@ const COLUMNS = `id, account_id, name, project_scope, allowed_projects, isolatio
 /** An intent that can still be bound or approved at the time bound to `now` (a numbered placeholder). */
 const liveSql = (now: string): string =>
   `state IN ('pending', 'bound') AND julianday(expires_at) > julianday(${now})`;
-/** Rows this old are long final (an intent lives ten minutes) and outside every cap's window; the audit keeps them. */
-const PRUNE_AFTER = '-1 day';
+/**
+ * Retention (#821). No flow reads an intent past `expires_at` plus the collection window: binding, withdrawal and
+ * approval need it unexpired, and collection ends `ENROLMENT_INTENT_COLLECT_SECONDS` after an approval made before
+ * `expires_at`. A row a day past that is outside every cap's window too (the hourly one counts `created_at`), so it
+ * is deleted whatever its state; the audit keeps its history. The modifier is added to `expires_at`.
+ */
+const RETAINED_PAST_EXPIRY = `+${String(ENROLMENT_INTENT_COLLECT_SECONDS + 24 * 60 * 60)} seconds`;
+/** A row past retention at the time bound to `now`, with `RETAINED_PAST_EXPIRY` bound to `retained`. */
+const retiredSql = (now: string, retained: string): string =>
+  `julianday(expires_at, ${retained}) < julianday(${now})`;
 
 function bindOf(row: IntentRow): EnrolmentIntentBind | null {
   if (
@@ -180,10 +189,8 @@ export class EnrolmentIntentsRepo {
                       WHERE account_id = ?2 AND julianday(created_at) > julianday(?8, '-1 hour')`;
     const [, insert] = await this.db.batch([
       this.db
-        .prepare(
-          `DELETE FROM runner_enrolment_requests WHERE account_id = ?1 AND julianday(created_at) < julianday(?2, ?3)`,
-        )
-        .bind(intent.accountId, intent.at, PRUNE_AFTER),
+        .prepare(`DELETE FROM runner_enrolment_requests WHERE account_id = ?1 AND ${retiredSql('?2', '?3')}`)
+        .bind(intent.accountId, intent.at, RETAINED_PAST_EXPIRY),
       ...auditedWrite(
         this.db,
         this.db
@@ -219,6 +226,22 @@ export class EnrolmentIntentsRepo {
       .bind(intent.accountId, intent.at)
       .first<{ live: number }>();
     return (counts?.live ?? 0) >= caps.liveMax ? 'live-limit' : 'hourly-limit';
+  }
+
+  /**
+   * The retention sweep (#821, the api Worker's Cron): deletes at most `limit` rows past retention at `now`, of every
+   * account, oldest first, and answers how many went. A creation prunes its own account's the same way.
+   */
+  async deleteRetired(now: string, limit: number): Promise<number> {
+    const result = await this.db
+      .prepare(
+        `DELETE FROM runner_enrolment_requests WHERE id IN (
+           SELECT id FROM runner_enrolment_requests WHERE ${retiredSql('?1', '?2')} ORDER BY expires_at, id LIMIT ?3
+         )`,
+      )
+      .bind(now, RETAINED_PAST_EXPIRY, limit)
+      .run();
+    return result.meta.changes;
   }
 
   /** The runner door's read: by id alone, since the caller has no account yet. Never used on the owner's side. */
