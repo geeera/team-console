@@ -1,12 +1,14 @@
 import type { Page } from '@playwright/test';
+import { contextTimeZone, dayFromToday, instantInZone } from './support/dates';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
+import { pushAlreadyOn } from './support/push';
 import { apiClient, seed } from './support/stack';
 
 /**
- * Snooze notifications (#221). A test browser holds no push subscription, so Snooze is off with "Push is off on this
- * device" and a Settings link (the dialog itself is covered by the feature's spec). A snooze stored through the API
- * shows as the struck bell with words in the panel (and the sidebar on a wide screen), and Turn back on is one tap.
+ * Snooze notifications (#221, #249). Without a push subscription Snooze is off with "Push is off on this device" and a
+ * Settings link. With push on (emulated, `support/push.ts`) the dialog stores the chosen snooze, which shows as the
+ * struck bell with words in the panel (and the sidebar on a wide screen); Turn back on is one tap.
  */
 
 const SNOOZE = '/api/v1/projects/team-console/notifications/snooze';
@@ -71,4 +73,73 @@ test('a snoozed project shows the struck bell with words, and one tap turns it b
   expect(sent).toEqual(['DELETE']);
   await expect(line).toHaveCount(0);
   await expect(page.getByTestId('switcher-snoozed')).toHaveCount(0);
+});
+
+test('with push on, «До утра» keeping urgent ones stores the next 09:00 in Kyiv and shows it', async ({
+  page,
+  context,
+  stack,
+}, testInfo) => {
+  await pushAlreadyOn(stack, context);
+  // Late evening tomorrow on a fixed clock: "until morning" is the 09:00 after it, still ahead of the api's real clock.
+  const timeZone = contextTimeZone(testInfo);
+  const evening = instantInZone(dayFromToday(timeZone, 1), '21:30', timeZone);
+  const morning = instantInZone(dayFromToday(timeZone, 2), '09:00', timeZone);
+  await page.clock.setFixedTime(evening);
+
+  await openPanel(page);
+  const group = page.getByTestId('notify-group');
+  const button = group.getByTestId('snooze-command');
+  await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+  await expect(group.getByTestId('snooze-why')).toHaveCount(0);
+
+  const bodies: unknown[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'PUT' && new URL(request.url()).pathname === SNOOZE) {
+      bodies.push(request.postDataJSON());
+    }
+  });
+  const dialog = page.getByRole('dialog', {
+    name: ru('commands.snooze.dialog.title', { name: 'team-console' }),
+  });
+  const untilMorning = dialog.getByRole('radio', { name: ru('commands.snooze.dialog.morning') });
+
+  // Closed without choosing: nothing is stored and the keyboard is back on Snooze.
+  await button.focus();
+  await page.keyboard.press('Enter');
+  await expect(untilMorning).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(button, 'focus returns to the button that opened the dialog').toBeFocused();
+
+  await page.keyboard.press('Enter');
+  await expect(dialog).toBeVisible();
+  await expect(untilMorning).toBeChecked();
+  await expect(untilMorning).toBeFocused();
+  const urgent = dialog.getByRole('checkbox', { name: ru('commands.snooze.dialog.urgent') });
+  await expect(urgent).toBeChecked();
+  await expectAccessible(page, 'the snooze dialog');
+
+  await dialog.getByRole('button', { name: ru('commands.snooze.dialog.ok') }).click();
+
+  await expect(dialog).toBeHidden();
+  expect(bodies, 'one PUT, from the confirmed dialog only').toEqual([
+    { until: morning.toISOString(), allowsUrgent: true },
+  ]);
+  const tomorrow = ru('commands.snooze.when.tomorrow', { time: '09:00' });
+  await expect(group.getByTestId('snooze-line')).toHaveText(
+    `${ru('commands.snooze.until', { until: tomorrow })}. ${ru('commands.snooze.urgent')}`,
+  );
+  const [, resultAfter = ''] = ru('commands.snooze.result.done', { name: '\u0000', until: tomorrow }).split(
+    '\u0000',
+  );
+  const result = page.locator('.cp-result');
+  await expect(result).toContainText(resultAfter);
+  // After a stored snooze the result note takes focus, as after any command, so the outcome is read next.
+  await expect(result).toBeFocused();
+  if (isWide(page)) {
+    await expect(page.getByTestId('switcher-snoozed')).toHaveText(ru('shell.snoozed'));
+  }
+  await expect(button).toContainText(ru('commands.snooze.back'));
+  await expectAccessible(page, 'Commands panel, Notifications (snoozed until morning)');
 });

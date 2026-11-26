@@ -36,3 +36,30 @@ export function dayFromToday(timeZone: string, days: number, now: Date = new Dat
 export function contextDay(info: TestInfo, days: number): string {
   return dayFromToday(contextTimeZone(info), days);
 }
+
+/**
+ * The instant a wall clock in `timeZone` shows `time` (`HH:MM`) on `day` (`YYYY-MM-DD`). The zone's offset is read at
+ * that instant, so a day on either side of a DST change gets its own. A time the clocks skip or repeat is not handled.
+ */
+export function instantInZone(day: string, time: string, timeZone: string): Date {
+  const asUtc = new Date(`${day}T${time}:00Z`);
+  const offsetAt = (instant: Date): number => {
+    const parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    }).formatToParts(instant);
+    const part = (type: Intl.DateTimeFormatPartTypes): number =>
+      Number(parts.find((candidate) => candidate.type === type)?.value);
+    const wall = Date.UTC(part('year'), part('month') - 1, part('day'), part('hour'), part('minute'), part('second'));
+    return wall - instant.getTime();
+  };
+  // Two passes: the first guess may sit on the other side of a DST change than the answer.
+  const first = new Date(asUtc.getTime() - offsetAt(asUtc));
+  return new Date(asUtc.getTime() - offsetAt(first));
+}
