@@ -25,6 +25,8 @@ function fakeAnimation(
     readonly transition?: string;
     readonly playState?: string;
     readonly iterations?: number;
+    /** The effect's progress: `null` when it applies nothing, as past the end of an animation that does not fill. */
+    readonly progress?: number | null;
     readonly target?: {
       readonly tagName: string;
       readonly id?: string;
@@ -43,7 +45,10 @@ function fakeAnimation(
       ? { animationName: init.name ?? 'm-enter' }
       : { transitionProperty: init.transition }),
     effect: {
-      getComputedTiming: () => ({ iterations: init.iterations ?? 1 }),
+      getComputedTiming: () => ({
+        iterations: init.iterations ?? 1,
+        ...(init.progress === undefined ? {} : { progress: init.progress }),
+      }),
       target:
         init.target === null
           ? null
@@ -97,7 +102,7 @@ describe('finishRunningAnimations', () => {
 
   it('leaves paused and already finished animations as they are (a hovered Undo toast hairline, #971)', async () => {
     const hairline = fakeAnimation({ name: 'tc-toast-undo-run', playState: 'paused' });
-    const filled = fakeAnimation({ name: 'm-leave', playState: 'finished' });
+    const filled = fakeAnimation({ name: 'm-leave', playState: 'finished', progress: 1 });
     const idle = fakeAnimation({ playState: 'idle' });
     const result = await finishRunningAnimations(
       OPTIONS,
@@ -172,6 +177,64 @@ describe('finishRunningAnimations', () => {
     );
     expect(result.refused.map(describeMotion)).toEqual(['m-enter on div (still running after finish())']);
     expect(stuck.finishCalls).toBe(1);
+  });
+
+  it('finishes a lingering animation: finished and applying nothing, yet still listed (#1018)', async () => {
+    const lingering = fakeAnimation({ playState: 'finished', progress: null });
+    // WebKit drops it from the list, and applies the end state, once it is finished by hand.
+    const page = env(() => (lingering.finishCalls === 0 ? [lingering] : []));
+    expect(await finishRunningAnimations(OPTIONS, page)).toEqual({ endless: [], refused: [], restless: [] });
+    expect(lingering.finishCalls).toBe(1);
+    expect(page.frames).toBe(OPTIONS.framesBetweenRounds);
+  });
+
+  it('still reports the endless animation running beside a lingering one', async () => {
+    const lingering = fakeAnimation({ playState: 'finished', progress: null });
+    const dot = fakeAnimation({
+      name: 'tc-live-dot',
+      iterations: Infinity,
+      target: { tagName: 'TC-LIVE-DOT' },
+    });
+    const result = await finishRunningAnimations(
+      OPTIONS,
+      env(() => (lingering.finishCalls === 0 ? [lingering, dot] : [dot])),
+    );
+    expect(result.endless.map(describeMotion)).toEqual(['tc-live-dot on tc-live-dot']);
+    expect(result.refused).toEqual([]);
+    expect(dot.finishCalls).toBe(0);
+  });
+
+  it('reports a lingering animation that is still listed after finish()', async () => {
+    const lingering = fakeAnimation({
+      playState: 'finished',
+      progress: null,
+      target: { tagName: 'TC-PROJECT-SETUP-PAGE' },
+    });
+    const result = await finishRunningAnimations(
+      OPTIONS,
+      env(() => [lingering]),
+    );
+    expect(result.refused.map(describeMotion)).toEqual([
+      'm-enter on tc-project-setup-page (still applied past its end after finish())',
+    ]);
+    expect(lingering.finishCalls).toBe(1);
+  });
+
+  it('reports a lingering animation finish() throws on, with the reason', async () => {
+    const lingering = fakeAnimation({
+      playState: 'finished',
+      progress: null,
+      onFinish: () => {
+        throw new Error('InvalidStateError: playback rate is 0');
+      },
+    });
+    const result = await finishRunningAnimations(
+      OPTIONS,
+      env(() => [lingering]),
+    );
+    expect(result.refused.map(describeMotion)).toEqual([
+      'm-enter on div (InvalidStateError: playback rate is 0)',
+    ]);
   });
 
   it('gives up after maxRounds on a page that starts a new animation every pass, naming the last one', async () => {

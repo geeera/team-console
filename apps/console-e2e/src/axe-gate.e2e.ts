@@ -137,6 +137,37 @@ test.describe('animations before the scan', () => {
     expect(await playState(page, 'hairline')).toBe('paused');
   });
 
+  test('an animation left applied past its end is finished, and the scan measures its end state', async ({
+    page,
+  }) => {
+    await page.setContent(content);
+    // The state Playwright's WebKit on Linux can leave behind (#1018), staged: finished and applying nothing by its
+    // own account, yet still listed, with the style at a frame from mid-way until `finish()` is called on it.
+    await page.locator('#slow').evaluate((bar) => {
+      bar.style.opacity = '0.2';
+      let isLingering = true;
+      const lingering = {
+        id: 'lingering-fade',
+        playState: 'finished',
+        effect: {
+          getComputedTiming: () => ({ iterations: 1, progress: null }),
+          target: bar,
+          pseudoElement: null,
+        },
+        finish: () => {
+          isLingering = false;
+          bar.style.opacity = '';
+        },
+      };
+      const listed = document.getAnimations.bind(document);
+      document.getAnimations = () =>
+        isLingering ? [...listed(), lingering as unknown as Animation] : listed();
+    });
+
+    expect(await blockingViolations(page)).toEqual([]);
+    expect(await page.locator('#slow').evaluate((bar) => getComputedStyle(bar).opacity)).toBe('1');
+  });
+
   test('an endless animation fails the scan, naming it and its element', async ({ page }) => {
     await page.setContent(content);
     await page.locator('#slow').evaluate((bar) => {
