@@ -163,6 +163,12 @@ jobs:
         if: matrix.kind == 'static'
         run: npx nx "${NX_MODE}" -t lint
 
+      # #814: the whole repo, not the affected slice — formatting is a property of the tree, and the check is
+      # only a few seconds. `.prettierignore` is the one list of exceptions (generated files).
+      - name: Format check
+        if: matrix.kind == 'static'
+        run: npx nx format:check --all
+
       # The shard's slice of the projects that have a `test` target: every one of them in run-many, the affected
       # ones otherwise — `nx show projects` lists what `nx run-many`/`nx affected -t test` would run, and
       # tools/ci/shard-projects.mjs gives each shard its part of one split, so each project runs in exactly
