@@ -295,8 +295,9 @@ async function createChildren(c: Context, github: ApiGitHub): Promise<Response> 
   const run = isUlid(runValue) ? runValue : null;
   const now = new Date();
   const at = now.toISOString();
-  const entries = items.map((item): { readonly job: NewJob; readonly audit: NewAuditEvent } => {
-    const id = newUlid(now.getTime());
+  const entries = items.map((item, index): { readonly job: NewJob; readonly audit: NewAuditEvent } => {
+    // One millisecond apart, so the children list (by id) in the order the step asked for them.
+    const id = newUlid(now.getTime() + index);
     return {
       job: {
         id,
