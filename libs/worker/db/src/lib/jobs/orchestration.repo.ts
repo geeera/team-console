@@ -175,9 +175,9 @@ export class OrchestrationRepo {
   }
 
   /**
-   * The next step of a run: inserted only while the run is still `runId` and under `ORCHESTRATE_MAX_STEPS`, the step
-   * count raised only when the insert took (`changes()` of the statement before), and the audit row only for a step
-   * that exists. Two wakes racing meet at the dedupe index: the loser's batch fails whole, its count included.
+   * The next step of a run: inserted only while the run is still `runId` and under `ORCHESTRATE_MAX_STEPS`, its audit
+   * row only when the insert took (`auditedWrite`), and the step count raised only when that row was written, directly
+   * after the pair. Two wakes racing meet at the dedupe index: the loser's batch fails whole, its count included.
    */
   wakeStatements(
     projectSlug: string,
@@ -186,17 +186,20 @@ export class OrchestrationRepo {
     audit: NewAuditEvent,
   ): D1PreparedStatement[] {
     return [
-      jobInsertStatement(this.db, step, {
-        where: RUN_HOLDS_UNDER_CAP,
-        extra: [runId, ORCHESTRATE_MAX_STEPS],
-      }),
+      ...auditedWrite(
+        this.db,
+        jobInsertStatement(this.db, step, {
+          where: RUN_HOLDS_UNDER_CAP,
+          extra: [runId, ORCHESTRATE_MAX_STEPS],
+        }),
+        audit,
+      ),
       this.db
         .prepare(
           `UPDATE team_state SET orchestrate_steps = orchestrate_steps + 1, updated_at = ?3
-           WHERE project_slug = ?1 AND orchestrate_run_id = ?2 AND changes() > 0`,
+           WHERE project_slug = ?1 AND orchestrate_run_id = ?2 AND ${AUDITED_WRITE_HAPPENED_SQL}`,
         )
         .bind(projectSlug, runId, step.at),
-      auditEventStatement(this.db, audit, { exists: 'SELECT 1 FROM jobs WHERE id = ?', params: [step.id] }),
     ];
   }
 
