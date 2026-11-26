@@ -99,16 +99,30 @@ console runs on the GitHub tracker, as every other job kind does, until #437.
   nothing live and no step queued if the last live child is cancelled (owner cancel, or Stop racing a `finish`)
   or if a wake call itself fails (logged, not retried) — the run then sits idle-but-locked until the owner's
   Stop. A periodic recovery sweep that re-wakes a stalled run is explicitly slice 2, not this PR.
-- **Two known gaps**, both accepted for slice 1a and left as follow-ups:
+- **Two known gaps**, both accepted for slice 1a and left as follow-ups, plus one missing check the architect
+  note planned but this slice does not implement:
   1. `liveOrchestratorParentOf` and the `…/jobs/:id/children` matrix row both check the caller's **role**
      (`orchestrator`), not its **kind**. Any live orchestrator-role job — `slot-pm`/`slot-dev`/`slot-qa`, `burn`,
      `kickoff`, not only `orchestrate` — can mint `task` children through this route today, exactly as a console
      step can. Those children's `payload.run` is `null` (a slot job carries no run), so **Stop does not cancel
-     them** — the owner cancels each by its own id through `POST …/jobs/:id/cancel`. Narrowing the route to
-     `kind = 'orchestrate'` only is an open follow-up, filed against #633 slice 2.
-  2. **No cap on total children per run** beyond the per-item dedupe (one live child per item, across steps) and
-     the per-request limit of `JOB_ITEMS_MAX` (100). A run that keeps minting new items each step is bounded only
-     by `ORCHESTRATE_MAX_STEPS` and the role's `max_parallel`, not by a run-wide child count.
+     them** — the owner cancels each by its own id through `POST …/jobs/:id/cancel` (that cancel does cancel the
+     parent's own queued children in the same statement, the same as cancelling an `orchestrate` step does).
+     Narrowing the route to `kind = 'orchestrate'` only is an open follow-up, filed against #633 slice 2.
+  - **Beside gap 1: no `item-not-workable` check exists anywhere in this slice** (`apps/` and `libs/` carry no
+    such check). `checkCreateChildJobInput` accepts any safe integer ≥ 1 as an item number; it does not look the
+    item up or check its status. The architect note's §1 decision 7 scoped that check to console-tracker
+    projects (ADR 0009); it is **not implemented here on any tracker**, so a step can mint a child for an item
+    nobody approved whether the project is on the GitHub tracker or the console tracker. A follow-up, not a
+    residual specific to one tracker.
+  2. **No cap on total children per run.** The per-item dedupe (`<slug>:task:<item>`) refuses a duplicate only
+     while that item's `task` job is still live (queued, claimed or running); once it finishes, the next step is
+     free to mint it again, and `wakeDecisionOf` enqueues the next step as soon as `liveChildren === 0`, with
+     nothing re-checking what the previous step already asked for. The run-wide bound is therefore
+     `ORCHESTRATE_MAX_STEPS` (20) steps, each able to call `…/children` more than once with up to `JOB_ITEMS_MAX`
+     (100) distinct items — a large ceiling on `task` jobs per run, not a cap. What actually stops a run that
+     keeps minting work is the failed-streak pause, the monthly budget stop (ADR 0009 decision 6) and the
+     owner's Stop — cost and operator attention, not a structural cap. A run-wide child cap is an open
+     follow-up.
 - **Stage A credential residual, more visible.** Every job of a GitHub-tracker project — a `task` child
   included — still receives its runner's configured `env.passthrough` `PT_*` keys (needed for `pr
   push|merge|review`), so a `task` child could in principle call `pr merge`. This is unchanged in *kind* from
@@ -149,7 +163,8 @@ console runs on the GitHub tracker, as every other job kind does, until #437.
 - Start/Stop buttons in the console UI (1d).
 - Slice 2: wake on an owner answer or on resume, the recovery sweep, a "Needs you" row for `waiting-owner`.
 - Slice 3: a live run view (steps, children, events). Slice 4: scheduled start.
-- Narrowing `…/jobs/:id/children` to `kind = 'orchestrate'` (gap 1 above); a run-wide child cap (gap 2 above).
+- Narrowing `…/jobs/:id/children` to `kind = 'orchestrate'` (gap 1 above); an `item-not-workable` check (beside
+  gap 1 above); a run-wide child cap (gap 2 above).
 
 ## References
 
