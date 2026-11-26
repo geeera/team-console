@@ -534,33 +534,45 @@ describe('the token never reaches a log (sentinel)', () => {
 
 describe('rate limits, as for enrol', () => {
   it('limits exchanges per source address', async () => {
-    const project = await seedActionsProject();
-    const jobId = await seedActionsJob(project);
-    const headers = { 'CF-Connecting-IP': '203.0.113.68' };
-    // Unsigned guesses: they never count against the repository, only against the address.
-    for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
-      const response = await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers });
-      expect(response.status).toBe(401);
-    }
-    const limited = (await exchange(project, jobId, undefined, { headers })).response;
-    expect(limited.status).toBe(429);
-    expect(await refusalOf(limited)).toMatchObject({ slug: 'rate-limited' });
-    expect(limited.headers.get('Retry-After')).not.toBeNull();
-    // Another address is judged on its own.
-    expect((await exchange(project, jobId)).response.status).toBe(200);
+    // The counters are fixed wall-clock minutes: a run that straddles a boundary restarts the count (#959).
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      const headers = { 'CF-Connecting-IP': uniqueAddress() };
+      // Unsigned guesses: they never count against the repository, only against the address.
+      const guesses: number[] = [];
+      for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE; attempt += 1) {
+        guesses.push((await postExchange((await exchangeBodyOf('not-a-jwt', jobId)).body, issuer.bindings, { headers })).status);
+      }
+      const limited = (await exchange(project, jobId, undefined, { headers })).response;
+      // Another address is judged on its own.
+      const otherAddress = (await exchange(project, jobId)).response.status;
+      return { guesses, limited, otherAddress };
+    });
+    expect(outcome.guesses).toEqual(new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_MINUTE).fill(401));
+    expect(outcome.limited.status).toBe(429);
+    expect(await refusalOf(outcome.limited)).toMatchObject({ slug: 'rate-limited' });
+    expect(outcome.limited.headers.get('Retry-After')).not.toBeNull();
+    expect(outcome.otherAddress).toBe(200);
   });
 
   it('limits exchanges per repository id, whatever the address', async () => {
-    const project = await seedActionsProject();
-    const jobId = await seedActionsJob(project);
-    for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE; attempt += 1) {
-      const { response } = await exchange(project, jobId, (claims) => ({ ...claims, runner_environment: 'self-hosted' }));
-      expect(response.status).toBe(401);
-    }
-    expect((await exchange(project, jobId)).response.status).toBe(429);
-    // Another repository is judged on its own.
-    const other = await seedActionsProject();
-    expect((await exchange(other, await seedActionsJob(other))).response.status).toBe(200);
+    const outcome = await inOneRateWindow(async () => {
+      const project = await seedActionsProject();
+      const jobId = await seedActionsJob(project);
+      const refused: number[] = [];
+      for (let attempt = 0; attempt < OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE; attempt += 1) {
+        const { response } = await exchange(project, jobId, (claims) => ({ ...claims, runner_environment: 'self-hosted' }));
+        refused.push(response.status);
+      }
+      const limited = (await exchange(project, jobId)).response.status;
+      // Another repository is judged on its own.
+      const other = await seedActionsProject();
+      return { refused, limited, otherRepository: (await exchange(other, await seedActionsJob(other))).response.status };
+    });
+    expect(outcome.refused).toEqual(new Array<number>(OIDC_EXCHANGE_RATE_LIMIT_PER_REPOSITORY_PER_MINUTE).fill(401));
+    expect(outcome.limited).toBe(429);
+    expect(outcome.otherRepository).toBe(200);
   });
 
   // #696: an IPv6 caller holds a whole /64, so the address limit counts the prefix.
