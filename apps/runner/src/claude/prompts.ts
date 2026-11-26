@@ -17,6 +17,8 @@ const SKILLS: Readonly<Record<JobKind, string>> = {
   kickoff: 'kickoff',
   import: 'import',
   digest: 'digest',
+  orchestrate: 'orchestrate',
+  task: 'task',
 };
 
 export interface PromptInput {

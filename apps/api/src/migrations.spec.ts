@@ -1,6 +1,6 @@
 import { applyD1Migrations, env } from 'cloudflare:test';
 import { IdempotencyKeysRepo } from '@worker/db';
-import { OWNER_ACCOUNT_ID, OWNER_USER_ID, sprintTitleKeyOf } from '@shared/contracts';
+import { JOB_KINDS, OWNER_ACCOUNT_ID, OWNER_USER_ID, sprintTitleKeyOf } from '@shared/contracts';
 
 interface SqliteMasterRow {
   name: string;
@@ -30,6 +30,7 @@ describe('migrations on a fresh D1', () => {
       'item_requests',
       'items',
       'job_events',
+      'job_kinds',
       'jobs',
       'labels',
       'operator_stops',
@@ -106,6 +107,7 @@ describe('migrations on a fresh D1', () => {
       '0042_access_owner_link_adopts_actor.sql',
       '0043_scrub_scope.sql',
       '0044_access_owner_link_member_and_intents.sql',
+      '0045_job_kinds_orchestration.sql',
     ]);
   });
 
@@ -1193,6 +1195,221 @@ describe('the 0031 Actions dispatch', () => {
     await expect(setRun(JOB, null)).rejects.toThrow(/a job keeps its Actions run/);
     // Writing the same run again is no change.
     await setRun(JOB, '7100000001');
+  });
+});
+
+// #1039 (#633 slice 1a): 0045 replaces the kind CHECK of `jobs` with the `job_kinds` lookup by rebuilding the table,
+// and gives `team_state` the run lock. The rebuild keeps every row, reference, index and trigger.
+describe('the 0045 job kinds and jobs rebuild', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  const LEASE = '2026-11-01T01:00:00.000Z';
+  const RUNNER = '01M6YSNJ000000000000045R01';
+  const RUN = '01M6YSNJ000000000000045RN1';
+  const job = (n: number) => `01M6YSNJ00000000000045J${String(n).padStart(3, '0')}`;
+  const token = (c: string) => c.repeat(64);
+  const JOB_SCHEMA = [
+    'index.jobs_account_live',
+    'index.jobs_actions_run',
+    'index.jobs_dedupe_live',
+    'index.jobs_project',
+    'index.jobs_queue',
+    'index.jobs_runner',
+    'index.jobs_token',
+    'trigger.jobs_account_is_projects',
+    'trigger.jobs_actions_run_kept',
+    'trigger.jobs_final_state_kept',
+    'trigger.jobs_identity_kept',
+    'trigger.jobs_never_replaced',
+    'trigger.jobs_subscription_never_dispatched',
+  ];
+  const schemaOf = async (db: D1Database) =>
+    (
+      await db
+        .prepare(
+          `SELECT type || '.' || name AS entry FROM sqlite_master
+           WHERE tbl_name = 'jobs' AND type IN ('index', 'trigger') AND name NOT LIKE 'sqlite_%' ORDER BY 1`,
+        )
+        .all<{ entry: string }>()
+    ).results.map((row) => row.entry);
+  const insertJob = (db: D1Database, id: string, kind: string, parent: string | null = null) =>
+    db
+      .prepare(
+        `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, parent_job_id)
+         VALUES (?1, ?2, 'm45', ?3, 'dev', 'owner', ?4, ?5)`,
+      )
+      .bind(id, OWNER_ACCOUNT_ID, kind, T0, parent)
+      .run();
+
+  it('leaves the seven indexes and six triggers of jobs on a fresh database, and the kinds as one lookup', async () => {
+    expect(await schemaOf(env.DB)).toEqual(JOB_SCHEMA);
+    const { results } = await env.DB.prepare('SELECT kind FROM job_kinds ORDER BY kind').all<{
+      kind: string;
+    }>();
+    expect(results.map((row) => row.kind)).toEqual([...JOB_KINDS].sort());
+    expect(
+      (await env.DB.prepare(`SELECT "table", "from" FROM pragma_foreign_key_list('jobs') ORDER BY 2`).all())
+        .results,
+    ).toEqual([
+      { table: 'accounts', from: 'account_id' },
+      { table: 'job_kinds', from: 'kind' },
+      { table: 'jobs', from: 'parent_job_id' },
+      { table: 'projects', from: 'project_slug' },
+      { table: 'runners', from: 'runner_id' },
+    ]);
+  });
+
+  it('keeps every job, event and lineage through the rebuild, then refuses an unknown kind', async () => {
+    const db = env.MIGRATION_DB_0045;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0045'),
+    );
+    const before = await schemaOf(db);
+    await db
+      .prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at) VALUES ('m45', 'acme/m45', 'm45', 0, ?1)`,
+      )
+      .bind(T0)
+      .run();
+    await db
+      .prepare(
+        `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+         VALUES (?1, ?2, 'mac', '{"kty":"OKP","crv":"Ed25519","x":"abc"}', 'user', '0.1.0', ?3)`,
+      )
+      .bind(RUNNER, OWNER_ACCOUNT_ID, T0)
+      .run();
+    // A live job of each live state, a finished one with every later column set, and a parent/child/grandchild chain.
+    const live = (id: string, kind: string, state: string, hash: string, dedupe: string) =>
+      db
+        .prepare(
+          `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, state, runner_id,
+             lease_until, token_hash, dedupe_key, claimed_at, team_config_revision)
+           VALUES (?1, ?2, 'm45', ?3, 'orchestrator', 'owner', ?4, ?5, ?6, ?7, ?8, ?9, ?4, 2)`,
+        )
+        .bind(id, OWNER_ACCOUNT_ID, kind, T0, state, RUNNER, LEASE, hash, dedupe)
+        .run();
+    await live(job(1), 'slot-dev', 'claimed', token('a'), 'm45:slot-dev');
+    await live(job(2), 'slot-qa', 'running', token('b'), 'm45:slot-qa');
+    await db
+      .prepare(
+        `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, state, payload,
+           finished_at, result, actions_run_id, dispatched_at, reserved_usd, cost_usd, attempt, max_minutes)
+         VALUES (?1, ?2, 'm45', 'burn', 'orchestrator', 'owner', ?3, 'finished', '{"items":[3]}', ?3, '{"ok":true}',
+           '7100000045', ?3, 2.5, 1.25, 1, 60)`,
+      )
+      .bind(job(3), OWNER_ACCOUNT_ID, T0)
+      .run();
+    await insertJob(db, job(4), 'review', job(2));
+    await insertJob(db, job(5), 'review', job(4));
+    await insertJob(db, job(6), 'digest');
+    await db
+      .prepare(
+        `INSERT INTO job_events (job_id, seq, at, level, kind, payload) VALUES
+           (?1, 1, ?3, 'info', 'started', '{}'), (?1, 2, ?3, 'info', 'log', '{"line":"x"}'),
+           (?2, 1, ?3, 'info', 'finished', '{}')`,
+      )
+      .bind(job(2), job(3), T0)
+      .run();
+    await db
+      .prepare(`INSERT INTO team_state (project_slug, failed_streak, updated_at) VALUES ('m45', 1, ?1)`)
+      .bind(T0)
+      .run();
+    await expect(insertJob(db, job(7), 'orchestrate')).rejects.toThrow(/CHECK constraint failed/);
+    const jobsBefore = await db.prepare('SELECT * FROM jobs ORDER BY id').all();
+    const eventsBefore = await db.prepare('SELECT * FROM job_events ORDER BY id').all();
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    expect((await db.prepare('SELECT * FROM jobs ORDER BY id').all()).results).toEqual(jobsBefore.results);
+    expect((await db.prepare('SELECT * FROM job_events ORDER BY id').all()).results).toEqual(
+      eventsBefore.results,
+    );
+    expect(await schemaOf(db)).toEqual(before);
+    expect(await schemaOf(db)).toEqual(JOB_SCHEMA);
+    expect((await db.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+    // `job_events` still points at `jobs`, not at a name the rebuild used on the way.
+    expect(
+      (await db.prepare(`SELECT "table" FROM pragma_foreign_key_list('job_events')`).all()).results,
+    ).toEqual([{ table: 'jobs' }]);
+
+    await insertJob(db, job(7), 'orchestrate');
+    await insertJob(db, job(8), 'task', job(7));
+    await expect(insertJob(db, job(9), 'smoke')).rejects.toThrow(/FOREIGN KEY constraint failed/);
+    await expect(db.prepare(`DELETE FROM job_kinds WHERE kind = 'review'`).run()).rejects.toThrow(
+      /FOREIGN KEY constraint failed/,
+    );
+    await expect(insertJob(db, job(10), 'task', job(0))).rejects.toThrow(/FOREIGN KEY constraint failed/);
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO job_events (job_id, seq, at, level, kind) VALUES ('nope', 1, ?1, 'info', 'log')`,
+        )
+        .bind(T0)
+        .run(),
+    ).rejects.toThrow(/FOREIGN KEY constraint failed/);
+
+    // The recreated guards and indexes bind as before.
+    await expect(
+      db.prepare(`UPDATE jobs SET kind = 'task' WHERE id = ?1`).bind(job(6)).run(),
+    ).rejects.toThrow(/jobs keep their identity/);
+    await expect(
+      db.prepare(`UPDATE jobs SET state = 'queued' WHERE id = ?1`).bind(job(3)).run(),
+    ).rejects.toThrow(/a finished job stays finished/);
+    await expect(
+      db.prepare(`UPDATE jobs SET actions_run_id = '7100000099' WHERE id = ?1`).bind(job(3)).run(),
+    ).rejects.toThrow(/a job keeps its Actions run/);
+    await expect(insertJob(db, job(1), 'digest')).rejects.toThrow(/jobs are never replaced/);
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dispatch)
+           VALUES (?1, ?2, 'm45', 'task', 'dev', 'owner', ?3, 'actions')`,
+        )
+        .bind(job(11), OWNER_ACCOUNT_ID, T0)
+        .run(),
+    ).rejects.toThrow(/access-source-hosted/);
+    await expect(
+      db
+        .prepare(
+          `INSERT INTO jobs (id, account_id, project_slug, kind, role, requested_by, created_at, dedupe_key)
+           VALUES (?1, ?2, 'm45', 'slot-dev', 'orchestrator', 'owner', ?3, 'm45:slot-dev')`,
+        )
+        .bind(job(12), OWNER_ACCOUNT_ID, T0)
+        .run(),
+    ).rejects.toThrow(/UNIQUE constraint failed: jobs.dedupe_key/);
+    // A claim-shaped write on a rebuilt row: a queued job takes a runner, a lease and a token the index keeps unique.
+    const claim = (id: string, hash: string) =>
+      db
+        .prepare(
+          `UPDATE jobs SET state = 'claimed', runner_id = ?2, lease_until = ?3, token_hash = ?4, claimed_at = ?3,
+             attempt = attempt + 1 WHERE id = ?1 AND state = 'queued'`,
+        )
+        .bind(id, RUNNER, LEASE, hash)
+        .run();
+    expect((await claim(job(6), token('c'))).meta.changes).toBe(1);
+    await expect(claim(job(7), token('c'))).rejects.toThrow(/UNIQUE constraint failed: jobs.token_hash/);
+
+    // The run lock: idle by default, a ULID or nothing, and a step count that never goes negative.
+    expect(
+      await db
+        .prepare(
+          `SELECT failed_streak, orchestrate_run_id, orchestrate_steps FROM team_state WHERE project_slug = 'm45'`,
+        )
+        .first(),
+    ).toEqual({ failed_streak: 1, orchestrate_run_id: null, orchestrate_steps: 0 });
+    const setRun = (run: string | null, steps = 0) =>
+      db
+        .prepare(
+          `UPDATE team_state SET orchestrate_run_id = ?1, orchestrate_steps = ?2 WHERE project_slug = 'm45'`,
+        )
+        .bind(run, steps)
+        .run();
+    await setRun(RUN, 1);
+    await setRun(null);
+    for (const bad of ['not-a-ulid', RUN.toLowerCase(), `${RUN}0`, RUN.replace('RN1', 'RU1')]) {
+      await expect(setRun(bad)).rejects.toThrow(/CHECK constraint failed/);
+    }
+    await expect(setRun(RUN, -1)).rejects.toThrow(/CHECK constraint failed/);
   });
 });
 

@@ -29,6 +29,8 @@ declare global {
       MIGRATION_DB_0030: D1Database;
       /** Another, for 0031's Actions dispatch columns, index and trigger (#668). */
       MIGRATION_DB_0031: D1Database;
+      /** Another, for 0045's `job_kinds` lookup and the rebuild of `jobs` (#1039). */
+      MIGRATION_DB_0045: D1Database;
       /** Public half of the generated test app key (vitest.config.mts), to verify the app JWT. */
       TEST_GITHUB_APP_PUBLIC_JWK: string;
     }

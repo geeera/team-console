@@ -21,6 +21,9 @@ export const JOB_KINDS = [
   'kickoff',
   'import',
   'digest',
+  // A console run's step and one developer item of it (#633, ADR 0010); `job_kinds` (migration 0045) holds the same.
+  'orchestrate',
+  'task',
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 export const isJobKind = (value: unknown): value is JobKind =>
@@ -40,6 +43,9 @@ export const JOB_KINDS_BEFORE_CUTOVER: readonly JobKind[] = [
   'audit',
   'review',
   'chat',
+  // team-console runs its console runs on the GitHub tracker until #437.
+  'orchestrate',
+  'task',
 ];
 export const isJobKindBeforeCutover = (kind: JobKind): boolean => JOB_KINDS_BEFORE_CUTOVER.includes(kind);
 
@@ -78,7 +84,11 @@ export type JobEventLevel = (typeof JOB_EVENT_LEVELS)[number];
 export const isJobEventLevel = (value: unknown): value is JobEventLevel =>
   (JOB_EVENT_LEVELS as readonly unknown[]).includes(value);
 
-/** The role a job kind runs as: a slot run is the orchestrator; a review names its role in the payload. */
+/**
+ * The role a job kind runs as: a slot run and a console run's step are the orchestrator; a review and a task name
+ * theirs in the payload. A child task always does (its route takes the role from `TASK_ROLES`); `dev` is only Run
+ * now's default, as `reviewer` is for a review.
+ */
 export function roleOfJobKind(kind: JobKind, payloadRole: string | null): string {
   switch (kind) {
     case 'slot-pm':
@@ -86,9 +96,12 @@ export function roleOfJobKind(kind: JobKind, payloadRole: string | null): string
     case 'slot-qa':
     case 'burn':
     case 'kickoff':
+    case 'orchestrate':
       return 'orchestrator';
     case 'review':
       return payloadRole ?? 'reviewer';
+    case 'task':
+      return payloadRole ?? 'dev';
     case 'chat':
     case 'digest':
     case 'import':

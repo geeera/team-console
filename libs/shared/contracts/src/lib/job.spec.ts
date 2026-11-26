@@ -12,6 +12,7 @@ import {
   isJobEventListDto,
   isJobKindBeforeCutover,
   isJobListDto,
+  roleOfJobKind,
   type JobDto,
   type JobEventDto,
   type JobKind,
@@ -280,6 +281,8 @@ describe('JOB_KINDS_BEFORE_CUTOVER', () => {
     chat: true,
     import: false,
     kickoff: false,
+    orchestrate: true,
+    task: true,
   };
 
   it.each(JOB_KINDS.map((kind) => [kind]))('decides %s explicitly', (kind) => {
@@ -297,5 +300,33 @@ describe('JOB_KINDS_BEFORE_CUTOVER', () => {
 
   it('refuses a kind it does not list', () => {
     expect(isJobKindBeforeCutover('smoke' as JobKind)).toBe(false);
+  });
+});
+
+describe('roleOfJobKind', () => {
+  // Every kind decided here, as above: a new kind fails this table until its role is decided.
+  const ROLES: Readonly<Record<JobKind, string>> = {
+    'slot-pm': 'orchestrator',
+    'slot-dev': 'orchestrator',
+    'slot-qa': 'orchestrator',
+    burn: 'orchestrator',
+    kickoff: 'orchestrator',
+    orchestrate: 'orchestrator',
+    review: 'reviewer',
+    task: 'dev',
+    chat: 'pm',
+    digest: 'pm',
+    import: 'pm',
+    audit: 'security',
+  };
+
+  it.each(JOB_KINDS.map((kind) => [kind]))('runs %s as its role when the payload names none', (kind) => {
+    expect(roleOfJobKind(kind, null)).toBe(ROLES[kind]);
+  });
+
+  it('runs a task and a review as the payload role, and a step as the orchestrator whatever the payload says', () => {
+    expect(roleOfJobKind('task', 'dev-heavy')).toBe('dev-heavy');
+    expect(roleOfJobKind('review', 'qa')).toBe('qa');
+    expect(roleOfJobKind('orchestrate', 'dev')).toBe('orchestrator');
   });
 });
