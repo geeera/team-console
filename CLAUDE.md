@@ -72,6 +72,9 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
 support Angular 22). Commands: `npx nx run-many -t lint`, `-t test`, `-t build`; a single project with
 `npx nx test console-pages-settings`. Unit tests are Vitest through `@analogjs/vitest-angular`; the app is zoneless.
+The CI scripts in `tools/ci/` are not an Nx project: their tests are plain Node files (`security.yml` runs each one
+by name). Run them all with `node --test "tools/ci/*.test.mjs"`, the glob quoted, not `node --test tools/ci/`, which
+Node 22 reads as one file to run and fails on.
 
 The root `package.json` declares `sideEffects: ["*.css"]`, so the bundler drops any module none of whose exports is
 used. This rules out bare side-effecting imports (`import './x'`) in any lib or app source, stylesheets aside: a
@@ -95,6 +98,10 @@ stage/main; the job's "Nx scope" notice says which. `runner-darwin-sweep` (`maco
 `apps/runner/**`, `libs/shared/contracts/**`, `ci.yml`, `.github/actions/**` or the toolchain pins — and on every
 PR into stage/main (#947: a capacity-constrained macOS pool can cancel a queued job itself after ~20 min, outside
 `timeout-minutes`); it is not one of dev's required status checks, so a skipped sweep never blocks a merge.
+`tools/workspace-checks/src/ci-scope.spec.ts` admits only the commands it knows in the shard's Test step (an
+allowlist of line shapes in `emptyShardProblems`), because its checks for an exit, `set +e` or a function standing
+in for `npx` are heuristics that hold only on those lines. A new command in that step fails the spec until a shape
+for it is added there, deliberately, with a rejected case showing it cannot end the step green on red tests.
 `security.yml`: `secret-scan` (gitleaks; on a PR only the
 PR's own commits, `git log <base>..HEAD` from the merge commit's first parent — every PR commit with its own diff,
 so a secret added and removed inside the PR is still found, while another open PR's branch is never judged against

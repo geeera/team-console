@@ -72,6 +72,63 @@ function patternOf(script: string, name: string): RegExp {
 const nodeScripts = (script: string): readonly string[] =>
   [...withoutComments(script).matchAll(/\bnode (tools\/[\w./-]+)/g)].flatMap((match) => match[1] ?? []);
 
+/**
+ * A script's commands as words: comments dropped, `\`-continued lines joined, split on blanks. Quotes stay part
+ * of their word, so `"${IMAGE}"` and `${IMAGE}` differ; a quoted blank splits a word, which only ever makes a
+ * pin below fail.
+ */
+const commandWordsOf = (script: string): readonly (readonly string[])[] =>
+  withoutComments(script)
+    .replace(/\\\n/g, ' ')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .map((line) => line.split(/\s+/));
+
+interface DockerCall {
+  /** Each option with its value, or `true` for one of the call's flags. */
+  readonly options: Readonly<Record<string, string | true>>;
+  /** The words after the last option: the image or build context, then what follows it. */
+  readonly operands: readonly string[];
+}
+
+/**
+ * `docker <subcommand> …` read as options and operands, or `null` for any other command. `flags` are the
+ * options that take no value; every other option takes the next word. A repeated option is recorded as
+ * `<option> (again)`, so no pin can read only its first value.
+ */
+function dockerCallOf(
+  words: readonly string[],
+  subcommand: string,
+  flags: readonly string[] = [],
+): DockerCall | null {
+  if (words[0] !== 'docker' || words[1] !== subcommand) return null;
+  const options: Record<string, string | true> = {};
+  let at = 2;
+  while ((words[at] ?? '').startsWith('-')) {
+    const option = words[at] ?? '';
+    const key = option in options ? `${option} (again)` : option;
+    if (flags.includes(option)) {
+      options[key] = true;
+      at += 1;
+    } else {
+      options[key] = words[at + 1] ?? '';
+      at += 2;
+    }
+  }
+  return { options, operands: words.slice(at) };
+}
+
+/** Every `docker <subcommand>` call in the scripts, read by `dockerCallOf`. */
+const dockerCallsIn = (
+  scripts: readonly string[],
+  subcommand: string,
+  flags: readonly string[] = [],
+): readonly DockerCall[] =>
+  scripts
+    .flatMap((script) => commandWordsOf(script))
+    .flatMap((words) => dockerCallOf(words, subcommand, flags) ?? []);
+
 /** The lines of a script that call the matcher. */
 const matcherCalls = (script: string): readonly string[] =>
   withoutComments(script)
@@ -212,6 +269,9 @@ function emptyShardProblems(script: string): readonly string[] {
     }
   }
 
+  // The allowlist is what makes the heuristics above (LEAVES, SETS_A_DECISION, UNSETS_AN_OPTION,
+  // DEFINES_A_COMMAND) enough: they only have to read the lines it admits. So a new command in the Test step
+  // fails here until a shape for it is added, deliberately, by someone who checks it cannot end the step green.
   const known = [LISTING, AFFECTED, EMPTY_SHARD, NOT_AFFECTED, FAILING_EXIT, SHARD_CALL, PLAIN_TEST_RUN];
   lines.forEach((line, at) => {
     if (MESSAGE.test(line)) return;
@@ -295,6 +355,7 @@ describe('ci.yml scope decisions', () => {
       expect(script).not.toContain('${{');
     });
 
+    // The script also reads GITHUB_SHA (#1019), which the runner sets and a workflow cannot override.
     it('hands the script the event through the three variables it reads, and nothing else', () => {
       const step = stepsOf(job).find((candidate) => candidate.id === 'scope');
       expect(step?.env).toEqual({
@@ -862,21 +923,43 @@ describe('ci.yml scope decisions', () => {
       }
     });
 
+    it('reads a docker call by its options, whatever their order or line breaks', () => {
+      const [build] = dockerCallsIn(
+        ['docker build \\\n  --tag "${IMAGE}-build"   --target build .'],
+        'build',
+      );
+      expect(build).toEqual({
+        options: { '--target': 'build', '--tag': '"${IMAGE}-build"' },
+        operands: ['.'],
+      });
+      // Each of these differs from that pin, so the pin above fails on it.
+      for (const changed of [
+        'docker build --target build --tag "${IMAGE}-build" --push .',
+        'docker build --target build --tag "${IMAGE}-build" --tag other .',
+        'docker build --target build --tag "${IMAGE}-build" --file other.Dockerfile .',
+        'docker build --target build --tag "${IMAGE}-build" ..',
+        'docker build --target build --tag ${IMAGE}-build .',
+      ]) {
+        expect(dockerCallsIn([changed], 'build'), changed).not.toEqual([build]);
+      }
+      expect(dockerCallsIn(['echo docker build .', 'docker buildx build .'], 'build')).toEqual([]);
+      const [listing] = dockerCallsIn(['docker run --rm --network none --privileged img x'], 'run', ['--rm']);
+      expect(listing?.options).toEqual({ '--rm': true, '--network': 'none', '--privileged': 'img' });
+    });
+
     it('builds only when the scope job said exactly true', () => {
       expect(ci.jobs['runtime-image']?.needs).toBe('runtime-image-scope');
       expect(ci.jobs['runtime-image']?.if).toBe("needs.runtime-image-scope.outputs.run == 'true'");
       expect(imageScope).toContain('[[ "${run}" =~ ^(true|false)$ ]]');
     });
 
+    // #1019: held as calls, not as lines. The same three builds, in this order (the first fills the cache the
+    // other two stop in), each with only its tag, its target and the context `.`, in any spelling of the line.
     it('builds the Dockerfile as its header says, and the two stages the file list is compared with', () => {
-      const builds = imageRuns
-        .flatMap((run) => run.split('\n'))
-        .map((line) => line.trim())
-        .filter((line) => line.startsWith('docker build'));
-      expect(builds).toEqual([
-        'docker build --tag "${IMAGE}" .',
-        'docker build --target runtime-deps --tag "${IMAGE}-runtime-deps" .',
-        'docker build --target build --tag "${IMAGE}-build" .',
+      expect(dockerCallsIn(imageRuns, 'build')).toEqual([
+        { options: { '--tag': '"${IMAGE}"' }, operands: ['.'] },
+        { options: { '--target': 'runtime-deps', '--tag': '"${IMAGE}-runtime-deps"' }, operands: ['.'] },
+        { options: { '--target': 'build', '--tag': '"${IMAGE}-build"' }, operands: ['.'] },
       ]);
       expect(dockerfile).toMatch(/^FROM deps AS runtime-deps$/m);
       expect(dockerfile).toMatch(/^FROM deps AS build$/m);
@@ -887,12 +970,24 @@ describe('ci.yml scope decisions', () => {
       expect(scripts.length).toBeGreaterThan(2);
       for (const script of scripts) expect(script).toMatch(/^set -euo pipefail$/m);
       const all = imageRuns.join('\n');
-      expect(all).toContain('node tools/runtime-image/image-files.mjs check "${lists}"');
+      const commands = imageRuns.flatMap((run) => commandWordsOf(run));
+      expect(commands).toContainEqual(['node', 'tools/runtime-image/image-files.mjs', 'check', '"${lists}"']);
       expect(all).toContain('http://127.0.0.1:8787/api/v1/healthz');
       expect(all).toContain("grep --quiet --fixed-strings 'No migrations to apply'");
-      // The listings only read: no network, and the script mounted read-only.
-      expect(all).toContain('docker run --rm --network none --user 0 --entrypoint node');
-      expect(all).toContain('/image-files.mjs:ro"');
+      // #1019: the listings held as one call, not as a line. They only read: no network, the script mounted
+      // read-only, and no option beyond these (no `--privileged`, no second volume).
+      const listings = dockerCallsIn(imageRuns, 'run', ['--rm', '--detach']).filter(
+        (call) => call.options['--entrypoint'] === 'node',
+      );
+      expect(listings).toHaveLength(1);
+      expect(listings[0]?.options).toEqual({
+        '--rm': true,
+        '--network': 'none',
+        '--user': '0',
+        '--entrypoint': 'node',
+        '--volume': '"${PWD}/tools/runtime-image/image-files.mjs:/image-files.mjs:ro"',
+      });
+      expect(listings[0]?.operands.slice(1, 3)).toEqual(['/image-files.mjs', 'list']);
     });
 
     it('pushes nothing, logs in to nothing, reads no secret and uses only actions pinned by a commit sha', () => {
