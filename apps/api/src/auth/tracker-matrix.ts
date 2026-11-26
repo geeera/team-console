@@ -21,7 +21,8 @@ export type TrackerRefusalType =
   | 'queue-role'
   | 'member-role'
   | 'pr-link-role'
-  | 'review-request-role';
+  | 'review-request-role'
+  | 'child-role';
 
 export interface TrackerRouteRule {
   readonly owner: boolean;
@@ -132,6 +133,20 @@ export const TRACKER_MATRIX = {
   [`GET ${P}/runner-policy`]: READ,
   [`POST ${P}/jobs`]: OWNER_ONLY('Run now is the owner’s'),
   [`PUT ${P}/runner-policy`]: OWNER_ONLY('Placement is the owner’s'),
+  // #1039 (ADR 0010): the owner starts and stops a run and cancels a job; every actor of the project reads the run
+  // and a job's children; only the orchestrator job mints children, and only of itself (the route's rule).
+  [`POST ${P}/orchestration/start`]: OWNER_ONLY('A team run is started by the owner'),
+  [`POST ${P}/orchestration/stop`]: OWNER_ONLY('A team run is stopped by the owner'),
+  [`POST ${P}/jobs/:id/cancel`]: OWNER_ONLY('A job is cancelled by the owner'),
+  [`GET ${P}/orchestration`]: READ,
+  [`GET ${P}/jobs/:id/children`]: READ,
+  [`POST ${P}/jobs/:id/children`]: {
+    owner: false,
+    member: false,
+    job: roleDecisions((role) => role === 'orchestrator'),
+    refusal: 'child-role',
+    detail: 'Child jobs are minted by the orchestrator job',
+  },
   // #670: pull or GitHub Actions; the account reads it, the owner switches it (it spends the owner's Actions minutes).
   [`GET ${P}/dispatch`]: ACCOUNT_READ('How the project’s jobs run is read by the account'),
   [`PUT ${P}/dispatch`]: OWNER_ONLY('Dispatch is the owner’s'),

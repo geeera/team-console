@@ -23,7 +23,7 @@ import {
 } from '@worker/db';
 import { isPullRequestState } from '@worker/vcs';
 import { withJobTokenHold } from '../auth/job-auth';
-import type { PolicyActor } from '../auth/policy';
+import { liveOrchestratorParentOf, type JobActor } from '../jobs/parent-job';
 import {
   policyActorOfContext,
   trackerAccess,
@@ -275,20 +275,10 @@ function reviewDedupeKeyOf(slug: string, number: number, headSha: string, role: 
   return `${slug}:review:${String(number)}:${headSha}:${role}`;
 }
 
-const LIVE_PARENT_STATES: ReadonlySet<JobRecord['state']> = new Set(['claimed', 'running']);
-
-/**
- * The lineage rule of #612 (ADR 0006 R2): a review job's parent is the job that asked for it, read from the
- * requester's identity. It must be a claimed or running orchestrator job of this project, so a stand-in naming no
- * job, or a token outliving its job, enqueues nothing.
- */
-async function parentJobOf(
-  c: Context,
-  actor: Extract<PolicyActor, { kind: 'job' }>,
-  slug: string,
-): Promise<JobRecord | Response> {
-  const parent = await new JobsRepo(c.env.DB).findInProject(slug, actor.jobId);
-  if (parent !== null && parent.role === 'orchestrator' && LIVE_PARENT_STATES.has(parent.state)) {
+/** #612's refusal of a parent that is not a live orchestrator job (`liveOrchestratorParentOf`). */
+async function parentJobOf(c: Context, actor: JobActor, slug: string): Promise<JobRecord | Response> {
+  const parent = await liveOrchestratorParentOf(c.env.DB, actor, slug);
+  if (parent !== null) {
     return parent;
   }
   c.get('logger').warn('review request refused', { type: 'review-lineage', reason: 'parent-not-live' });

@@ -300,7 +300,7 @@ async function runLogOrProblem(
   }
 }
 
-function runPaused(c: Context): Response {
+export function runPaused(c: Context): Response {
   return problem(c, {
     type: 'run-paused',
     title: 'Development is paused',
