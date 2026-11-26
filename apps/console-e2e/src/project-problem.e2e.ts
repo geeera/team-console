@@ -43,7 +43,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
             },
           })),
         };
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(unreadable) });
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify(unreadable),
+        });
       });
 
       await page.goto('/needs-you');
