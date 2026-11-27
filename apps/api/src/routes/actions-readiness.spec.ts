@@ -2,6 +2,8 @@ import { env } from 'cloudflare:test';
 import type { RunnerWorkflowRendering } from '@shared/actions-workflow';
 import { actionsSetupBranchOf } from '@shared/actions-workflow';
 import {
+  ACTIONS_ENVIRONMENT,
+  ACTIONS_INFERENCE_KEY_SECRET,
   ACTIONS_SETUP_DTO_KEYS,
   ACTIONS_SETUP_ITEMS,
   OWNER_ACCOUNT_ID,
@@ -875,5 +877,80 @@ describe('the workflow judgement kept for Needs you (#874)', () => {
     expect(record).toHaveBeenCalledOnce();
     expect(logs.some((line) => line.includes('actions workflow judgement not recorded'))).toBe(true);
     record.mockRestore();
+  });
+});
+
+describe('a 403 on a scoped Environment read leaves the items unknown (#803)', () => {
+  const SCOPED_READS = {
+    environment: `/environments/${ACTIONS_ENVIRONMENT}`,
+    'branch policies': `/environments/${ACTIONS_ENVIRONMENT}/deployment-branch-policies`,
+    secret: `/environments/${ACTIONS_ENVIRONMENT}/secrets/${ACTIONS_INFERENCE_KEY_SECRET}`,
+  } as const;
+
+  /** The ready world, except that a GET of a path ending in `suffix` answers `answer()`. */
+  async function seedRefusingRead(suffix: string, answer: () => Response): Promise<Fixture> {
+    const fixture = await seedReadyProject();
+    const stub = stubGitHub((call) =>
+      call.method === 'GET' && call.url.pathname.endsWith(suffix)
+        ? answer()
+        : (answerSetupRead(fixture.world, fixture.repo, rendering, call) ??
+          json(404, { message: 'Not Found' })),
+    );
+    return { ...fixture, stub };
+  }
+
+  const asked = (stub: StubGitHub, suffix: string) =>
+    stub.calls.filter((call) => call.method === 'GET' && call.url.pathname.endsWith(suffix));
+
+  for (const [read, suffix] of Object.entries(SCOPED_READS)) {
+    it(`a 403 on the ${read} read: the Environment items unknown, not 503, and the token revoked`, async () => {
+      const fixture = await seedRefusingRead(suffix, () =>
+        json(403, { message: 'Resource not accessible by integration' }),
+      );
+      const logs: string[] = [];
+      const setup = await setupOf(fixture, logs);
+      expect(asked(fixture.stub, suffix)).toHaveLength(1);
+      expect(statuses(setup)).toMatchObject({
+        'app-permissions': 'ok',
+        environment: 'unknown',
+        'branch-policy': 'unknown',
+        'protection-rules': 'unknown',
+        secret: 'unknown',
+        workflow: 'ok',
+      });
+      expect(setup.ready).toBe(false);
+      expect(scopedMints(fixture.stub)).toHaveLength(1);
+      expect(revokes(fixture.stub)).toHaveLength(1);
+      expect(logs.some((line) => line.includes('actions readiness read forbidden'))).toBe(true);
+    });
+
+    it(`a 401 on the ${read} read still answers 503 github-auth, and the token is revoked`, async () => {
+      const fixture = await seedRefusingRead(suffix, () => json(401, { message: 'Bad credentials' }));
+      const response = await check(fixture);
+      expect(response.status).toBe(503);
+      expect(await slugOf(response)).toBe('github-auth');
+      expect(await response.text()).not.toContain('"items"');
+      expect(revokes(fixture.stub)).toHaveLength(1);
+    });
+
+    it(`a 5xx on the ${read} read still answers 502 github-unavailable, and the token is revoked`, async () => {
+      const fixture = await seedRefusingRead(suffix, () => json(500, { message: 'Server Error' }));
+      const response = await check(fixture);
+      expect(response.status).toBe(502);
+      expect(await slugOf(response)).toBe('github-unavailable');
+      expect(await response.text()).not.toContain('"items"');
+      expect(revokes(fixture.stub)).toHaveLength(1);
+    });
+  }
+
+  it('a rate limit GitHub sends as 403 stays a rate limit, never unknown items', async () => {
+    const fixture = await seedRefusingRead(SCOPED_READS.secret, () =>
+      json(403, { message: 'API rate limit exceeded' }, { 'x-ratelimit-remaining': '0' }),
+    );
+    const response = await check(fixture);
+    expect(response.status).toBe(429);
+    expect(await slugOf(response)).toBe('github-rate-limit');
+    expect(await response.text()).not.toContain('"items"');
+    expect(revokes(fixture.stub)).toHaveLength(1);
   });
 });

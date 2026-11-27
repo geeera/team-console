@@ -45,9 +45,11 @@ import {
   type ActionsEnvironment,
   type ActionsSetupPull,
   type DeploymentBranchPolicies,
+  type FetchLike,
   type PullProvenanceExpectation,
   type RepoName,
   type RunnerWorkflowFile,
+  type ScopedInstallationToken,
 } from '@worker/github';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
@@ -68,7 +70,8 @@ import { recordWorkflowJudgement } from './workflow-state';
  * is wrong), then the installation's accepted permissions with the app JWT (no mint), the repository by its recorded
  * id, one `environment-read` token for the Environment, its branch policies and its one secret (revoked in `finally`),
  * and the workflow file and the setup PR with the cached read token. A GitHub 5xx stops the check as a thrown
- * `GitHubError` (502 `github-unavailable`); no partial items are answered.
+ * `GitHubError` (502 `github-unavailable`); no partial items are answered. A 403 on one of the scoped reads leaves the
+Environment items `unknown` instead (#803).
  *
  * #870 adds what the page needs to word the workflow step without a second call: the default branch, whether the PR
  * path is on (the same `isSetupWriteAllowed` the write route judges), the pins of the file against the rendering's
@@ -194,10 +197,27 @@ const unknownEnvironment = (): EnvironmentItems => ({
   secret: item('secret', 'unknown'),
 });
 
-/** A mint GitHub refused because the installer has not accepted the permission (GitHub answers 422). */
-function isPermissionRefusal(error: unknown): boolean {
-  return error instanceof GitHubError && error.githubStatus === 422;
+/**
+ * GitHub answered `status` to the call. A rate limit is never a refusal: GitHub sends some as 403, and the error
+ * mapping keeps them `github-rate-limit` so they still surface as one.
+ */
+function isGitHubRefusal(error: unknown, status: 403 | 422): boolean {
+  return (
+    error instanceof GitHubError &&
+    error.githubStatus === status &&
+    error.problem.type !== 'github-rate-limit'
+  );
 }
+
+/** A mint GitHub refused because the installer has not accepted the permission (GitHub answers 422). */
+const isPermissionRefusal = (error: unknown): boolean => isGitHubRefusal(error, 422);
+
+/**
+ * A scoped read GitHub forbade (403) after the mint succeeded, e.g. the grant changed between the mint and the read
+ * (#803). The console's own credentials are fine, so a 503 `github-auth` would mislead the customer and page the
+ * operator; the items are unknown instead, which still holds the switch back.
+ */
+const isReadForbidden = (error: unknown): boolean => isGitHubRefusal(error, 403);
 
 async function environmentItems(
   deps: ReadinessDeps,
@@ -228,30 +248,47 @@ async function environmentItems(
     throw error;
   }
   try {
-    const environment = await readActionsEnvironment(fetch, token, repo);
-    const link = environmentLink(repo, environment);
-    if (environment === null) {
-      return {
-        environment: item('environment', 'missing', link),
-        branchPolicy: item('branch-policy', 'missing', link),
-        protectionRules: item('protection-rules', 'unknown'),
-        secret: item('secret', 'missing', link),
-      };
+    return await readEnvironmentItems(fetch, token, repo, defaultBranch);
+  } catch (error: unknown) {
+    // 401 and 5xx still throw (503 `github-auth`, 502 `github-unavailable`); only a 403 leaves the items unknown.
+    if (isReadForbidden(error)) {
+      deps.logger.warn('actions readiness read forbidden', { slug: target.slug, githubStatus: 403 });
+      return unknownEnvironment();
     }
-    const policies =
-      environment.branchPolicy?.customBranchPolicies === true
-        ? await readDeploymentBranchPolicies(fetch, token, repo)
-        : null;
-    const hasSecret = await hasInferenceKeySecret(fetch, token, repo);
-    return {
-      environment: item('environment', 'ok'),
-      branchPolicy: item('branch-policy', branchPolicyStatus(environment, policies, defaultBranch), link),
-      protectionRules: item('protection-rules', protectionStatus(environment), link),
-      secret: item('secret', hasSecret ? 'ok' : 'missing', link),
-    };
+    throw error;
   } finally {
     await auth.revokeScoped(token);
   }
+}
+
+/** The Environment, its branch policies and its one secret, read with the check's `environment-read` token. */
+async function readEnvironmentItems(
+  fetch: FetchLike,
+  token: ScopedInstallationToken<'environment-read'>,
+  repo: RepoName,
+  defaultBranch: string,
+): Promise<EnvironmentItems> {
+  const environment = await readActionsEnvironment(fetch, token, repo);
+  const link = environmentLink(repo, environment);
+  if (environment === null) {
+    return {
+      environment: item('environment', 'missing', link),
+      branchPolicy: item('branch-policy', 'missing', link),
+      protectionRules: item('protection-rules', 'unknown'),
+      secret: item('secret', 'missing', link),
+    };
+  }
+  const policies =
+    environment.branchPolicy?.customBranchPolicies === true
+      ? await readDeploymentBranchPolicies(fetch, token, repo)
+      : null;
+  const hasSecret = await hasInferenceKeySecret(fetch, token, repo);
+  return {
+    environment: item('environment', 'ok'),
+    branchPolicy: item('branch-policy', branchPolicyStatus(environment, policies, defaultBranch), link),
+    protectionRules: item('protection-rules', protectionStatus(environment), link),
+    secret: item('secret', hasSecret ? 'ok' : 'missing', link),
+  };
 }
 
 /** At most this many earlier setup branches are asked for an open PR: each costs up to four reads. */
