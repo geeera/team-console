@@ -24,18 +24,33 @@ export async function trackerProjectOf(c: Context): Promise<TrackerProject | Res
   return current === null || current.accountId !== admitted.account_id ? projectNotFound(c) : current;
 }
 
-/** A project whose tracker is still GitHub Issues takes no tracker write (ADR 0006 decision 1). */
-export function trackerWriteRefusal(c: Context, project: TrackerProject): Response | null {
-  return project.tracker !== 'github' && project.keyPrefix !== null ? null : trackerNotCutOver(c);
+/**
+ * What a caller may word for itself in the 409 `tracker-not-cut-over` (#811); the type, title and status stay the
+ * same for every route, so a client branches on one slug.
+ */
+export interface TrackerNotCutOverWording {
+  readonly detail: string;
+  readonly extensions?: Readonly<Record<string, ProblemExtensionValue>>;
 }
 
-export function trackerNotCutOver(c: Context): Response {
+/** A project whose tracker is still GitHub Issues takes no tracker write (ADR 0006 decision 1). */
+export function trackerWriteRefusal(
+  c: Context,
+  project: TrackerProject,
+  wording?: TrackerNotCutOverWording,
+): Response | null {
+  return project.tracker !== 'github' && project.keyPrefix !== null ? null : trackerNotCutOver(c, wording);
+}
+
+export function trackerNotCutOver(c: Context, wording?: TrackerNotCutOverWording): Response {
   return problem(c, {
     type: 'tracker-not-cut-over',
     title: 'The project still uses GitHub Issues',
     status: 409,
     detail:
+      wording?.detail ??
       'Items, sprints, comments and labels are written here only once the project has moved to the console',
+    ...(wording?.extensions === undefined ? {} : { extensions: wording.extensions }),
   });
 }
 

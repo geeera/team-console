@@ -71,7 +71,14 @@ describe('POST /api/v1/projects/:slug/jobs (Run now)', () => {
         });
       } else {
         expect(response.status).toBe(409);
-        expect(await slugOf(response)).toBe('tracker-not-cut-over');
+        // #811: the jobs refusal names the kind and words its detail for jobs; type, title and status stay the tracker's.
+        expect(await response.json()).toMatchObject({
+          type: 'https://team-console/problems/tracker-not-cut-over',
+          title: 'The project still uses GitHub Issues',
+          status: 409,
+          detail: `${kind} jobs write the console tracker, so they run only once the project has moved to the console`,
+          kind,
+        });
       }
     },
   );
