@@ -17,8 +17,9 @@ export interface HttpProblem {
 const PROBLEM_MEMBERS = new Set(['type', 'title', 'status', 'detail', 'instance']);
 
 function retryAfterOf(error: HttpErrorResponse): number | null {
-  // Bounded to 1..3600 s (#813): `0` waits a second rather than spinning (#133), a huge value never overflows a timer.
-  return retryAfterSecondsOf(error.headers?.get('Retry-After'), Date.now());
+  // `0` is "retry now" during a rate limit: callers fall back to their own default instead (#133). A huge value is
+  // capped at an hour, so no timer overflows (#813).
+  return retryAfterSecondsOf(error.headers?.get('Retry-After'), Date.now(), { retryNow: 'absent' });
 }
 
 /** Narrows anything an `HttpClient` call threw; a non-HTTP error is a programming error and is rethrown. */

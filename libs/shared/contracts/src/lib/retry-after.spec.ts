@@ -19,6 +19,17 @@ describe('retryAfterSecondsOf', () => {
 
   it('floors 0 at one second so a client never spins', () => {
     expect(retryAfterSecondsOf('0', NOW)).toBe(RETRY_AFTER_MIN_SECONDS);
+    expect(retryAfterSecondsOf('00', NOW, { retryNow: 'floor' })).toBe(RETRY_AFTER_MIN_SECONDS);
+  });
+
+  it('answers null for "retry now" when the caller keeps its own default instead', () => {
+    const absent = { retryNow: 'absent' } as const;
+    expect(retryAfterSecondsOf('0', NOW, absent)).toBeNull();
+    expect(retryAfterSecondsOf('Fri, 27 Nov 2026 10:00:00 GMT', NOW, absent)).toBeNull();
+    expect(retryAfterSecondsOf('Fri, 27 Nov 2026 09:00:00 GMT', NOW, absent)).toBeNull();
+    expect(retryAfterSecondsOf('Fri, 27 Nov 2026 10:00:01 GMT', NOW + 500, absent)).toBe(1);
+    expect(retryAfterSecondsOf('1', NOW, absent)).toBe(1);
+    expect(retryAfterSecondsOf(String(10 ** 12), NOW, absent)).toBe(RETRY_AFTER_MAX_SECONDS);
   });
 
   it.each(['3601', String(10 ** 12), '9'.repeat(400)])('caps %s at an hour', (value) => {

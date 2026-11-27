@@ -16,19 +16,38 @@ export function boundedRetryAfterSeconds(seconds: number): number {
   return Math.min(Math.max(Math.ceil(seconds), RETRY_AFTER_MIN_SECONDS), RETRY_AFTER_MAX_SECONDS);
 }
 
-/**
- * Seconds to wait from a `Retry-After` value, bounded to 1..3600: delta-seconds as sent, an HTTP-date as the seconds
- * from `nowMs` until it (a past date is the floor). `null` for anything else (missing, blank, negative, fractional,
- * another date format), so the caller applies its own default.
- */
-export function retryAfterSecondsOf(value: string | null | undefined, nowMs: number): number | null {
-  const raw = value?.trim() ?? '';
+export interface RetryAfterOptions {
+  /**
+   * What "retry now" (`0`, or a date already past) answers: the 1 s floor (the default), or `null` so the caller
+   * waits its own default instead (the console's choice, #133).
+   */
+  readonly retryNow?: 'floor' | 'absent';
+}
+
+function rawSecondsOf(raw: string, nowMs: number): number | null {
   if (DELTA_SECONDS.test(raw)) {
-    return boundedRetryAfterSeconds(Number(raw));
+    return Number(raw);
   }
   if (IMF_FIXDATE.test(raw)) {
     const at = Date.parse(raw);
-    return Number.isFinite(at) ? boundedRetryAfterSeconds((at - nowMs) / 1000) : null;
+    return Number.isFinite(at) ? (at - nowMs) / 1000 : null;
   }
   return null;
+}
+
+/**
+ * Seconds to wait from a `Retry-After` value, bounded to 1..3600: delta-seconds as sent, an HTTP-date as the seconds
+ * from `nowMs` until it. `null` for anything else (missing, blank, negative, fractional, another date format), so the
+ * caller applies its own default.
+ */
+export function retryAfterSecondsOf(
+  value: string | null | undefined,
+  nowMs: number,
+  options: RetryAfterOptions = {},
+): number | null {
+  const seconds = rawSecondsOf(value?.trim() ?? '', nowMs);
+  if (seconds === null || (seconds <= 0 && options.retryNow === 'absent')) {
+    return null;
+  }
+  return boundedRetryAfterSeconds(seconds);
 }

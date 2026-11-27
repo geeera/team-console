@@ -54,8 +54,13 @@ describe('httpProblemOf', () => {
     expect(retryAfterOf(inTwoMinutes)).toBeLessThanOrEqual(120);
   });
 
-  it('floors Retry-After: 0 at one second, never "retry now" (#133, #813)', () => {
-    expect(retryAfterOf('0')).toBe(1);
+  it('treats Retry-After: 0 and a past date as missing so callers use their own default (#133)', () => {
+    expect(retryAfterOf('0')).toBeNull();
+    expect(retryAfterOf('Wed, 21 Oct 2015 07:28:00 GMT')).toBeNull();
+  });
+
+  it('keeps Retry-After: 1, the smallest usable wait', () => {
+    expect(retryAfterOf('1')).toBe(1);
   });
 
   it('caps a huge Retry-After at an hour, so no timer overflows (#813)', () => {
