@@ -44,7 +44,11 @@ export function createActionsSetupRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<
       if (target === null) {
         return problem(c, { type: 'project-not-found', title: 'Project not found', status: 404 });
       }
-      const limited = await readinessRateRefusal(c, row.slug, github.now());
+      const limited = await readinessRateRefusal(
+        c,
+        { slug: row.slug, accountId: row.account_id },
+        github.now(),
+      );
       if (limited !== null) {
         return limited;
       }
