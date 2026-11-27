@@ -75,3 +75,35 @@ export async function claimStatus(api: APIRequestContext, runner: E2eRunner): Pr
   });
   return response.status();
 }
+
+/**
+ * A claim that declares the runner check (#1059, as every release with PR 2 does): answers the check it was handed,
+ * or `null` for a 204.
+ */
+export async function claimCheck(api: APIRequestContext, runner: E2eRunner): Promise<{ id: string } | null> {
+  const response = await api.post('/api/v1/runner/jobs/claim', {
+    data: { checks: ['smoke'] },
+    headers: { Authorization: `Bearer ${runnerJwt(runner)}` },
+  });
+  expect(response.status(), await response.text()).toBeLessThan(300);
+  if (response.status() === 204) {
+    return null;
+  }
+  const body = (await response.json()) as { check?: { id: string } };
+  return body.check ?? null;
+}
+
+/** The runner's report of a check it ran: a version for a pass, a reason code for a failure. */
+export async function finishCheck(
+  api: APIRequestContext,
+  runner: E2eRunner,
+  checkId: string,
+  result:
+    | { readonly result: 'passed'; readonly claudeVersion: string }
+    | { readonly result: 'failed'; readonly reason: string },
+): Promise<void> {
+  await asRunner(api, runner, `/checks/${encodeURIComponent(checkId)}/finish`, {
+    ...result,
+    durationMs: 840,
+  });
+}

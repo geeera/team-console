@@ -1,4 +1,5 @@
 import type { EnrolmentIntentDto, RunnerDto } from '@shared/contracts';
+import type { RunnerCheck } from './runner-check.model';
 
 /** Runner ids in the Worker's ULID shape, for specs and stories. */
 export const RUNNER_FIXTURE_IDS = {
@@ -76,4 +77,22 @@ export function pendingIntentFixture(overrides: Partial<EnrolmentIntentDto> = {}
     boundCountry: null,
     ...overrides,
   });
+}
+
+/** A runner check's id in the Worker's ULID shape. */
+export const RUNNER_CHECK_FIXTURE_ID = '01M6YSNJ00000000000000C001';
+
+/** A check as `GET …/runners/:runner/checks/:check` answers it (#1059 PR 3), `queued` by default. */
+export function runnerCheckFixture(overrides: Partial<RunnerCheck> = {}): RunnerCheck {
+  return {
+    id: RUNNER_CHECK_FIXTURE_ID,
+    kind: 'smoke',
+    state: 'queued',
+    reason: null,
+    claudeVersion: null,
+    createdAt: '2026-11-11T10:05:00.000Z',
+    pickedAt: null,
+    finishedAt: null,
+    ...overrides,
+  };
 }

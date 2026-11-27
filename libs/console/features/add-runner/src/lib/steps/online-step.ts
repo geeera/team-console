@@ -10,6 +10,8 @@ import {
   SELF_CHECK_COMMAND,
   type RunnerPlatform,
 } from '../add-runner.model';
+import type { CheckView } from '../check-panel.model';
+import { AddRunnerCheckPanel } from './check-panel';
 
 /**
  * Step 4 «На связи» (spec §3.4–3.5): after the approval, waiting for the first signal (with what to check once it
@@ -18,7 +20,7 @@ import {
  */
 @Component({
   selector: 'tc-add-runner-online-step',
-  imports: [Button, Callout, CopyCode, Receipt, Spinner, TranslocoPipe],
+  imports: [AddRunnerCheckPanel, Button, Callout, CopyCode, Receipt, Spinner, TranslocoPipe],
   template: `
     @if (runner()?.online) {
       <tc-receipt tone="positive" flush>
@@ -39,6 +41,17 @@ import {
         }
       </p>
       <p class="step__meta">{{ 'runners.wizard.online.selfCheck' | transloco }}</p>
+      @if (check(); as check) {
+        <tc-add-runner-check-panel
+          [view]="check"
+          [platform]="platform()"
+          [canStart]="canStartCheck()"
+          [browserOnline]="browserOnline()"
+          [retryReady]="checkRetryReady()"
+          [queuedSlow]="checkQueuedSlow()"
+          (start)="checkStart.emit()"
+        />
+      }
       @if (runner()?.belowMinimum) {
         <section tc-callout tone="warning" data-testid="wizard-behind">
           <p>
@@ -126,6 +139,14 @@ export class AddRunnerOnlineStep {
   readonly gaveUp = input(false);
   readonly rechecking = input(false);
   readonly recheck = output();
+
+  /** The runner check panel (#1059 PR 3, §12) once the runner is on line; `null` shows none. */
+  readonly check = input<CheckView | null>(null);
+  readonly canStartCheck = input(true);
+  readonly browserOnline = input(true);
+  readonly checkRetryReady = input(true);
+  readonly checkQueuedSlow = input(false);
+  readonly checkStart = output();
 
   /** Linux (#634 PR 7) checks both services with systemd; the Mac runs `self-check`. */
   readonly platform = input<RunnerPlatform>('mac');

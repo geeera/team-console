@@ -1,11 +1,11 @@
-import { generateKeyPairSync, type KeyObject } from 'node:crypto';
-import type { APIRequestContext, Locator, Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
 import { OWNER_ACCOUNT_ID, isEnrolmentIntentId, type EnrolmentIntentDto } from '@shared/contracts';
+import { INTENTS, bindAsRunner, commandFor, withApi } from './support/add-runner';
 import { expect, expectAccessible, requireLocalStack, test } from './support/fixtures';
 import { ru } from './support/i18n';
 import { claimStatus } from './support/runner';
 import { E2E_RUNNER_IMAGE_DIGEST } from './stack/local-stack';
-import { apiClient, seed, type Stack } from './support/stack';
+import { seed } from './support/stack';
 
 /**
  * Settings › Runners › «Подключить раннер» (#634 PR 4) end to end: the wizard shows the API's `setup` command (the
@@ -15,64 +15,10 @@ import { apiClient, seed, type Stack } from './support/stack';
  * a 409 "changed" on approve and the D3 line while the owner count is unknown (#878).
  */
 
-const INTENTS = `/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners/enrolment-intents`;
-
-interface Bound {
-  readonly fingerprint: string;
-  readonly key: KeyObject;
-}
-
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
   await seed(stack, ['geeera/team-console']);
 });
-
-/** Opens the wizard from the empty state, names the runner and asks for the command; answers the intent id. */
-async function commandFor(page: Page, name: string): Promise<{ dialog: Locator; intentId: string }> {
-  await page.goto('/settings/runners');
-  await page.getByTestId('runners-empty').getByTestId('runners-enrol').click();
-  const dialog = page.getByRole('dialog', { name: ru('runners.enrol.title') });
-  await expect(dialog.getByTestId('wizard-name')).toBeFocused();
-  await dialog.getByTestId('wizard-name').fill(name);
-  await dialog.getByTestId('wizard-submit').click();
-  await expect(
-    dialog.getByRole('heading', { name: ru('runners.wizard.command.title', { name }) }),
-  ).toBeFocused();
-  const command =
-    (await dialog.getByTestId('wizard-command').getByTestId('copy-code-text').textContent()) ?? '';
-  const intentId = /--enrolment (\S+)$/.exec(command)?.[1] ?? '';
-  expect(isEnrolmentIntentId(intentId), command).toBe(true);
-  return { dialog, intentId };
-}
-
-/** The runner's half of `setup`: a fresh key bound to the intent; the console answers the fingerprint. */
-async function bindAsRunner(
-  stack: Stack,
-  intentId: string,
-  machine: 'mac' | 'linux' = 'mac',
-): Promise<Bound> {
-  const { publicKey, privateKey } = generateKeyPairSync('ed25519');
-  const api = await apiClient(stack);
-  try {
-    const response = await api.post('/api/v1/runner/enrol/start', {
-      data: {
-        intentId,
-        publicKey: { kty: 'OKP', crv: 'Ed25519', x: publicKey.export({ format: 'jwk' }).x },
-        host:
-          machine === 'mac'
-            ? { os: 'darwin', arch: 'arm64', hostname: 'e2e-wizard.local' }
-            : { os: 'linux', arch: 'x64', hostname: 'e2e-build-box' },
-        capabilities: { local: true, maxConcurrency: 1 },
-        isolation: machine === 'mac' ? 'user' : 'container',
-        version: '0.3.0',
-      },
-    });
-    expect(response.status(), await response.text()).toBe(200);
-    return { fingerprint: ((await response.json()) as { fingerprint: string }).fingerprint, key: privateKey };
-  } finally {
-    await api.dispose();
-  }
-}
 
 /**
  * #878: a click that was aimed at «Отозвать запрос» and lands the moment the poll swaps in «Подтвердить». Clicks the
@@ -90,15 +36,6 @@ async function armMisClick(page: Page): Promise<void> {
     });
     observer.observe(document.body, { childList: true, subtree: true });
   });
-}
-
-async function withApi<T>(stack: Stack, run: (api: APIRequestContext) => Promise<T>): Promise<T> {
-  const api = await apiClient(stack);
-  try {
-    return await run(api);
-  } finally {
-    await api.dispose();
-  }
 }
 
 test('add a Mac runner: the command, the fingerprint compared and approved, then on line', async ({

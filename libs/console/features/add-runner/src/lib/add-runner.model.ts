@@ -47,6 +47,7 @@ export type AddRunnerOutcome =
 const RUNBOOK = `https://${RELEASE_HOST}/${RELEASE_REPOSITORY}/blob/main/docs/runbooks/runner.md`;
 export const RUNBOOK_INSTALL_URL = `${RUNBOOK}#get-a-release-and-verify-it-both-backends`;
 export const RUNBOOK_UPDATE_URL = `${RUNBOOK}#update-decision-10-rr13`;
+export const RUNBOOK_LINUX_URL = `${RUNBOOK}#linux-one-command-634-pr-7`;
 
 export const SELF_CHECK_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} self-check`;
 export const RUNNER_LOG_PATH = '/Users/_tcrunner/logs/runner.log';
@@ -54,6 +55,19 @@ export const RUNNER_LOG_PATH = '/Users/_tcrunner/logs/runner.log';
 /** Linux (#634 PR 7): both services of the one command, and where systemd keeps the runner's output. */
 export const LINUX_STATUS_COMMAND = `sudo systemctl status ${LINUX_RUNNER_UNIT} ${LINUX_PODMAN_UNIT}`;
 export const LINUX_LOG_COMMAND = `sudo journalctl -u ${LINUX_RUNNER_UNIT}`;
+
+/**
+ * The Mac fixes of the runner check (#1059 PR 3, UX §12.4 C5b/C5c). Built here, never in a translation. An enrolled
+ * Mac re-runs `setup` steps without `--url` (N7, `apps/runner/src/setup/setup.spec.ts`); each ends with the check.
+ */
+export const CLAUDE_INSTALL_COMMAND = 'brew install --cask claude-code';
+export const SETUP_TOOLCHAIN_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --only toolchain,check`;
+export const SETUP_CREDENTIAL_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --only credential,check`;
+/**
+ * For a saved sign-in that is unreadable or not allowed: `setup` keeps an existing credential file unless told to
+ * replace it (`apps/runner/src/setup/setup.ts`), so without the flag the re-check would fail the same way.
+ */
+export const SETUP_CREDENTIAL_REPLACE_COMMAND = `${SETUP_CREDENTIAL_COMMAND} --replace-credential`;
 
 /** «7K2Q-M9XD» as a screen reader should compare it: «7 K 2 Q, дефис, M 9 X D». */
 export function fingerprintSpokenOf(fingerprint: string, dashWord: string): string {

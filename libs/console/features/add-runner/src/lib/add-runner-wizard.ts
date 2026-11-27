@@ -16,6 +16,7 @@ import {
 import {
   EnrolmentWatch,
   POLL_FAILURES_SHOWN,
+  RunnerCheckWatch,
   RunnersApi,
   runnerFailureKeyOf,
   runnerNameOf,
@@ -54,6 +55,7 @@ import {
   type WizardEnd,
   type WizardStep,
 } from './add-runner.model';
+import { RunnerCheckFlow } from './runner-check-flow';
 import { AddRunnerCommandStep } from './steps/command-step';
 import { AddRunnerConfirmStep } from './steps/confirm-step';
 import { AddRunnerEndedStep } from './steps/ended-step';
@@ -113,7 +115,7 @@ let nextWizardId = 0;
     SheetFooter,
     TranslocoPipe,
   ],
-  providers: [EnrolmentWatch],
+  providers: [EnrolmentWatch, RunnerCheckWatch, RunnerCheckFlow],
   template: `
     <div class="wizard" [attr.aria-busy]="busy() === 'rereading' ? 'true' : null">
       <tc-add-runner-step-indicator [step]="step()" [compact]="isPhone()" />
@@ -122,7 +124,7 @@ let nextWizardId = 0;
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>{{ 'runners.wizard.offline' | transloco }}</p>
         </div>
-      } @else if (watch.rateLimitedFor(); as seconds) {
+      } @else if (watch.rateLimitedFor() ?? checks.rateLimitedFor(); as seconds) {
         <div tc-banner tone="warning" role="status" data-testid="wizard-poll-limited">
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>{{ 'runners.wizard.pollRateLimited' | transloco: { seconds } }}</p>
@@ -184,6 +186,12 @@ let nextWizardId = 0;
             [platform]="platform()"
             [rechecking]="busy() === 'rechecking'"
             (recheck)="recheck()"
+            [check]="checks.view()"
+            [canStartCheck]="!checks.forbidden()"
+            [browserOnline]="online()"
+            [checkRetryReady]="checks.retryReady()"
+            [checkQueuedSlow]="checks.queuedSlow()"
+            (checkStart)="startCheck()"
           />
           <ng-container *ngTemplateOutlet="failureBanner" />
         }
@@ -195,7 +203,7 @@ let nextWizardId = 0;
     </div>
 
     <ng-template #failureBanner>
-      @if (failure(); as message) {
+      @if (failure() ?? checkFailure(); as message) {
         <div tc-banner tone="danger" role="alert" data-testid="wizard-error">
           <tc-icon tc-banner-icon name="alert" size="sm" />
           <p tc-banner-text>
@@ -359,6 +367,7 @@ export class AddRunnerWizard {
   private readonly ref = inject<DialogRef<AddRunnerOutcome>>(DialogRef);
   private readonly api = inject(RunnersApi);
   protected readonly watch = inject(EnrolmentWatch);
+  protected readonly checks = inject(RunnerCheckFlow);
   private readonly sheet = inject(Sheet);
   private readonly toaster = inject(Toaster);
   private readonly transloco = inject(TranslocoService);
@@ -405,7 +414,14 @@ export class AddRunnerWizard {
     const phase = this.phase();
     return phase === 'ended' ? this.endedOn() : STEP_OF[phase];
   });
-  protected readonly pollFailing = computed(() => this.watch.failedPolls() >= POLL_FAILURES_SHOWN);
+  protected readonly pollFailing = computed(
+    () => this.watch.failedPolls() >= POLL_FAILURES_SHOWN || this.checks.failedPolls() >= POLL_FAILURES_SHOWN,
+  );
+  /** A check request that failed as a request (§12.4 «Wizard API errors»): the same §6 banner as the wizard's own. */
+  protected readonly checkFailure = computed(() => {
+    const key = this.checks.failureKey();
+    return key === null ? null : this.t(key);
+  });
 
   private slowTimer: ReturnType<typeof setTimeout> | null = null;
   private minuteTimer: ReturnType<typeof setTimeout> | null = null;
@@ -822,13 +838,31 @@ export class AddRunnerWizard {
   }
 
   private cameOnline(): void {
-    if (this.phase() !== 'approved') {
+    const runner = this.watch.runner();
+    if (this.phase() !== 'approved' || runner === null) {
       return;
     }
     this.clearTimers();
     this.slow.set(false);
-    this.announce('runners.wizard.live.online', { name: this.runnerName() });
+    const checking = this.checks.arrive({
+      accountId: this.data.accountId,
+      runnerId: runner.id,
+      platform: this.platform(),
+      belowMinimum: runner.belowMinimum,
+      browserOnline: this.online(),
+    });
+    // One announcement for both, so the check's start does not cut the online one off (§12.5).
+    this.announce(checking ? 'runners.wizard.live.onlineChecking' : 'runners.wizard.live.online', {
+      name: this.runnerName(),
+    });
     this.focusHeading();
+  }
+
+  /** «Проверить» / «Проверить снова» (#1059 PR 3): not while the browser is offline (§12.4 C0). */
+  protected startCheck(): void {
+    if (this.online()) {
+      void this.checks.press();
+    }
   }
 
   private end(reason: WizardEnd): void {
