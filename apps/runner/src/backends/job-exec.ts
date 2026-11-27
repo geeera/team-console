@@ -22,6 +22,9 @@ export interface JobExecSpec {
 
 const SPEC_MAX_BYTES = 1024 * 1024;
 const FORWARDED_SIGNALS: readonly NodeJS.Signals[] = ['SIGTERM', 'SIGINT', 'SIGHUP'];
+/** The shell's exit codes for a command that is missing and for one that may not be executed. */
+export const EXIT_NOT_FOUND = 127;
+export const EXIT_NOT_EXECUTABLE = 126;
 
 export const jobExecSpecOf = (spec: Pick<LaunchSpec, 'command' | 'argv' | 'env' | 'cwd'>): string =>
   JSON.stringify({ command: spec.command, argv: spec.argv, env: spec.env, cwd: spec.cwd });
@@ -94,7 +97,17 @@ export async function runJobExec(stdin: Readable, uid: number | null): Promise<n
     throw new BackendError('job-exec never runs a job as root');
   }
   const spec = parseJobExecSpec(await readAll(stdin));
-  const command = await resolveCommand(spec.command, spec.env['PATH']);
+  let command: string;
+  try {
+    command = await resolveCommand(spec.command, spec.env['PATH']);
+  } catch (error: unknown) {
+    if (error instanceof BackendError) {
+      // The shell's "command not found", so a runner check tells a missing CLI from a failing one (#1059).
+      process.stderr.write(`${error.message}\n`);
+      return EXIT_NOT_FOUND;
+    }
+    throw error;
+  }
   const child = spawn(command, [...spec.argv], {
     cwd: spec.cwd,
     env: { ...spec.env },
@@ -108,7 +121,16 @@ export async function runJobExec(stdin: Readable, uid: number | null): Promise<n
   }
   try {
     return await new Promise<number>((resolve, reject) => {
-      child.once('error', reject);
+      child.once('error', (error: Error) => {
+        const code = 'code' in error ? error.code : undefined;
+        if (code === 'ENOENT') {
+          resolve(EXIT_NOT_FOUND);
+        } else if (code === 'EACCES') {
+          resolve(EXIT_NOT_EXECUTABLE);
+        } else {
+          reject(error);
+        }
+      });
       child.once('exit', (code, signal) =>
         resolve(signal === null ? (code ?? 1) : 128 + (osConstants.signals[signal] ?? 0)),
       );

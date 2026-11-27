@@ -3,6 +3,7 @@ import {
   JOB_EVENTS_MAX_PER_BATCH,
   isJobDto,
   isProblemDetails,
+  isRunnerCheckClaimResponse,
   isRunnerReleaseDto,
   isRunnerScopeDto,
   isRunnerSelfDto,
@@ -10,11 +11,13 @@ import {
   problemSlugOf,
   type ClaimRunnerInput,
   type FinishJobInput,
+  type FinishRunnerCheckInput,
   type HeartbeatResponse,
   type JobDto,
   type JobEventInput,
   type JobEventsResponse,
   type PauseRunnerInput,
+  type RunnerCheckClaimDto,
   type RunnerReleaseDto,
   type RunnerScopeDto,
   type RunnerSelfDto,
@@ -74,6 +77,11 @@ export type ClaimOutcome =
        */
       readonly scope?: RunnerScopeDto;
     }
+  /**
+   * A runner check the console picked up for this runner (#1059): its id, a kind this claim declared, and the server's
+   * display deadline. What to run for it is the runner's own table (`jobs/run-check.ts`), never the answer.
+   */
+  | { readonly kind: 'check'; readonly check: RunnerCheckClaimDto }
   | { readonly kind: 'idle'; readonly retryAfterSeconds: number };
 
 /** A job's request as the proxy forwards it: the path already routed, headers already narrowed, body redacted. */
@@ -105,9 +113,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isClaimBody(value: unknown): value is { job: JobDto; jobToken: string; leaseSeconds: number } {
+type ClaimBody =
+  | { readonly kind: 'job'; readonly body: { job: JobDto; jobToken: string; leaseSeconds: number } }
+  | { readonly kind: 'check'; readonly check: RunnerCheckClaimDto };
+
+function isJobClaimBody(value: unknown): value is { job: JobDto; jobToken: string; leaseSeconds: number } {
   return (
     isRecord(value) &&
+    // A body that carries a check beside a job is neither (`isClaimResponse` in the contracts).
+    !Object.hasOwn(value, 'check') &&
     isJobDto(value['job']) &&
     typeof value['jobToken'] === 'string' &&
     JOB_TOKEN.test(value['jobToken']) &&
@@ -115,6 +129,20 @@ function isClaimBody(value: unknown): value is { job: JobDto; jobToken: string; 
     Number.isInteger(value['leaseSeconds']) &&
     value['leaseSeconds'] > 0
   );
+}
+
+/**
+ * The claim's 200 answer (S2): a job as before, or exactly `{check: {id, kind, deadlineSeconds}}` with a ULID id and a
+ * kind this claim declared; `null` for anything else. An extra key (`command`, `argv`, `env`, `path`, …), an unknown
+ * kind, a path-shaped id or a deadline past the runner's own limit is an unexpected answer, and nothing is run.
+ */
+function claimBodyOf(value: unknown, declared: readonly string[]): ClaimBody | null {
+  if (isRecord(value) && Object.hasOwn(value, 'check')) {
+    return isRunnerCheckClaimResponse(value) && declared.includes(value.check.kind)
+      ? { kind: 'check', check: value.check }
+      : null;
+  }
+  return isJobClaimBody(value) ? { kind: 'job', body: value } : null;
 }
 
 function isHeartbeatResponse(value: unknown): value is HeartbeatResponse {
@@ -224,10 +252,15 @@ export class RunnerClient {
     if (response.status !== 200) {
       throw await apiErrorOf(response, 'claim');
     }
-    const body = await jsonOf(response);
-    if (!isClaimBody(body)) {
+    const answer = claimBodyOf(await jsonOf(response), input.checks ?? []);
+    if (answer === null) {
       throw new RunnerApiError(response.status, null, 'claim: unexpected answer');
     }
+    if (answer.kind === 'check') {
+      const { id, kind, deadlineSeconds } = answer.check;
+      return { kind: 'check', check: { id, kind, deadlineSeconds } };
+    }
+    const { body } = answer;
     const scope = (body as Record<string, unknown>)['scope'];
     return {
       kind: 'job',
@@ -284,6 +317,18 @@ export class RunnerClient {
     const response = await this.send('POST', `/api/v1/runner/jobs/${jobId}/finish`, input);
     if (response.status !== 200) {
       throw await apiErrorOf(response, 'finish');
+    }
+    await response.body?.cancel();
+  }
+
+  /** Reports a runner check (#1059): 204 on the runner's own running check, one 404 for anything else. */
+  async finishCheck(checkId: string, input: FinishRunnerCheckInput): Promise<void> {
+    if (!isUlid(checkId)) {
+      throw new TypeError('not a check id');
+    }
+    const response = await this.send('POST', `/api/v1/runner/checks/${checkId}/finish`, input);
+    if (response.status !== 204 && response.status !== 200) {
+      throw await apiErrorOf(response, 'check finish');
     }
     await response.body?.cancel();
   }

@@ -9,7 +9,8 @@ import type { GitRunner } from '../git/git';
 
 export interface JobContext {
   readonly jobId: string;
-  readonly projectSlug: string;
+  /** `null` for a runner check (#1059): a check serves no project and prepares no clone. */
+  readonly projectSlug: string | null;
 }
 
 /** The per-job directories, fresh for every job: nothing is inherited from a previous one. */
@@ -24,15 +25,27 @@ export interface Sandbox {
   readonly socketMode?: number | undefined;
 }
 
-export interface LaunchSpec {
+interface LaunchCommand {
   readonly command: string;
   readonly argv: readonly string[];
-  /** Exactly the job's environment (`env-builder.ts`); the backend adds nothing. */
+  /** Exactly the child's environment (`env-builder.ts`); the backend adds nothing. */
   readonly env: Readonly<Record<string, string>>;
   readonly cwd: string;
+}
+
+/** A job's launch: `readOnly` is required, so no job can be launched without its plugin and managed settings. */
+export interface LaunchSpec extends LaunchCommand {
   readonly maxMinutes: number;
   /** What the job may read but never write; `user`/`container` mount or chown them so. */
   readonly readOnly: { readonly plugin: string; readonly managedSettings: string };
+}
+
+/**
+ * A runner check's launch (#1059, S3/S6): the fixed command of its kind, nothing to mount, no plugin or settings.
+ * The backend starts it with stderr discarded at spawn and, on `container`, without a network.
+ */
+export interface CheckLaunchSpec extends LaunchCommand {
+  readonly readOnly?: never;
 }
 
 export interface ExitStatus {
@@ -40,11 +53,15 @@ export interface ExitStatus {
   readonly signal: NodeJS.Signals | null;
 }
 
-export interface RunningJob {
+/** What `kill` needs of a started process; a check has no stderr to read (S6). */
+export interface RunningProcess {
   readonly pid: number;
   readonly stdout: Readable;
-  readonly stderr: Readable;
   readonly exited: Promise<ExitStatus>;
+}
+
+export interface RunningJob extends RunningProcess {
+  readonly stderr: Readable;
 }
 
 export interface IsolationBackend {
@@ -53,8 +70,13 @@ export interface IsolationBackend {
   preflight(): Promise<void>;
   prepare(job: JobContext): Promise<Sandbox>;
   launch(sandbox: Sandbox, spec: LaunchSpec): Promise<RunningJob>;
-  /** The whole process tree; used at `maxMinutes`, on a lost lease and on shutdown. */
-  kill(running: RunningJob): Promise<void>;
+  /**
+   * A runner check's fixed command (#1059) in the same isolation as a job; absent where checks never run
+   * (`actions-ephemeral`). Throws `CommandNotExecutableError` when the command cannot be started at all.
+   */
+  launchCheck?(sandbox: Sandbox, spec: CheckLaunchSpec): Promise<RunningProcess>;
+  /** The whole process tree; used at `maxMinutes`, on a lost lease, on shutdown and at a check's time limit. */
+  kill(running: RunningProcess): Promise<void>;
   /** Kills what is left of the job and wipes the sandbox. */
   cleanup(sandbox: Sandbox): Promise<void>;
   /**
@@ -72,5 +94,13 @@ export class BackendError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'BackendError';
+  }
+}
+
+/** The command does not exist or may not be executed (spawn `ENOENT`/`EACCES`): the check's `claude-not-executable`. */
+export class CommandNotExecutableError extends BackendError {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CommandNotExecutableError';
   }
 }

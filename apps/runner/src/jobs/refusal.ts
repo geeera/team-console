@@ -5,6 +5,7 @@
 export type LaunchRefusalReason =
   | 'env-passthrough-refused'
   | 'credential-not-allowed'
+  | 'credential-missing'
   | 'credential-unreadable'
   | 'oauth-on-hosted'
   | 'git-config-refused'

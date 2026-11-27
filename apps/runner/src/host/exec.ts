@@ -20,10 +20,16 @@ export interface ExecOptions {
 
 export type Exec = (command: string, args: readonly string[], options?: ExecOptions) => Promise<ExecResult>;
 
+export interface SpawnOptions extends ExecOptions {
+  /** `ignore` discards stderr at spawn (a runner check, S6): never piped, so an unread pipe cannot block the child. */
+  readonly stderr?: 'pipe' | 'ignore' | undefined;
+}
+
 export interface SpawnedProcess {
   readonly pid: number | undefined;
   readonly stdout: Readable;
-  readonly stderr: Readable;
+  /** `null` when spawned with `stderr: 'ignore'`. */
+  readonly stderr: Readable | null;
   readonly exited: Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>;
 }
 
@@ -31,7 +37,7 @@ export interface SpawnedProcess {
 export type Spawn = (
   command: string,
   args: readonly string[],
-  options: ExecOptions,
+  options: SpawnOptions,
 ) => Promise<SpawnedProcess>;
 
 export const SYSTEM_PATH = '/usr/sbin:/usr/bin:/sbin:/bin';
@@ -56,12 +62,16 @@ export const hostExec: Exec = (command, args, options = {}) =>
   });
 
 export const hostSpawn: Spawn = async (command, args, options) => {
-  const child = spawnChild(command, [...args], {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  const spawnOptions = {
     env: { PATH: SYSTEM_PATH, ...options.env },
     // Its own process group, so the runner's Ctrl-C does not reach the job before the runner has finished it.
     detached: true,
-  });
+  };
+  // Two literal stdio forms keep the stream types exact: stdin and stdout are always piped.
+  const child =
+    options.stderr === 'ignore'
+      ? spawnChild(command, [...args], { ...spawnOptions, stdio: ['pipe', 'pipe', 'ignore'] })
+      : spawnChild(command, [...args], { ...spawnOptions, stdio: ['pipe', 'pipe', 'pipe'] });
   const exited = new Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>((resolve) => {
     child.once('exit', (exitCode, signal) => resolve({ exitCode, signal }));
     child.once('error', () => resolve({ exitCode: null, signal: null }));

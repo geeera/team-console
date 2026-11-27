@@ -6,11 +6,14 @@ import { removeTree } from '../git/workspace';
 import { hostExec, type Exec } from '../host/exec';
 import {
   BackendError,
+  CommandNotExecutableError,
+  type CheckLaunchSpec,
   type ExitStatus,
   type IsolationBackend,
   type JobContext,
   type LaunchSpec,
   type RunningJob,
+  type RunningProcess,
   type Sandbox,
 } from './backend';
 import { createPrivateSandbox, jobsRootOf } from './sandbox';
@@ -151,7 +154,36 @@ export class NoneBackend implements IsolationBackend {
     return { pid: child.pid, stdout: child.stdout, stderr: child.stderr, exited };
   }
 
-  async kill(running: RunningJob): Promise<void> {
+  /**
+   * A runner check (#1059) as the runner's own user, like a job here: exactly the spec's env and cwd, its own process
+   * group, stderr discarded at spawn (S6). A command that cannot be started is `CommandNotExecutableError`.
+   */
+  async launchCheck(_sandbox: Sandbox, spec: CheckLaunchSpec): Promise<RunningProcess> {
+    const child = spawn(spec.command, [...spec.argv], {
+      cwd: spec.cwd,
+      env: { ...spec.env },
+      detached: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const exited = new Promise<ExitStatus>((resolve) => {
+      child.once('exit', (exitCode, signal) => resolve({ exitCode, signal }));
+      child.once('error', () => resolve({ exitCode: null, signal: null }));
+    });
+    const spawnError = await new Promise<Error | null>((resolve) => {
+      child.once('spawn', () => resolve(null));
+      child.once('error', resolve);
+    });
+    if (spawnError !== null || child.pid === undefined) {
+      const code = spawnError !== null && 'code' in spawnError ? spawnError.code : undefined;
+      if (code === 'ENOENT' || code === 'EACCES') {
+        throw new CommandNotExecutableError(`${spec.command} cannot be executed (${code})`);
+      }
+      throw new BackendError(`could not start ${spec.command}`);
+    }
+    return { pid: child.pid, stdout: child.stdout, exited };
+  }
+
+  async kill(running: RunningProcess): Promise<void> {
     const sent = signalGroup(running.pid, 'SIGTERM');
     if (sent === 'gone') {
       return;
