@@ -1,5 +1,5 @@
 import { isUlid } from './account';
-import { isDisplayName, isNullable, isString, isTimestamp } from './guards';
+import { isCount, isDisplayName, isNullable, isString, isTimestamp } from './guards';
 import type { RunnerScopeDto } from './runner';
 import type { ResolvedTeamConfigDto } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
@@ -425,8 +425,6 @@ export interface JobEventListDto {
 
 const isJobDispatch = (value: unknown): value is JobDispatch =>
   (JOB_DISPATCHES as readonly unknown[]).includes(value);
-const isCount = (value: unknown): value is number =>
-  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 
 /** Narrows a job as the Worker answers it (#464); the console renders none it did not check. */
 export function isJobDto(value: unknown): value is JobDto {

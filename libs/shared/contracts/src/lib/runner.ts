@@ -1,5 +1,5 @@
 import { isUlid } from './account';
-import { isDisplayName, isNullable, isString, isStringList, isTimestamp } from './guards';
+import { isCount, isDisplayName, isNullable, isString, isStringList, isTimestamp } from './guards';
 import { isValidSlug } from './project-slug';
 import { ACCESS_SOURCES, isAccessSource, type AccessSource } from './team-config';
 import { InputError, checked, isRecord, oneOf, record, text, type InputCheck } from './tracker/inputs';
@@ -337,6 +337,11 @@ export interface RunnerDto extends RunnerProjectScopeDto {
   readonly enrolledByName: string | null;
   /** #827: never who enrolled it, only whether the console knows and whether the caller may claim it. */
   readonly enroller: RunnerEnrollerState;
+  /**
+   * #799: how many active projects the scope covers but D3 holds back only because nobody is recorded as their creator
+   * or as the runner's enroller (rows from before migration 0036 that 0048 could not attribute). A count, no slugs.
+   */
+  readonly unattributedProjects: number;
 }
 
 /**
@@ -764,7 +769,8 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     isNullable(value['pause'], isRunnerPauseDto) &&
     typeof value['enrolledByYou'] === 'boolean' &&
     isNullable(value['enrolledByName'], isDisplayName) &&
-    isRunnerEnrollerState(value['enroller'])
+    isRunnerEnrollerState(value['enroller']) &&
+    isCount(value['unattributedProjects'])
   );
 }
 

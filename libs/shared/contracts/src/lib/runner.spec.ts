@@ -40,6 +40,7 @@ const RUNNER: RunnerDto = {
   enrolledByName: null,
   pause: null,
   enroller: 'recorded',
+  unattributedProjects: 0,
 };
 
 describe('runnerReleaseChannelOf', () => {
@@ -153,6 +154,9 @@ describe('runner guards', () => {
     ['a pause without until', { pause: { reason: 'manual' } }],
     ['no enroller state', { enroller: undefined }],
     ['an unknown enroller state', { enroller: 'owner-1' }],
+    ['no unattributed count', { unattributedProjects: undefined }],
+    ['a negative unattributed count', { unattributedProjects: -1 }],
+    ['a fractional unattributed count', { unattributedProjects: 1.5 }],
   ])('refuses a runner with %s', (_, patch) => {
     expect(isRunnerDto({ ...RUNNER, ...patch })).toBe(false);
   });

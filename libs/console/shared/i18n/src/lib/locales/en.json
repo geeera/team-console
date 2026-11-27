@@ -2209,6 +2209,20 @@
       "enroller": {
         "unrecorded": "No one is recorded as having enrolled this runner: it predates that record. While the account has more than one owner, no one can add projects to it — enrol it again.",
         "claimable": "No one is recorded as having enrolled this runner: it predates that record. While you are the account's only owner, claim it as yours."
+      },
+      "unattributed": {
+        "projects": {
+          "one": "The runner doesn't take {{n}} project of the account: it was added before the console recorded who created projects, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. For the runner to take it, that owner can choose it under the runner's Projects.",
+          "few": "The runner doesn't take {{n}} projects of the account: they were added before the console recorded who created projects, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. For the runner to take them, that owner can choose them under the runner's Projects.",
+          "many": "The runner doesn't take {{n}} projects of the account: they were added before the console recorded who created projects, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. For the runner to take them, that owner can choose them under the runner's Projects.",
+          "other": "The runner doesn't take {{n}} projects of the account: they were added before the console recorded who created projects, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. For the runner to take them, that owner can choose them under the runner's Projects."
+        },
+        "runner": {
+          "one": "The runner doesn't take {{n}} project of the account: no one is recorded as having enrolled it, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. Enrol the runner again.",
+          "few": "The runner doesn't take {{n}} projects of the account: no one is recorded as having enrolled it, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. Enrol the runner again.",
+          "many": "The runner doesn't take {{n}} projects of the account: no one is recorded as having enrolled it, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. Enrol the runner again.",
+          "other": "The runner doesn't take {{n}} projects of the account: no one is recorded as having enrolled it, and in an account with more than one owner a runner with a Claude subscription takes only the projects of the owner who enrolled it. Enrol the runner again."
+        }
       }
     },
     "projects": {

@@ -806,6 +806,31 @@ export class RunnersRepo {
   }
 
   /**
+   * #799: per unrevoked runner of `accountId`, the active projects its scope covers that D3 holds back only because the
+   * console does not know whose they are — the project has no creator, or the runner no enroller (rows from before
+   * 0036 that migration 0048 could not attribute). The claim's own term decides what is held back; runners with none
+   * are left out. `runnerId` narrows it to one runner. Against a NULL creator the term is NULL rather than false, so
+   * the negation is taken over its COALESCE.
+   */
+  async unattributedProjectCountsOf(
+    accountId: string,
+    runnerId: string | null = null,
+  ): Promise<ReadonlyMap<string, number>> {
+    const { results } = await this.db
+      .prepare(
+        `SELECT r.id AS runner_id, COUNT(*) AS n
+         FROM runners r JOIN projects p ON p.account_id = r.account_id
+         WHERE r.account_id = ?1 AND (?2 IS NULL OR r.id = ?2) AND r.revoked_at IS NULL AND p.archived_at IS NULL
+           AND (p.created_by IS NULL OR r.enrolled_by IS NULL)
+           AND ${runnerScopeCoversSql('r', 'p.slug')} AND NOT COALESCE(${runnerServesSql('r', 'p.slug')}, 0)
+         GROUP BY r.id`,
+      )
+      .bind(accountId, runnerId)
+      .all<{ runner_id: string; n: number }>();
+    return new Map(results.map((row) => [row.runner_id, row.n]));
+  }
+
+  /**
    * Whether a Run now of `slug` could be claimed at `now` (#775): the claim's runner terms, read for every unrevoked
    * runner of the project's account — the account equality, `runnerServesSql` (D3 applied), the access-source fit and
    * the claim's placement term — then the best of them: online and not paused, online but paused, or seen too long

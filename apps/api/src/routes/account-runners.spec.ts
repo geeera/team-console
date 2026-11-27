@@ -433,6 +433,7 @@ describe('runner list, allowed projects and revoke', () => {
       'revokedAt',
       'servedProjects',
       'suspect',
+      'unattributedProjects',
       'version',
     ]);
     const asSecond = await sendAsSession(second, 'GET', runnersPath(account.account.id));
@@ -693,6 +694,39 @@ describe('the scope of a subscription runner in a two-owner account', () => {
     const row = ((await listed.json()) as RunnerListDto).runners.find((entry) => entry.id === runner.id);
     expect(row?.servedProjects).toEqual([]);
     expect((await sendAsRunner(runner, 'POST', CLAIM, { accessSources: ['subscription'] })).status).toBe(204);
+  });
+
+  // #799: a project from before `created_by` (migration 0036) that 0048 could not attribute is nobody's under D3; the
+  // card counts it on every runner D3 holds it back from, on the list and on a change's answer.
+  it('counts a project with no recorded creator on the subscription runner it is held back from', async () => {
+    const runner = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'all' });
+    const apiKey = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'all',
+      enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
+    });
+    const counted = async (): Promise<Record<string, number | undefined>> => {
+      const listed = await sendAsSession(enroller, 'GET', runnersPath(enroller.account.id));
+      expect(listed.status).toBe(200);
+      const rows = ((await listed.json()) as RunnerListDto).runners;
+      return Object.fromEntries(
+        [runner.id, apiKey.id].map((id) => [id, rows.find((row) => row.id === id)?.unattributedProjects]),
+      );
+    };
+    const before = (await counted())[runner.id] ?? 0;
+    const { slug: legacy } = await seedAccountProject(enroller.account);
+    await env.DB.prepare(`UPDATE projects SET created_by = NULL WHERE slug = ?1`).bind(legacy).run();
+
+    expect(await counted()).toEqual({ [runner.id]: before + 1, [apiKey.id]: 0 });
+    const narrowed = await patch(enroller, runner.id, {
+      projectScope: 'selected',
+      allowedProjects: [legacy],
+    });
+    expect(narrowed.status).toBe(200);
+    // Chosen by its enroller, the entry is theirs: served, so no longer a gap.
+    const dto = (await narrowed.json()) as RunnerDto;
+    expect(dto.servedProjects.map((row) => row.slug)).toEqual([legacy]);
+    expect(dto.unattributedProjects).toBe(0);
   });
 });
 
