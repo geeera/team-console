@@ -76,14 +76,12 @@ describe('JobsApi', () => {
   it('still refuses a list whose canRunNow is wrong, even with an unknown availability', async () => {
     const { api, http } = setup();
     const read = api.list('team-console');
-    http
-      .expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`)
-      .flush({
-        jobs: [jobFixture()],
-        nextCursor: null,
-        runnerAvailability: 'future-state',
-        canRunNow: 'yes',
-      });
+    http.expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`).flush({
+      jobs: [jobFixture()],
+      nextCursor: null,
+      runnerAvailability: 'future-state',
+      canRunNow: 'yes',
+    });
     expect(await read).toEqual({ ok: false, failure: { kind: 'error', slug: null } });
   });
 

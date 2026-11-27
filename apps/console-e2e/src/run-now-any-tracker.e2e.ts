@@ -318,3 +318,46 @@ test('a kind the server refuses says so in clay and queues nothing', async ({ pa
   await expect(runs.getByTestId('jobs-current')).toHaveCount(0);
   await expectAccessible(page, 'Board, GitHub tracker, a refused kind');
 });
+
+// #812: an older API sends no availability, a newer one a value this bundle does not know. The owner still sees the
+// jobs and Run now, with no availability claim and no «no runner» block, and a press queues a job.
+test('an API of another version: no or an unknown availability keeps the jobs and Run now, with no claim', async ({
+  page,
+  stack,
+}) => {
+  await seed(stack, ['geeera/team-console']);
+  let availability: Record<string, unknown> = {};
+  await page.route(JOBS, async (route: Route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const { jobs, nextCursor } = (await response.json()) as JobListDto;
+    await route.fulfill({ response, json: { jobs, nextCursor, canRunNow: true, ...availability } });
+  });
+  await page.goto(BOARD);
+  const runs = page.getByTestId('runs');
+  const line = runs.getByTestId('jobs-availability');
+  await expect(runs.getByTestId('jobs-empty')).toBeVisible();
+  await expect(line).toHaveText('');
+  await expect(line).not.toHaveAttribute('data-availability', /.*/);
+  await expect(runs.getByTestId('jobs-none')).toHaveCount(0);
+  await expect(runs.getByTestId('jobs-error')).toHaveCount(0);
+  await expectAccessible(page, 'Board, GitHub tracker, availability not sent (owner)');
+
+  await runs.getByTestId('run-now-submit').click();
+  await expect(runs.getByTestId('run-now-outcome')).toHaveText(
+    ru('jobs.runNow.queued', { kind: ru('jobs.kind.slot-pm') }),
+  );
+  const card = runs.getByTestId('jobs-current').getByTestId('job-card');
+  await expect(card).toHaveAttribute('data-state', 'queued');
+
+  availability = { runnerAvailability: 'future-state', runnerUnavailableReason: 'no-runner' };
+  await page.reload();
+  await expect(card).toHaveAttribute('data-state', 'queued');
+  await expect(line).toHaveText('');
+  await expect(runs.getByTestId('jobs-none')).toHaveCount(0);
+  await expect(runs.getByTestId('run-now-submit')).toBeEnabled();
+  await expectAccessible(page, 'Board, GitHub tracker, an unknown availability (owner)');
+});
