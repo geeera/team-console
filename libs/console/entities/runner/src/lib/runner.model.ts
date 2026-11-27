@@ -1,5 +1,6 @@
 import {
   runnerScopeCovers,
+  runnerTakesSubscription,
   type AccountMembershipDto,
   type RunnerDto,
   type RunnerPauseDto,
@@ -64,8 +65,7 @@ export function d3RunnerOf(runners: readonly RunnerDto[], slug: string): RunnerD
       runner.projectScope === 'all' &&
       !runner.hosted &&
       runner.isolation !== 'actions-ephemeral' &&
-      (runner.capabilities.accessSources === undefined ||
-        runner.capabilities.accessSources.includes('subscription')) &&
+      runnerTakesSubscription(runner.capabilities) &&
       !runner.servedProjects.some((project) => project.slug === slug),
   );
   return held.find((runner) => runner.enrolledByYou) ?? held[0] ?? null;

@@ -155,6 +155,17 @@ export function runnerFailureKeyOf(failure: RunnerFailure): string {
   return FAILURE_KEYS[failure.kind];
 }
 
+/**
+ * Whether the same request again may succeed (#825): only a failure of the call itself — no answer, a timeout, a
+ * rate limit or a server error. A refusal (403, 404, 409, 422, …) answers the same until something else changes, so
+ * the screens show its reason rather than Try again.
+ */
+export function isRetryableRunnerFailure(failure: RunnerFailure): boolean {
+  return RETRYABLE_KINDS.includes(failure.kind);
+}
+
+const RETRYABLE_KINDS: readonly RunnerFailureKind[] = ['offline', 'timeout', 'rate-limited', 'error'];
+
 const FAILURE_KEYS: Readonly<Record<Exclude<RunnerFailureKind, 'invalid' | 'conflict'>, string>> = {
   forbidden: 'runners.err.forbidden',
   'not-found': 'runners.err.notFound',

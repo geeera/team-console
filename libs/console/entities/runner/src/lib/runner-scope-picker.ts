@@ -31,7 +31,7 @@ let nextPickerId = 0;
             data-testid="runner-scope-all"
             [name]="groupName"
             [checked]="scope() === 'all'"
-            [disabled]="disabled()"
+            [disabled]="disabled() || allLocked()"
             [attr.aria-describedby]="
               showsOwners() ? groupName + '-all-hint ' + groupName + '-all-owners' : groupName + '-all-hint'
             "
@@ -69,6 +69,7 @@ let nextPickerId = 0;
           [legend]="projectsLegend()"
           [projects]="projects()"
           [disabled]="disabled()"
+          [lockedSlugs]="lockedSlugs()"
           [(selected)]="selected"
         />
       }
@@ -92,6 +93,10 @@ export class RunnerScopePicker {
   readonly scope = model<RunnerProjectScope>('all');
   readonly selected = model<readonly string[]>([]);
   readonly disabled = input(false, { transform: booleanAttribute });
+  /** `all` may not be chosen now (#825: it would add projects a non-enroller cannot add); the screen says why. */
+  readonly allLocked = input(false, { transform: booleanAttribute });
+  /** Project rows that may not be ticked now, as `RunnerProjectsPicker.lockedSlugs`. */
+  readonly lockedSlugs = input<ReadonlySet<string>>(new Set());
   /** The account's owners; `null` while unknown or unread. Only a known `1` hides the D3 line. */
   readonly ownerCount = input<number | null>(null);
 

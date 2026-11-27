@@ -35,6 +35,7 @@ import {
 import {
   claimPlacementAdmitsSql,
   runnerFitsAccessSourceSql,
+  runnerScopeCoversSql,
   runnerServesSql,
 } from '../team-config/access-source';
 import { isConstraintError } from '../tracker/constraint-error';
@@ -237,6 +238,10 @@ const COLUMNS = JOB_COLUMNS;
 const PREFIXED_COLUMNS = COLUMNS.split(',')
   .map((column) => `j.${column.trim()}`)
   .join(', ');
+
+/** Why the scope write's batch cancelled a live job (#825): its scope dropped the project, or D3 held it back. */
+export const JOB_CANCEL_RUNNER_ALLOW_LIST = 'runner-allow-list';
+export const JOB_CANCEL_RUNNER_SCOPE = 'runner-scope';
 
 /**
  * A WHERE term on a `jobs` row (#553): its runner's stored row still serves the job's project under its scope (#775,
@@ -1267,12 +1272,20 @@ export class JobsRepo {
    * the other owners' jobs as a narrowed list does. `AUDITED_WRITE_HAPPENED_SQL` reads `changes()` of the statement
    * just before it (#533): they run only when the write happened, so they must come directly after the `auditedWrite`
    * pair, as `RunnersRepo.setScope` places them, or directly after the write, as `RunnersRepo.setAccessSources` does.
+   *
+   * The reason says which rule dropped the job (#825): `runner-allow-list` when the scope itself no longer covers the
+   * project, `runner-scope` when it still does and D3 holds it back. Rows cancelled before #825 keep
+   * `runner-allow-list` for both; readers treat the reason as text.
    */
   cancelUnservedStatements(runnerId: string, now: string): D1PreparedStatement[] {
     return [
       this.db
         .prepare(
-          `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = '{"reason":"runner-allow-list"}', token_hash = NULL, lease_until = NULL
+          `UPDATE jobs SET state = 'cancelled', finished_at = ?2, result = json_object('reason', CASE WHEN EXISTS (
+               SELECT 1 FROM runners sr WHERE sr.id = jobs.runner_id AND sr.account_id = jobs.account_id
+                 AND ${runnerScopeCoversSql('sr', 'jobs.project_slug')}
+             ) THEN '${JOB_CANCEL_RUNNER_SCOPE}' ELSE '${JOB_CANCEL_RUNNER_ALLOW_LIST}' END),
+             token_hash = NULL, lease_until = NULL
            WHERE runner_id = ?1 AND state IN ('claimed', 'running') AND NOT ${RUNNER_STILL_ALLOWS_SQL}
              AND ${AUDITED_WRITE_HAPPENED_SQL}`,
         )

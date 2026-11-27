@@ -129,6 +129,7 @@ export {
   runnerAudienceOf,
   runnerReleaseChannelOf,
   runnerScopeCovers,
+  runnerTakesSubscription,
 } from './lib/runner';
 export type {
   ClaimRunnerInput,

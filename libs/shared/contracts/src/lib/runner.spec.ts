@@ -11,6 +11,7 @@ import {
   isRunnerListDto,
   isRunnerVersionBelow,
   runnerReleaseChannelOf,
+  runnerTakesSubscription,
   type RunnerDto,
 } from './runner';
 
@@ -40,6 +41,7 @@ const RUNNER: RunnerDto = {
   enrolledByName: null,
   pause: null,
   enroller: 'recorded',
+  canWiden: true,
   unattributedProjects: 0,
 };
 
@@ -120,6 +122,21 @@ describe('enrolCommandOf', () => {
   });
 });
 
+describe('runnerTakesSubscription', () => {
+  it.each([
+    ['declares nothing', undefined, true],
+    ['declares a subscription', ['subscription'] as const, true],
+    ['declares both', ['api_key', 'subscription'] as const, true],
+    ['declares an API key only', ['api_key'] as const, false],
+  ])('judges a runner that %s', (_, accessSources, takes) => {
+    const capabilities =
+      accessSources === undefined
+        ? { local: true, maxConcurrency: 1 }
+        : { local: true, maxConcurrency: 1, accessSources };
+    expect(runnerTakesSubscription(capabilities)).toBe(takes);
+  });
+});
+
 describe('runner guards', () => {
   it('accepts a runner as the Worker answers it', () => {
     expect(isRunnerDto(RUNNER)).toBe(true);
@@ -154,6 +171,8 @@ describe('runner guards', () => {
     ['a pause without until', { pause: { reason: 'manual' } }],
     ['no enroller state', { enroller: undefined }],
     ['an unknown enroller state', { enroller: 'owner-1' }],
+    ['no canWiden', { canWiden: undefined }],
+    ['a non-boolean canWiden', { canWiden: 'yes' }],
     ['no unattributed count', { unattributedProjects: undefined }],
     ['a negative unattributed count', { unattributedProjects: -1 }],
     ['a fractional unattributed count', { unattributedProjects: 1.5 }],

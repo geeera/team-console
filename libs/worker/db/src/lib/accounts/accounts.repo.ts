@@ -235,6 +235,15 @@ export class AccountsRepo {
     return new Map(results.map((row) => [row.user_id, row.display_name] as const));
   }
 
+  /** How many owners the account has (#825): D3 and #795 hold nothing back while it is at most one. */
+  async ownerCountOf(accountId: string): Promise<number> {
+    const count = await this.db
+      .prepare(`SELECT COUNT(*) AS owners FROM account_members WHERE account_id = ?1 AND role = 'owner'`)
+      .bind(accountId)
+      .first<number>('owners');
+    return count ?? 0;
+  }
+
   /** Owners first, then by join date. */
   async membersOf(accountId: string): Promise<MemberRecord[]> {
     const { results } = await this.db
