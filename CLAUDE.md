@@ -662,7 +662,9 @@ to address; `RunnerListDto.release` (`runnerReleaseOf(env)`, shared with `GET /r
 `RunnerDto.belowMinimum` (`isRunnerVersionBelow`: SemVer precedence, a non-SemVer label counts as below) flag a runner
 under `RUNNER_MINIMUM_VERSION`. Console: `@console/entities/runner` (`RunnersApi` — every answer through its guard
 in `@shared/contracts`, failures through `runnerFailureOf`/`runnerFailureKeyOf`; `RunnersStore`, in memory only, the
-first owned account, `forbidden` for a member or no account; `RunnerCard`, `RunnerProjectsPicker`, `runnerFixture`),
+first owned account, `forbidden` for a member or no account; `RunnerCard`, `RunnerProjectsPicker`, `runnerFixture`;
+`EnrolmentWatch` and `RunnerCheckWatch` (#1059 PR 3: the check panel on the wizard's step 4b, a failure code it does not
+know folded into `unknown` by `isRunnerCheckReadDto`/`runnerCheckOf`) on one `PollTimer`, never a copy of its timers),
 `@console/features/enrol-runner` (the code lives in the dialog only; the command is `enrolCommandOf`, `null` for
 anything that could carry a shell metacharacter; #582: the code rides in `TC_ENROL_CODE`, never in argv),
 `@console/features/manage-runner` (allowed projects, revoke behind a danger confirm; #492: clear a suspect mark behind a confirm, withdraw a pending code from the page's pending list), `@console/features/runner-policy` (`RunnerPolicyEditor` per account or project scope; `PUT null`
