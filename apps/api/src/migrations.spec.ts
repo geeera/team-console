@@ -471,14 +471,12 @@ describe('migrations on a fresh D1', () => {
       const runnerRow = `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
                          VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`;
       await env.DB.batch([
-        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049a', 'A', ?2)`).bind(
-          account,
-          T0,
-        ),
-        env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049b', 'B', ?2)`).bind(
-          other,
-          T0,
-        ),
+        env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049a', 'A', ?2)`,
+        ).bind(account, T0),
+        env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049b', 'B', ?2)`,
+        ).bind(other, T0),
         env.DB.prepare(runnerRow).bind(runner, account, jwkOf('x'), T0),
         env.DB.prepare(runnerRow).bind(foreignRunner, other, jwkOf('y'), T0),
         env.DB.prepare(
@@ -488,14 +486,22 @@ describe('migrations on a fresh D1', () => {
       ]);
     });
     afterEach(async () => {
-      await env.DB.prepare(`DELETE FROM runner_checks WHERE account_id IN (?1, ?2)`).bind(account, other).run();
+      await env.DB.prepare(`DELETE FROM runner_checks WHERE account_id IN (?1, ?2)`)
+        .bind(account, other)
+        .run();
     });
 
     it('admits the states the flow writes', async () => {
       await insert({});
       await insert({ ...finished });
       await insert({ state: 'failed', reason: 'not-picked-up', finished_at: T1 });
-      await insert({ state: 'failed', reason: 'timeout', picked_at: T0, finished_at: T1, duration_ms: 120000 });
+      await insert({
+        state: 'failed',
+        reason: 'timeout',
+        picked_at: T0,
+        finished_at: T1,
+        duration_ms: 120000,
+      });
       await insert({ ...finished, claude_version: '2.1.3-beta.1+build.7', duration_ms: 0 });
     });
 
@@ -522,7 +528,11 @@ describe('migrations on a fresh D1', () => {
       ['a text duration', { ...finished, duration_ms: 'five' }, /CHECK/],
       ['a duration on a live check', { duration_ms: 5 }, /CHECK/],
       ['a time that is not ISO UTC', { created_at: '2026-11-27 10:00:00' }, /CHECK/],
-      ['a final state without finished_at', { state: 'passed', claude_version: '2.1.3', picked_at: T0 }, /CHECK/],
+      [
+        'a final state without finished_at',
+        { state: 'passed', claude_version: '2.1.3', picked_at: T0 },
+        /CHECK/,
+      ],
       ['finished_at on a live check', { finished_at: T1 }, /CHECK/],
       ['a queued check that was picked up', { picked_at: T0 }, /CHECK/],
       ['a running check never picked up', { state: 'running' }, /CHECK/],
@@ -561,7 +571,9 @@ describe('migrations on a fresh D1', () => {
         .bind(id, T0)
         .run();
       await expect(
-        env.DB.prepare(`UPDATE runner_checks SET state = 'queued', picked_at = NULL WHERE id = ?1`).bind(id).run(),
+        env.DB.prepare(`UPDATE runner_checks SET state = 'queued', picked_at = NULL WHERE id = ?1`)
+          .bind(id)
+          .run(),
       ).rejects.toThrow(/only moves forward/);
       await env.DB.prepare(
         `UPDATE runner_checks SET state = 'failed', reason = 'lost', finished_at = ?2 WHERE id = ?1`,

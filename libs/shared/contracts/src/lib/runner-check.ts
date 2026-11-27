@@ -51,7 +51,8 @@ export const RUNNER_CHECK_REFUSALS = [
 ] as const;
 export type RunnerCheckRefusal = (typeof RUNNER_CHECK_REFUSALS)[number];
 
-type RunnerStoredCheckReasonOrRefusal = RunnerReportedCheckReason | RunnerExpiredCheckReason | RunnerCheckRefusal;
+type RunnerStoredCheckReasonOrRefusal =
+  RunnerReportedCheckReason | RunnerExpiredCheckReason | RunnerCheckRefusal;
 
 /**
  * Every machine-readable outcome of a check the console maps to copy (architect note §3): a stored reason, or an
@@ -65,7 +66,7 @@ export const RUNNER_CHECK_REASONS = [
   'runner-offline',
   'runner-outdated',
   'rate-limited',
-] as const satisfies readonly (RunnerStoredCheckReasonOrRefusal)[];
+] as const satisfies readonly RunnerStoredCheckReasonOrRefusal[];
 export type RunnerCheckReason = (typeof RUNNER_CHECK_REASONS)[number];
 export const isRunnerCheckReason = (value: unknown): value is RunnerCheckReason =>
   (RUNNER_CHECK_REASONS as readonly unknown[]).includes(value);
@@ -263,4 +264,3 @@ export function isClaimResponse(value: unknown): value is ClaimAnswer {
       (typeof value['teamConfigRevision'] === 'number' && Number.isInteger(value['teamConfigRevision'])))
   );
 }
-

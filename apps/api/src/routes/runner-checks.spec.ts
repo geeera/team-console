@@ -39,7 +39,10 @@ const FAILED = { result: 'failed', reason: 'credential-missing', durationMs: 120
 type Runner = Pick<TestRunner, 'id' | 'privateKey'>;
 
 /** A runner of the owner's account that has polled once declaring `smoke`: online and declared. */
-async function declaringRunner(owner: SessionUser, options: { projectScope?: 'all' } = {}): Promise<TestRunner> {
+async function declaringRunner(
+  owner: SessionUser,
+  options: { projectScope?: 'all' } = {},
+): Promise<TestRunner> {
   const runner = await enrolRunner(owner.account.id, { as: owner, ...options });
   const poll = await sendAsRunner(runner, 'POST', CLAIM, { checks: ['smoke'] });
   expect(poll.status).toBe(204);
@@ -144,7 +147,9 @@ const ago = (seconds: number): string => new Date(Date.now() - seconds * 1000).t
 async function auditRows(
   kind: string,
   target: string,
-): Promise<{ actor_kind: string; actor: string; details: Record<string, unknown>; ip_country: string | null }[]> {
+): Promise<
+  { actor_kind: string; actor: string; details: Record<string, unknown>; ip_country: string | null }[]
+> {
   const { results } = await env.DB.prepare(
     `SELECT actor_kind, actor, details, ip_country FROM audit_events WHERE kind = ?1 AND target = ?2 ORDER BY id`,
   )
@@ -170,7 +175,9 @@ describe('a runner check end to end (#1059)', () => {
     expect(claim.status).toBe(200);
     const answer: unknown = await claim.json();
     // S2: nothing beside the check, no job, token, scope or team config.
-    expect(answer).toEqual({ check: { id: check.id, kind: 'smoke', deadlineSeconds: RUNNER_CHECK_DEADLINE_SECONDS } });
+    expect(answer).toEqual({
+      check: { id: check.id, kind: 'smoke', deadlineSeconds: RUNNER_CHECK_DEADLINE_SECONDS },
+    });
     expect(isRunnerCheckClaimResponse(answer)).toBe(true);
     expect(isClaimResponse(answer)).toBe(true);
     expect((await readCheck(owner, runner.id, check.id)).state).toBe('running');
@@ -232,9 +239,16 @@ describe('isolation (T1, T2, T10; tests 2 and 3)', () => {
       const unknown = await start(ownerB, missing, { kind: 'smoke' }, accountId);
       expect([403, 404]).toContain(foreign.status);
       expect([foreign.status, await slugOf(foreign)]).toEqual([unknown.status, await slugOf(unknown)]);
-      const readForeign = await sendAsSession(ownerB, 'GET', `${checksOf(accountId, runnerA.id)}/${check.id}`);
+      const readForeign = await sendAsSession(
+        ownerB,
+        'GET',
+        `${checksOf(accountId, runnerA.id)}/${check.id}`,
+      );
       const readUnknown = await sendAsSession(ownerB, 'GET', `${checksOf(accountId, missing)}/${check.id}`);
-      expect([readForeign.status, await slugOf(readForeign)]).toEqual([readUnknown.status, await slugOf(readUnknown)]);
+      expect([readForeign.status, await slugOf(readForeign)]).toEqual([
+        readUnknown.status,
+        await slugOf(readUnknown),
+      ]);
       expect([403, 404]).toContain(readForeign.status);
     }
     // B's runner: its claim never receives A's check, and its finish of A's check is 404.
@@ -273,7 +287,11 @@ describe('roles (test 4)', () => {
     const check = await started(owner, runner.id);
     const memberId = await seedUser('member');
     await seedMembership(owner.account.id, memberId, 'member');
-    const member: SessionUser = { userId: memberId, cookie: await seedSession(memberId), account: owner.account };
+    const member: SessionUser = {
+      userId: memberId,
+      cookie: await seedSession(memberId),
+      account: owner.account,
+    };
     const path = checksOf(owner.account.id, runner.id);
 
     const memberStart = await start(member, runner.id);
@@ -284,12 +302,20 @@ describe('roles (test 4)', () => {
       ['POST', path],
       ['GET', `${path}/${check.id}`],
     ] as const) {
-      const job = await send(method, target, method === 'GET' ? undefined : { kind: 'smoke' }, { job: jobActor('pm') });
+      const job = await send(method, target, method === 'GET' ? undefined : { kind: 'smoke' }, {
+        job: jobActor('pm'),
+      });
       expect(job.status).toBe(403);
       const service = await sendAsService(method, target, method === 'GET' ? undefined : { kind: 'smoke' });
       expect([service.status, await slugOf(service)]).toEqual([404, 'account-not-found']);
     }
-    const crossSite = await sendAsSession(owner, 'POST', path, { kind: 'smoke' }, { headers: { 'Sec-Fetch-Site': 'cross-site' } });
+    const crossSite = await sendAsSession(
+      owner,
+      'POST',
+      path,
+      { kind: 'smoke' },
+      { headers: { 'Sec-Fetch-Site': 'cross-site' } },
+    );
     expect([crossSite.status, await slugOf(crossSite)]).toEqual([403, 'csrf']);
     // None of them made a second check.
     expect(await auditRows('runner.check-requested', runner.id)).toHaveLength(1);
@@ -343,7 +369,9 @@ describe('enqueue refusals in order (T10; test 5)', () => {
     const never = await insertRunner(owner.account.id, { lastSeenAt: null });
     expect(await refusal(await start(owner, never.id))).toEqual([409, 'runner-offline']);
 
-    const outdated = await insertRunner(owner.account.id, { capabilities: { local: false, maxConcurrency: 1 } });
+    const outdated = await insertRunner(owner.account.id, {
+      capabilities: { local: false, maxConcurrency: 1 },
+    });
     expect(await refusal(await start(owner, outdated.id))).toEqual([409, 'runner-outdated']);
     // An old runner polls without the declaration: still outdated, and it never gets a check.
     const old = await enrolRunner(owner.account.id, { as: owner });
@@ -372,23 +400,23 @@ describe('enqueue refusals in order (T10; test 5)', () => {
 describe('the declaration on the claim (S1; test 6)', () => {
   const capabilitiesOf = async (runnerId: string): Promise<Record<string, unknown>> =>
     JSON.parse(
-      (await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`).bind(runnerId).first<{ capabilities: string }>())
-        ?.capabilities ?? '{}',
+      (
+        await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`)
+          .bind(runnerId)
+          .first<{ capabilities: string }>()
+      )?.capabilities ?? '{}',
     ) as Record<string, unknown>;
 
-  it.each([
-    [['exec']],
-    [['smoke', 'smoke']],
-    [['smoke', 'exec']],
-    ['smoke'],
-    [[1]],
-  ])('refuses checks %j with 422 claim-invalid', async (checks) => {
-    const owner = await seedSessionUser('owner');
-    const runner = await enrolRunner(owner.account.id, { as: owner });
-    const response = await sendAsRunner(runner, 'POST', CLAIM, { checks });
-    expect([response.status, await slugOf(response)]).toEqual([422, 'claim-invalid']);
-    expect((await capabilitiesOf(runner.id))['checks']).toBeUndefined();
-  });
+  it.each([[['exec']], [['smoke', 'smoke']], [['smoke', 'exec']], ['smoke'], [[1]]])(
+    'refuses checks %j with 422 claim-invalid',
+    async (checks) => {
+      const owner = await seedSessionUser('owner');
+      const runner = await enrolRunner(owner.account.id, { as: owner });
+      const response = await sendAsRunner(runner, 'POST', CLAIM, { checks });
+      expect([response.status, await slugOf(response)]).toEqual([422, 'claim-invalid']);
+      expect((await capabilitiesOf(runner.id))['checks']).toBeUndefined();
+    },
+  );
 
   it('stores checks with json_set, leaving every other capability key alone, and writes nothing when unchanged', async () => {
     const owner = await seedSessionUser('owner');
@@ -401,8 +429,11 @@ describe('the declaration on the claim (S1; test 6)', () => {
     expect(await capabilitiesOf(runner.id)).toEqual({ ...before, checks: ['smoke'] });
 
     const raw = async (): Promise<string | undefined> =>
-      (await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`).bind(runner.id).first<{ capabilities: string }>())
-        ?.capabilities;
+      (
+        await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`)
+          .bind(runner.id)
+          .first<{ capabilities: string }>()
+      )?.capabilities;
     const stored = await raw();
     const lines: string[] = [];
     await sendAsRunner(runner, 'POST', CLAIM, { checks: ['smoke'] }, { logSink: (line) => lines.push(line) });
@@ -495,7 +526,9 @@ describe('a check leaves the job pipeline untouched (S2; test 7)', () => {
         .all(),
       env.DB.prepare(`SELECT * FROM team_state WHERE project_slug = ?1`).bind(slug).all(),
       env.DB.prepare(`SELECT * FROM project_spend WHERE project_slug = ?1`).bind(slug).all(),
-      env.DB.prepare(`SELECT * FROM jobs WHERE account_id = ?1 AND token_hash IS NOT NULL`).bind(accountId).all(),
+      env.DB.prepare(`SELECT * FROM jobs WHERE account_id = ?1 AND token_hash IS NOT NULL`)
+        .bind(accountId)
+        .all(),
     ]);
     return JSON.stringify(tables.map((table) => table.results));
   };
@@ -568,10 +601,9 @@ describe('finish validation (S5; test 8)', () => {
     for (const [body, field] of cases) {
       const response = await finish(runner, checkId, body);
       const text = await response.text();
-      expect([response.status, (JSON.parse(text) as { field?: string }).field], JSON.stringify(body)).toEqual([
-        422,
-        field,
-      ]);
+      expect([response.status, (JSON.parse(text) as { field?: string }).field], JSON.stringify(body)).toEqual(
+        [422, field],
+      );
       expect(text).not.toContain(sentinel);
       expect(text).not.toContain('<img');
     }
@@ -599,7 +631,11 @@ describe('finish validation (S5; test 8)', () => {
   it('answers 404 to a finish 91 s after the pick-up, and the check becomes lost', async () => {
     const owner = await seedSessionUser('owner');
     const runner = await declaringRunner(owner);
-    const late = await insertCheck(owner.account.id, runner.id, { state: 'running', createdAt: ago(120), pickedAt: ago(91) });
+    const late = await insertCheck(owner.account.id, runner.id, {
+      state: 'running',
+      createdAt: ago(120),
+      pickedAt: ago(91),
+    });
     const response = await finish(runner, late);
     expect([response.status, await slugOf(response)]).toEqual([404, 'runner-check-not-found']);
     expect(await checkRow(late)).toEqual({ state: 'failed', reason: 'lost' });
@@ -625,11 +661,19 @@ describe('idempotent enqueue and the race (S12, T8; test 9)', () => {
   it('converges two concurrent POSTs on one row, never a 500', async () => {
     const owner = await seedSessionUser('owner');
     const runner = await declaringRunner(owner);
-    const responses = await Promise.all([start(owner, runner.id), start(owner, runner.id), start(owner, runner.id)]);
+    const responses = await Promise.all([
+      start(owner, runner.id),
+      start(owner, runner.id),
+      start(owner, runner.id),
+    ]);
     expect(responses.map((response) => response.status).sort()).toEqual([200, 200, 201]);
-    const ids = await Promise.all(responses.map(async (response) => ((await response.json()) as RunnerCheckDto).id));
+    const ids = await Promise.all(
+      responses.map(async (response) => ((await response.json()) as RunnerCheckDto).id),
+    );
     expect(new Set(ids).size).toBe(1);
-    const { results } = await env.DB.prepare(`SELECT id FROM runner_checks WHERE runner_id = ?1`).bind(runner.id).all();
+    const { results } = await env.DB.prepare(`SELECT id FROM runner_checks WHERE runner_id = ?1`)
+      .bind(runner.id)
+      .all();
     expect(results).toHaveLength(1);
   });
 });
@@ -658,9 +702,15 @@ describe('the hourly caps (S12, T8; test 10)', () => {
       expect((await finish(runner, check.id)).status).toBe(204);
     }
     const lines: string[] = [];
-    const limited = await sendAsSession(owner, 'POST', checksOf(owner.account.id, runner.id), { kind: 'smoke' }, {
-      logSink: (line) => lines.push(line),
-    });
+    const limited = await sendAsSession(
+      owner,
+      'POST',
+      checksOf(owner.account.id, runner.id),
+      { kind: 'smoke' },
+      {
+        logSink: (line) => lines.push(line),
+      },
+    );
     expect([limited.status, await slugOf(limited)]).toEqual([429, 'rate-limited']);
     const retryAfter = Number(limited.headers.get('Retry-After'));
     expect(retryAfter).toBeGreaterThan(3000);
@@ -672,7 +722,11 @@ describe('the hourly caps (S12, T8; test 10)', () => {
 
   it('answers the 31st check of an account in an hour with 429, a fresh runner included', async () => {
     const owner = await seedSessionUser('owner');
-    const runners = await Promise.all([declaringRunner(owner), declaringRunner(owner), declaringRunner(owner)]);
+    const runners = await Promise.all([
+      declaringRunner(owner),
+      declaringRunner(owner),
+      declaringRunner(owner),
+    ]);
     // Created rows of the last hour: 10 + 10 + 9, written past the API.
     for (const [index, runner] of runners.entries()) {
       for (let count = 0; count < (index === 2 ? 9 : 10); count += 1) {
@@ -705,14 +759,21 @@ describe('lazy expiry, revoke and pause (test 11)', () => {
     });
     // The pick-up refuses it even before a sweep ran.
     expect((await claimDeclaring(runner)).status).toBe(204);
-    expect(await readCheck(owner, runner.id, stale)).toMatchObject({ state: 'failed', reason: 'not-picked-up' });
+    expect(await readCheck(owner, runner.id, stale)).toMatchObject({
+      state: 'failed',
+      reason: 'not-picked-up',
+    });
     expect(await checkRow(fresh)).toEqual({ state: 'queued', reason: null });
   });
 
   it('turns a check running past 90 s into lost on POST, then starts a fresh one', async () => {
     const owner = await seedSessionUser('owner');
     const runner = await declaringRunner(owner);
-    const lost = await insertCheck(owner.account.id, runner.id, { state: 'running', createdAt: ago(100), pickedAt: ago(91) });
+    const lost = await insertCheck(owner.account.id, runner.id, {
+      state: 'running',
+      createdAt: ago(100),
+      pickedAt: ago(91),
+    });
     const response = await start(owner, runner.id);
     expect(response.status).toBe(201);
     expect(((await response.json()) as RunnerCheckDto).id).not.toBe(lost);
@@ -725,11 +786,22 @@ describe('lazy expiry, revoke and pause (test 11)', () => {
     const owner = await seedSessionUser('owner');
     const runner = await declaringRunner(owner);
     const check = await started(owner, runner.id);
-    const revoke = await sendAsSession(owner, 'POST', `/api/v1/accounts/${owner.account.id}/runners/${runner.id}/revoke`, {});
+    const revoke = await sendAsSession(
+      owner,
+      'POST',
+      `/api/v1/accounts/${owner.account.id}/runners/${runner.id}/revoke`,
+      {},
+    );
     expect(revoke.status).toBe(200);
-    expect(await readCheck(owner, runner.id, check.id)).toMatchObject({ state: 'failed', reason: 'runner-revoked' });
+    expect(await readCheck(owner, runner.id, check.id)).toMatchObject({
+      state: 'failed',
+      reason: 'runner-revoked',
+    });
     const [expired] = await auditRows('runner.check-expired', runner.id);
-    expect(expired).toMatchObject({ actor_kind: 'system', details: { checkId: check.id, reason: 'runner-revoked' } });
+    expect(expired).toMatchObject({
+      actor_kind: 'system',
+      details: { checkId: check.id, reason: 'runner-revoked' },
+    });
   });
 
   it('delivers nothing to a paused runner, then delivers once the pause is lifted', async () => {
@@ -741,7 +813,9 @@ describe('lazy expiry, revoke and pause (test 11)', () => {
       .run();
     expect((await claimDeclaring(runner)).status).toBe(204);
     expect((await checkRow(check.id))?.state).toBe('queued');
-    await env.DB.prepare(`UPDATE runners SET paused_until = NULL, pause_reason = NULL WHERE id = ?1`).bind(runner.id).run();
+    await env.DB.prepare(`UPDATE runners SET paused_until = NULL, pause_reason = NULL WHERE id = ?1`)
+      .bind(runner.id)
+      .run();
     expect((await claimDeclaring(runner)).status).toBe(200);
   });
 });
@@ -751,7 +825,11 @@ describe('the idle claim’s Retry-After (T9; test 14)', () => {
     const owner = await seedSessionUser('owner');
     const fresh = await insertRunner(owner.account.id, { enrolledAt: ago(14 * 60) });
     const settled = await insertRunner(owner.account.id, { enrolledAt: ago(16 * 60) });
-    const hosted = await insertRunner(owner.account.id, { hosted: 1, isolation: 'container', enrolledAt: ago(60) });
+    const hosted = await insertRunner(owner.account.id, {
+      hosted: 1,
+      isolation: 'container',
+      enrolledAt: ago(60),
+    });
     const retryAfter = async (runner: Runner): Promise<[number, string | null]> => {
       const response = await sendAsRunner(runner, 'POST', CLAIM, {});
       return [response.status, response.headers.get('Retry-After')];

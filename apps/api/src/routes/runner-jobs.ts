@@ -252,7 +252,11 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         nowIso,
       );
       if (check !== null) {
-        logger.info('runner check picked up', { checkId: check.id, runnerId: runner.runnerId, kind: check.kind });
+        logger.info('runner check picked up', {
+          checkId: check.id,
+          runnerId: runner.runnerId,
+          kind: check.kind,
+        });
         const answer: RunnerCheckClaimResponse = {
           check: { id: check.id, kind: check.kind, deadlineSeconds: RUNNER_CHECK_DEADLINE_SECONDS },
         };
@@ -268,7 +272,10 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         leaseUntil: new Date(now.getTime() + JOB_LEASE_SECONDS * 1000).toISOString(),
       });
       if (job === null) {
-        c.header('Retry-After', String(idlePollSecondsOf(authenticated ?? (await runners.findById(runner.runnerId)), now)));
+        c.header(
+          'Retry-After',
+          String(idlePollSecondsOf(authenticated ?? (await runners.findById(runner.runnerId)), now)),
+        );
         return c.body(null, 204);
       }
       const stored = await runners.findInAccount(runner.accountId, runner.runnerId);

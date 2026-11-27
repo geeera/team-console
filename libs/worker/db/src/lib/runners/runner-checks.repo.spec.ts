@@ -45,10 +45,18 @@ describe('RunnerChecksRepo', () => {
 
   it('maps the unique-index race to the live check, writing nothing, never an error (S12)', async () => {
     const { account, runner } = await seedRunner();
-    const first = await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(1) }, OWNER, CAPS);
+    const first = await repo.create(
+      { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(1) },
+      OWNER,
+      CAPS,
+    );
     expect(first.kind).toBe('created');
     // A second request that read "no live check" before the first committed: its INSERT meets the index.
-    const second = await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) }, OWNER, CAPS);
+    const second = await repo.create(
+      { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) },
+      OWNER,
+      CAPS,
+    );
     expect(second).toEqual({ kind: 'live', check: first.kind === 'created' ? first.check : null });
     const audits = await env.DB.prepare(
       `SELECT COUNT(*) AS n FROM audit_events WHERE kind = 'runner.check-requested' AND target = ?1`,
@@ -61,7 +69,11 @@ describe('RunnerChecksRepo', () => {
   it('refuses a runner that has not declared smoke inside the INSERT', async () => {
     const { account, runner } = await seedRunner({ capabilities: { local: true, maxConcurrency: 1 } });
     expect(
-      await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) }, OWNER, CAPS),
+      await repo.create(
+        { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) },
+        OWNER,
+        CAPS,
+      ),
     ).toEqual({ kind: 'refused' });
   });
 
@@ -90,7 +102,13 @@ describe('RunnerChecksRepo', () => {
       .bind(account)
       .first<{ n: number }>();
     expect(
-      (await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) }, OWNER, CAPS)).kind,
+      (
+        await repo.create(
+          { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) },
+          OWNER,
+          CAPS,
+        )
+      ).kind,
     ).toBe('created');
     const left = await env.DB.prepare(`SELECT id FROM runner_checks WHERE id IN (?1, ?2)`)
       .bind(old, otherOld)
@@ -104,7 +122,11 @@ describe('RunnerChecksRepo', () => {
 
   it('picks up only the runner’s own check of its own account, and never for a revoked runner (S10)', async () => {
     const { account, runner } = await seedRunner();
-    const created = await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) }, OWNER, CAPS);
+    const created = await repo.create(
+      { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) },
+      OWNER,
+      CAPS,
+    );
     expect(created.kind).toBe('created');
     const elsewhere = await seedRunner();
     expect(await repo.pickUp(elsewhere.account, runner, ['smoke'], ago(0))).toBeNull();
@@ -115,7 +137,11 @@ describe('RunnerChecksRepo', () => {
 
   it('finishes only with the runner’s own account (T2)', async () => {
     const { account, runner } = await seedRunner();
-    const created = await repo.create({ id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) }, OWNER, CAPS);
+    const created = await repo.create(
+      { id: ulid('RCK'), accountId: account, runnerId: runner, kind: 'smoke', at: ago(0) },
+      OWNER,
+      CAPS,
+    );
     if (created.kind !== 'created') {
       throw new Error('not created');
     }
@@ -132,10 +158,14 @@ describe('RunnersRepo.setChecks (S1)', () => {
   const runners = new RunnersRepo(env.DB);
 
   it('json_sets $.checks alone, only when it changed, and never on a hosted or ephemeral identity', async () => {
-    const { runner } = await seedRunner({ capabilities: { local: true, maxConcurrency: 2, accessSources: ['api_key'] } });
+    const { runner } = await seedRunner({
+      capabilities: { local: true, maxConcurrency: 2, accessSources: ['api_key'] },
+    });
     expect(await runners.setChecks(runner, ['smoke'])).toBe(true);
     expect(await runners.setChecks(runner, ['smoke'])).toBe(false);
-    const row = await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`).bind(runner).first<{ capabilities: string }>();
+    const row = await env.DB.prepare(`SELECT capabilities FROM runners WHERE id = ?1`)
+      .bind(runner)
+      .first<{ capabilities: string }>();
     expect(JSON.parse(row?.capabilities ?? '{}')).toEqual({
       local: true,
       maxConcurrency: 2,
@@ -153,15 +183,24 @@ describe('RunnersRepo.setChecks (S1)', () => {
       `INSERT INTO runners (id, account_id, name, public_key_jwk, hosted, isolation, version, enrolled_at)
        VALUES (?1, ?2, 'h', ?3, 1, 'container', '0.1.0', ?4)`,
     )
-      .bind(hostedId, hosted.account, JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'h'.repeat(43) }), ago(0))
+      .bind(
+        hostedId,
+        hosted.account,
+        JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'h'.repeat(43) }),
+        ago(0),
+      )
       .run();
     expect(await runners.setChecks(hostedId, ['smoke'])).toBe(false);
-    await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral' WHERE id = ?1`).bind(hosted.runner).run();
+    await env.DB.prepare(`UPDATE runners SET isolation = 'actions-ephemeral' WHERE id = ?1`)
+      .bind(hosted.runner)
+      .run();
     expect(await runners.setChecks(hosted.runner, ['smoke'])).toBe(false);
   });
 
   it('reads a broken stored declaration as none', async () => {
-    const { runner } = await seedRunner({ capabilities: { local: true, maxConcurrency: 1, checks: ['exec'] } });
+    const { runner } = await seedRunner({
+      capabilities: { local: true, maxConcurrency: 1, checks: ['exec'] },
+    });
     expect((await runners.findById(runner))?.capabilities.checks).toBeUndefined();
   });
 });

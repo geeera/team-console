@@ -78,7 +78,9 @@ export function runnerCheckDtoOf(check: RunnerCheckRecord): RunnerCheckDto {
 /** The account's runner behind `:runner`, or the 404 another account's runner and a missing one share. */
 async function runnerInAccountOf(c: Context, account: AccountRecord): Promise<RunnerRecord | Response> {
   const runnerId = c.req.param('runner') ?? '';
-  const runner = isRunnerId(runnerId) ? await new RunnersRepo(c.env.DB).findInAccount(account.id, runnerId) : null;
+  const runner = isRunnerId(runnerId)
+    ? await new RunnersRepo(c.env.DB).findInAccount(account.id, runnerId)
+    : null;
   return runner ?? runnerNotFound(c);
 }
 
@@ -140,7 +142,13 @@ export function createAccountRunnerCheckRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       }
       const actor = auditActorOf(c.get('identity'));
       const outcome = await checks.create(
-        { id: newUlid(now.getTime()), accountId: account.id, runnerId: runner.id, kind: input.value.kind, at },
+        {
+          id: newUlid(now.getTime()),
+          accountId: account.id,
+          runnerId: runner.id,
+          kind: input.value.kind,
+          at,
+        },
         { actorKind: actor.kind, actor: actor.actor, ipCountry: c.req.header('CF-IPCountry') ?? null },
         { perRunner: RUNNER_CHECKS_PER_RUNNER_PER_HOUR, perAccount: RUNNER_CHECKS_PER_ACCOUNT_PER_HOUR },
       );
@@ -200,7 +208,9 @@ export function createRunnerCheckRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
       const runner = runnerOf(c);
       const checkId = c.req.param('id');
       const checks = new RunnerChecksRepo(c.env.DB);
-      const check = isUlid(checkId) ? await checks.findOfRunner(runner.accountId, runner.runnerId, checkId) : null;
+      const check = isUlid(checkId)
+        ? await checks.findOfRunner(runner.accountId, runner.runnerId, checkId)
+        : null;
       if (check === null) {
         return checkNotFound(c);
       }

@@ -122,10 +122,7 @@ export function runnerCheckKindsOf(field: string, value: unknown): readonly Runn
     !value.every(isRunnerCheckKind) ||
     new Set(value).size !== value.length
   ) {
-    throw new InputError(
-      field,
-      `${field} must name distinct kinds out of ${RUNNER_CHECK_KINDS.join(', ')}`,
-    );
+    throw new InputError(field, `${field} must name distinct kinds out of ${RUNNER_CHECK_KINDS.join(', ')}`);
   }
   return [...(value as RunnerCheckKind[])].sort();
 }

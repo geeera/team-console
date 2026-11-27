@@ -37,7 +37,10 @@ describe('the vocabularies', () => {
     }
     expect(RUNNER_REPORTED_CHECK_REASONS).not.toContain('rate-limited');
     expect(RUNNER_REPORTED_CHECK_REASONS).not.toContain('runner-outdated');
-    expect(RUNNER_STORED_CHECK_REASONS).toEqual([...RUNNER_REPORTED_CHECK_REASONS, ...RUNNER_EXPIRED_CHECK_REASONS]);
+    expect(RUNNER_STORED_CHECK_REASONS).toEqual([
+      ...RUNNER_REPORTED_CHECK_REASONS,
+      ...RUNNER_EXPIRED_CHECK_REASONS,
+    ]);
     expect(new Set(RUNNER_CHECK_REASONS).size).toBe(RUNNER_CHECK_REASONS.length);
     for (const reason of RUNNER_STORED_CHECK_REASONS) {
       expect(RUNNER_CHECK_REASONS).toContain(reason);
@@ -46,12 +49,16 @@ describe('the vocabularies', () => {
 });
 
 describe('isClaudeVersion (the shared bounded regex, S5)', () => {
-  it.each(['2.1.3', '0.0.1', '2.1.3-beta.1', '2.1.3+build.7', '123456.123456.123456', `1.2.3-${'a'.repeat(32)}`])(
-    'accepts %s',
-    (value) => {
-      expect(isClaudeVersion(value)).toBe(true);
-    },
-  );
+  it.each([
+    '2.1.3',
+    '0.0.1',
+    '2.1.3-beta.1',
+    '2.1.3+build.7',
+    '123456.123456.123456',
+    `1.2.3-${'a'.repeat(32)}`,
+  ])('accepts %s', (value) => {
+    expect(isClaudeVersion(value)).toBe(true);
+  });
 
   it.each([
     '',
@@ -81,11 +88,13 @@ describe('isClaudeVersion (the shared bounded regex, S5)', () => {
 describe('isRunnerCheckDto', () => {
   it('accepts each consistent state', () => {
     expect(isRunnerCheckDto(PASSED)).toBe(true);
-    expect(isRunnerCheckDto({ ...PASSED, state: 'queued', claudeVersion: null, pickedAt: null, finishedAt: null })).toBe(
-      true,
-    );
+    expect(
+      isRunnerCheckDto({ ...PASSED, state: 'queued', claudeVersion: null, pickedAt: null, finishedAt: null }),
+    ).toBe(true);
     expect(isRunnerCheckDto({ ...PASSED, state: 'failed', claudeVersion: null, reason: 'lost' })).toBe(true);
-    expect(isRunnerCheckDto({ ...PASSED, state: 'failed', claudeVersion: null, reason: 'not-picked-up' })).toBe(true);
+    expect(
+      isRunnerCheckDto({ ...PASSED, state: 'failed', claudeVersion: null, reason: 'not-picked-up' }),
+    ).toBe(true);
   });
 
   it.each<[string, Record<string, unknown>]>([
@@ -134,7 +143,10 @@ describe('checkStartRunnerCheckInput', () => {
   it('takes {kind: smoke} and nothing else', () => {
     expect(checkStartRunnerCheckInput({ kind: 'smoke' })).toEqual({ ok: true, value: { kind: 'smoke' } });
     expect(checkStartRunnerCheckInput({ kind: 'exec' })).toMatchObject({ ok: false, field: 'kind' });
-    expect(checkStartRunnerCheckInput({ kind: 'smoke', argv: [] })).toMatchObject({ ok: false, field: 'body' });
+    expect(checkStartRunnerCheckInput({ kind: 'smoke', argv: [] })).toMatchObject({
+      ok: false,
+      field: 'body',
+    });
     expect(checkStartRunnerCheckInput(null)).toMatchObject({ ok: false, field: 'body' });
   });
 });
@@ -154,7 +166,12 @@ describe('checkFinishRunnerCheckInput (S5)', () => {
   });
 
   it('refuses the server-only reasons', () => {
-    for (const reason of [...RUNNER_EXPIRED_CHECK_REASONS, 'rate-limited', 'runner-outdated', 'runner-paused']) {
+    for (const reason of [
+      ...RUNNER_EXPIRED_CHECK_REASONS,
+      'rate-limited',
+      'runner-outdated',
+      'runner-paused',
+    ]) {
       expect(checkFinishRunnerCheckInput({ result: 'failed', reason, durationMs: 1 })).toMatchObject({
         ok: false,
         field: 'reason',
@@ -168,7 +185,12 @@ describe('checkFinishRunnerCheckInput (S5)', () => {
       checkFinishRunnerCheckInput({ result: 'passed', claudeVersion: `<img>${sentinel}`, durationMs: 1 }),
       checkFinishRunnerCheckInput({ result: 'failed', reason: sentinel, durationMs: 1 }),
       checkFinishRunnerCheckInput({ result: sentinel, durationMs: 1 }),
-      checkFinishRunnerCheckInput({ result: 'passed', claudeVersion: '2.1.3', durationMs: 1, [sentinel]: true }),
+      checkFinishRunnerCheckInput({
+        result: 'passed',
+        claudeVersion: '2.1.3',
+        durationMs: 1,
+        [sentinel]: true,
+      }),
     ];
     for (const refusal of refusals) {
       expect(refusal.ok).toBe(false);
