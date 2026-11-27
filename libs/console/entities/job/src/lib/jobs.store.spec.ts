@@ -1,11 +1,11 @@
 import { TestBed } from '@angular/core/testing';
-import type { JobDto, JobEventDto, JobEventListDto, JobListDto } from '@shared/contracts';
+import type { JobDto, JobEventDto, JobEventListDto, ParsedJobList } from '@shared/contracts';
 import type { JobResult } from './job-failure';
 import { JOB_FIXTURE_IDS, jobEventFixture, jobFixture, queuedJobFixture } from './job.fixture';
 import { JobsApi } from './jobs.api';
 import { JOBS_IDLE_POLL_MS, JOBS_LIVE_POLL_MS, JobsStore } from './jobs.store';
 
-type ListAnswer = JobResult<JobListDto>;
+type ListAnswer = JobResult<ParsedJobList>;
 type EventsAnswer = JobResult<JobEventListDto>;
 
 const ok = <T>(value: T): JobResult<T> => ({ ok: true, value });
@@ -117,6 +117,31 @@ describe('JobsStore', () => {
     expect(store.ownerNames()).toEqual(['Анна']);
     expect(store.projectCreatorName()).toBeNull();
     next();
+  });
+
+  // #812: an API of another version leaves the availability unknown, never the last one read.
+  it('reads an unknown availability as the not-yet-known null and keeps the jobs', async () => {
+    const store = setup();
+    api.lists.push(
+      ok({
+        jobs: [],
+        nextCursor: null,
+        runnerAvailability: 'none',
+        canRunNow: true,
+        runnerUnavailableReason: 'no-runner',
+      }),
+      ok({ jobs: [jobFixture()], nextCursor: null, runnerAvailability: null, canRunNow: true }),
+    );
+    const stop = store.watch('team-console');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.availability()).toBe('none');
+    await store.refresh();
+    expect(store.status()).toBe('ready');
+    expect(store.jobs()).toEqual([jobFixture()]);
+    expect(store.availability()).toBeNull();
+    expect(store.unavailableReason()).toBeNull();
+    expect(store.canRunNow()).toBe(true);
+    stop();
   });
 
   it('carries the events cursor on from the last event seen', async () => {

@@ -473,6 +473,74 @@ export function isJobListDto(value: unknown): value is JobListDto {
   );
 }
 
+/**
+ * The jobs list as a console reads it (#812): `runnerAvailability` is `null` when the API sent none (an older API) or
+ * one this bundle does not know (a newer API), so a console and an API of different versions never lose the whole list.
+ */
+export type ParsedJobList = Omit<JobListDto, 'runnerAvailability'> & {
+  readonly runnerAvailability: RunnerAvailability | null;
+};
+
+/**
+ * Checks a jobs list like `isJobListDto`, except that an unknown availability or reason degrades instead of failing:
+ * an availability this bundle cannot read becomes `null` and drops the reason and the creator's name (they only mean
+ * something beside `none`); a reason it cannot read is dropped with the name. Everything else stays strict, and a
+ * known reason beside a known availability other than `none` still fails. `null` for an answer of the wrong shape.
+ */
+export function parseJobListDto(value: unknown): ParsedJobList | null {
+  if (!isRecord(value)) {
+    return null;
+  }
+  const jobs: unknown = value['jobs'];
+  const nextCursor: unknown = value['nextCursor'];
+  const canRunNow: unknown = value['canRunNow'];
+  const accountOwnerNames: unknown = value['accountOwnerNames'];
+  if (
+    !Array.isArray(jobs) ||
+    !jobs.every(isJobDto) ||
+    !isNullable(nextCursor, isUlid) ||
+    typeof canRunNow !== 'boolean' ||
+    !(
+      accountOwnerNames === undefined ||
+      (Array.isArray(accountOwnerNames) && accountOwnerNames.every(isDisplayName))
+    )
+  ) {
+    return null;
+  }
+  const base = {
+    jobs,
+    nextCursor,
+    canRunNow,
+    ...(accountOwnerNames === undefined ? {} : { accountOwnerNames }),
+  };
+  const availability: unknown = value['runnerAvailability'];
+  if (!isRunnerAvailability(availability)) {
+    return { ...base, runnerAvailability: null };
+  }
+  const reason: unknown = value['runnerUnavailableReason'];
+  const creator: unknown = value['projectCreatorName'];
+  if (reason === undefined) {
+    return creator === undefined ? { ...base, runnerAvailability: availability } : null;
+  }
+  if (!isRunnerUnavailableReason(reason)) {
+    return { ...base, runnerAvailability: availability };
+  }
+  if (availability !== 'none') {
+    return null;
+  }
+  if (creator === undefined) {
+    return { ...base, runnerAvailability: availability, runnerUnavailableReason: reason };
+  }
+  return reason === 'other-owner-subscription' && isDisplayName(creator)
+    ? {
+        ...base,
+        runnerAvailability: availability,
+        runnerUnavailableReason: reason,
+        projectCreatorName: creator,
+      }
+    : null;
+}
+
 export function isJobEventDto(value: unknown): value is JobEventDto {
   return (
     isRecord(value) &&

@@ -42,6 +42,49 @@ describe('JobsApi', () => {
     expect(await malformed).toEqual({ ok: false, failure: { kind: 'error', slug: null } });
   });
 
+  // #812: an API of another version still shows its jobs; the availability alone is unknown.
+  it.each<[string, Record<string, unknown>]>([
+    ['sends no availability', {}],
+    [
+      'sends one this bundle does not know',
+      { runnerAvailability: 'future-state', runnerUnavailableReason: 'no-runner' },
+    ],
+  ])('reads the jobs with an unknown availability when the API %s', async (_name, availability) => {
+    const { api, http } = setup();
+    const read = api.list('team-console');
+    http
+      .expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`)
+      .flush({ jobs: [jobFixture()], nextCursor: null, canRunNow: true, ...availability });
+    expect(await read).toEqual({
+      ok: true,
+      value: { jobs: [jobFixture()], nextCursor: null, runnerAvailability: null, canRunNow: true },
+    });
+  });
+
+  it('reads the team pause of #810 as it is', async () => {
+    const { api, http } = setup();
+    const read = api.list('team-console');
+    http
+      .expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`)
+      .flush({ jobs: [], nextCursor: null, runnerAvailability: 'team-paused', canRunNow: true });
+    expect(await read).toEqual({
+      ok: true,
+      value: { jobs: [], nextCursor: null, runnerAvailability: 'team-paused', canRunNow: true },
+    });
+  });
+
+  it('still refuses a list whose canRunNow is wrong, even with an unknown availability', async () => {
+    const { api, http } = setup();
+    const read = api.list('team-console');
+    http.expectOne(`${JOBS}?limit=${String(JOBS_PAGE_LIMIT)}`).flush({
+      jobs: [jobFixture()],
+      nextCursor: null,
+      runnerAvailability: 'future-state',
+      canRunNow: 'yes',
+    });
+    expect(await read).toEqual({ ok: false, failure: { kind: 'error', slug: null } });
+  });
+
   it('encodes the slug and the job id into the path', async () => {
     const { api, http } = setup();
     const read = api.events('a/b', JOB_FIXTURE_IDS.first, 7);

@@ -12,6 +12,7 @@ import {
   isJobEventListDto,
   isJobKindBeforeCutover,
   isJobListDto,
+  parseJobListDto,
   roleOfJobKind,
   type JobDto,
   type JobEventDto,
@@ -208,6 +209,118 @@ describe('job guards', () => {
 });
 
 // #612: the orchestrator's review request — distinct review roles, an optional bounded note, nothing else.
+// #812: a console and an API of different versions keep the list; only the availability and its reason degrade.
+describe('parseJobListDto', () => {
+  const LIST = { jobs: [JOB], nextCursor: null, canRunNow: true } as const;
+
+  it.each(RUNNER_AVAILABILITIES)('keeps the known availability %s', (availability) => {
+    expect(parseJobListDto({ ...LIST, runnerAvailability: availability })).toEqual({
+      ...LIST,
+      runnerAvailability: availability,
+    });
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['no availability (an older API)', {}],
+    ['an availability this bundle does not know (a newer API)', { runnerAvailability: 'future-state' }],
+    ['an availability of the wrong type', { runnerAvailability: 7 }],
+  ])('reads %s as null and keeps the jobs', (_name, availability) => {
+    expect(parseJobListDto({ ...LIST, accountOwnerNames: ['Анна'], ...availability })).toEqual({
+      ...LIST,
+      accountOwnerNames: ['Анна'],
+      runnerAvailability: null,
+    });
+  });
+
+  it('drops the reason and the creator beside an unknown availability, whatever they hold', () => {
+    expect(
+      parseJobListDto({
+        ...LIST,
+        runnerAvailability: 'future-state',
+        runnerUnavailableReason: 'other-owner-subscription',
+        projectCreatorName: 'Вера',
+      }),
+    ).toEqual({ ...LIST, runnerAvailability: null });
+    expect(
+      parseJobListDto({ ...LIST, runnerUnavailableReason: 'future-reason', projectCreatorName: 42 }),
+    ).toEqual({ ...LIST, runnerAvailability: null });
+  });
+
+  it('drops a reason this bundle does not know, with the creator, and keeps the availability', () => {
+    expect(
+      parseJobListDto({
+        ...LIST,
+        runnerAvailability: 'none',
+        runnerUnavailableReason: 'future-reason',
+        projectCreatorName: 'Вера',
+      }),
+    ).toEqual({ ...LIST, runnerAvailability: 'none' });
+  });
+
+  it('keeps a known reason, and the creator with the D3 reason, beside none', () => {
+    expect(
+      parseJobListDto({
+        ...LIST,
+        runnerAvailability: 'none',
+        runnerUnavailableReason: 'other-owner-subscription',
+        projectCreatorName: 'Вера',
+      }),
+    ).toEqual({
+      ...LIST,
+      runnerAvailability: 'none',
+      runnerUnavailableReason: 'other-owner-subscription',
+      projectCreatorName: 'Вера',
+    });
+    expect(
+      parseJobListDto({ ...LIST, runnerAvailability: 'none', runnerUnavailableReason: 'access-mismatch' }),
+    ).toEqual({ ...LIST, runnerAvailability: 'none', runnerUnavailableReason: 'access-mismatch' });
+  });
+
+  it.each<[string, unknown]>([
+    ['no object', 'jobs'],
+    ['null', null],
+  ])('refuses an answer that is %s', (_name, value) => {
+    expect(parseJobListDto(value)).toBeNull();
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['a job of the wrong shape', { jobs: [{ ...JOB, dispatch: 'cron' }] }],
+    ['no jobs list', { jobs: undefined }],
+    ['no cursor', { nextCursor: undefined }],
+    ['a cursor that is no ULID', { nextCursor: 'x' }],
+    ['no canRunNow', { canRunNow: undefined }],
+    ['a canRunNow that is no boolean', { canRunNow: 'yes' }],
+    ['an owner name that is empty', { accountOwnerNames: [''] }],
+    ['owner names that are no list', { accountOwnerNames: 'Анна' }],
+  ])('still refuses %s, whatever the availability', (_name, change) => {
+    expect(parseJobListDto({ ...LIST, runnerAvailability: 'ready', ...change })).toBeNull();
+    expect(parseJobListDto({ ...LIST, runnerAvailability: 'future-state', ...change })).toBeNull();
+    expect(parseJobListDto({ ...LIST, ...change })).toBeNull();
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    [
+      'a known reason beside an availability other than none',
+      { runnerAvailability: 'ready', runnerUnavailableReason: 'no-runner' },
+    ],
+    ['a creator without a reason', { runnerAvailability: 'none', projectCreatorName: 'Вера' }],
+    [
+      'a creator beside a reason other than D3',
+      { runnerAvailability: 'none', runnerUnavailableReason: 'no-runner', projectCreatorName: 'Вера' },
+    ],
+    [
+      'a creator name that is no display name',
+      {
+        runnerAvailability: 'none',
+        runnerUnavailableReason: 'other-owner-subscription',
+        projectCreatorName: 'А'.repeat(256),
+      },
+    ],
+  ])('still refuses %s beside a known availability', (_name, change) => {
+    expect(parseJobListDto({ ...LIST, ...change })).toBeNull();
+  });
+});
+
 describe('checkRequestReviewsInput', () => {
   it('accepts distinct review roles and keeps the note as given', () => {
     expect(checkRequestReviewsInput({ roles: ['qa', 'security'] })).toEqual({

@@ -1627,6 +1627,37 @@ describe('SprintBoard', () => {
       await settle();
     });
 
+    // #812: an API of another version sends no availability, or one this bundle does not know. The tile reads it as
+    // not known: no offline, paused or «no runner» claim, the jobs shown, Run now as the Worker allows it, a plain outcome.
+    it.each<[string, Record<string, unknown>]>([
+      ['no availability', { canRunNow: true }],
+      [
+        'an availability it does not know',
+        { runnerAvailability: 'future-state', runnerUnavailableReason: 'no-runner', canRunNow: true },
+      ],
+    ])('unknown (%s): the jobs, no availability claim, Run now with a plain outcome', async (_name, list) => {
+      const { root, settle } = await renderGitHub({ ...list, jobs: [queuedJobFixture()] });
+      const lane = runsLane(root);
+      const line = lane.querySelector('[data-testid="jobs-availability"]') as HTMLElement;
+      expect(line.hasAttribute('data-availability')).toBe(false);
+      expect(line.textContent?.trim()).toBe('');
+      expect(lane.querySelector('tc-board-jobs-none')).toBeNull();
+      expect(lane.querySelector('[data-testid="jobs-error"]')).toBeNull();
+      expect(lane.querySelectorAll('[data-testid="jobs-current"] [data-testid="job-card"]')).toHaveLength(1);
+      const submit = root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+      submit.click();
+      http
+        .expectOne((request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug))
+        .flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
+      await settle();
+      expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent?.trim()).toBe(
+        'Слот PM: поставлено в очередь.',
+      );
+      http.expectOne(JOBS).flush({ ...LIST, ...list, jobs: [queuedJobFixture({ kind: 'slot-pm' })] });
+      await settle();
+    });
+
     it('offline, member: the member wording, with no Runners link', async () => {
       const { root } = await renderGitHub({ runnerAvailability: 'offline', canRunNow: false }, [], {
         role: 'member',

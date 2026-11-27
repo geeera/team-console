@@ -3,11 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import {
   isJobDto,
   isJobEventListDto,
-  isJobListDto,
+  parseJobListDto,
   type JobDto,
   type JobEventListDto,
   type JobKind,
-  type JobListDto,
+  type ParsedJobList,
 } from '@shared/contracts';
 import { firstValueFrom, timeout, type Observable } from 'rxjs';
 import { JOB_CALL_TIMEOUT_MS, jobFailureOf, type JobResult } from './job-failure';
@@ -29,37 +29,47 @@ export const JOB_EVENTS_PAGE_LIMIT = 50;
 /** An answer of the wrong shape is not shown: it reads as `error`, like a failed call. */
 const MALFORMED = { ok: false, failure: { kind: 'error', slug: null } } as const;
 
+/** A type guard as a reader: the answer itself when it passes, `null` otherwise. */
+const checkedBy =
+  <T>(is: (value: unknown) => value is T) =>
+  (value: unknown): T | null =>
+    is(value) ? value : null;
+
 /**
  * The HTTP surface of Run now and the job view (#464) over the routes of #467: the project's newest jobs, a job's
  * events after a cursor, and Run now. Never throws: every call is a `JobResult`, every answer is checked by its guard
- * in `@shared/contracts` before a screen sees it.
+ * or parser in `@shared/contracts` before a screen sees it. The list reads a runner availability this bundle does not
+ * know as `null` (#812), so an API of another version still shows its jobs.
  */
 @Injectable({ providedIn: 'root' })
 export class JobsApi {
   private readonly http = inject(HttpClient);
 
-  list(slug: string, limit = JOBS_PAGE_LIMIT): Promise<JobResult<JobListDto>> {
+  list(slug: string, limit = JOBS_PAGE_LIMIT): Promise<JobResult<ParsedJobList>> {
     const params = new HttpParams().set('limit', String(limit));
-    return this.call(this.http.get<unknown>(projectJobsUrl(slug), { params }), isJobListDto);
+    return this.call(this.http.get<unknown>(projectJobsUrl(slug), { params }), parseJobListDto);
   }
 
   events(slug: string, jobId: string, after: number): Promise<JobResult<JobEventListDto>> {
     const params = new HttpParams().set('after', String(after)).set('limit', String(JOB_EVENTS_PAGE_LIMIT));
-    return this.call(this.http.get<unknown>(jobEventsUrl(slug, jobId), { params }), isJobEventListDto);
+    return this.call(
+      this.http.get<unknown>(jobEventsUrl(slug, jobId), { params }),
+      checkedBy(isJobEventListDto),
+    );
   }
 
   /** Run now: the kind only; the Worker derives the role, the dedupe key and the defaults. */
   enqueue(slug: string, kind: JobKind): Promise<JobResult<JobDto>> {
-    return this.call(this.http.post<unknown>(projectJobsUrl(slug), { kind }), isJobDto);
+    return this.call(this.http.post<unknown>(projectJobsUrl(slug), { kind }), checkedBy(isJobDto));
   }
 
   private async call<T>(
     request: Observable<unknown>,
-    is: (value: unknown) => value is T,
+    read: (value: unknown) => T | null,
   ): Promise<JobResult<T>> {
     try {
-      const body = await firstValueFrom(request.pipe(timeout(JOB_CALL_TIMEOUT_MS)));
-      return is(body) ? { ok: true, value: body } : MALFORMED;
+      const value = read(await firstValueFrom(request.pipe(timeout(JOB_CALL_TIMEOUT_MS))));
+      return value === null ? MALFORMED : { ok: true, value };
     } catch (error: unknown) {
       return { ok: false, failure: jobFailureOf(error) };
     }
