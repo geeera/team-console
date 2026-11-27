@@ -15,7 +15,7 @@ import {
   type ActionsSetupItemId,
   type ActionsSetupStatus,
 } from '@shared/contracts';
-import { ActionsWorkflowStateRepo } from '@worker/db';
+import { ActionsWorkflowStateRepo, rateWindowOf } from '@worker/db';
 import { ApiGitHub } from '../github';
 import { fetchApi } from '../testing/access-kit';
 import {
@@ -40,6 +40,7 @@ import {
   type StubGitHub,
 } from '../testing/github-kit';
 import {
+  seedAccountProject,
   seedMembership,
   seedSession,
   seedSessionUser,
@@ -47,7 +48,11 @@ import {
   sendAsSession,
 } from '../testing/session-kit';
 import { seedTrackerProject } from '../testing/tracker-kit';
-import { READINESS_CHECKS_PER_WINDOW } from './actions-setup-problems';
+import {
+  READINESS_CHECKS_PER_ACCOUNT_WINDOW,
+  READINESS_CHECKS_PER_WINDOW,
+  READINESS_WINDOW_SECONDS,
+} from './actions-setup-problems';
 
 // #759 PR 3: `GET …/actions-setup`, the Actions readiness check (architect note §4; security note rows "Readiness
 // over-reads or leaks", "Readiness used as authorisation", "Cross-tenant or member trigger", "A PR that is not the
@@ -86,6 +91,11 @@ beforeAll(async () => {
   await linkInstallation(OWNER_ACCOUNT_ID, SCRIPTED_INSTALLATION);
   await linkInstallation(ACCOUNT_B, FOREIGN_INSTALLATION);
   rendering = await renderingFor();
+});
+
+beforeEach(async () => {
+  // Every project of this file is the owner account's: each case starts with fresh counters (#802).
+  await env.DB.prepare(`DELETE FROM rate_limits WHERE key LIKE '%:actions-readiness'`).run();
 });
 
 interface Fixture {
@@ -952,5 +962,154 @@ describe('a 403 on a scoped Environment read leaves the items unknown (#803)', (
     expect(await slugOf(response)).toBe('github-rate-limit');
     expect(await response.text()).not.toContain('"items"');
     expect(revokes(fixture.stub)).toHaveLength(1);
+  });
+});
+
+describe('the account limit across projects (#802)', () => {
+  /** One clock for the cases, so a case's checks never straddle a window. */
+  const at = Date.now();
+  const window = rateWindowOf(at, READINESS_WINDOW_SECONDS);
+  const githubAt = (stub: StubGitHub): ApiGitHub => new ApiGitHub({ fetch: stub.fetch, now: () => at });
+
+  async function checkAt(fixture: Fixture, logs?: string[]): Promise<Response> {
+    return fetchApi(
+      `/api/v1/projects/${fixture.slug}/actions-setup`,
+      localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }),
+      {
+        origin: SETUP_ORIGIN,
+        github: githubAt(fixture.stub),
+        ...(logs === undefined ? {} : { logSink: (line: string) => logs.push(line) }),
+      },
+    );
+  }
+
+  async function countOf(key: string): Promise<number | null> {
+    const row = await env.DB.prepare(`SELECT count FROM rate_limits WHERE key = ?1 AND window_start = ?2`)
+      .bind(key, window)
+      .first<{ count: number }>();
+    return row?.count ?? null;
+  }
+
+  async function spendAccount(accountId: string): Promise<void> {
+    await env.DB.prepare(`INSERT INTO rate_limits (key, window_start, count) VALUES (?1, ?2, ?3)`)
+      .bind(`account:${accountId}:actions-readiness`, window, READINESS_CHECKS_PER_ACCOUNT_WINDOW)
+      .run();
+  }
+
+  async function expectAccountRefusal(response: Response): Promise<void> {
+    expect(response.status).toBe(429);
+    const body: unknown = await response.clone().json();
+    expect(isProblemDetails(body)).toBe(true);
+    expect(body).toMatchObject({
+      title: 'Too Many Requests',
+      status: 429,
+      detail: `At most ${String(READINESS_CHECKS_PER_ACCOUNT_WINDOW)} readiness checks per ${String(READINESS_WINDOW_SECONDS / 60)} minutes for an account`,
+    });
+    expect(await slugOf(response)).toBe('rate-limited');
+    const retryAfter = Number(response.headers.get('Retry-After'));
+    expect(retryAfter).toBeGreaterThan(0);
+    expect(retryAfter).toBeLessThanOrEqual(READINESS_WINDOW_SECONDS);
+  }
+
+  it(`answers 429 past ${String(READINESS_CHECKS_PER_ACCOUNT_WINDOW)} checks of an account, each project under its own limit, without calling GitHub`, async () => {
+    const perProject = READINESS_CHECKS_PER_WINDOW / 2;
+    const fixtures: Fixture[] = [];
+    for (let project = 0; project < READINESS_CHECKS_PER_ACCOUNT_WINDOW / perProject; project += 1) {
+      const fixture = await seedReadyProject();
+      fixtures.push(fixture);
+      for (let index = 0; index < perProject; index += 1) {
+        expect((await checkAt(fixture)).status).toBe(200);
+      }
+    }
+    expect(await countOf(`account:${OWNER_ACCOUNT_ID}:actions-readiness`)).toBe(
+      READINESS_CHECKS_PER_ACCOUNT_WINDOW,
+    );
+
+    const fresh = await seedReadyProject();
+    const logs: string[] = [];
+    await expectAccountRefusal(await checkAt(fresh, logs));
+    expect(fresh.stub.calls).toEqual([]);
+    // A project with budget of its own left is refused as well: the account's count is the one spent.
+    const [first] = fixtures;
+    if (first === undefined) {
+      throw new Error('no project seeded');
+    }
+    const before = first.stub.calls.length;
+    await expectAccountRefusal(await checkAt(first));
+    expect(first.stub.calls.length).toBe(before);
+
+    const line = logs
+      .map((entry) => JSON.parse(entry) as Record<string, unknown>)
+      .find((entry) => entry['message'] === 'actions readiness rate limited');
+    expect(line).toMatchObject({ level: 'warn', slug: fresh.slug, scope: 'account' });
+  });
+
+  it('leaves the projects of another account unaffected', async () => {
+    await spendAccount(OWNER_ACCOUNT_ID);
+    await expectAccountRefusal(await checkAt(await seedReadyProject()));
+
+    const ownerOfB = await seedSessionUser('owner');
+    const installationId = 7783;
+    const repoId = 990_802;
+    await linkInstallation(ownerOfB.account.id, installationId);
+    const { slug } = await seedAccountProject(ownerOfB.account, { tracker: 'console', repoId });
+    await env.DB.prepare(`UPDATE projects SET installation_id = ?2 WHERE slug = ?1`)
+      .bind(slug, installationId)
+      .run();
+    const repo = `acme/${slug}`;
+    const project = { slug, accountId: ownerOfB.account.id, repoId, repo, defaultBranch: 'main' };
+    expect(await saveAccessSource(project, 'api_key', 0)).toBe('saved');
+    const world = readyWorld(repoId, rendering);
+    world.installationId = installationId;
+    const stub = stubGitHub(
+      (call) => answerSetupRead(world, repo, rendering, call) ?? json(404, { message: 'Not Found' }),
+    );
+    const response = await sendAsSession(
+      ownerOfB,
+      'GET',
+      `/api/v1/projects/${slug}/actions-setup`,
+      undefined,
+      { github: githubAt(stub), origin: SETUP_ORIGIN },
+      localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN, AUTH_MODE: undefined }),
+    );
+    expect(response.status, await response.clone().text()).toBe(200);
+    expect(await countOf(`account:${ownerOfB.account.id}:actions-readiness`)).toBe(1);
+  });
+
+  it('still refuses past the per-project limit, and a check its project refuses spends nothing of the account', async () => {
+    const fixture = await seedReadyProject();
+    for (let index = 0; index < READINESS_CHECKS_PER_WINDOW; index += 1) {
+      expect((await checkAt(fixture)).status).toBe(200);
+    }
+    const limited = await checkAt(fixture);
+    expect(limited.status).toBe(429);
+    expect(await slugOf(limited)).toBe('rate-limited');
+    expect(await limited.clone().json()).toMatchObject({
+      detail: `At most ${String(READINESS_CHECKS_PER_WINDOW)} readiness checks per ${String(READINESS_WINDOW_SECONDS / 60)} minutes for a project`,
+    });
+    expect(Number(limited.headers.get('Retry-After'))).toBeGreaterThan(0);
+    expect(await countOf(`account:${OWNER_ACCOUNT_ID}:actions-readiness`)).toBe(READINESS_CHECKS_PER_WINDOW);
+  });
+
+  it('refuses the switch to actions too once the account is spent, before any GitHub call', async () => {
+    await spendAccount(OWNER_ACCOUNT_ID);
+    const fixture = await seedReadyProject();
+    const response = await fetchApi(
+      `/api/v1/projects/${fixture.slug}/dispatch`,
+      localEnv({ CONSOLE_PUBLIC_ORIGIN: SETUP_ORIGIN }),
+      {
+        method: 'PUT',
+        origin: SETUP_ORIGIN,
+        github: githubAt(fixture.stub),
+        headers: { 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dispatch: 'actions' }),
+      },
+    );
+    await expectAccountRefusal(response);
+    expect(fixture.stub.calls).toEqual([]);
+    const row = await env.DB.prepare(`SELECT dispatch FROM projects WHERE slug = ?1`)
+      .bind(fixture.slug)
+      .first<{ dispatch: string }>();
+    expect(row?.dispatch).toBe('pull');
   });
 });

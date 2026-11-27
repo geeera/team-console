@@ -18,27 +18,46 @@ type Context = WorkerContext<ApiEnv>;
  * again, and bounds what a stolen owner session can make the console spend at GitHub.
  */
 export const READINESS_CHECKS_PER_WINDOW = 20;
+/**
+ * #802: the per-project count alone leaves an owner with many projects uncapped, and each check spends two app-JWT
+ * calls from the GitHub App budget every tenant shares. 40 per 10 minutes is two projects' full budgets, or every
+ * project of a 10-project account re-checked four times, and caps one account at 480 app-JWT calls an hour.
+ */
+export const READINESS_CHECKS_PER_ACCOUNT_WINDOW = 40;
 export const READINESS_WINDOW_SECONDS = 600;
 
-/** 429 `rate-limited` once the project's checks of this window are spent, else `null`; counted before any GitHub call. */
-export async function readinessRateRefusal(c: Context, slug: string, at: number): Promise<Response | null> {
+/**
+ * 429 `rate-limited` once the project's or the account's checks of this window are spent, else `null`; counted before
+ * any GitHub call. The project is counted first, so a check its own project refuses spends nothing of the account's.
+ */
+export async function readinessRateRefusal(
+  c: Context,
+  project: { readonly slug: string; readonly accountId: string },
+  at: number,
+): Promise<Response | null> {
+  const limits = new RateLimitsRepo(c.env.DB);
   const window = rateWindowOf(at, READINESS_WINDOW_SECONDS);
-  const hit = await new RateLimitsRepo(c.env.DB).hit(
-    `project:${slug}:actions-readiness`,
-    window,
-    READINESS_CHECKS_PER_WINDOW,
-  );
-  if (hit.allowed) {
-    return null;
+  const refuse = (scope: 'project' | 'account', limit: number): Response => {
+    c.get('logger').warn('actions readiness rate limited', { slug: project.slug, scope });
+    return problem(c, {
+      type: 'rate-limited',
+      title: 'Too Many Requests',
+      status: 429,
+      detail: `At most ${String(limit)} readiness checks per ${String(READINESS_WINDOW_SECONDS / 60)} minutes for ${scope === 'project' ? 'a project' : 'an account'}`,
+      retryAfter: retryAfterOf(at, READINESS_WINDOW_SECONDS),
+    });
+  };
+  if (
+    !(await limits.hit(`project:${project.slug}:actions-readiness`, window, READINESS_CHECKS_PER_WINDOW))
+      .allowed
+  ) {
+    return refuse('project', READINESS_CHECKS_PER_WINDOW);
   }
-  c.get('logger').warn('actions readiness rate limited', { slug });
-  return problem(c, {
-    type: 'rate-limited',
-    title: 'Too Many Requests',
-    status: 429,
-    detail: `At most ${String(READINESS_CHECKS_PER_WINDOW)} readiness checks per ${String(READINESS_WINDOW_SECONDS / 60)} minutes for a project`,
-    retryAfter: retryAfterOf(at, READINESS_WINDOW_SECONDS),
-  });
+  const accountKey = `account:${project.accountId}:actions-readiness`;
+  if (!(await limits.hit(accountKey, window, READINESS_CHECKS_PER_ACCOUNT_WINDOW)).allowed) {
+    return refuse('account', READINESS_CHECKS_PER_ACCOUNT_WINDOW);
+  }
+  return null;
 }
 
 export function originMisconfigured(c: Context, reason: string): Response {

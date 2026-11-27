@@ -73,7 +73,11 @@ export function createProjectDispatchRoutes(github: ApiGitHub): Hono<WorkerHonoE
           if (target.accessSource !== 'api_key') {
             return actionsOnSubscription(c);
           }
-          const limited = await readinessRateRefusal(c, row.slug, github.now());
+          const limited = await readinessRateRefusal(
+            c,
+            { slug: row.slug, accountId: row.account_id },
+            github.now(),
+          );
           if (limited !== null) {
             return limited;
           }
