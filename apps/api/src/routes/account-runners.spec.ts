@@ -718,7 +718,10 @@ describe('the scope of a subscription runner in a two-owner account', () => {
     await env.DB.prepare(`UPDATE projects SET created_by = NULL WHERE slug = ?1`).bind(legacy).run();
 
     expect(await counted()).toEqual({ [runner.id]: before + 1, [apiKey.id]: 0 });
-    const narrowed = await patch(enroller, runner.id, { projectScope: 'selected', allowedProjects: [legacy] });
+    const narrowed = await patch(enroller, runner.id, {
+      projectScope: 'selected',
+      allowedProjects: [legacy],
+    });
     expect(narrowed.status).toBe(200);
     // Chosen by its enroller, the entry is theirs: served, so no longer a gap.
     const dto = (await narrowed.json()) as RunnerDto;

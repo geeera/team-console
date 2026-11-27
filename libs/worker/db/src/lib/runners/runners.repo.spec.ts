@@ -727,7 +727,11 @@ describe('RunnersRepo', () => {
       capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] },
     });
     const legacyAll = await enrolled({ accountId: ACCOUNT_E, enrolledBy: null, ...ALL });
-    const listed = await enrolled({ accountId: ACCOUNT_E, enrolledBy: 'owner-1', allowedProjects: ['e799-mine'] });
+    const listed = await enrolled({
+      accountId: ACCOUNT_E,
+      enrolledBy: 'owner-1',
+      allowedProjects: ['e799-mine'],
+    });
 
     // Two owners: the legacy project alone for the enroller's runner (another owner's project is plain D3, not a
     // gap); everything for the runner with no enroller; nothing for an api_key runner, a list it serves, or archived.
@@ -736,7 +740,9 @@ describe('RunnersRepo', () => {
     expect(counts.get(legacyAll.id)).toBe(3);
     expect(counts.has(apiKeyAll.id)).toBe(false);
     expect(counts.has(listed.id)).toBe(false);
-    expect([...(await repo.unattributedProjectCountsOf(ACCOUNT_E, legacyAll.id)).keys()]).toEqual([legacyAll.id]);
+    expect([...(await repo.unattributedProjectCountsOf(ACCOUNT_E, legacyAll.id)).keys()]).toEqual([
+      legacyAll.id,
+    ]);
 
     // One owner: D3 holds nothing back, so there is no gap to show.
     await env.DB.prepare(`UPDATE account_members SET role = 'member' WHERE account_id = ?1 AND user_id = ?2`)

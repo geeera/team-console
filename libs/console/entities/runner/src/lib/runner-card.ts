@@ -250,8 +250,7 @@ export class RunnerCard {
     if (runner.revokedAt !== null || runner.unattributedProjects === 0) {
       return null;
     }
-    const kind =
-      runner.enroller === 'unrecorded' || runner.enroller === 'claimable' ? 'runner' : 'projects';
+    const kind = runner.enroller === 'unrecorded' || runner.enroller === 'claimable' ? 'runner' : 'projects';
     return { kind, key: `runners.card.unattributed.${kind}`, n: runner.unattributedProjects };
   });
   protected readonly tone = computed(() => TONES[this.presence()]);

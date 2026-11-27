@@ -1533,7 +1533,9 @@ describe('the 0048 creator and enroller backfill', () => {
       [LEFT, 'm48-left'],
     ] as const) {
       statements.push(
-        db.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, ?2, ?2, ?3)`).bind(id, slug, T0),
+        db
+          .prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, ?2, ?2, ?3)`)
+          .bind(id, slug, T0),
       );
     }
     [SOLE_OWNER, OWNER_A, OWNER_B, MEMBER, LEFT_OWNER, FORMER_OWNER].forEach((id, index) => {
@@ -1554,7 +1556,9 @@ describe('the 0048 creator and enroller backfill', () => {
     ] as const) {
       statements.push(
         db
-          .prepare(`INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)`)
+          .prepare(
+            `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)`,
+          )
           .bind(account, user, role, T0),
       );
     }
@@ -1690,7 +1694,8 @@ describe('the 0048 creator and enroller backfill', () => {
       await db.prepare(`SELECT name FROM sqlite_master WHERE name = 'attribution_backfill_0048'`).first(),
     ).toBeNull();
 
-    const queries = env.TEST_MIGRATIONS.find((migration) => migration.name.startsWith('0048_'))?.queries ?? [];
+    const queries =
+      env.TEST_MIGRATIONS.find((migration) => migration.name.startsWith('0048_'))?.queries ?? [];
     expect(queries.length).toBeGreaterThan(0);
     const before = { creators: await creators(db), enrollers: await enrollers(db) };
     for (const query of queries) {
@@ -2127,7 +2132,9 @@ describe('the 0018 accounts backfill', () => {
         target: OWNER_ACCOUNT_ID,
       },
     ]);
-    expect(await rows(db, 'SELECT DISTINCT created_by FROM projects')).toEqual([{ created_by: OWNER_USER_ID }]);
+    expect(await rows(db, 'SELECT DISTINCT created_by FROM projects')).toEqual([
+      { created_by: OWNER_USER_ID },
+    ]);
     // The token pair stays where the code reads it; T-4 moves it.
     expect(await rows(db, 'SELECT COUNT(*) AS n FROM user_connections')).toEqual([{ n: 0 }]);
     expect(await rows(db, 'SELECT COUNT(*) AS n FROM owner_connections')).toEqual([{ n: 1 }]);
