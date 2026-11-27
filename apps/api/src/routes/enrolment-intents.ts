@@ -6,7 +6,9 @@ import {
   ENROLMENT_INTENT_COLLECT_SECONDS,
   ENROLMENT_INTENT_POLL_SECONDS,
   ENROLMENT_INTENT_TTL_SECONDS,
+  RETRY_AFTER_MIN_SECONDS,
   RUNNER_POLL_SECONDS,
+  boundedRetryAfterSeconds,
   checkApproveEnrolmentIntentInput,
   checkCreateEnrolmentIntentInput,
   checkPollEnrolmentInput,
@@ -205,7 +207,8 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
       if (origin === null || command === null) {
         return commandOriginMissing(c);
       }
-      const outcome = await new EnrolmentIntentsRepo(c.env.DB).create(
+      const intents = new EnrolmentIntentsRepo(c.env.DB);
+      const outcome = await intents.create(
         {
           id: intentId,
           ...intentOwnerOf(c, account),
@@ -234,7 +237,13 @@ export function createAccountEnrolmentIntentRoutes(): Hono<WorkerHonoEnv<ApiEnv>
       }
       if (outcome === 'hourly-limit') {
         c.get('logger').warn('enrolment intent refused', { reason: 'hourly-limit', accountId: account.id });
-        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429 });
+        // The wait is when the sliding hour frees a place (#813); a race that already freed it waits the floor.
+        const freesAt = await intents.hourlyCapFreesAt(account.id, at, ENROLMENT_INTENTS_PER_HOUR);
+        const retryAfter =
+          freesAt === null
+            ? RETRY_AFTER_MIN_SECONDS
+            : boundedRetryAfterSeconds((Date.parse(freesAt) - now.getTime()) / 1000);
+        return problem(c, { type: 'rate-limited', title: 'Too Many Requests', status: 429, retryAfter });
       }
       c.get('logger').info('enrolment intent created', { accountId: account.id, projectScope, isolation });
       const body: EnrolmentIntentCreatedDto = {

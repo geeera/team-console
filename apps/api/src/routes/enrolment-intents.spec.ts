@@ -530,6 +530,10 @@ describe('the owner’s enrolment intents', () => {
     });
     expect(over.status).toBe(429);
     expect(await slugOf(over)).toBe('rate-limited');
+    // The oldest of the hour's creations was 30 minutes ago: a place frees as it leaves the hour (#813).
+    const retryAfter = Number(over.headers.get('Retry-After'));
+    expect(retryAfter).toBeGreaterThan(29 * 60);
+    expect(retryAfter).toBeLessThanOrEqual(30 * 60);
     // The row from yesterday went with the creation's own batch; the audit keeps its history.
     expect(await intentRow(ancient)).toBeNull();
   });

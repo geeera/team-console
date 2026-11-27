@@ -162,6 +162,22 @@ describe('EnrolmentIntentsRepo', () => {
       expect(await repo.create(nextHour, caps, audit('enrolment-intent.created', nextHour.id))).toBe('ok');
     });
 
+    it('names when the hourly cap frees: as the cap-th newest creation leaves the hour (#813)', async () => {
+      const caps = { liveMax: 100, perHour: 2 };
+      await created();
+      const second = await created({ at: at(10), expiresAt: at(610) });
+      expect(await repo.hourlyCapFreesAt(ACCOUNT_A, at(20), caps.perHour)).toBe(at(3600));
+      expect(await repo.hourlyCapFreesAt(ACCOUNT_A, at(20), 3)).toBeNull();
+      expect(await repo.hourlyCapFreesAt(ACCOUNT_B, at(20), caps.perHour)).toBeNull();
+
+      const early: NewEnrolmentIntent = { ...second, id: ulid(), at: at(3599), expiresAt: at(4199) };
+      expect(await repo.create(early, caps, audit('enrolment-intent.created', early.id))).toBe(
+        'hourly-limit',
+      );
+      const freed: NewEnrolmentIntent = { ...second, id: ulid(), at: at(3601), expiresAt: at(4201) };
+      expect(await repo.create(freed, caps, audit('enrolment-intent.created', freed.id))).toBe('ok');
+    });
+
     it('prunes the account’s rows a day old in the same batch, and no other account’s', async () => {
       const old = await created();
       const foreign = await created({ accountId: ACCOUNT_B });

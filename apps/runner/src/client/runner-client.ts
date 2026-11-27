@@ -1,6 +1,8 @@
 import type { KeyObject } from 'node:crypto';
 import {
   JOB_EVENTS_MAX_PER_BATCH,
+  RETRY_AFTER_MAX_SECONDS,
+  RETRY_AFTER_MIN_SECONDS,
   isJobDto,
   isProblemDetails,
   isRunnerCheckClaimResponse,
@@ -153,9 +155,12 @@ function isJobEventsResponse(value: unknown): value is JobEventsResponse {
   return isRecord(value) && Number.isSafeInteger(value['lastSeq']) && typeof value['capped'] === 'boolean';
 }
 
+// Out of 1..3600 falls back to the poll default rather than clamping: a `0` from our own door is a bug, not a cue (#813).
 function retryAfterOf(response: Response): number {
   const seconds = Number(response.headers.get('retry-after'));
-  return Number.isInteger(seconds) && seconds > 0 && seconds <= 3600 ? seconds : DEFAULT_RETRY_AFTER_SECONDS;
+  return Number.isInteger(seconds) && seconds >= RETRY_AFTER_MIN_SECONDS && seconds <= RETRY_AFTER_MAX_SECONDS
+    ? seconds
+    : DEFAULT_RETRY_AFTER_SECONDS;
 }
 
 function assertJobId(jobId: string): void {

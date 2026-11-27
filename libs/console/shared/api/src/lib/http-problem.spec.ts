@@ -40,9 +40,12 @@ describe('httpProblemOf', () => {
     httpProblemOf(new HttpErrorResponse({ status: 429, headers: new HttpHeaders({ 'Retry-After': value }) }))
       .retryAfterSeconds;
 
-  it.each(['soon', '1.5', '-5', ' '])('ignores a Retry-After of %j so callers use their own default', (value) => {
-    expect(retryAfterOf(value)).toBeNull();
-  });
+  it.each(['soon', '1.5', '-5', ' '])(
+    'ignores a Retry-After of %j so callers use their own default',
+    (value) => {
+      expect(retryAfterOf(value)).toBeNull();
+    },
+  );
 
   it('reads an HTTP-date Retry-After as the seconds until it', () => {
     const inTwoMinutes = new Date(Math.floor(Date.now() / 1000) * 1000 + 120_000).toUTCString();

@@ -1,4 +1,4 @@
-import { GITHUB_CONNECT_PATH } from '@shared/contracts';
+import { GITHUB_CONNECT_PATH, boundedRetryAfterSeconds } from '@shared/contracts';
 import type { ProblemInit } from '@worker/core';
 
 export type GitHubProblemType =
@@ -36,7 +36,6 @@ export class GitHubError extends Error {
 
 // When GitHub names no wait (a secondary limit without headers), its docs say to wait at least a minute.
 const DEFAULT_RETRY_AFTER = 60;
-const MAX_RETRY_AFTER = 3600;
 
 export function githubAuthError(detail?: string, githubStatus: number | null = null): GitHubError {
   return new GitHubError(
@@ -158,16 +157,17 @@ function isRateLimited(response: Response): boolean {
 
 /**
  * Seconds to wait: `Retry-After` when GitHub sends it, else until `x-ratelimit-reset`, else a minute.
- * Both branches floor at one second: a `0` would tell clients to retry while we are being limited (#133).
+ * Both branches are bounded to 1..3600 s: a `0` would tell clients to retry while we are being limited (#133, #813).
+ * The parse stays lenient (a fraction rounds up) where the shared `retryAfterSecondsOf` would refuse it.
  */
 export function retryAfterOf(headers: Headers, nowMs: number): number {
   const retryAfter = Number(headers.get('retry-after'));
   if (headers.has('retry-after') && Number.isFinite(retryAfter) && retryAfter >= 0) {
-    return Math.min(Math.max(Math.ceil(retryAfter), 1), MAX_RETRY_AFTER);
+    return boundedRetryAfterSeconds(retryAfter);
   }
   const reset = Number(headers.get('x-ratelimit-reset'));
   if (headers.has('x-ratelimit-reset') && Number.isFinite(reset) && reset > 0) {
-    return Math.min(Math.max(Math.ceil(reset - nowMs / 1000), 1), MAX_RETRY_AFTER);
+    return boundedRetryAfterSeconds(reset - nowMs / 1000);
   }
   return DEFAULT_RETRY_AFTER;
 }
