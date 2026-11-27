@@ -4,10 +4,13 @@ import { TestBed } from '@angular/core/testing';
 import { OWNER_ACCOUNT_ID, problemTypeOf } from '@shared/contracts';
 import { TimeoutError } from 'rxjs';
 import { runnerFailureKeyOf, runnerFailureOf } from './runner-failure';
+import { UNKNOWN_CHECK_REASON } from './runner-check.model';
 import {
   ENROLMENT_INTENT_FIXTURE_ID,
+  RUNNER_CHECK_FIXTURE_ID,
   RUNNER_FIXTURE_IDS,
   enrolmentIntentFixture,
+  runnerCheckFixture,
   runnerFixture,
 } from './runner.fixture';
 import { RunnersApi } from './runners.api';
@@ -271,6 +274,84 @@ describe('RunnersApi', () => {
     const read = api.list(OWNER_ACCOUNT_ID);
     http.expectOne(RUNNERS).error(new ProgressEvent('error'), { status: 0 });
     expect(await read).toMatchObject({ ok: false, failure: { kind: 'offline' } });
+  });
+
+  describe('runner checks (#1059 PR 3)', () => {
+    const CHECKS = `${RUNNERS}/${RUNNER_FIXTURE_IDS.mac}/checks`;
+    const problemHeaders = (extra: Record<string, string> = {}) => ({
+      'Content-Type': 'application/problem+json',
+      ...extra,
+    });
+
+    it('starts a smoke check with a JSON body of the kind alone, as a same-origin POST', async () => {
+      const { api, http } = setup();
+      const started = api.startCheck(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+      const request = http.expectOne(CHECKS);
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ kind: 'smoke' });
+      // The API's CSRF rule (csrf.middleware.ts): a JSON body, from our own origin (a relative URL).
+      expect(request.request.detectContentTypeHeader()).toBe('application/json');
+      expect(request.request.url.startsWith('/api/')).toBe(true);
+      request.flush(runnerCheckFixture(), { status: 201, statusText: 'Created' });
+      expect(await started).toEqual({ ok: true, value: runnerCheckFixture() });
+    });
+
+    it('reads a check by its id under the runner', async () => {
+      const { api, http } = setup();
+      const passed = runnerCheckFixture({ state: 'passed', claudeVersion: '2.1.4' });
+      const read = api.check(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, RUNNER_CHECK_FIXTURE_ID);
+      const request = http.expectOne(`${CHECKS}/${RUNNER_CHECK_FIXTURE_ID}`);
+      expect(request.request.method).toBe('GET');
+      request.flush(passed);
+      expect(await read).toEqual({ ok: true, value: passed });
+    });
+
+    it('folds a reason code it does not know into «unknown» and never keeps the code', async () => {
+      const { api, http } = setup();
+      const read = api.check(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, RUNNER_CHECK_FIXTURE_ID);
+      http
+        .expectOne(`${CHECKS}/${RUNNER_CHECK_FIXTURE_ID}`)
+        .flush({ ...runnerCheckFixture({ state: 'failed' }), reason: 'brand-new-code' });
+      const answer = await read;
+      expect(answer).toEqual({
+        ok: true,
+        value: runnerCheckFixture({ state: 'failed', reason: UNKNOWN_CHECK_REASON }),
+      });
+      expect(JSON.stringify(answer)).not.toContain('brand-new-code');
+    });
+
+    it('refuses a check whose version is markup (S5): it never reaches a template', async () => {
+      const { api, http } = setup();
+      const read = api.check(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac, RUNNER_CHECK_FIXTURE_ID);
+      http
+        .expectOne(`${CHECKS}/${RUNNER_CHECK_FIXTURE_ID}`)
+        .flush(runnerCheckFixture({ state: 'passed', claudeVersion: '<img src=x onerror=alert(1)>' }));
+      expect(await read).toMatchObject({ ok: false, failure: { kind: 'error' } });
+    });
+
+    it('keeps the refusal slug of a start and the Retry-After of a 429', async () => {
+      const { api, http } = setup();
+      const outdated = api.startCheck(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+      http
+        .expectOne(CHECKS)
+        .flush(
+          { type: problemTypeOf('runner-outdated'), title: 'Conflict', status: 409 },
+          { status: 409, statusText: 'Conflict', headers: problemHeaders() },
+        );
+      expect(await outdated).toMatchObject({ ok: false, failure: { slug: 'runner-outdated' } });
+
+      const limited = api.startCheck(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+      http
+        .expectOne(CHECKS)
+        .flush(
+          { type: problemTypeOf('rate-limited'), title: 'Too Many Requests', status: 429 },
+          { status: 429, statusText: 'Too Many Requests', headers: problemHeaders({ 'Retry-After': '120' }) },
+        );
+      expect(await limited).toMatchObject({
+        ok: false,
+        failure: { kind: 'rate-limited', retryAfterSeconds: 120 },
+      });
+    });
   });
 });
 
