@@ -1,4 +1,10 @@
 export { instantOf } from './lib/instant';
+export {
+  RETRY_AFTER_MAX_SECONDS,
+  RETRY_AFTER_MIN_SECONDS,
+  boundedRetryAfterSeconds,
+  retryAfterSecondsOf,
+} from './lib/retry-after';
 export { PROBLEM_TYPE_PREFIX, isProblemDetails, problemSlugOf, problemTypeOf } from './lib/problem-details';
 export type { ProblemDetails } from './lib/problem-details';
 export { ENVIRONMENTS, isEnvironment } from './lib/health';
