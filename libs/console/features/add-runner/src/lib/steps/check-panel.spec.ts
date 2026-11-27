@@ -103,6 +103,22 @@ describe('AddRunnerCheckPanel (#1059 PR 3, UX §12.4)', () => {
     );
   });
 
+  it.each(['unreadable', 'notAllowed'] as const)(
+    'replaces a saved sign-in that is %s, since setup keeps one otherwise, and says to revoke the old token',
+    async (cause) => {
+      const { find, root } = await render({ kind: 'credential', cause });
+      const command = find('wizard-check-setup')?.querySelector(
+        '[data-testid="copy-code-text"]',
+      )?.textContent;
+      expect(command).toBe(
+        `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --only credential,check --replace-credential`,
+      );
+      expect(root.textContent).not.toContain('--url');
+      expect(root.textContent).toContain('заменит сохранённый вход раннера новым');
+      expect(root.textContent).toContain('Старый токен сначала отзовите на claude.ai');
+    },
+  );
+
   it('gives a Mac the toolchain fix as two lines, and Linux the runbook instead', async () => {
     const mac = await render({ kind: 'claude', cause: 'notExecutable' });
     expect(mac.find('wizard-check-toolchain')?.textContent).toContain('brew install --cask claude-code');
@@ -142,11 +158,34 @@ describe('AddRunnerCheckPanel (#1059 PR 3, UX §12.4)', () => {
   });
 
   it('moves focus to its heading when the focused button goes away (§12.5)', async () => {
-    const { fixture, find, root } = await render({ kind: 'starting' });
-    find('wizard-check-start')?.focus();
-    fixture.componentRef.setInput('view', { kind: 'outdated' });
+    for (const kind of ['revoked', 'unsupported', 'outdated'] as const) {
+      const { fixture, find, root } = await render({ kind: 'paused' });
+      const button = find('wizard-check-start');
+      button?.focus();
+      fixture.componentRef.setInput('view', { kind: 'starting' });
+      await fixture.whenStable();
+      expect(document.activeElement, kind).toBe(button);
+      fixture.componentRef.setInput('view', { kind });
+      // Chromium blurs a focused button as it is removed, with no relatedTarget; jsdom does not, so play it here.
+      button?.dispatchEvent(new FocusEvent('blur', { relatedTarget: null }));
+      button?.blur();
+      await fixture.whenStable();
+      expect(document.activeElement, kind).toBe(root.querySelector('h4'));
+      TestBed.resetTestingModule();
+      document.body.innerHTML = '';
+    }
+  });
+
+  it('leaves focus alone when it had moved on from the button before it went', async () => {
+    const { fixture, find, root } = await render({ kind: 'paused' });
+    const button = find('wizard-check-start');
+    button?.focus();
+    const other = root.querySelector('h4') as HTMLElement;
+    button?.dispatchEvent(new FocusEvent('blur', { relatedTarget: other }));
+    button?.blur();
+    fixture.componentRef.setInput('view', { kind: 'revoked' });
     await fixture.whenStable();
-    expect(document.activeElement).toBe(root.querySelector('h4'));
+    expect(document.activeElement).toBe(document.body);
   });
 
   it('offers no button to a caller who may not start a check (a member, or after a 403)', async () => {

@@ -24,6 +24,7 @@ import {
   RUNNER_LOG_PATH,
   SELF_CHECK_COMMAND,
   SETUP_CREDENTIAL_COMMAND,
+  SETUP_CREDENTIAL_REPLACE_COMMAND,
   SETUP_TOOLCHAIN_COMMAND,
   type RunnerPlatform,
 } from '../add-runner.model';
@@ -80,8 +81,8 @@ let nextPanelId = 0;
             [attr.aria-disabled]="retryDisabled() ? 'true' : null"
             [attr.aria-describedby]="retryReasonId()"
             (click)="press()"
-            (focus)="retryFocus(true, $event.target)"
-            (blur)="retryFocus(false, $event.target)"
+            (focus)="retryFocus($event)"
+            (blur)="retryFocus($event)"
           >
             {{ retryLabelKey() | transloco }}
           </button>
@@ -166,13 +167,16 @@ let nextPanelId = 0;
           <p class="check__line">
             {{ 'runners.wizard.check.credential.' + cause() + platformSuffix() | transloco }}
           </p>
-          <p class="check__line">
-            {{ 'runners.wizard.check.credential.fix' + platformSuffix() | transloco }}
-          </p>
           @if (platform() === 'linux') {
+            <p class="check__line">{{ 'runners.wizard.check.credential.fixLinux' | transloco }}</p>
             <ng-container *ngTemplateOutlet="linuxLink" />
-          } @else {
+          } @else if (cause() === 'missing') {
+            <p class="check__line">{{ 'runners.wizard.check.credential.fixMac' | transloco }}</p>
             <ng-container *ngTemplateOutlet="setupFix; context: { $implicit: setupCredential }" />
+          } @else {
+            <!-- A saved sign-in that is unreadable or refused is kept by setup unless it is replaced. -->
+            <p class="check__line">{{ 'runners.wizard.check.credential.fixMacReplace' | transloco }}</p>
+            <ng-container *ngTemplateOutlet="setupFix; context: { $implicit: setupCredentialReplace }" />
           }
         }
         @case ('host') {
@@ -260,6 +264,7 @@ export class AddRunnerCheckPanel {
   protected readonly claudeInstall = CLAUDE_INSTALL_COMMAND;
   protected readonly setupToolchain = SETUP_TOOLCHAIN_COMMAND;
   protected readonly setupCredential = SETUP_CREDENTIAL_COMMAND;
+  protected readonly setupCredentialReplace = SETUP_CREDENTIAL_REPLACE_COMMAND;
   protected readonly linuxUrl = RUNBOOK_LINUX_URL;
   protected readonly updateUrl = RUNBOOK_UPDATE_URL;
 
@@ -339,10 +344,15 @@ export class AddRunnerCheckPanel {
     });
   }
 
-  protected retryFocus(focused: boolean, button: EventTarget | null): void {
-    // A blur from removing the button leaves the mark, so the effect above can still move focus.
-    if (focused || (button instanceof Node && button.isConnected)) {
-      this.retryFocused = focused;
+  /**
+   * Chromium fires `blur` on a focused button as it is removed, before the effect above runs, and with no
+   * `relatedTarget`. Only a blur that hands focus to another element clears the mark, so removal never does.
+   */
+  protected retryFocus(event: FocusEvent): void {
+    if (event.type === 'focus') {
+      this.retryFocused = true;
+    } else if (event.relatedTarget !== null) {
+      this.retryFocused = false;
     }
   }
 

@@ -182,6 +182,54 @@ test('a runner whose sign-in is missing gets the Mac fix, and «Проверит
   await expect(again).toBeFocused();
 });
 
+for (const reason of ['credential-unreadable', 'credential-not-allowed'] as const) {
+  test(`a saved sign-in that is ${reason.slice('credential-'.length)} gets the setup line that replaces it`, async ({
+    page,
+    stack,
+  }) => {
+    const { dialog, panel, runner } = await onLine(page, stack, `E2E Check ${reason}`);
+    await withApi(stack, async (api) => {
+      const check = await claimCheck(api, runner);
+      expect(check).not.toBeNull();
+      await finishCheck(api, runner, check?.id ?? '', { result: 'failed', reason });
+    });
+    await expect(panel).toHaveAttribute('data-state', 'credential');
+    // setup keeps a saved credential file unless told to replace it, so the plain line would fail the same way.
+    const fix = dialog.getByRole('region', { name: ru('runners.wizard.check.region.setup') });
+    await expect(fix).toHaveText(/setup --only credential,check --replace-credential$/);
+    await expect(fix).not.toContainText('--url');
+    await expect(panel).toContainText(ru('runners.wizard.check.credential.fixMacReplace'));
+  });
+}
+
+for (const [slug, status, state] of [
+  ['runner-revoked', 409, 'revoked'],
+  ['runner-check-unsupported', 422, 'unsupported'],
+  ['runner-outdated', 409, 'outdated'],
+] as const) {
+  test(`focus moves to the panel heading when «Проверить снова» goes away: paused, then ${state} (§12.5)`, async ({
+    page,
+    stack,
+  }) => {
+    let starts = 0;
+    await page.route(CHECKS_PATH, (route) => {
+      if (route.request().method() !== 'POST') {
+        return route.fallback();
+      }
+      starts += 1;
+      return starts === 1 ? problem(route, 409, 'runner-paused') : problem(route, status, slug);
+    });
+    const { dialog, panel } = await onLine(page, stack, `E2E Check Focus ${state}`);
+    await expect(panel).toHaveAttribute('data-state', 'paused');
+    const again = dialog.getByTestId('wizard-check-start');
+    await again.focus();
+    await page.keyboard.press('Enter');
+    await expect(panel).toHaveAttribute('data-state', state);
+    await expect(again).toHaveCount(0);
+    await expect(panel.getByRole('heading', { name: ru('runners.wizard.check.heading') })).toBeFocused();
+  });
+}
+
 test('a hostile claudeVersion never becomes markup: no element, no script (review item 2)', async ({
   page,
   stack,

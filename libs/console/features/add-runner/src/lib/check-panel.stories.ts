@@ -83,6 +83,7 @@ export const C5bClaudeNotExecutableLinux = panel({
 });
 /** C5c on a Mac: the setup line for the sign-in. */
 export const C5cCredentialMissingMac = panel({ view: { kind: 'credential', cause: 'missing' } });
+/** C5c on a Mac, a saved sign-in that is unreadable or not allowed: the same line with `--replace-credential`. */
 export const C5cCredentialUnreadableMac = panel({ view: { kind: 'credential', cause: 'unreadable' } });
 export const C5cCredentialNotAllowedMac = panel({ view: { kind: 'credential', cause: 'notAllowed' } });
 /** C5c on Linux: the API key and the `--replace-credential` line. */

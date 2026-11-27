@@ -654,7 +654,7 @@ height of the running state (ui-designer sets it), so the footer does not jump w
 | C4 | **Passed** | `passed` | `check.passed.title`; `check.passed.body{Mac,Linux}` with `claudeVersion` (`<bdi>`); `check.passed.note` | – | «Проверить снова» |
 | C5a | **Runner did not answer** | enqueue 409 `runner-offline`; `failed` with `not-picked-up` or `lost` | `check.offline.title`; body by code: `check.offline.{offline,notPickedUp,lost}`, then `check.offline.fix` | Mac: `SELF_CHECK_COMMAND` `CopyCode` + `runners.wizard.slow.log` with `RUNNER_LOG_PATH`. Linux: `LINUX_STATUS_COMMAND` + log line with `LINUX_LOG_COMMAND` (the #883 pair). `not-picked-up` adds `check.offline.update` + «Как обновить ↗»: a runner downgraded after it declared the check keeps its stored capability, so its check ends here, not in C8 | «Проверить снова» |
 | C5b | **Claude Code does not run** | `claude-not-configured`, `claude-not-executable`, `claude-failed`, `claude-output-unrecognised` | `check.claude.title`; first line by code `check.claude.{notConfigured,notExecutable,failed,unrecognised}`; then `check.claude.fix{Mac,Linux}` | Mac: `CopyCode` `brew install --cask claude-code`, then `CopyCode` `sudo {launcher} setup --only toolchain,check` (N7). Linux: link «Инструкция: Linux ↗» (runbook «Linux: one command») | «Проверить снова» |
-| C5c | **Sign-in / key not found** | `credential-missing`, `credential-unreadable`, `credential-not-allowed` | Mac `check.credential.titleMac`, Linux `check.credential.titleLinux`; first line by code `check.credential.{missing,unreadable,notAllowed}{Mac,Linux}`; then `check.credential.fix{Mac,Linux}` | Mac: `CopyCode` `sudo {launcher} setup --only credential,check` (N7). Linux: link to the runbook «Linux: one command» (the `--replace-credential` line) | «Проверить снова» |
+| C5c | **Sign-in / key not found** | `credential-missing`, `credential-unreadable`, `credential-not-allowed` | Mac `check.credential.titleMac`, Linux `check.credential.titleLinux`; first line by code `check.credential.{missing,unreadable,notAllowed}{Mac,Linux}`; then `check.credential.fix{Mac,Linux}` (Mac `unreadable`/`notAllowed`: `check.credential.fixMacReplace`) | Mac `missing`: `CopyCode` `sudo {launcher} setup --only credential,check` (N7). Mac `unreadable`/`notAllowed`: the same line with `--replace-credential` (`setup` keeps a saved credential file otherwise, so the re-check would fail the same way). Linux: link to the runbook «Linux: one command» (the `--replace-credential` line) | «Проверить снова» |
 | C5d | **Timeout** | `timeout` | `check.timeout.title` + `.body` | – | «Проверить снова» |
 | C5e | **Machine not ready** | `host-not-ready` | `check.host.title` + `.body{Mac,Linux}` | the C5a command and log line | «Проверить снова» |
 | C6 | **Console stopped waiting** | 4 min after the POST, no final state | `check.gaveUp.title` + `.body` | – | «Проверить снова» (re-attaches to a live check) |
@@ -740,6 +740,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.credential.notAllowedMac` | Сохранённый вход не подходит для этого раннера. |
 | `check.credential.notAllowedLinux` | Сохранённый ключ не подходит для этого раннера. |
 | `check.credential.fixMac` | Войдите заново: команда откроет вход в Claude в браузере и проверит раннер. |
+| `check.credential.fixMacReplace` | Войдите заново: команда откроет вход в Claude в браузере, заменит сохранённый вход раннера новым и проверит раннер. Старый токен сначала отзовите на claude.ai. |
 | `check.credential.fixLinux` | Сохраните ключ заново: выполните строку подключения ещё раз, добавив --replace-credential после setup. |
 | `check.timeout.title` | Claude не ответил за 30 секунд |
 | `check.timeout.body` | Возможно, машина сейчас занята. Попробуйте ещё раз через минуту. |
@@ -783,7 +784,9 @@ second tells us which fix copy to improve first. The client does not log whether
 - **N7, fix commands.** The C5b/C5c commands assume `sudo {launcher} setup --only toolchain,check` and
   `--only credential,check` work on an enrolled Mac without `--url`/`--enrolment` (the runbook's «already enrolled
   Mac» line suggests so). If either needs more flags, the developer adds constants beside `SELF_CHECK_COMMAND`; if it
-  cannot be one line, C5b/C5c fall back to the runbook link. Never put a command in a translation.
+  cannot be one line, C5b/C5c fall back to the runbook link. Never put a command in a translation. Confirmed by #1068;
+  `credential-unreadable` and `credential-not-allowed` add `--replace-credential` (`SETUP_CREDENTIAL_REPLACE_COMMAND`),
+  because `setup` keeps an existing credential file without it; the copy says to revoke the old token first (runbook).
 - **N8, auto start vs the declaration race.** `online` comes from `last_seen_at`; the `checks` declaration is stored
   on the claim poll. If `last_seen_at` can be set by another call first (for example `self-check`'s `GET
   /runner/self`), the automatic start may get a false `runner-outdated`. Then: if `runner-outdated` comes within 60 s

@@ -2591,6 +2591,7 @@
           "notAllowedMac": "The saved sign-in does not fit this runner.",
           "notAllowedLinux": "The saved key does not fit this runner.",
           "fixMac": "Sign in again: the command opens the Claude sign-in in your browser and checks the runner.",
+          "fixMacReplace": "Sign in again: the command opens the Claude sign-in in your browser, replaces the runner’s saved sign-in with the new one and checks the runner. Revoke the old token at claude.ai first.",
           "fixLinux": "Save the key again: run the enrol line once more, with --replace-credential after setup."
         },
         "timeout": {

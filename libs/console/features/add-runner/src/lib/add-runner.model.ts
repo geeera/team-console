@@ -63,6 +63,11 @@ export const LINUX_LOG_COMMAND = `sudo journalctl -u ${LINUX_RUNNER_UNIT}`;
 export const CLAUDE_INSTALL_COMMAND = 'brew install --cask claude-code';
 export const SETUP_TOOLCHAIN_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --only toolchain,check`;
 export const SETUP_CREDENTIAL_COMMAND = `sudo ${RUNNER_INSTALLED_LAUNCHER} setup --only credential,check`;
+/**
+ * For a saved sign-in that is unreadable or not allowed: `setup` keeps an existing credential file unless told to
+ * replace it (`apps/runner/src/setup/setup.ts`), so without the flag the re-check would fail the same way.
+ */
+export const SETUP_CREDENTIAL_REPLACE_COMMAND = `${SETUP_CREDENTIAL_COMMAND} --replace-credential`;
 
 /** «7K2Q-M9XD» as a screen reader should compare it: «7 K 2 Q, дефис, M 9 X D». */
 export function fingerprintSpokenOf(fingerprint: string, dashWord: string): string {
