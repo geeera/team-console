@@ -114,6 +114,8 @@ const liveSql = (now: string): string =>
  * `expires_at`. A row a day past that is outside every cap's window too (the hourly one counts `created_at`), so it
  * is deleted whatever its state; the audit keeps its history. The modifier is added to `expires_at`.
  */
+/** The hourly cap's window, as `create` counts it (`'-1 hour'`). */
+const HOUR_MS = 3_600_000;
 const RETAINED_PAST_EXPIRY = `+${String(ENROLMENT_INTENT_COLLECT_SECONDS + 24 * 60 * 60)} seconds`;
 /** A row past retention at the time bound to `now`, with `RETAINED_PAST_EXPIRY` bound to `retained`. */
 const retiredSql = (now: string, retained: string): string =>
@@ -226,6 +228,23 @@ export class EnrolmentIntentsRepo {
       .bind(intent.accountId, intent.at)
       .first<{ live: number }>();
     return (counts?.live ?? 0) >= caps.liveMax ? 'live-limit' : 'hourly-limit';
+  }
+
+  /**
+   * When the hourly cap `create` judges lets the account create again, seen at `at`: the moment its `perHour`-th
+   * newest creation leaves the window (`created_at` strictly after an hour before). `null` when the cap does not hold.
+   */
+  async hourlyCapFreesAt(accountId: string, at: string, perHour: number): Promise<string | null> {
+    const row = await this.db
+      .prepare(
+        `SELECT created_at FROM runner_enrolment_requests
+         WHERE account_id = ?1 AND julianday(created_at) > julianday(?2, '-1 hour')
+         ORDER BY created_at DESC LIMIT 1 OFFSET ?3`,
+      )
+      .bind(accountId, at, Math.max(perHour - 1, 0))
+      .first<{ created_at: string }>();
+    const createdMs = row === null ? Number.NaN : Date.parse(row.created_at);
+    return Number.isFinite(createdMs) ? new Date(createdMs + HOUR_MS).toISOString() : null;
   }
 
   /**

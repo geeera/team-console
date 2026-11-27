@@ -4,6 +4,7 @@ import {
   DEFAULT_RETRY_AFTER_S,
   InvalidRoutineConfigError,
   RoutinesClient,
+  retryAfterOf,
   type FetchLike,
 } from './routines-client';
 
@@ -90,5 +91,29 @@ describe('RoutinesClient.fire', () => {
     const { client, calls } = setup();
     await expect(client.fire(request)).rejects.toEqual(new InvalidRoutineConfigError(part));
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('retryAfterOf', () => {
+  const NOW = Date.parse('2026-11-27T10:00:00.000Z');
+  const of = (value: string): number => retryAfterOf(new Headers({ 'retry-after': value }), NOW);
+
+  it('raises Retry-After: 0 to one second, so a retry never spins (#813)', () => {
+    expect(of('0')).toBe(1);
+  });
+
+  it('caps a huge Retry-After at an hour', () => {
+    expect(of('3601')).toBe(3600);
+    expect(of(String(10 ** 12))).toBe(3600);
+  });
+
+  it('reads an HTTP-date as the seconds until it', () => {
+    expect(of('Fri, 27 Nov 2026 10:05:00 GMT')).toBe(300);
+  });
+
+  it('falls back to the default for a missing or unusable value', () => {
+    expect(retryAfterOf(new Headers(), NOW)).toBe(DEFAULT_RETRY_AFTER_S);
+    expect(of('-5')).toBe(DEFAULT_RETRY_AFTER_S);
+    expect(of('soon')).toBe(DEFAULT_RETRY_AFTER_S);
   });
 });

@@ -5,13 +5,14 @@
  * idempotency key and every accepted request starts a session.
  */
 
+import { retryAfterSecondsOf } from '@shared/contracts';
+
 /** The only host a trigger token is ever sent to. */
 export const ROUTINES_API_ORIGIN = 'https://api.anthropic.com';
 export const ANTHROPIC_VERSION = '2023-06-01';
 export const ROUTINE_FIRE_DEADLINE_MS = 10_000;
 /** When a 429 names no wait: the per-routine cap is per hour, so a short wait would only be refused again. */
 export const DEFAULT_RETRY_AFTER_S = 600;
-const MAX_RETRY_AFTER_S = 3600;
 /** The `text` is inert context for the run; a cap keeps a misbehaving caller from sending a novel. */
 const MAX_TEXT_LENGTH = 1000;
 
@@ -63,12 +64,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export function retryAfterOf(headers: Headers): number {
-  const raw = headers.get('retry-after')?.trim() ?? '';
-  if (/^\d{1,6}$/.test(raw)) {
-    return Math.min(Number(raw), MAX_RETRY_AFTER_S);
-  }
-  return DEFAULT_RETRY_AFTER_S;
+/** The wait a 429 names, bounded to 1..3600 s so `0` never spins (#813); the default when it names none. */
+export function retryAfterOf(headers: Headers, nowMs: number = Date.now()): number {
+  return retryAfterSecondsOf(headers.get('retry-after'), nowMs) ?? DEFAULT_RETRY_AFTER_S;
 }
 
 async function readJson(response: Response): Promise<unknown> {
