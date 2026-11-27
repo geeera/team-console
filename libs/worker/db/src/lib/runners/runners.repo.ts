@@ -2,10 +2,12 @@ import {
   RUNNER_ONLINE_WINDOW_SECONDS,
   RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
   isAccessSource,
+  isRunnerCheckKind,
   type AccessSource,
   type Ed25519PublicJwk,
   type RunnerAvailability,
   type RunnerCapabilitiesDto,
+  type RunnerCheckKind,
   type RunnerUnavailableReason,
   type RunnerHostDto,
   type RunnerIsolation,
@@ -252,6 +254,7 @@ function toRecord(row: RunnerRow): RunnerRecord {
   const host = JSON.parse(row.host) as Partial<RunnerHostDto>;
   const capabilities = JSON.parse(row.capabilities) as Partial<RunnerCapabilitiesDto>;
   const declared = capabilities.accessSources;
+  const checks = capabilities.checks;
   return {
     id: row.id,
     accountId: row.account_id,
@@ -263,6 +266,8 @@ function toRecord(row: RunnerRow): RunnerRecord {
       maxConcurrency: capabilities.maxConcurrency ?? 1,
       // A stored declaration that is not a list of sources is a broken row: read as no declaration, never served.
       ...(Array.isArray(declared) && declared.every(isAccessSource) ? { accessSources: declared } : {}),
+      // #1059: the same for the check kinds; a broken declaration reads as none, so enqueue answers `runner-outdated`.
+      ...(Array.isArray(checks) && checks.every(isRunnerCheckKind) ? { checks } : {}),
     },
     hosted: row.hosted === 1,
     isolation: row.isolation,
@@ -755,6 +760,24 @@ export class RunnersRepo {
       ...alsoInBatch,
     ]);
     return (update?.meta.changes ?? 0) === 1;
+  }
+
+  /**
+   * Stores the runner's check declaration (#1059, S1) under the constant path `$.checks`, leaving every other
+   * capability key as it is, and only when it changed (`false` then, and for a hosted, `actions-ephemeral` or revoked
+   * identity, whose declaration is ignored by the write itself). It gates enqueue only, never delivery.
+   */
+  async setChecks(id: string, checks: readonly RunnerCheckKind[]): Promise<boolean> {
+    const declared = JSON.stringify([...checks].sort());
+    const result = await this.db
+      .prepare(
+        `UPDATE runners SET capabilities = json_set(capabilities, '$.checks', json(?2))
+         WHERE id = ?1 AND hosted = 0 AND isolation <> 'actions-ephemeral' AND revoked_at IS NULL
+           AND (json_type(capabilities, '$.checks') IS NULL OR json_extract(capabilities, '$.checks') <> json(?2))`,
+      )
+      .bind(id, declared)
+      .run();
+    return result.meta.changes === 1;
   }
 
   /**

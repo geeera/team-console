@@ -132,6 +132,14 @@ export type {
   SightingOutcome,
 } from './lib/runners/runners.repo';
 export { EnrolmentIntentsRepo } from './lib/runners/enrolment-intents.repo';
+export { RunnerChecksRepo } from './lib/runners/runner-checks.repo';
+export type {
+  CreateCheckOutcome,
+  NewRunnerCheck,
+  RunnerCheckCaps,
+  RunnerCheckRecord,
+  RunnerCheckRequester,
+} from './lib/runners/runner-checks.repo';
 export type {
   CreateIntentOutcome,
   EnrolmentIntentBind,

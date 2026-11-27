@@ -101,10 +101,46 @@ export const isRunnerVersion = (value: unknown): value is string =>
 export const RUNNER_JWT_MAX_AGE_SECONDS = 300;
 /** An enrolment code lives ten minutes (ADR 0006 "Enrolment"). */
 export const ENROLMENT_CODE_TTL_SECONDS = 600;
+/**
+ * The checks a runner can run (#1059): runner-addressed probes, never jobs (`runner_checks`, migration 0049). The
+ * command, argv, env and timeout of each are compiled into the signed runner; the console only names a kind.
+ */
+export const RUNNER_CHECK_KINDS = ['smoke'] as const;
+export type RunnerCheckKind = (typeof RUNNER_CHECK_KINDS)[number];
+export const isRunnerCheckKind = (value: unknown): value is RunnerCheckKind =>
+  (RUNNER_CHECK_KINDS as readonly unknown[]).includes(value);
+
+/**
+ * The claim body's `checks` (#1059, S1): the kinds this release of the runner can run, distinct, a subset of
+ * `RUNNER_CHECK_KINDS`; `[]` declares none. A duplicate is refused rather than folded, so a malformed declaration is
+ * never stored as a valid one.
+ */
+export function runnerCheckKindsOf(field: string, value: unknown): readonly RunnerCheckKind[] {
+  if (
+    !Array.isArray(value) ||
+    value.length > RUNNER_CHECK_KINDS.length ||
+    !value.every(isRunnerCheckKind) ||
+    new Set(value).size !== value.length
+  ) {
+    throw new InputError(
+      field,
+      `${field} must name distinct kinds out of ${RUNNER_CHECK_KINDS.join(', ')}`,
+    );
+  }
+  return [...(value as RunnerCheckKind[])].sort();
+}
+
 /** A runner with no call for this long is offline on Settings › Runners (ADR 0006 "Report"). */
 export const RUNNER_ONLINE_WINDOW_SECONDS = 300;
 /** How often a runner polls `claim` when nothing is queued (ADR 0006 "Claim": the idle interval). */
 export const RUNNER_POLL_SECONDS = 60;
+/**
+ * #1059: a runner enrolled less than `RUNNER_FRESH_WINDOW_SECONDS` ago (the server's `enrolled_at`, never a client
+ * claim) is told to poll again after `RUNNER_FRESH_POLL_SECONDS` on an idle claim, so the wizard's check is picked
+ * up quickly. At most 90 polls per new runner; the per-runner rate limit is unchanged.
+ */
+export const RUNNER_FRESH_POLL_SECONDS = 10;
+export const RUNNER_FRESH_WINDOW_SECONDS = 15 * 60;
 
 /** The `aud` of a runner JWT: the environment, so a token signed for dev never verifies on production. */
 export function runnerAudienceOf(environment: string): string {
@@ -149,6 +185,12 @@ export interface RunnerCapabilitiesDto {
    * server. Absent on runners enrolled before it existed, which the claim then does not narrow.
    */
   readonly accessSources?: readonly AccessSource[];
+  /**
+   * The checks the runner can run (#1059), stored from its latest claim body that declared them. It gates enqueue
+   * only (`runner-outdated`); delivery is gated on the claim body of the moment (S1). Ignored for hosted and
+   * `actions-ephemeral` identities. Absent on runners that never declared it.
+   */
+  readonly checks?: readonly RunnerCheckKind[];
 }
 
 /** The runner's declaration, as the claim body carries it: a subset of `ACCESS_SOURCES`, never empty. */
@@ -206,6 +248,8 @@ export type UpdateRunnerInput = RunnerProjectScopeDto;
 /** `POST /api/v1/runner/jobs/claim`: the runner's declaration of what its credential serves; `{}` declares nothing. */
 export interface ClaimRunnerInput {
   readonly accessSources?: readonly AccessSource[];
+  /** #1059: the check kinds this runner release can run; a check is delivered only to a poll that declares its kind. */
+  readonly checks?: readonly RunnerCheckKind[];
 }
 
 /** A project a runner serves now, with whether its declared `accessSources` fit the project's access source. */
@@ -436,13 +480,17 @@ export function checkUpdateRunnerInput(body: unknown): InputCheck<UpdateRunnerIn
   return checked(() => projectScopeOf(record(body, ['projectScope', 'allowedProjects']), false));
 }
 
-/** The claim body: `{}` or the runner's `accessSources` declaration, nothing else. */
+/** The claim body: `{}`, or the runner's `accessSources` and `checks` declarations, nothing else. */
 export function checkClaimRunnerInput(body: unknown): InputCheck<ClaimRunnerInput> {
   return checked(() => {
     // The runner sent `{}` since before the declaration existed; `null` is an empty body on the same door.
-    const fields = record(body ?? {}, ['accessSources']);
+    const fields = record(body ?? {}, ['accessSources', 'checks']);
     const declared = fields['accessSources'];
-    return declared === undefined ? {} : { accessSources: accessSourcesOf('accessSources', declared) };
+    const checks = fields['checks'];
+    return {
+      ...(declared === undefined ? {} : { accessSources: accessSourcesOf('accessSources', declared) }),
+      ...(checks === undefined ? {} : { checks: runnerCheckKindsOf('checks', checks) }),
+    };
   });
 }
 
@@ -625,7 +673,9 @@ function isRunnerCapabilitiesDto(value: unknown): value is RunnerCapabilitiesDto
     typeof value['local'] === 'boolean' &&
     typeof value['maxConcurrency'] === 'number' &&
     Number.isInteger(value['maxConcurrency']) &&
-    (value['accessSources'] === undefined || isAccessSourceList(value['accessSources']))
+    (value['accessSources'] === undefined || isAccessSourceList(value['accessSources'])) &&
+    (value['checks'] === undefined ||
+      (Array.isArray(value['checks']) && value['checks'].every(isRunnerCheckKind)))
   );
 }
 

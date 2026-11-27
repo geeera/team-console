@@ -81,6 +81,10 @@ export const AUDIT_EVENT_KINDS = [
   // The runner's pause on a usage or rate limit (#571), and its lifting.
   'runner.paused',
   'runner.resumed',
+  // #1059: a runner check an owner started, the runner's report, and the server's expiry (not picked up, lost, revoked).
+  'runner.check-requested',
+  'runner.check-finished',
+  'runner.check-expired',
   'job.finished',
   // The owner's cancel of one job (#1039), and a console run started and ended (by Stop, `done`, or the step cap).
   'job.cancelled',
