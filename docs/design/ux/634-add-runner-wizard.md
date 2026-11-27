@@ -501,7 +501,7 @@ New keys under `runners.wizard.*`, plus one changed and one new key under `runne
 
 ## 12. Addendum #1059: the runner check («Проверка») on step 4b
 
-**Status: new, not approved.** Read against the #1059 architect note (`runner_checks`, §1–§3, reason codes, Q1–Q4)
+**Status: approved by the owner on 2026-11-27 («одобряю, по рекомендациям»: U1–U4 as recommended, presence-only sign-in, any owner of the account may start a check).** Read against the #1059 architect note (`runner_checks`, §1–§3, reason codes, Q1–Q4)
 and the code of #877/#881/#883 (`features/add-runner`, `online-step.ts`, `EnrolmentWatch`). The check is a
 `runner_checks` record, not a job: `POST …/runners/:runner/checks {kind: 'smoke'}`, then
 `GET …/runners/:runner/checks/:check` until `passed` or `failed`.
@@ -614,8 +614,8 @@ after C6 re-attaches to a check that is still alive instead of starting a second
 │ ┌────────────────────────────────────────────────────────────────────┐ │
 │ │ Проверка раннера                                              (h4) │ │
 │ │ ▌! Вход в Claude не найден                                         │ │
-│ │ ▌На раннере нет сохранённого входа в Claude. Без него задания не   │ │
-│ │ ▌запустятся. Войдите заново: команда откроет вход в браузере.      │ │
+│ │ ▌Для раннера не сохранён вход в Claude. Задания будут зависеть от  │ │
+│ │ ▌входа самого Mac, который консоль не видит. Сохраните вход:       │ │
 │ │ ▌┌──────────────────────────────────────────────────┐ [Копировать] │ │
 │ │ ▌│ sudo /usr/local/lib/team-console-runner/bin/team-…│             │ │
 │ │ ▌└──────────────────────────────────────────────────┘             │ │
@@ -662,7 +662,7 @@ height of the running state (ui-designer sets it), so the footer does not jump w
 | C9 | **Rate-limited** | 429 `rate-limited` on POST | `check.rateLimited` with the local time `Retry-After` ends | – | «Проверить снова» `aria-disabled` until then, `aria-describedby` → the message; it re-enables itself, no automatic start |
 | – | **Wizard API errors** | POST or GET: offline, timeout, 5xx, 401, 403 | the §6 banners (16, 16a, 17, 18, 20) at the top of the sheet; for a POST failure the panel returns to C0 (or to its last result) | – | as C0 |
 | – | **Closed mid-check** | «Готово», ×, Esc in C1–C3 | closes at once, no confirm; polling stops. The check ends on the runner by itself; there is nothing to cancel and nothing to tell the owner later | – | – |
-| – | **Unknown reason code** | a code this console does not know (newer API) | C5e copy without the platform line: `check.unknown.body` | – | «Проверить снова» |
+| – | **Unknown reason code** | a code this console does not know (newer API) | title `check.host.title`, body `check.unknown.body` (no platform line) | – | «Проверить снова» |
 
 Severity and tone: C4 positive; C5a–C5e, C6 and C9 warning; C7 paused and C8 neutral; C7 revoked warning. None uses
 `danger`.
@@ -685,7 +685,7 @@ Severity and tone: C4 positive; C5a–C5e, C6 and C9 warning; C7 paused and C8 n
   - C2 → C3 and the 30 s sub-line are not announced (noise; the result follows within 30 s).
   - The panel itself is not a live region (no double reading); its status text is plain text.
 - **Busy:** the panel has `aria-busy="true"` in C1–C3.
-- **Fix commands:** `CopyCode` as in §5 (focusable region, named: `check.region.toolchain`, `check.region.credential`;
+- **Fix commands:** `CopyCode` as in §5 (focusable region, named: `check.region.toolchain`, `check.region.setup`;
   copy buttons `check.copyAria.*`).
 - **Reduced motion:** the spinner does not turn (kit default). No success animation, no transition when the panel
   changes state; the minimum height keeps the footer still either way.
@@ -702,7 +702,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | Key | ru |
 |---|---|
 | `check.heading` | Проверка раннера |
-| `check.idle` | Проверим, что раннер может запустить Claude. Это займёт до минуты и ничего не меняет на машине. |
+| `check.idle` | Проверим, что раннер может запустить Claude. Обычно это занимает до минуты, иногда до трёх, и ничего не меняет на машине. |
 | `check.start` | Проверить |
 | `check.again` | Проверить снова |
 | `check.busy` | Проверяем… |
@@ -714,7 +714,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.runningSub` | Это займёт до 30 секунд. Окно можно закрыть: проверка ничего не меняет на машине. |
 | `check.passed.title` | Проверка прошла |
 | `check.passed.bodyMac` | Claude Code {{version}} запускается на раннере от пользователя заданий, вход в Claude найден. |
-| `check.passed.bodyLinux` | Claude Code {{version}} запускается в контейнере задания, ключ API найден. |
+| `check.passed.bodyLinux` | Claude Code {{version}} запускается в контейнере раннера, ключ API найден. |
 | `check.passed.note` | Действует ли вход, станет видно на первом задании: проверка не обращается к Claude по сети. |
 | `check.offline.title` | Раннер не ответил на проверку |
 | `check.offline.offline` | Раннер сейчас не на связи. |
@@ -731,7 +731,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.claude.linuxLink` | Инструкция: Linux |
 | `check.credential.titleMac` | Вход в Claude не найден |
 | `check.credential.titleLinux` | Ключ API не найден |
-| `check.credential.missingMac` | На раннере нет сохранённого входа в Claude. Без него задания не запустятся. |
+| `check.credential.missingMac` | Для раннера не сохранён вход в Claude. Тогда задания зависят от входа в Claude на самом Mac, который консоль не видит и не проверяет. Сохраните вход для раннера, чтобы задания запускались надёжно. |
 | `check.credential.missingLinux` | На раннере нет сохранённого ключа API Anthropic. Без него задания не запустятся. |
 | `check.credential.unreadableMac` | Раннер не смог прочитать сохранённый вход в Claude. |
 | `check.credential.unreadableLinux` | Раннер не смог прочитать сохранённый ключ API. |
@@ -740,7 +740,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.credential.fixMac` | Войдите заново: команда откроет вход в Claude в браузере и проверит раннер. |
 | `check.credential.fixLinux` | Сохраните ключ заново: выполните строку подключения ещё раз, добавив --replace-credential после setup. |
 | `check.timeout.title` | Claude не ответил за 30 секунд |
-| `check.timeout.body` | Возможно, машина занята или Claude Code сейчас обновляется. Попробуйте ещё раз через минуту. |
+| `check.timeout.body` | Возможно, машина сейчас занята. Попробуйте ещё раз через минуту. |
 | `check.host.title` | Машина не готова к заданиям |
 | `check.host.bodyMac` | Раннер не смог подготовить отдельного пользователя для задания или убрать за ним. Проверьте раннер на машине: |
 | `check.host.bodyLinux` | Раннер не смог запустить или убрать контейнер задания. Проверьте службы на машине: |
@@ -788,7 +788,8 @@ second tells us which fix copy to improve first. The client does not log whether
   `last_seen_at`.
 - **N9, read budget.** 2 s polls for up to 4 min are up to 120 GETs per check, on top of the runners poll, which
   stops at online. Check against the #879 per-user read limit; 429 falls into the shared banner and does not end
-  the watch.
+  the watch. Resolved: #879 allows 120 account reads per identity per minute; the watch at 2 s is 30 a minute, so
+  no server change is needed.
 - **N10, release order.** Until a runner release with PR 2 is out, every runner answers `runner-outdated`, so every
   wizard ends in C8. C8 is neutral for that reason. Recommended to the hub: merge PR 3 after the runner release, so
   owners never see a check that cannot pass.
@@ -813,6 +814,12 @@ second tells us which fix copy to improve first. The client does not log whether
 - [ ] Check results never move focus; «Проверить снова» keeps focus through the run; each phase is announced once,
       politely; the online + automatic start is one announcement.
 - [ ] With reduced motion nothing moves; the footer does not shift when the panel changes state.
+- [ ] Any owner of the account may start a check; a member sees no «Проверить» / «Проверить снова», and a 403 falls
+      into the §6 banner.
+- [ ] A hostile `claudeVersion` (for example `<img src=x onerror=alert(1)>`) renders literally as text; no element
+      is created. An unknown `reason` is never rendered as markup.
+- [ ] `POST …/checks` carries the CSRF header; a 429 `Retry-After` is honoured by both the start and the watch.
+- [ ] On the automatic start only, a `runner-outdated` answer is retried once, silently, after 10 s before C8 (N8).
 
 ### 12.10 Owner questions
 
@@ -823,6 +830,7 @@ second tells us which fix copy to improve first. The client does not log whether
 - **U3, the pass wording.** «Claude Code {version} запускается на раннере, вход в Claude найден» plus «Действует ли
   вход, станет видно на первом задании» (recommended; it follows architect Q2 «presence only»). If the owner picks
   the authenticated probe in Q2, the pass line can say «вход действует», and C5c gains a «вход истёк» variant.
+  **Decided 2026-11-27: presence only; the probe variant is out.**
 - **U4, outdated runners.** A neutral «Эта версия раннера не умеет проходить проверку» with «Как обновить»
   (recommended, together with N10: ship PR 3 after the runner release). Or hide the panel when the runner is
   outdated.
