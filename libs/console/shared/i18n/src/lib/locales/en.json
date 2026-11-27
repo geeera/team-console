@@ -2409,7 +2409,7 @@
       "legend": "Which projects the runner serves",
       "editLegend": "Projects of “{{name}}”",
       "all": "All projects of the account",
-      "allHint": "Every current and future project of the account, including ones added later.",
+      "allHint": "Every current and future project of the account, including ones added later. Switch to “Only the chosen ones” if you want to pick specific projects.",
       "selected": "Only the chosen ones",
       "selectedHint": "The runner takes jobs of the ticked projects only. A new project has to be added by hand.",
       "title": "Runner projects",
