@@ -1855,10 +1855,11 @@ describe('SprintBoard', () => {
     it('shows the earliest open tracker sprint with its tasks by lane, not the GitHub milestone', async () => {
       const { root, settle, lanes, text } = await renderTracker();
       http.expectOne(sprintsUrl(TC.slug)).flush({
+        // Demo dates stay in the past so the label never turns into «Сегодня демо» / «через N дней».
         sprints: [
-          trackerSprint(3, '2026-11-13', 'closed'),
-          trackerSprint(5, '2026-12-11'),
-          trackerSprint(4, '2026-11-27'),
+          trackerSprint(3, '2026-10-02', 'closed'),
+          trackerSprint(5, '2026-10-30'),
+          trackerSprint(4, '2026-10-16'),
         ],
       });
       await settle();
@@ -1876,7 +1877,7 @@ describe('SprintBoard', () => {
       await settle();
 
       expect(text('h2')).toBe('Sprint 04');
-      expect(text('[data-testid="demo"]')).toMatch(/^Демо 27 ноября/);
+      expect(text('[data-testid="demo"]')).toMatch(/^Демо 16 октября/);
       expect(lanes()).toEqual({ approved: 0, 'in-progress': 1, qa: 0, blocked: 1, done: 1 });
       expect(root.querySelector('[data-testid="done-stat"] dd')?.textContent?.trim()).toBe('1 из 3');
       // Rows open the console task (#557), not GitHub; the pull requests still come from GitHub.

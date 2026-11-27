@@ -691,6 +691,66 @@ describe('RunnersRepo', () => {
     await env.DB.prepare(`UPDATE accounts SET name = 'B' WHERE id = ?1`).bind(ACCOUNT_B).run();
   });
 
+  // #799: what D3 holds back only because a creator or enroller is missing, counted per runner for the card.
+  it('counts the projects D3 holds back for want of a recorded creator or enroller', async () => {
+    const ACCOUNT_E = '01M6YSNJ00000000000000RNE5';
+    const owner = (userId: string, n: number) => [
+      env.DB.prepare(
+        `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+      ).bind(userId, String(799000 + n), `rn-799-${String(n)}`, T0),
+      env.DB.prepare(
+        `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, 'owner', ?3)`,
+      ).bind(ACCOUNT_E, userId, T0),
+    ];
+    const project = (slug: string, createdBy: string | null, archivedAt: string | null = null) =>
+      env.DB.prepare(
+        `INSERT INTO projects (slug, repo, display_name, cache_epoch, added_at, account_id, created_by, archived_at)
+         VALUES (?1, ?2, ?1, 0, ?3, ?4, ?5, ?6)`,
+      ).bind(slug, `acme/${slug}`, T0, ACCOUNT_E, createdBy, archivedAt);
+    await env.DB.batch([
+      env.DB.prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'rn-e', 'E', ?2)`).bind(
+        ACCOUNT_E,
+        T0,
+      ),
+      ...owner('01M6YSNJ00000000000000W799', 1),
+      ...owner('01M6YSNJ00000000000000W79A', 2),
+      project('e799-mine', 'owner-1'),
+      project('e799-theirs', 'owner-2'),
+      project('e799-legacy', null),
+      project('e799-gone', null, T0),
+    ]);
+    const subscriptionAll = await enrolled({ accountId: ACCOUNT_E, enrolledBy: 'owner-1', ...ALL });
+    const apiKeyAll = await enrolled({
+      accountId: ACCOUNT_E,
+      enrolledBy: 'owner-1',
+      ...ALL,
+      capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] },
+    });
+    const legacyAll = await enrolled({ accountId: ACCOUNT_E, enrolledBy: null, ...ALL });
+    const listed = await enrolled({
+      accountId: ACCOUNT_E,
+      enrolledBy: 'owner-1',
+      allowedProjects: ['e799-mine'],
+    });
+
+    // Two owners: the legacy project alone for the enroller's runner (another owner's project is plain D3, not a
+    // gap); everything for the runner with no enroller; nothing for an api_key runner, a list it serves, or archived.
+    const counts = await repo.unattributedProjectCountsOf(ACCOUNT_E);
+    expect(counts.get(subscriptionAll.id)).toBe(1);
+    expect(counts.get(legacyAll.id)).toBe(3);
+    expect(counts.has(apiKeyAll.id)).toBe(false);
+    expect(counts.has(listed.id)).toBe(false);
+    expect([...(await repo.unattributedProjectCountsOf(ACCOUNT_E, legacyAll.id)).keys()]).toEqual([
+      legacyAll.id,
+    ]);
+
+    // One owner: D3 holds nothing back, so there is no gap to show.
+    await env.DB.prepare(`UPDATE account_members SET role = 'member' WHERE account_id = ?1 AND user_id = ?2`)
+      .bind(ACCOUNT_E, '01M6YSNJ00000000000000W79A')
+      .run();
+    expect((await repo.unattributedProjectCountsOf(ACCOUNT_E)).size).toBe(0);
+  });
+
   // #827 (owner decision (a)): the sole owner records themselves as the enroller of a runner from before 0036.
   describe('claimEnroller', () => {
     const CLAIM = 'runner.enroller-claimed' as const;

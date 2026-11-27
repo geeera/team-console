@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
-import { LocalDayPipe, LocalTimePipe, TranslocoPipe } from '@console/shared/i18n';
+import { LocalDayPipe, LocalTimePipe, TranslocoPipe, TranslocoPluralPipe } from '@console/shared/i18n';
 import {
   Chip,
   Icon,
@@ -37,12 +37,23 @@ let nextCardId = 0;
  * One enrolled runner on Settings › Runners (#464, ADR 0008 row 2-E): its name and presence — with why and until when
  * it is paused (#571) — then backend, version (flagged below the environment's minimum), when it was last seen (local
  * time), host and its scope (#775): every project of the account, or the chosen list, with the projects it serves now
- * and a mark on each its credential cannot serve (`fit`), and a note when no enroller is recorded (#827). Text from
+ * and a mark on each its credential cannot serve (`fit`), a note when no enroller is recorded (#827) and one when D3
+ * holds projects back for want of a recorded creator or enroller (#799). Text from
  * the runner (name, hostname, os) is interpolated only. Actions are projected (`[tc-runner-actions]`).
  */
 @Component({
   selector: 'tc-runner-card',
-  imports: [Chip, Icon, Ledger, LedgerRow, LocalDayPipe, LocalTimePipe, StatusCard, TranslocoPipe],
+  imports: [
+    Chip,
+    Icon,
+    Ledger,
+    LedgerRow,
+    LocalDayPipe,
+    LocalTimePipe,
+    StatusCard,
+    TranslocoPipe,
+    TranslocoPluralPipe,
+  ],
   template: `
     <article tc-status-card [tone]="tone()" [attr.aria-labelledby]="titleId" data-testid="runner-card">
       <div tc-status-card-row>
@@ -83,6 +94,16 @@ let nextCardId = 0;
           [attr.data-state]="runner().enroller"
         >
           {{ note | transloco }}
+        </p>
+      }
+      @if (unattributedNote(); as note) {
+        <p
+          tc-status-card-body
+          class="runner-card__note"
+          data-testid="runner-unattributed"
+          [attr.data-kind]="note.kind"
+        >
+          {{ note.key | translocoPlural: note.n }}
         </p>
       }
       @if (runner().pause; as pause) {
@@ -218,6 +239,19 @@ export class RunnerCard {
   protected readonly enrollerNote = computed(() => {
     const state = this.runner().enroller;
     return state === 'unrecorded' || state === 'claimable' ? `runners.card.enroller.${state}` : null;
+  });
+  /**
+   * #799: projects D3 holds back because nobody is recorded as their creator, or as this runner's enroller (rows from
+   * before 0036 that 0048 could not attribute). Worded by which side is missing: a runner with no enroller is re-enrolled,
+   * an unattributed project is chosen explicitly by the enroller.
+   */
+  protected readonly unattributedNote = computed(() => {
+    const runner = this.runner();
+    if (runner.revokedAt !== null || runner.unattributedProjects === 0) {
+      return null;
+    }
+    const kind = runner.enroller === 'unrecorded' || runner.enroller === 'claimable' ? 'runner' : 'projects';
+    return { kind, key: `runners.card.unattributed.${kind}`, n: runner.unattributedProjects };
   });
   protected readonly tone = computed(() => TONES[this.presence()]);
   protected readonly mark = computed(() => MARKS[this.presence()]);

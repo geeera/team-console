@@ -106,6 +106,21 @@ export const UnfitProject: Story = {
 export const EnrollerClaimable: Story = { args: { runner: runnerFixture({ enroller: 'claimable' }) } };
 /** #827: the same runner once the account has a second owner: nobody can widen it, re-enrolling is the way out. */
 export const EnrollerUnrecorded: Story = { args: { runner: runnerFixture({ enroller: 'unrecorded' }) } };
+/** #799: an `all` subscription runner in a two-owner account; two projects from before 0036 have no recorded creator. */
+export const UnattributedProjects: Story = {
+  args: { runner: runnerFixture({ projectScope: 'all', allowedProjects: [], unattributedProjects: 2 }) },
+};
+/** #799: the same gap from the runner's side: no enroller recorded, so D3 holds back what it would serve. */
+export const UnattributedRunner: Story = {
+  args: {
+    runner: runnerFixture({
+      enroller: 'unrecorded',
+      projectScope: 'all',
+      allowedProjects: [],
+      unattributedProjects: 5,
+    }),
+  },
+};
 /** #668: the ephemeral identity of one GitHub Actions run, listed while the run is live. */
 export const ActionsRun: Story = {
   args: {

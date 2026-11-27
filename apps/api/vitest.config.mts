@@ -108,6 +108,8 @@ export default defineConfig(async () => {
             MIGRATION_DB_0031: 'migration-steps-0031',
             // #1039: 0045's rebuild of jobs over live and finished jobs, their events and a parent/child chain.
             MIGRATION_DB_0045: 'migration-steps-0045',
+            // #799: 0048's creator/enroller backfill over projects and runners from before 0036.
+            MIGRATION_DB_0048: 'migration-steps-0048',
           },
           bindings: {
             TEST_MIGRATIONS: await readD1Migrations(resolve(import.meta.dirname, 'migrations')),

@@ -110,6 +110,7 @@ describe('migrations on a fresh D1', () => {
       '0045_job_kinds_orchestration.sql',
       '0046_runner_non_enroller_projects.sql',
       '0047_runner_enrolment_requests_deleted_with_owner.sql',
+      '0048_backfill_creator_enroller.sql',
     ]);
   });
 
@@ -1507,6 +1508,204 @@ describe('the 0045 job kinds and jobs rebuild', () => {
   });
 });
 
+// #799: 0048 fills `projects.created_by` and `runners.enrolled_by` on rows from before 0036 where the owner is known —
+// the row's audit names a present owner, or the account has one owner — and leaves every ambiguous row NULL.
+describe('the 0048 creator and enroller backfill', () => {
+  const T0 = '2026-11-01T00:00:00.000Z';
+  // One owner; two owners and a member; one owner whose audit names a former owner.
+  const SOLE = '01M6YSNJ0000000000000M48A1';
+  const MULTI = '01M6YSNJ0000000000000M48A2';
+  const LEFT = '01M6YSNJ0000000000000M48A3';
+  const SOLE_OWNER = '01M6YSNJ0000000000000M48S1';
+  const OWNER_A = '01M6YSNJ0000000000000M48S2';
+  const OWNER_B = '01M6YSNJ0000000000000M48S3';
+  const MEMBER = '01M6YSNJ0000000000000M48S4';
+  const LEFT_OWNER = '01M6YSNJ0000000000000M48S5';
+  const FORMER_OWNER = '01M6YSNJ0000000000000M48S6';
+  const runnerId = (n: number) => `01M6YSNJ0000000000000M48R${n}`;
+  const KEY = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: 'x'.repeat(43) });
+
+  async function seed(db: D1Database): Promise<void> {
+    const statements: D1PreparedStatement[] = [];
+    for (const [id, slug] of [
+      [SOLE, 'm48-sole'],
+      [MULTI, 'm48-multi'],
+      [LEFT, 'm48-left'],
+    ] as const) {
+      statements.push(
+        db
+          .prepare(`INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, ?2, ?2, ?3)`)
+          .bind(id, slug, T0),
+      );
+    }
+    [SOLE_OWNER, OWNER_A, OWNER_B, MEMBER, LEFT_OWNER, FORMER_OWNER].forEach((id, index) => {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at) VALUES (?1, 'github', ?2, ?3, ?4, ?4)`,
+          )
+          .bind(id, String(48_000 + index), `m48-user-${index}`, T0),
+      );
+    });
+    for (const [account, user, role] of [
+      [SOLE, SOLE_OWNER, 'owner'],
+      [MULTI, OWNER_A, 'owner'],
+      [MULTI, OWNER_B, 'owner'],
+      [MULTI, MEMBER, 'member'],
+      [LEFT, LEFT_OWNER, 'owner'],
+    ] as const) {
+      statements.push(
+        db
+          .prepare(
+            `INSERT INTO account_members (account_id, user_id, role, joined_at) VALUES (?1, ?2, ?3, ?4)`,
+          )
+          .bind(account, user, role, T0),
+      );
+    }
+    const project = (slug: string, account: string, createdBy: string | null = null) =>
+      db
+        .prepare(
+          `INSERT INTO projects (slug, repo, display_name, added_at, account_id, created_by) VALUES (?1, ?2, ?1, ?3, ?4, ?5)`,
+        )
+        .bind(slug, `acme/${slug}`, T0, account, createdBy);
+    const runner = (id: string, account: string, allowed: readonly string[], hosted = false) =>
+      db
+        .prepare(
+          `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, allowed_projects, version, enrolled_at, hosted)
+           VALUES (?1, ?2, 'mac', ?3, 'user', ?4, '0.1.0', ?5, ?6)`,
+        )
+        .bind(id, account, KEY, JSON.stringify(allowed), T0, hosted ? 1 : 0);
+    const audit = (
+      account: string,
+      actorKind: string,
+      actor: string,
+      kind: string,
+      target: string,
+      details: Readonly<Record<string, unknown>> = {},
+    ) =>
+      db
+        .prepare(
+          `INSERT INTO audit_events (account_id, at, actor_kind, actor, kind, target, details) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)`,
+        )
+        .bind(account, T0, actorKind, actor, kind, target, JSON.stringify(details));
+    statements.push(
+      // One owner, no audit row: theirs.
+      project('m48-sole', SOLE),
+      runner(runnerId(1), SOLE, ['m48-sole']),
+      // Two owners: the audit decides; a member's audit row or none leaves it empty; a recorded creator stays.
+      project('m48-by-b', MULTI),
+      audit(MULTI, 'user', OWNER_B, 'project.created', 'm48-by-b'),
+      project('m48-unknown', MULTI),
+      project('m48-by-member', MULTI),
+      audit(MULTI, 'user', MEMBER, 'project.created', 'm48-by-member'),
+      project('m48-recorded', MULTI, OWNER_A),
+      // Enrolled by A from a code with one project; B added `m48-by-b` later (the pre-0036 `runner.updated`).
+      runner(runnerId(2), MULTI, ['m48-unknown', 'm48-by-b']),
+      audit(MULTI, 'runner', runnerId(2), 'runner.enrolled', runnerId(2), {
+        createdBy: OWNER_A,
+        allowedProjects: ['m48-unknown'],
+      }),
+      audit(MULTI, 'user', OWNER_B, 'runner.updated', runnerId(2), {
+        allowedProjects: ['m48-unknown', 'm48-by-b'],
+        before: ['m48-unknown'],
+      }),
+      runner(runnerId(3), MULTI, []),
+      // A hosted identity has no enroller by design, whatever the audit says.
+      runner(runnerId(4), MULTI, [], true),
+      audit(MULTI, 'runner', runnerId(4), 'runner.enrolled', runnerId(4), { createdBy: OWNER_A }),
+      // One owner now, but the audit names one who left: the evidence wins over the sole-owner rule.
+      project('m48-left', LEFT),
+      audit(LEFT, 'user', FORMER_OWNER, 'project.created', 'm48-left'),
+      // The Access owner before the link: kept as `access-owner`, which 0042/0044 hand over at the link.
+      project('m48-access', OWNER_ACCOUNT_ID),
+      audit(OWNER_ACCOUNT_ID, 'user', 'access-owner', 'project.created', 'm48-access'),
+    );
+    await db.batch(statements);
+  }
+
+  const creators = async (db: D1Database) =>
+    (
+      await db
+        .prepare(`SELECT slug, created_by FROM projects WHERE slug GLOB 'm48-*' ORDER BY slug`)
+        .all<{ slug: string; created_by: string | null }>()
+    ).results;
+  const enrollers = async (db: D1Database) =>
+    (
+      await db
+        .prepare(`SELECT id, enrolled_by, non_enroller_projects FROM runners ORDER BY id`)
+        .all<{ id: string; enrolled_by: string | null; non_enroller_projects: string }>()
+    ).results;
+  const backfillAudit = async (db: D1Database) =>
+    (
+      await db
+        .prepare(
+          `SELECT account_id, actor_kind, actor, target, details FROM audit_events
+           WHERE kind = 'account.attribution-backfilled' ORDER BY id`,
+        )
+        .all<{ account_id: string; actor_kind: string; actor: string; target: string; details: string }>()
+    ).results.map((row) => ({ ...row, details: JSON.parse(row.details) as unknown }));
+  const backfilled = (
+    accountId: string,
+    projectsByAudit: number,
+    projectsBySoleOwner: number,
+    runnersByAudit: number,
+    runnersBySoleOwner: number,
+  ) => ({
+    account_id: accountId,
+    actor_kind: 'system',
+    actor: 'migration',
+    target: accountId,
+    details: { projectsByAudit, projectsBySoleOwner, runnersByAudit, runnersBySoleOwner },
+  });
+
+  it('fills only unambiguous rows, the audit first, audits each account once, and a second run changes nothing', async () => {
+    const db = env.MIGRATION_DB_0048;
+    await applyD1Migrations(
+      db,
+      env.TEST_MIGRATIONS.filter((migration) => migration.name < '0048'),
+    );
+    await seed(db);
+
+    await applyD1Migrations(db, env.TEST_MIGRATIONS);
+
+    expect(await creators(db)).toEqual([
+      { slug: 'm48-access', created_by: 'access-owner' },
+      { slug: 'm48-by-b', created_by: OWNER_B },
+      { slug: 'm48-by-member', created_by: null },
+      { slug: 'm48-left', created_by: null },
+      { slug: 'm48-recorded', created_by: OWNER_A },
+      { slug: 'm48-sole', created_by: SOLE_OWNER },
+      { slug: 'm48-unknown', created_by: null },
+    ]);
+    expect(await enrollers(db)).toEqual([
+      { id: runnerId(1), enrolled_by: SOLE_OWNER, non_enroller_projects: '[]' },
+      // B's addition is not the enroller's, so D3 judges it as 0046 does for later runners.
+      { id: runnerId(2), enrolled_by: OWNER_A, non_enroller_projects: '["m48-by-b"]' },
+      { id: runnerId(3), enrolled_by: null, non_enroller_projects: '[]' },
+      { id: runnerId(4), enrolled_by: null, non_enroller_projects: '[]' },
+    ]);
+    const audited = [
+      backfilled(OWNER_ACCOUNT_ID, 1, 0, 0, 0),
+      backfilled(SOLE, 0, 1, 0, 1),
+      backfilled(MULTI, 1, 0, 1, 0),
+    ];
+    expect(await backfillAudit(db)).toEqual(audited);
+    expect(
+      await db.prepare(`SELECT name FROM sqlite_master WHERE name = 'attribution_backfill_0048'`).first(),
+    ).toBeNull();
+
+    const queries =
+      env.TEST_MIGRATIONS.find((migration) => migration.name.startsWith('0048_'))?.queries ?? [];
+    expect(queries.length).toBeGreaterThan(0);
+    const before = { creators: await creators(db), enrollers: await enrollers(db) };
+    for (const query of queries) {
+      await db.prepare(query).run();
+    }
+    expect({ creators: await creators(db), enrollers: await enrollers(db) }).toEqual(before);
+    expect(await backfillAudit(db)).toEqual(audited);
+  });
+});
+
 // #456: 0029 gives every item its queue rank (number × 1024, so today's order stays) and rebuilds item_events for the
 // `reordered` kind, keeping every row, index and trigger.
 describe('the 0029 item rank', () => {
@@ -1925,6 +2124,16 @@ describe('the 0018 accounts backfill', () => {
       { kind: 'member.joined', actor_kind: 'system', actor: 'migration', target: OWNER_USER_ID },
       { kind: 'installation.linked', actor_kind: 'system', actor: 'migration', target: 'github:42' },
       { kind: 'installation.linked', actor_kind: 'system', actor: 'migration', target: 'github:77' },
+      // #799 (0048): the one owner is the creator of the projects from before 0036.
+      {
+        kind: 'account.attribution-backfilled',
+        actor_kind: 'system',
+        actor: 'migration',
+        target: OWNER_ACCOUNT_ID,
+      },
+    ]);
+    expect(await rows(db, 'SELECT DISTINCT created_by FROM projects')).toEqual([
+      { created_by: OWNER_USER_ID },
     ]);
     // The token pair stays where the code reads it; T-4 moves it.
     expect(await rows(db, 'SELECT COUNT(*) AS n FROM user_connections')).toEqual([{ n: 0 }]);

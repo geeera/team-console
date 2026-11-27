@@ -430,3 +430,49 @@ test('claim a runner from before enrollers were recorded as its enroller', async
     await api.dispose();
   }
 });
+
+// #799: in an account with more than one owner, D3 keeps a subscription runner under «all projects» off the projects
+// nobody is recorded as having created (rows from before 0036 that 0048 could not attribute), and the card says so.
+// The stack's account has one owner, where D3 holds nothing back — the real answer is 0 — so the list's count alone is
+// stubbed for the two-owner state; the runner, its enrolment and the rest of the list are the stack's own.
+test('a runner under all projects says which projects it does not take for want of a recorded creator', async ({
+  page,
+  stack,
+}) => {
+  await page.goto('/settings/runners');
+  const runnerId = await enrolOnceWith(stack, await issueCodeInDialog(page, 'Legacy Mac'));
+  const api = await apiClient(stack);
+  try {
+    const listed = (await (
+      await api.get(`/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`)
+    ).json()) as RunnerListDto;
+    expect(listed.runners.find((runner) => runner.id === runnerId)?.unattributedProjects).toBe(0);
+  } finally {
+    await api.dispose();
+  }
+  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as RunnerListDto;
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        runners: body.runners.map((runner) =>
+          runner.id === runnerId ? { ...runner, unattributedProjects: 2 } : runner,
+        ),
+      },
+    });
+  });
+
+  await page.getByTestId('runners-refresh').click();
+  const card = page.getByTestId('runner-card').filter({ hasText: 'Legacy Mac' });
+  await expect(card.getByTestId('runner-scope')).toHaveText(ru('runners.card.scopeAll'));
+  const note = card.getByTestId('runner-unattributed');
+  await expect(note).toHaveAttribute('data-kind', 'projects');
+  await expect(note).toHaveText(ru('runners.card.unattributed.projects.few', { n: 2 }));
+  await expectAccessible(page, 'Settings › Runners (projects with no recorded creator)');
+});
