@@ -46,6 +46,7 @@ describe('migrations on a fresh D1', () => {
       'push_test_sends',
       'rate_limits',
       'role_keys',
+      'runner_checks',
       'runner_enrolment_requests',
       'runner_enrolments',
       'runner_nonces',
@@ -110,6 +111,7 @@ describe('migrations on a fresh D1', () => {
       '0045_job_kinds_orchestration.sql',
       '0046_runner_non_enroller_projects.sql',
       '0047_runner_enrolment_requests_deleted_with_owner.sql',
+      '0049_runner_checks.sql',
     ]);
   });
 

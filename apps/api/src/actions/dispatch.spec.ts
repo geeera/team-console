@@ -1006,7 +1006,7 @@ describe('the account’s entitled concurrency at dispatch (#746)', () => {
     await enqueue(fixture, pull.slug);
     const refused = await sendAsRunner(pull.runner, 'POST', CLAIM, {});
     expect(refused.status).toBe(204);
-    expect(refused.headers.get('Retry-After')).toBe('60');
+    expect(refused.headers.get('Retry-After')).toBe('10'); // #1059: a fresh runner polls again sooner
 
     const second = await enqueue(fixture, fixture.slug, 'security');
     expect(await jobRow(second.id)).toMatchObject({ state: 'queued', dispatched_at: null });
