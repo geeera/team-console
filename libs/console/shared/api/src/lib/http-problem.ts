@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { isProblemDetails, problemSlugOf, type ProblemDetails } from '@shared/contracts';
+import { isProblemDetails, problemSlugOf, retryAfterSecondsOf, type ProblemDetails } from '@shared/contracts';
 
 /** A failed console API call as the screens branch on it: never the raw body, never `detail` text. */
 export interface HttpProblem {
@@ -10,20 +10,15 @@ export interface HttpProblem {
   readonly problem: ProblemDetails | null;
   /** The problem's extension members (`step`, `installUrl`, …), still untrusted: read them with type guards. */
   readonly extensions: Readonly<Record<string, unknown>>;
-  /** Seconds from `Retry-After`, when the response carried a usable (positive) one. */
+  /** Seconds from `Retry-After` (delta or HTTP-date) bounded to 1..3600, or null when it carried no usable one. */
   readonly retryAfterSeconds: number | null;
 }
 
 const PROBLEM_MEMBERS = new Set(['type', 'title', 'status', 'detail', 'instance']);
 
 function retryAfterOf(error: HttpErrorResponse): number | null {
-  const header = error.headers?.get('Retry-After');
-  if (header === null || header === undefined || header.trim() === '') {
-    return null;
-  }
-  const seconds = Number(header);
-  // `0` is "retry now" during a rate limit: callers fall back to their own default instead (#133).
-  return Number.isInteger(seconds) && seconds > 0 ? seconds : null;
+  // Bounded to 1..3600 s (#813): `0` waits a second rather than spinning (#133), a huge value never overflows a timer.
+  return retryAfterSecondsOf(error.headers?.get('Retry-After'), Date.now());
 }
 
 /** Narrows anything an `HttpClient` call threw; a non-HTTP error is a programming error and is rethrown. */

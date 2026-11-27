@@ -36,19 +36,27 @@ describe('httpProblemOf', () => {
     });
   });
 
-  it('ignores a Retry-After that is not a whole number of seconds', () => {
-    const error = new HttpErrorResponse({
-      status: 429,
-      headers: new HttpHeaders({ 'Retry-After': 'Wed, 21 Oct 2026 07:28:00 GMT' }),
-    });
+  const retryAfterOf = (value: string): number | null =>
+    httpProblemOf(new HttpErrorResponse({ status: 429, headers: new HttpHeaders({ 'Retry-After': value }) }))
+      .retryAfterSeconds;
 
-    expect(httpProblemOf(error).retryAfterSeconds).toBeNull();
+  it.each(['soon', '1.5', '-5', ' '])('ignores a Retry-After of %j so callers use their own default', (value) => {
+    expect(retryAfterOf(value)).toBeNull();
   });
 
-  it('treats Retry-After: 0 as missing so callers use their own default (#133)', () => {
-    const error = new HttpErrorResponse({ status: 429, headers: new HttpHeaders({ 'Retry-After': '0' }) });
+  it('reads an HTTP-date Retry-After as the seconds until it', () => {
+    const inTwoMinutes = new Date(Math.floor(Date.now() / 1000) * 1000 + 120_000).toUTCString();
 
-    expect(httpProblemOf(error).retryAfterSeconds).toBeNull();
+    expect(retryAfterOf(inTwoMinutes)).toBeGreaterThanOrEqual(119);
+    expect(retryAfterOf(inTwoMinutes)).toBeLessThanOrEqual(120);
+  });
+
+  it('floors Retry-After: 0 at one second, never "retry now" (#133, #813)', () => {
+    expect(retryAfterOf('0')).toBe(1);
+  });
+
+  it('caps a huge Retry-After at an hour, so no timer overflows (#813)', () => {
+    expect(retryAfterOf(String(10 ** 12))).toBe(3600);
   });
 
   it('rethrows anything that is not an HTTP error', () => {
