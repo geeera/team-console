@@ -107,7 +107,8 @@ export interface RunnerCheckDto {
   readonly id: string;
   readonly kind: RunnerCheckKind;
   readonly state: RunnerCheckState;
-  readonly reason: RunnerCheckReason | null;
+  /** A stored reason only: an enqueue refusal is a problem answer, never a check's reason. */
+  readonly reason: RunnerStoredCheckReason | null;
   /** A text node only (S5): matched by `RUNNER_CHECK_VERSION_PATTERN`, `null` unless `passed`. */
   readonly claudeVersion: string | null;
   readonly createdAt: string;
@@ -131,14 +132,30 @@ function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): 
   return own.length === keys.length && keys.every((key) => own.includes(key));
 }
 
+/**
+ * A check as a console reads it (#1059 PR 3, UX §12.4 «Unknown reason code»): the DTO's exact shape, except that a
+ * failure may carry a reason this build does not know yet (a newer API). The console treats such a code as unknown
+ * and never shows it. The API itself only ever answers a `RunnerCheckDto`.
+ */
+export type RunnerCheckReadDto = Omit<RunnerCheckDto, 'reason'> & { readonly reason: string | null };
+
+/** Any reason code's shape: a short kebab-case word. */
+const REASON_CODE_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
+const isReasonCode = (value: unknown): value is string =>
+  typeof value === 'string' && REASON_CODE_PATTERN.test(value);
+
 export function isRunnerCheckDto(value: unknown): value is RunnerCheckDto {
+  return isRunnerCheckReadDto(value) && isNullable(value.reason, isRunnerStoredCheckReason);
+}
+
+export function isRunnerCheckReadDto(value: unknown): value is RunnerCheckReadDto {
   return (
     isRecord(value) &&
     hasExactKeys(value, RUNNER_CHECK_DTO_KEYS) &&
     isUlid(value['id']) &&
     isRunnerCheckKind(value['kind']) &&
     isRunnerCheckState(value['state']) &&
-    isNullable(value['reason'], isRunnerCheckReason) &&
+    isNullable(value['reason'], isReasonCode) &&
     (value['reason'] === null) === (value['state'] !== 'failed') &&
     isNullable(value['claudeVersion'], isClaudeVersion) &&
     (value['claudeVersion'] !== null) === (value['state'] === 'passed') &&

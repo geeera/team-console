@@ -10,6 +10,7 @@ import {
   isClaudeVersion,
   isRunnerCheckClaimResponse,
   isRunnerCheckDto,
+  isRunnerCheckReadDto,
   type RunnerCheckDto,
 } from './runner-check';
 import { RUNNER_CHECK_KINDS, checkClaimRunnerInput } from './runner';
@@ -110,6 +111,35 @@ describe('isRunnerCheckDto', () => {
   ])('refuses %s', (_case, value) => {
     const dto = Object.fromEntries(Object.entries(value).filter(([, field]) => field !== undefined));
     expect(isRunnerCheckDto(dto)).toBe(false);
+  });
+
+  it('takes a stored reason only, never an enqueue refusal', () => {
+    for (const reason of RUNNER_STORED_CHECK_REASONS) {
+      expect(isRunnerCheckDto({ ...PASSED, state: 'failed', claudeVersion: null, reason })).toBe(true);
+    }
+    for (const reason of ['runner-offline', 'runner-outdated', 'rate-limited']) {
+      expect(isRunnerCheckDto({ ...PASSED, state: 'failed', claudeVersion: null, reason })).toBe(false);
+    }
+  });
+});
+
+describe('isRunnerCheckReadDto (the console’s read, #1059 PR 3)', () => {
+  it('keeps the shape of the DTO and lets a newer reason code through', () => {
+    expect(isRunnerCheckReadDto(PASSED)).toBe(true);
+    expect(
+      isRunnerCheckReadDto({ ...PASSED, state: 'failed', claudeVersion: null, reason: 'brand-new-code' }),
+    ).toBe(true);
+  });
+
+  it.each<[string, Record<string, unknown>]>([
+    ['an extra key', { ...PASSED, command: 'sh' }],
+    ['a version that is markup', { ...PASSED, claudeVersion: '<img src=x onerror=alert(1)>' }],
+    ['a reason that is markup', { ...PASSED, state: 'failed', claudeVersion: null, reason: '<b>x</b>' }],
+    ['a reason too long', { ...PASSED, state: 'failed', claudeVersion: null, reason: 'a'.repeat(65) }],
+    ['a reason that is no string', { ...PASSED, state: 'failed', claudeVersion: null, reason: 7 }],
+    ['a failure without a reason', { ...PASSED, state: 'failed', claudeVersion: null }],
+  ])('refuses %s', (_case, value) => {
+    expect(isRunnerCheckReadDto(value)).toBe(false);
   });
 });
 

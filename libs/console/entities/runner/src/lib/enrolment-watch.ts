@@ -1,7 +1,8 @@
 import { DOCUMENT } from '@angular/common';
 import { DestroyRef, ErrorHandler, inject, Injectable, signal } from '@angular/core';
 import type { EnrolmentIntentDto, EnrolmentIntentState, RunnerDto } from '@shared/contracts';
-import type { RunnerFailure } from './runner-failure';
+import { PollTimer } from './poll-timer';
+import { pollFailed, type RunnerWatchStop } from './runner-poll';
 import { RunnersApi } from './runners.api';
 
 /**
@@ -20,8 +21,6 @@ export const POLL_HIDDEN_MS = 15_000;
 export const RUNNER_WATCH_LIMIT_MS = 15 * 60_000;
 /** Failed polls in a row before the wizard says the console is unreachable (spec §6 state 16). */
 export const POLL_FAILURES_SHOWN = 2;
-/** The wait after a 429 that named no `Retry-After`. */
-export const RATE_LIMITED_DEFAULT_MS = 60_000;
 /** A local expiry is confirmed by the server a moment later: its clock, not ours, decides. */
 const EXPIRY_GRACE_MS = 500;
 
@@ -29,7 +28,7 @@ const EXPIRY_GRACE_MS = 500;
 const SETTLED: ReadonlySet<EnrolmentIntentState> = new Set(['approved', 'used', 'expired', 'withdrawn']);
 
 /** Why a watch stopped on its own: the session ended, the caller lost the owner role, or the intent is not theirs. */
-export type EnrolmentWatchStop = 'session-expired' | 'forbidden' | 'not-found';
+export type EnrolmentWatchStop = RunnerWatchStop;
 
 type Target =
   | { readonly kind: 'intent'; readonly accountId: string; readonly intentId: string }
@@ -38,49 +37,38 @@ type Target =
 /**
  * The add-runner wizard's polling model (#634 PR 4): an intent until it settles, then the runner it created until it
  * is online. Every 3 s (intent) or 5 s (runner) while the page is visible, every 15 s while it is hidden, and once at
- * once when the page becomes visible again or the network comes back. The runner is polled for
+ * once when the page becomes visible again or the network comes back (the `PollTimer`). The runner is polled for
  * `RUNNER_WATCH_LIMIT_MS` at most; after that only `checkNow()` reads (#878). One watch per wizard: provide it in the
  * component, so closing the sheet stops every timer. The intent id is only ever in the path of the owner's own GET.
  */
 @Injectable()
 export class EnrolmentWatch {
   private readonly api = inject(RunnersApi);
-  private readonly document = inject(DOCUMENT);
   private readonly errors = inject(ErrorHandler);
+  private readonly poll = new PollTimer(
+    inject(DOCUMENT),
+    (isCurrent) => this.read(isCurrent),
+    // RunnersApi never throws by contract; a bug in a guard or a signal must still reach the error handler.
+    (error) => this.errors.handleError(error),
+  );
 
   readonly intent = signal<EnrolmentIntentDto | null>(null);
   readonly runner = signal<RunnerDto | null>(null);
   readonly minimumVersion = signal<string | null>(null);
-  readonly failedPolls = signal(0);
+  readonly failedPolls = this.poll.failedPolls.asReadonly();
   readonly stopped = signal<EnrolmentWatchStop | null>(null);
   /** The runner poll ran out its `RUNNER_WATCH_LIMIT_MS`: nothing polls until `checkNow()` (the owner's re-check). */
-  readonly gaveUp = signal(false);
+  readonly gaveUp = this.poll.gaveUp.asReadonly();
   /** Seconds the last 429 asked the watch to wait (#879); `null` once a read succeeds again. */
-  readonly rateLimitedFor = signal<number | null>(null);
+  readonly rateLimitedFor = this.poll.rateLimitedFor.asReadonly();
 
   private target: Target | null = null;
-  /** Bumped by every new target or stop, so an answer to an older read is dropped. */
-  private generation = 0;
-  private timer: ReturnType<typeof setTimeout> | null = null;
   private expiryTimer: ReturnType<typeof setTimeout> | null = null;
-  private limitTimer: ReturnType<typeof setTimeout> | null = null;
-  /** No read before this (`Date.now()`), so a wake-up does not hit the limit again. */
-  private heldUntil = 0;
-  private inFlight: Promise<void> | null = null;
 
   constructor() {
-    const view = this.document.defaultView;
-    const wake = (): void => {
-      if (this.document.visibilityState !== 'hidden' && !this.gaveUp() && Date.now() >= this.heldUntil) {
-        void this.checkNow();
-      }
-    };
-    this.document.addEventListener('visibilitychange', wake);
-    view?.addEventListener('online', wake);
     inject(DestroyRef).onDestroy(() => {
-      this.stop();
-      this.document.removeEventListener('visibilitychange', wake);
-      view?.removeEventListener('online', wake);
+      this.clearExpiry();
+      this.poll.dispose();
     });
   }
 
@@ -88,16 +76,19 @@ export class EnrolmentWatch {
   watchIntent(accountId: string, intentId: string, expiresAt: string): void {
     this.retarget({ kind: 'intent', accountId, intentId });
     this.intent.set(null);
+    this.poll.start({ visibleMs: INTENT_POLL_VISIBLE_MS, hiddenMs: POLL_HIDDEN_MS, limitMs: null });
     this.armExpiry(expiresAt);
-    this.schedule();
   }
 
   /** Watches the runner an approval created until `GET …/runners` shows it online, for `RUNNER_WATCH_LIMIT_MS`. */
   watchRunner(accountId: string, runnerId: string): void {
     this.retarget({ kind: 'runner', accountId, runnerId });
     this.runner.set(null);
-    this.limitTimer = setTimeout(() => this.giveUp(), RUNNER_WATCH_LIMIT_MS);
-    this.schedule();
+    this.poll.start({
+      visibleMs: RUNNER_POLL_VISIBLE_MS,
+      hiddenMs: POLL_HIDDEN_MS,
+      limitMs: RUNNER_WATCH_LIMIT_MS,
+    });
   }
 
   stop(): void {
@@ -106,119 +97,54 @@ export class EnrolmentWatch {
 
   /** One read now, whatever the timer says; joins a read already under way. */
   checkNow(): Promise<void> {
-    if (this.target === null) {
-      return Promise.resolve();
-    }
-    if (this.inFlight !== null) {
-      return this.inFlight;
-    }
-    this.clearTimer();
-    const run: Promise<void> = this.tick().finally(() => {
-      if (this.inFlight === run) {
-        this.inFlight = null;
-      }
-    });
-    this.inFlight = run;
-    return run;
+    return this.poll.checkNow();
   }
 
-  private async tick(): Promise<void> {
+  private async read(isCurrent: () => boolean): Promise<void> {
     const target = this.target;
-    const generation = this.generation;
     if (target === null) {
       return;
     }
-    try {
-      await this.read(target, generation);
-    } catch (error: unknown) {
-      // RunnersApi never throws by contract; a bug in a guard or a signal must not end the polling silently.
-      this.errors.handleError(error);
-      if (generation === this.generation) {
-        this.failedPolls.update((count) => count + 1);
-      }
-    }
-    if (generation === this.generation) {
-      this.schedule();
-    }
-  }
-
-  private async read(target: Target, generation: number): Promise<void> {
     if (target.kind === 'intent') {
       const read = await this.api.enrolmentIntent(target.accountId, target.intentId);
-      if (generation !== this.generation) {
+      if (!isCurrent()) {
         return;
       }
-      if (read.ok) {
-        this.answered();
-        this.intent.set(read.value);
-        if (SETTLED.has(read.value.state)) {
-          this.retarget(null);
-        } else {
-          this.armExpiry(read.value.expiresAt);
-        }
-      } else {
-        this.fail(read.failure);
-      }
-    } else {
-      const read = await this.api.list(target.accountId);
-      if (generation !== this.generation) {
+      if (!read.ok) {
+        this.stopWith(pollFailed(this.poll, read.failure));
         return;
       }
-      if (read.ok) {
-        this.answered();
-        const runner = read.value.runners.find((row) => row.id === target.runnerId) ?? null;
-        this.runner.set(runner);
-        this.minimumVersion.set(read.value.release.minimumVersion);
-        if (runner?.online === true) {
-          this.retarget(null);
-        }
-      } else {
-        this.fail(read.failure);
-      }
-    }
-  }
-
-  private giveUp(): void {
-    this.limitTimer = null;
-    this.clearTimer();
-    this.gaveUp.set(true);
-  }
-
-  private answered(): void {
-    this.failedPolls.set(0);
-    this.rateLimitedFor.set(null);
-  }
-
-  private fail(failure: RunnerFailure): void {
-    switch (failure.kind) {
-      case 'rate-limited': {
-        // The console answered: this is not "no connection", and polling sooner would only be refused again.
-        const seconds = failure.retryAfterSeconds ?? null;
-        const waitMs = seconds === null ? RATE_LIMITED_DEFAULT_MS : seconds * 1000;
-        this.heldUntil = Date.now() + waitMs;
-        this.failedPolls.set(0);
-        this.rateLimitedFor.set(Math.ceil(waitMs / 1000));
-        return;
-      }
-      case 'session-expired':
-      case 'forbidden':
-      case 'not-found':
+      this.poll.answered();
+      this.intent.set(read.value);
+      if (SETTLED.has(read.value.state)) {
         this.retarget(null);
-        this.stopped.set(failure.kind);
-        return;
-      default:
-        this.failedPolls.update((count) => count + 1);
-    }
-  }
-
-  private schedule(): void {
-    this.clearTimer();
-    if (this.target === null || this.gaveUp()) {
+      } else {
+        this.armExpiry(read.value.expiresAt);
+      }
       return;
     }
-    const visible = this.target.kind === 'intent' ? INTENT_POLL_VISIBLE_MS : RUNNER_POLL_VISIBLE_MS;
-    const interval = this.document.visibilityState === 'hidden' ? POLL_HIDDEN_MS : visible;
-    this.timer = setTimeout(() => void this.checkNow(), Math.max(interval, this.heldUntil - Date.now()));
+    const read = await this.api.list(target.accountId);
+    if (!isCurrent()) {
+      return;
+    }
+    if (!read.ok) {
+      this.stopWith(pollFailed(this.poll, read.failure));
+      return;
+    }
+    this.poll.answered();
+    const runner = read.value.runners.find((row) => row.id === target.runnerId) ?? null;
+    this.runner.set(runner);
+    this.minimumVersion.set(read.value.release.minimumVersion);
+    if (runner?.online === true) {
+      this.retarget(null);
+    }
+  }
+
+  private stopWith(stop: EnrolmentWatchStop | null): void {
+    if (stop !== null) {
+      this.retarget(null);
+      this.stopped.set(stop);
+    }
   }
 
   private armExpiry(expiresAt: string): void {
@@ -230,33 +156,14 @@ export class EnrolmentWatch {
     this.expiryTimer = setTimeout(() => void this.checkNow(), Math.max(0, at - Date.now()) + EXPIRY_GRACE_MS);
   }
 
+  /** A new target clears the last stop; no target stops every timer. */
   private retarget(target: Target | null): void {
-    this.generation += 1;
     this.target = target;
-    this.inFlight = null;
-    this.clearTimer();
     this.clearExpiry();
-    this.clearLimit();
-    this.gaveUp.set(false);
-    this.failedPolls.set(0);
-    // `heldUntil` survives a new target: the limit is the caller's, not the intent's.
-    this.rateLimitedFor.set(null);
-    if (target !== null) {
+    if (target === null) {
+      this.poll.stop();
+    } else {
       this.stopped.set(null);
-    }
-  }
-
-  private clearTimer(): void {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-      this.timer = null;
-    }
-  }
-
-  private clearLimit(): void {
-    if (this.limitTimer !== null) {
-      clearTimeout(this.limitTimer);
-      this.limitTimer = null;
     }
   }
 

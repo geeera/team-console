@@ -6,6 +6,7 @@ import {
   isEnrolmentCodeDto,
   isEnrolmentIntentCreatedDto,
   isEnrolmentIntentDto,
+  isRunnerCheckReadDto,
   isRunnerDto,
   isRunnerListDto,
   isRunnerPolicyDto,
@@ -24,9 +25,11 @@ import {
   type RunnerListDto,
   type RunnerPolicy,
   type RunnerPolicyDto,
+  type StartRunnerCheckInput,
   type UpdateRunnerInput,
 } from '@shared/contracts';
 import { firstValueFrom, timeout, type Observable } from 'rxjs';
+import { runnerCheckOf, type RunnerCheck } from './runner-check.model';
 import { RUNNER_CALL_TIMEOUT_MS, runnerFailureOf, type RunnerResult } from './runner-failure';
 
 export const ACCOUNTS_URL = '/api/v1/accounts';
@@ -42,6 +45,11 @@ export function runnersUrl(accountId: string): string {
 
 export function runnerUrl(accountId: string, runnerId: string): string {
   return `${runnersUrl(accountId)}/${encodeURIComponent(runnerId)}`;
+}
+
+/** `…/runners/:runner/checks` (#1059): a check id goes only into the path of the owner's own GET. */
+export function runnerChecksUrl(accountId: string, runnerId: string): string {
+  return `${runnerUrl(accountId, runnerId)}/checks`;
 }
 
 /**
@@ -175,6 +183,27 @@ export class RunnersApi {
 
   revoke(accountId: string, runnerId: string): Promise<RunnerResult<RunnerDto>> {
     return this.call(this.http.post<unknown>(`${runnerUrl(accountId, runnerId)}/revoke`, {}), isRunnerDto);
+  }
+
+  /**
+   * Starts a check on the runner (#1059 PR 3; any owner of the account). A check already in flight answers 200 with
+   * itself, so a second press or a second tab re-attaches to it instead of starting another. Refusals are problems:
+   * 409 `runner-offline` | `runner-outdated` | `runner-paused` | `runner-revoked`, 422 `runner-check-unsupported`,
+   * 429 with `Retry-After`. A same-origin JSON POST, which is what the API's CSRF rule asks for.
+   */
+  async startCheck(accountId: string, runnerId: string): Promise<RunnerResult<RunnerCheck>> {
+    const body: StartRunnerCheckInput = { kind: 'smoke' };
+    const read = await this.call(
+      this.http.post<unknown>(runnerChecksUrl(accountId, runnerId), body),
+      isRunnerCheckReadDto,
+    );
+    return read.ok ? { ok: true, value: runnerCheckOf(read.value) } : read;
+  }
+
+  async check(accountId: string, runnerId: string, checkId: string): Promise<RunnerResult<RunnerCheck>> {
+    const url = `${runnerChecksUrl(accountId, runnerId)}/${encodeURIComponent(checkId)}`;
+    const read = await this.call(this.http.get<unknown>(url), isRunnerCheckReadDto);
+    return read.ok ? { ok: true, value: runnerCheckOf(read.value) } : read;
   }
 
   /** #827: the sole owner records themselves as the enroller of a runner from before that was recorded. */
