@@ -103,7 +103,7 @@ function fakeBackend(kind: RunnerIsolation, home: string, plan: Plan = {}): Fake
       }
       return await createPrivateSandbox(home, job);
     },
-    launch: async (_sandbox: Sandbox, _spec: LaunchSpec) => {
+    launch: async () => {
       throw new Error('a check never launches a job');
     },
     launchCheck: async (_sandbox: Sandbox, spec: CheckLaunchSpec): Promise<RunningProcess> => {
