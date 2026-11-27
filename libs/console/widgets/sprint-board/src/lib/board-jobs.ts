@@ -10,7 +10,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { JobCard, jobFailureKeyOf, JobsStore, runnerLabelOf, type JobFailure } from '@console/entities/job';
 import { projectActionsRouteOf } from '@console/entities/project';
-import { RunNow } from '@console/features/run-now';
+import { RunNow, type RunNowWait } from '@console/features/run-now';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, Callout, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
 import type { JobDto, RunnerDto, RunnerPauseReason } from '@shared/contracts';
@@ -111,7 +111,7 @@ export function isolatedName(name: string): string {
           <tc-run-now
             class="board-jobs__run-now"
             [slug]="slug()"
-            [waiting]="isWaiting()"
+            [waiting]="waitsFor()"
             (enqueued)="onEnqueued($event)"
           />
         } @else if (store.status() === 'ready') {
@@ -346,10 +346,20 @@ export class BoardJobs {
   protected readonly showsRunNow = computed(
     () => this.canRun() || (this.store.status() === 'error' && this.ownsAccount()),
   );
-  /** A job queued now waits for a runner: the outcome line says so instead of «queued». */
-  protected readonly isWaiting = computed(() => {
-    const availability = this.store.availability();
-    return availability === 'offline' || availability === 'paused';
+  /**
+   * What a job queued now waits for, said by the outcome line instead of «queued». The team's pause (#810) has no line
+   * of its own here: the project's paused banner already names it, with Resume.
+   */
+  protected readonly waitsFor = computed((): RunNowWait | null => {
+    switch (this.store.availability()) {
+      case 'offline':
+      case 'paused':
+        return 'runner';
+      case 'team-paused':
+        return 'team';
+      default:
+        return null;
+    }
   });
   protected readonly ownerPause = computed(() => (this.canRun() ? this.pause() : null));
 

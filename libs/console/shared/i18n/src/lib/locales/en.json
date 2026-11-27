@@ -2649,7 +2649,8 @@
       "submit": "Run",
       "queued": "{{kind}}: queued.",
       "hint": "Review and PM chat start from their own places: a pull request and the team chat.",
-      "queuedWaiting": "{{kind}}: queued. It starts when the runner is back."
+      "queuedWaiting": "{{kind}}: queued. It starts when the runner is back.",
+      "queuedTeamPaused": "{{kind}}: queued. It starts when the team’s pause is lifted."
     },
     "tile": {
       "running": "Running: {{kind}}",

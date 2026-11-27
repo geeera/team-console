@@ -1602,6 +1602,31 @@ describe('SprintBoard', () => {
       await settle();
     });
 
+    // #810: the paused banner names the team's pause; the tile adds no line of its own, only the waiting outcome.
+    it('team-paused: no availability line, Run stays enabled and says the job waits for the pause', async () => {
+      const { root, settle } = await renderGitHub({ runnerAvailability: 'team-paused', canRunNow: true });
+      const line = runsLane(root).querySelector('[data-testid="jobs-availability"]') as HTMLElement;
+      expect(line.dataset['availability']).toBe('team-paused');
+      expect(line.textContent?.trim()).toBe('');
+      const submit = root.querySelector('[data-testid="run-now-submit"]') as HTMLButtonElement;
+      expect(submit.disabled).toBe(false);
+      submit.click();
+      http
+        .expectOne((request) => request.method === 'POST' && request.url === projectJobsUrl(TC.slug))
+        .flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
+      await settle();
+      expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent).toContain(
+        'Слот PM: в очереди. Начнётся, когда пауза команды будет снята.',
+      );
+      http.expectOne(JOBS).flush({
+        ...LIST,
+        jobs: [queuedJobFixture({ kind: 'slot-pm' })],
+        runnerAvailability: 'team-paused',
+        canRunNow: true,
+      });
+      await settle();
+    });
+
     it('offline, member: the member wording, with no Runners link', async () => {
       const { root } = await renderGitHub({ runnerAvailability: 'offline', canRunNow: false }, [], {
         role: 'member',

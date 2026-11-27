@@ -5,7 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { queuedJobFixture, RUN_NOW_KINDS } from '@console/entities/job';
 import { provideConsoleI18n } from '@console/shared/i18n';
 import { problemTypeOf, type JobDto } from '@shared/contracts';
-import { RunNow } from './run-now';
+import { RunNow, type RunNowWait } from './run-now';
 
 const JOBS = '/api/v1/projects/team-console/jobs';
 
@@ -15,7 +15,7 @@ const JOBS = '/api/v1/projects/team-console/jobs';
 })
 class Host {
   readonly slug = signal('team-console');
-  readonly waiting = signal(false);
+  readonly waiting = signal<RunNowWait | null>(null);
   readonly queued: JobDto[] = [];
 }
 
@@ -116,9 +116,22 @@ describe('RunNow', () => {
     );
   });
 
+  it('says the job waits for the team when its pause holds (#810)', async () => {
+    const { fixture, root, submit, http } = setup();
+    fixture.componentInstance.waiting.set('team');
+    fixture.detectChanges();
+    expect(submit.disabled).toBe(false);
+    submit.click();
+    http.expectOne(JOBS).flush(queuedJobFixture({ kind: 'slot-pm' }), { status: 201, statusText: 'Created' });
+    await settle(fixture);
+    expect(root.querySelector('[data-testid="run-now-queued"]')?.textContent).toContain(
+      'Слот PM: в очереди. Начнётся, когда пауза команды будет снята.',
+    );
+  });
+
   it('says the job waits for the runner when none can take it now, and never disables Run for that', async () => {
     const { fixture, root, submit, http } = setup();
-    fixture.componentInstance.waiting.set(true);
+    fixture.componentInstance.waiting.set('runner');
     fixture.detectChanges();
     expect(submit.disabled).toBe(false);
     submit.click();

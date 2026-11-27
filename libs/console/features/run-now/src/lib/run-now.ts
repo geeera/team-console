@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   ElementRef,
   inject,
   input,
@@ -20,6 +21,14 @@ import { Button, Field, FieldControl, Icon } from '@console/shared/ui';
 import type { JobDto } from '@shared/contracts';
 
 let nextRunNowId = 0;
+
+/** What a queued job waits for (#775, #810): a runner that is offline or paused, or the team's pause. */
+export type RunNowWait = 'runner' | 'team';
+
+const QUEUED_KEY: Readonly<Record<RunNowWait, string>> = {
+  runner: 'jobs.runNow.queuedWaiting',
+  team: 'jobs.runNow.queuedTeamPaused',
+};
 
 /**
  * Run now (#464, ADR 0008 row 2-E): a kind picker and one button that queues a job of that kind for the project
@@ -76,8 +85,7 @@ let nextRunNowId = 0;
           }}</span>
         } @else if (queuedKind(); as kind) {
           <span data-testid="run-now-queued">{{
-            (waiting() ? 'jobs.runNow.queuedWaiting' : 'jobs.runNow.queued')
-              | transloco: { kind: ('jobs.kind.' + kind | transloco) }
+            queuedKey() | transloco: { kind: ('jobs.kind.' + kind | transloco) }
           }}</span>
         }
       </p>
@@ -126,8 +134,8 @@ export class RunNow {
   private readonly api = inject(JobsApi);
 
   readonly slug = input.required<string>();
-  /** No runner can take the job now (offline or paused): a queued job waits for one, and the outcome says so. */
-  readonly waiting = input(false);
+  /** Nothing can take the job now (a runner offline or paused, or the team paused): the outcome says what it waits for. */
+  readonly waiting = input<RunNowWait | null>(null);
   /** The job the Worker queued. */
   readonly enqueued = output<JobDto>();
 
@@ -139,6 +147,10 @@ export class RunNow {
   protected readonly submitting = signal(false);
   protected readonly failure = signal<JobFailure | null>(null);
   protected readonly queuedKind = signal<RunNowKind | null>(null);
+  protected readonly queuedKey = computed(() => {
+    const wait = this.waiting();
+    return wait === null ? 'jobs.runNow.queued' : QUEUED_KEY[wait];
+  });
 
   /** The header's «Run» lands here (#775): the kind picker is the form's first control. */
   focus(): void {
