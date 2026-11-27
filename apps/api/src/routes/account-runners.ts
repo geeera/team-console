@@ -32,6 +32,7 @@ import {
   AccountsRepo,
   JobsRepo,
   ProjectsRepo,
+  RunnerChecksRepo,
   RunnersRepo,
   effectivePolicyOf,
   type AccountRecord,
@@ -641,13 +642,17 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         }
         const now = new Date();
         const at = now.toISOString();
-        // ADR 0006: revoking a runner cancels the jobs it holds, in the same batch (their tokens die with it).
+        // ADR 0006: revoking a runner cancels the jobs it holds, in the same batch (their tokens die with it); #1059:
+        // its live check fails as `runner-revoked`, audited, in that batch too.
         const revoked = await runners.revoke(
           account.id,
           runner.id,
           at,
           auditOf(c, account, at, 'runner.revoked', runner.id, { name: runner.name }),
-          new JobsRepo(c.env.DB).cancelForRunnerStatements(runner.id, at),
+          [
+            ...new JobsRepo(c.env.DB).cancelForRunnerStatements(runner.id, at),
+            ...(await new RunnerChecksRepo(c.env.DB).failLiveOnRevokeStatements(account.id, runner.id, at)),
+          ],
         );
         if (!revoked) {
           return problem(c, { type: 'runner-revoked', title: 'Conflict', status: 409 });

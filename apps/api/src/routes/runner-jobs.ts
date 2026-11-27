@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import {
   JOB_LEASE_SECONDS,
+  RUNNER_CHECK_DEADLINE_SECONDS,
+  RUNNER_FRESH_POLL_SECONDS,
+  RUNNER_FRESH_WINDOW_SECONDS,
   RUNNER_POLL_SECONDS,
   checkClaimRunnerInput,
   checkFinishJobInput,
@@ -10,6 +13,7 @@ import {
   type ClaimResponse,
   type HeartbeatResponse,
   type JobEventsResponse,
+  type RunnerCheckClaimResponse,
   type RunnerScopeDto,
 } from '@shared/contracts';
 import { JOB_TOKEN_PREFIX } from '@shared/redaction';
@@ -24,6 +28,7 @@ import {
 import {
   AuditRepo,
   JobsRepo,
+  RunnerChecksRepo,
   RunnersRepo,
   TeamStateRepo,
   type HeldJobRecord,
@@ -33,6 +38,7 @@ import {
 } from '@worker/db';
 import { dispatchAdmittedActionsJobs } from '../actions/dispatch';
 import type { Identity } from '../auth/auth.types';
+import { recordPendingSighting } from '../auth/runner-auth';
 import type { ApiEnv } from '../env';
 import type { ApiGitHub } from '../github';
 import { jsonBody } from '../json-body';
@@ -64,6 +70,22 @@ function newJobToken(): string {
 function invalid(c: Context, type: string, field: string, detail: string): Response {
   const extensions: Record<string, ProblemExtensionValue> = { field };
   return problem(c, { type, title: 'Invalid request', status: 422, detail, extensions });
+}
+
+/**
+ * The idle claim's `Retry-After` (#1059, T9): `RUNNER_FRESH_POLL_SECONDS` for a self-hosted runner the server enrolled
+ * less than `RUNNER_FRESH_WINDOW_SECONDS` ago, so the wizard's check is picked up within seconds; the idle interval for
+ * every other. Judged on the stored `enrolled_at`, never on anything the runner sends. A revoked runner never gets
+ * here (the door answers 401), nor does an `actions-ephemeral` one (403 above).
+ */
+function idlePollSecondsOf(stored: RunnerRecord | null, now: Date): number {
+  const fresh =
+    stored !== null &&
+    !stored.hosted &&
+    stored.isolation !== 'actions-ephemeral' &&
+    stored.revokedAt === null &&
+    now.getTime() - Date.parse(stored.enrolledAt) < RUNNER_FRESH_WINDOW_SECONDS * 1000;
+  return fresh ? RUNNER_FRESH_POLL_SECONDS : RUNNER_POLL_SECONDS;
 }
 
 /** `job` as the live job of the runner `runnerId` under its scope; another runner's or a finished one is 404/409. */
@@ -206,10 +228,39 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
           accessSources: input.value.accessSources,
         });
       }
+      // #1059 (S1): the stored declaration gates the owner's enqueue only; delivery below reads this body's.
+      if (
+        input.value.checks !== undefined &&
+        (await runners.setChecks(runner.runnerId, input.value.checks))
+      ) {
+        logger.info('runner declared checks', { runnerId: runner.runnerId, checks: input.value.checks });
+      }
+      // N8: presence is recorded only now, so a runner that reads as online is already declared.
+      const authenticated = c.get('pendingSighting') ?? null;
+      await recordPendingSighting(c, logger);
       const teamState = new TeamStateRepo(c.env.DB);
       const lapsed = await jobs.requeueLapsed(nowIso);
       for (const lost of lapsed.lost) {
         await teamState.recordOutcome(lost.projectSlug, 'failed', nowIso);
+      }
+      // #1059: a check goes ahead of queued jobs (at most 30 s, and the owner is watching). This poll then claims no
+      // job; the answer names the check alone, with no job, token, scope or team configuration (S2).
+      const check = await new RunnerChecksRepo(c.env.DB).pickUp(
+        runner.accountId,
+        runner.runnerId,
+        input.value.checks ?? [],
+        nowIso,
+      );
+      if (check !== null) {
+        logger.info('runner check picked up', {
+          checkId: check.id,
+          runnerId: runner.runnerId,
+          kind: check.kind,
+        });
+        const answer: RunnerCheckClaimResponse = {
+          check: { id: check.id, kind: check.kind, deadlineSeconds: RUNNER_CHECK_DEADLINE_SECONDS },
+        };
+        return c.json(answer);
       }
       const token = newJobToken();
       const job = await jobs.claim({
@@ -221,7 +272,10 @@ export function createRunnerJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<Api
         leaseUntil: new Date(now.getTime() + JOB_LEASE_SECONDS * 1000).toISOString(),
       });
       if (job === null) {
-        c.header('Retry-After', String(RUNNER_POLL_SECONDS));
+        c.header(
+          'Retry-After',
+          String(idlePollSecondsOf(authenticated ?? (await runners.findById(runner.runnerId)), now)),
+        );
         return c.body(null, 204);
       }
       const stored = await runners.findInAccount(runner.accountId, runner.runnerId);

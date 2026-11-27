@@ -27,6 +27,8 @@ const IDENTITY_LESS_PATHS: readonly string[] = [
   ENROL_START_PATH,
   ENROL_POLL_PATH,
 ];
+/** The claim poll: it records its sighting itself, after it stored the runner's declarations (#1059 N8). */
+export const RUNNER_CLAIM_PATH = '/api/v1/runner/jobs/claim';
 /** The header a job's proxied call carries the runner JWT in (2-A's job token middleware). */
 export const RUNNER_JWT_HEADER = 'X-Runner-Jwt';
 
@@ -49,6 +51,35 @@ export function isEnrolRequest(method: string, path: string): boolean {
 }
 
 export type RunnerIdentity = Extract<Identity, { kind: 'runner' }>;
+
+declare module 'hono' {
+  interface ContextVariableMap {
+    /**
+     * The runner row authentication read, on the claim poll only, until its sighting is recorded (#1059 N8):
+     * `recordPendingSighting` records it once and clears it. Also what the claim judges the fresh-runner poll by.
+     */
+    pendingSighting: RunnerRecord | null;
+  }
+}
+
+/**
+ * Whether the call records its sighting from the route (#1059 N8): the claim stores the runner's `checks` (and
+ * `accessSources`) declaration first, so a runner that reads as online after a declaring poll is already declared,
+ * and the wizard's check never meets a false `runner-outdated`.
+ */
+export function defersSighting(method: string, path: string): boolean {
+  return method === 'POST' && path === RUNNER_CLAIM_PATH;
+}
+
+/** Records the deferred sighting of this call, once; a no-op when there is none (or it was recorded). */
+export async function recordPendingSighting(c: WorkerContext<ApiEnv>, logger: Logger): Promise<void> {
+  const runner = c.get('pendingSighting');
+  if (runner === null || runner === undefined) {
+    return;
+  }
+  c.set('pendingSighting', null);
+  await recordSighting(c, runner, logger);
+}
 
 export type RunnerRefusal =
   | 'runner-jwt-missing'

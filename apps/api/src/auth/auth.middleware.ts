@@ -8,8 +8,10 @@ import { isLocalBypass } from './local-bypass';
 import { jobIdentityOf } from './job-auth';
 import { bearerOf, parseLocalJobToken } from './local-job';
 import {
+  defersSighting,
   isEnrolRequest,
   isRunnerPath,
+  recordPendingSighting,
   recordSighting,
   runnerIdentityOf,
   runnerJwtOf,
@@ -58,6 +60,14 @@ export const authMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = async (c
     const verification = await verifyRunnerJwt(c, token);
     if (!verification.ok) {
       return runnerRefusal(c, logger, verification);
+    }
+    if (defersSighting(c.req.method, c.req.path)) {
+      // #1059 N8: the claim records it after storing its declarations; a call that ended before that (a refusal, an
+      // error) is recorded here, so presence never depends on how the route answered.
+      c.set('pendingSighting', verification.runner);
+      await grant(runnerIdentityOf(verification.runner));
+      await recordPendingSighting(c, logger);
+      return;
     }
     await recordSighting(c, verification.runner, logger);
     await grant(runnerIdentityOf(verification.runner));

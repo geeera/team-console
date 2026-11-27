@@ -38,7 +38,7 @@ describe('GET /api/v1/needs-you: the concurrency stop (#746)', () => {
 
     const claim = await sendAsRunner(runner, 'POST', '/api/v1/runner/jobs/claim', {});
     expect(claim.status).toBe(204);
-    expect(claim.headers.get('Retry-After')).toBe('60');
+    expect(claim.headers.get('Retry-After')).toBe('10'); // #1059: a fresh runner polls again sooner
 
     const body = await needsYou();
     expect(body.projects.find((row) => row.slug === waiting.slug)?.concurrencyStop).toEqual({

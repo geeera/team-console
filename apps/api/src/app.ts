@@ -12,6 +12,7 @@ import {
   createRunnerEnrolmentIntentRoutes,
 } from './routes/enrolment-intents';
 import { createRunnerRoutes } from './routes/runner';
+import { createAccountRunnerCheckRoutes, createRunnerCheckRoutes } from './routes/runner-checks';
 import { createRunnerJobRoutes } from './routes/runner-jobs';
 import { createRunnerPauseRoutes } from './routes/runner-pause';
 import { createRunnerSelfRoutes } from './routes/runner-self';
@@ -174,6 +175,9 @@ export function createApiApp(options: CreateApiAppOptions = {}): Hono<WorkerHono
   // The customer's Actions setup (#759): this console's rendering of the runner workflow and the readiness check.
   v1.route('/projects', createActionsSetupRoutes(github));
   v1.route('/runner', createRunnerJobRoutes(github));
+  // Runner checks (#1059): the owner starts and reads one; the runner's claim delivers it and `finish` reports it.
+  v1.route('/accounts', createAccountRunnerCheckRoutes());
+  v1.route('/runner', createRunnerCheckRoutes());
   // Team configuration (#687, ADR 0009): D1 behind the matrix; the import reads project.yml through the VCS adapter.
   v1.route('/projects', createTeamConfigRoutes(github, owners));
   // The runner's own pause on a usage or rate limit (#571): the claim skips it until `until`.

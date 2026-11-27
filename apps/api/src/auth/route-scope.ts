@@ -126,6 +126,9 @@ export const ROUTE_SCOPES = {
   // #827: the sole owner claims a runner from before `enrolled_by`; another account's is 404, as above.
   'POST /api/v1/accounts/:id/runners/:runner/claim-enroller': 'account',
   'POST /api/v1/accounts/:id/runners/enrolment-codes/:enrolment/withdraw': 'account',
+  // #1059: any owner of the account starts and reads a runner check; another account's runner or check is 404.
+  'POST /api/v1/accounts/:id/runners/:runner/checks': 'account',
+  'GET /api/v1/accounts/:id/runners/:runner/checks/:check': 'account',
   // #634: enrolment intents of the owner's wizard; one of another account or another owner is 404 (R-INT-2).
   'POST /api/v1/accounts/:id/runners/enrolment-intents': 'account',
   // #817: the caller's own open intents, never another owner's.
@@ -179,6 +182,8 @@ export const ROUTE_SCOPES = {
   'POST /api/v1/runner/jobs/:id/heartbeat': 'runner',
   'POST /api/v1/runner/jobs/:id/events': 'runner',
   'POST /api/v1/runner/jobs/:id/finish': 'runner',
+  // #1059: the runner reports its own running check; runner and account come from the JWT alone.
+  'POST /api/v1/runner/checks/:id/finish': 'runner',
   // The runner's own pause (#571): itself only, inside its account; the identity names both, never the body.
   'POST /api/v1/runner/pause': 'runner',
   'POST /api/v1/runner/resume': 'runner',

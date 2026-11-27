@@ -100,6 +100,7 @@ typed them; rendering stays plain text or `tc-markdown` for team-authored text (
 | `verdicts` | `id INTEGER PK`, `pull_request_id`, `head_sha`, `role` (`qa` \| `reviewer` \| `security`), `verdict` (`approved` \| `changes-requested`), `body`, `job_id`, `role_key_id`, `payload TEXT`, `signature TEXT`, `nonce TEXT UNIQUE`, `created_at` | Newest per (`pull_request_id`, `role`) on the current `head_sha` is the one the gate reads. Phase 2. |
 | `runners` | `id TEXT PK` (ULID), `name`, `public_key_jwk TEXT`, `host TEXT` (JSON: `os`, `arch`, `hostname`), `capabilities TEXT` (JSON: `local`, `max_concurrency`, roles), `access_token_id TEXT` (the Access service token id, never the secret), `enrolled_at`, `last_seen_at`, `revoked_at NULL` | Phase 2 (enrolment) / Phase 4 (heartbeat). |
 | `runner_enrolments` | `code_hash TEXT PK`, `created_at`, `expires_at`, `used_by_runner_id NULL` | One-time codes the owner generates; 10 minutes. |
+| `runner_checks` (#1059, migration 0049) | `id TEXT PK` (ULID), `account_id` → `accounts`, `runner_id` → `runners` (the same account, by trigger), `kind` (`smoke`), `requested_by` (the owner's audit actor), `state` (`queued` \| `running` \| `passed` \| `failed`), `reason NULL` (NOT NULL ⇔ `failed`; the runner-reportable and server codes), `claude_version NULL` (≤ 64, `[0-9A-Za-z.+-]`, only on `passed`), `duration_ms NULL` (0–120000), `created_at`, `picked_at NULL`, `finished_at NULL` (⇔ final) | Partial UNIQUE (`runner_id`) on the live states; identity kept, the state only moves forward and a final state stays final; deleted with its runner, account or requester; finished rows pruned after 30 days (the audit keeps them). Never read by the claim, placement or `jobs`. |
 | `role_keys` | `id INTEGER PK`, `runner_id`, `role`, `public_key_jwk`, `created_at`, `revoked_at NULL` | UNIQUE (`runner_id`, `role`) while unrevoked. |
 | `jobs` | `id TEXT PK` (ULID), `project_slug NULL`, `kind` (`slot-pm` \| `slot-dev` \| `slot-qa` \| `burn` \| `audit` \| `review` \| `chat` \| `kickoff` \| `import` \| `digest`), `payload TEXT`, `priority INTEGER`, `state` (`queued` \| `claimed` \| `running` \| `finished` \| `failed` \| `lost` \| `cancelled`), `requested_by` (`schedule:<id>` \| `owner` \| `webhook` \| `job:<id>`), `dedupe_key TEXT`, `needs_local INTEGER NOT NULL DEFAULT 0`, `parent_job_id NULL` (child-token parentage, the lineage the verdict check follows), `runner_id NULL`, `attempt INTEGER`, `created_at`, `claimed_at`, `lease_until`, `started_at`, `finished_at`, `result TEXT` (JSON: summary, metrics, `acted`) | Partial UNIQUE on `dedupe_key` while `state IN ('queued','claimed','running')` is the overlap guard (one `slot-dev` per project). Replaces `slot_requests`. |
 | `job_events` | `id INTEGER PK`, `job_id`, `seq INTEGER`, `at`, `level`, `kind` (`started` \| `log` \| `notice` \| `acted` \| `metric` \| `paused` \| `finished` \| `failed`), `payload TEXT` | Append-only run log; batched (one row per ≤ 50 lines or 10 s) to stay inside D1's write budget. |
@@ -293,7 +294,10 @@ cannot express a method, recorded as an amendment.
   Access with the code, generates the runner key and the role keys, posts the public JWKs and stores the runner
   id. The runner installs as a LaunchDaemon from a tagged release, not writable by the job user.
 - **Claim.** `POST /runner/jobs/claim { capabilities }` → `200 { job, jobToken, leaseSeconds }` or `204` with
-  `Retry-After` (the poll interval: 20 s while the owner is active, 60 s otherwise). The claim is one statement:
+  `Retry-After` (the poll interval: 20 s while the owner is active, 60 s otherwise; #1059: 10 s for a self-hosted
+  runner the server enrolled less than 15 minutes ago, judged on `enrolled_at`, so the wizard's check is picked up
+  quickly). #1059: for a poll that declares `checks`, the answer may instead be `200 {check: {id, kind,
+  deadlineSeconds}}` (the runner's queued check, picked up before the job claim; no job, token or scope). The claim is one statement:
   `UPDATE jobs SET state='claimed', runner_id=?, claimed_at=?, lease_until=?, attempt=attempt+1 WHERE id = (SELECT id
   FROM jobs WHERE state='queued' AND (needs_local=0 OR ?) AND (project_slug IS NULL OR project_slug NOT IN paused)
   AND (project_slug IS NULL OR project_slug IN <the runner's project allow-list>) ORDER BY priority DESC,
@@ -329,6 +333,25 @@ cannot express a method, recorded as an amendment.
   `capabilities.local = true` is what lets a job with `needs:local` reach the Mac. Two runners split the queue
   by the atomic claim; a job pinned to a runner is `payload.runner_id`; a runner serves only the projects on its
   allow-list (Settings › Runners).
+- **Runner checks (#1059, migration `0049_runner_checks`).** A check is a runner-addressed probe, **not a job**:
+  `runner_checks` (`queued` → `running` → `passed` | `failed`, and `queued` → `failed`; at most one live per runner by
+  a partial unique index) names one runner by id. An owner of the account starts one
+  (`POST /api/v1/accounts/:id/runners/:runner/checks {kind: 'smoke'}`; idempotent while one is live; 10 per runner
+  and 30 per account per hour, created rows only) and reads it (`GET …/checks/:check`). It is delivered inside the
+  runner's own claim poll, before `jobs.claim`, and **only to a poll whose body declares the kind** (`checks:
+  ['smoke']`); the stored `capabilities.checks` gates the enqueue alone (`runner-outdated`), so a downgraded runner
+  is never handed one. That poll answers `200 {check: {id, kind, deadlineSeconds: 30}}` and claims no job. `smoke`
+  runs `claude --version` through the isolation backend's `preflight → prepare → launch → cleanup` as the job user
+  (or a fresh container with no mounts and no network), with an empty environment, no credential value and no
+  repository; the command, argv, env and timeout per kind are compiled into the signed runner, never served. What
+  leaves the host is a version string (one shared bounded regex) and a reason code
+  (`RUNNER_REPORTED_CHECK_REASONS`), on `POST /api/v1/runner/checks/:id/finish`, accepted only for the JWT's own
+  `running` check picked up less than 90 s ago (one 404 for everything else). Limits: 30 s on the runner, `lost`
+  90 s after the pick-up, `not-picked-up` 150 s after the start, swept lazily by the owner's reads and writes; the
+  revoke batch fails a live check as `runner-revoked`. Each change is audited in its batch (`runner.check-requested`,
+  `runner.check-finished`, `runner.check-expired`). A check is excluded from every `jobs` term: it is no job row, no
+  job token, no failure streak, budget, spend, concurrency slot, placement or project; a pass is advisory and
+  authorises nothing (`tools/workspace-checks/src/runner-checks-advisory.spec.ts`).
 - **Secrets on the Mac**, by user. `_tcrunner`: the Access service token pair, the runner key, the role keys,
   the Claude Code credential. `_tcjob`: nothing at rest; for the job's lifetime, the injected Claude credential,
   a job token and a one-hour per-repository VCS token reachable through the socket. Not on either: any GitHub/GitLab app key, `TOKEN_ENCRYPTION_KEY`. The
