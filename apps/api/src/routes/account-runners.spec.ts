@@ -414,8 +414,8 @@ describe('runner list, allowed projects and revoke', () => {
     expect(Object.keys(firstDto ?? {}).sort()).toEqual([
       'allowedProjects',
       'belowMinimum',
-      'capabilities',
       'canWiden',
+      'capabilities',
       'enrolledAt',
       'enrolledByName',
       'enrolledByYou',
