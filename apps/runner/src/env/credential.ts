@@ -223,7 +223,9 @@ async function fileCredentialValueOf(
   } catch (error: unknown) {
     if (error instanceof RunnerFileError) {
       throw new LaunchRefusal(
-        missingIsOwnReason && error.problem === 'file-missing' ? 'credential-missing' : 'credential-unreadable',
+        missingIsOwnReason && error.problem === 'file-missing'
+          ? 'credential-missing'
+          : 'credential-unreadable',
         `${credential.file}: ${error.problem}`,
       );
     }

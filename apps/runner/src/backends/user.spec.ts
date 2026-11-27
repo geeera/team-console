@@ -6,7 +6,9 @@ import { GitError } from '../git/git';
 import { SYSTEM_PATH, type Exec, type ExecOptions, type ExecResult, type Spawn } from '../host/exec';
 import { JobRegistry } from '../proxy/job-registry';
 import { startJobSocket } from '../proxy/socket-server';
-import { JOB_ID } from '../testing/fake-console';
+import { runCheck } from '../jobs/run-check';
+import { CHECK_ID, JOB_ID, sentinels } from '../testing/fake-console';
+import { recordingConsole } from '../testing/job-fixture';
 import { BackendError, type LaunchSpec, type RunningJob } from './backend';
 import { UserBackend, managedSettingsText } from './user';
 
@@ -273,6 +275,110 @@ describe('user backend', () => {
     } finally {
       await socket.close();
     }
+  });
+
+  // #1059 S6/T7 (security tests 2 and 3): the check goes through the same one sudoers rule, with nothing but its spec.
+  it('runs a runner check as _tcjob: reap and sweep around it, its spec alone on stdin, stderr discarded', async () => {
+    await mkdir(join(home, 'credentials'), { mode: 0o700 });
+    await writeFile(join(home, 'credentials', 'claude-setup-token'), `${sentinels.subscriptionToken}\n`, {
+      mode: 0o600,
+    });
+    let stderrOption: string | undefined;
+    const checkSpawn: Spawn = async (command, args, options) => {
+      calls.push({ line: [command, ...args].join(' '), stdin: options.stdin, env: options.env });
+      stderrOption = options.stderr;
+      const stdout = new PassThrough();
+      stdout.end('2.1.3 (Claude Code)\n');
+      return { pid: 4243, stdout, stderr: null, exited: Promise.resolve({ exitCode: 0, signal: null }) };
+    };
+    const user = new UserBackend({
+      home,
+      jobExec: JOB_EXEC,
+      nodeDir: NODE_DIR,
+      managedSettingsPath: settings,
+      exec,
+      spawn: checkSpawn,
+      rootUid: uid,
+    });
+    const client = recordingConsole();
+    const logs: string[] = [];
+    const report = await runCheck(
+      { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 },
+      {
+        home,
+        config: {
+          backend: 'user',
+          credential: { kind: 'setup-token', file: 'credentials/claude-setup-token' },
+          toolchain: { path: '/opt/homebrew/bin:/usr/bin:/bin', claude: '/opt/homebrew/bin/claude' },
+        },
+        client,
+        backend: user,
+        log: (line) => logs.push(line),
+        shutdown: new AbortController().signal,
+      },
+    );
+
+    expect(report).toMatchObject({ result: 'passed', claudeVersion: '2.1.3' });
+    expect(calls.map((call) => call.line)).toEqual([
+      '/usr/bin/id -g _tcjob',
+      SUDO('reap'),
+      '/usr/bin/pgrep -u _tcjob',
+      SUDO('sweep'),
+      SUDO('run'), // mkdir HOME and TMPDIR as _tcjob
+      SUDO('run'), // claude --version
+      SUDO('reap'),
+      SUDO('run'), // chmod the check's entries
+      SUDO('run'), // rm them
+      SUDO('sweep'),
+      '/usr/bin/pgrep -u _tcjob',
+    ]);
+    expect(stderrOption).toBe('ignore');
+    const sandbox = join(home, 'jobs', CHECK_ID);
+    expect(JSON.parse(calls[5]?.stdin ?? '')).toEqual({
+      command: '/opt/homebrew/bin/claude',
+      argv: ['--version'],
+      env: {
+        PATH: '/opt/homebrew/bin:/usr/bin:/bin',
+        HOME: join(sandbox, 'home'),
+        TMPDIR: join(sandbox, 'tmp'),
+        DISABLE_AUTOUPDATER: '1',
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
+      cwd: join(sandbox, 'home'),
+    });
+    const everything = JSON.stringify({ calls, logs, finished: client.checksFinished });
+    expect(everything).not.toContain(sentinels.subscriptionToken);
+    expect(client.checksFinished).toEqual([
+      {
+        checkId: CHECK_ID,
+        input: { result: 'passed', claudeVersion: '2.1.3', durationMs: expect.any(Number) },
+      },
+    ]);
+  });
+
+  it('a runner check keeps the managed-settings refusal: host-not-ready, nothing launched', async () => {
+    await rm(settings);
+    await mkdir(join(home, 'credentials'), { mode: 0o700 });
+    await writeFile(join(home, 'credentials', 'claude-setup-token'), `${sentinels.subscriptionToken}\n`, {
+      mode: 0o600,
+    });
+    const report = await runCheck(
+      { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 },
+      {
+        home,
+        config: {
+          backend: 'user',
+          credential: { kind: 'setup-token', file: 'credentials/claude-setup-token' },
+          toolchain: { path: '/usr/bin:/bin', claude: '/usr/local/bin/claude' },
+        },
+        client: recordingConsole(),
+        backend: backend(),
+        log: () => undefined,
+        shutdown: new AbortController().signal,
+      },
+    );
+    expect(report?.reason).toBe('host-not-ready');
+    expect(calls).toEqual([]);
   });
 
   it('kills by pkill -9 -u _tcjob and waits for the job to end', async () => {

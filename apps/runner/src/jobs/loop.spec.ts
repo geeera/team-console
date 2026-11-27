@@ -151,7 +151,10 @@ describe('the loop and runner checks', () => {
     const shutdown = new AbortController();
     const check = { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 };
     const { client, requests } = consoleClient(
-      [() => json(200, { check }), () => new Response(null, { status: 204, headers: { 'Retry-After': '10' } })],
+      [
+        () => json(200, { check }),
+        () => new Response(null, { status: 204, headers: { 'Retry-After': '10' } }),
+      ],
       shutdown,
     );
     const sleeps: number[] = [];
@@ -185,20 +188,26 @@ describe('the loop and runner checks', () => {
   });
 
   it.each([
-    ['extra command/argv/env/path keys', { command: '/bin/sh', argv: ['-c', 'id'], env: { A: '1' }, path: '/x' }],
+    [
+      'extra command/argv/env/path keys',
+      { command: '/bin/sh', argv: ['-c', 'id'], env: { A: '1' }, path: '/x' },
+    ],
     ['an unknown kind', { kind: 'exec' }],
     ['a path-shaped id', { id: '../../x' }],
     ['deadlineSeconds 3600', { deadlineSeconds: 3600 }],
-  ])('a check answer with %s is an unexpected answer: nothing prepared or launched, logged, then sleep', async (_what, hostile) => {
-    const shutdown = new AbortController();
-    const check = { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30, ...hostile };
-    const { client, requests } = consoleClient([() => json(200, { check })], shutdown);
-    const sleeps: number[] = [];
-    expect(await runLoop('loop', loopDeps(client, shutdown, sleeps))).toBe('shutdown');
+  ])(
+    'a check answer with %s is an unexpected answer: nothing prepared or launched, logged, then sleep',
+    async (_what, hostile) => {
+      const shutdown = new AbortController();
+      const check = { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30, ...hostile };
+      const { client, requests } = consoleClient([() => json(200, { check })], shutdown);
+      const sleeps: number[] = [];
+      expect(await runLoop('loop', loopDeps(client, shutdown, sleeps))).toBe('shutdown');
 
-    expect(calls).toEqual(['preflight']);
-    expect(logs).toContain('claim failed: claim: unexpected answer');
-    expect(sleeps).toEqual([60_000]);
-    expect(requests.filter((request) => request.url.includes('/runner/checks/'))).toEqual([]);
-  });
+      expect(calls).toEqual(['preflight']);
+      expect(logs).toContain('claim failed: claim: unexpected answer');
+      expect(sleeps).toEqual([60_000]);
+      expect(requests.filter((request) => request.url.includes('/runner/checks/'))).toEqual([]);
+    },
+  );
 });

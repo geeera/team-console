@@ -88,17 +88,17 @@ export function runnerConfigFor(repo: string, overrides: Partial<RunnerConfig> =
 /** The console as the job loop sees it, recording what it was sent. */
 export function recordingConsole(): JobConsole &
   CheckConsole & {
-  sent: JobEventInput[];
-  finished: FinishJobInput[];
-  /** Runner check reports (#1059), in order. */
-  checksFinished: { checkId: string; input: FinishRunnerCheckInput }[];
-  heartbeats: number;
-  onFinish: (() => void) | null;
-  /** What the loop mirrored to the console (#571), in order: a pause, or `'resume'`. */
-  pauses: (PauseRunnerInput | 'resume')[];
-  pause(input: PauseRunnerInput): Promise<void>;
-  resume(): Promise<void>;
-} {
+    sent: JobEventInput[];
+    finished: FinishJobInput[];
+    /** Runner check reports (#1059), in order. */
+    checksFinished: { checkId: string; input: FinishRunnerCheckInput }[];
+    heartbeats: number;
+    onFinish: (() => void) | null;
+    /** What the loop mirrored to the console (#571), in order: a pause, or `'resume'`. */
+    pauses: (PauseRunnerInput | 'resume')[];
+    pause(input: PauseRunnerInput): Promise<void>;
+    resume(): Promise<void>;
+  } {
   const fake = {
     sent: [] as JobEventInput[],
     finished: [] as FinishJobInput[],

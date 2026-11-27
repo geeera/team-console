@@ -16,6 +16,7 @@ import {
 import { NoneBackend } from '../backends/none';
 import { createPrivateSandbox } from '../backends/sandbox';
 import { RunnerApiError } from '../client/runner-client';
+import type { RunnerToolchain } from '../config/config';
 import type { CredentialConfig } from '../env/credential';
 import { buildCheckEnv } from '../env/env-builder';
 import { removeTree } from '../git/workspace';
@@ -216,15 +217,27 @@ describe('runCheck', () => {
 
   const apiKey: CredentialConfig = { kind: 'api-key', file: 'credentials/anthropic.key' };
 
+  interface ConfigOverrides {
+    readonly backend?: CheckRunDeps['config']['backend'];
+    /** `undefined` names no credential at all. */
+    readonly credential?: CredentialConfig | undefined;
+    readonly toolchain?: RunnerToolchain;
+  }
+
   function depsFor(
     backend: IsolationBackend,
-    config: Partial<CheckRunDeps['config']> = {},
+    config: ConfigOverrides = {},
     overrides: Partial<CheckRunDeps> = {},
   ): CheckRunDeps {
     let tick = 0;
+    const credential = 'credential' in config ? config.credential : apiKey;
     return {
       home,
-      config: { backend: backend.kind === 'user' ? 'user' : 'none', credential: apiKey, toolchain: TOOLCHAIN, ...config },
+      config: {
+        backend: config.backend ?? (backend.kind === 'user' ? 'user' : 'none'),
+        toolchain: config.toolchain ?? TOOLCHAIN,
+        ...(credential === undefined ? {} : { credential }),
+      },
       client,
       backend,
       log: (line) => logs.push(line),
@@ -286,26 +299,44 @@ describe('runCheck', () => {
     it.each([
       ['api-key file', 'none', 'api-key'],
       ['setup-token file', 'user', 'setup-token'],
-    ] as const)('%s: not in the child env, the launch spec, a log line or the finish body', async (_what, kind, credKind) => {
-      const value = credKind === 'api-key' ? sentinels.anthropicKey : sentinels.subscriptionToken;
-      const file = credKind === 'api-key' ? 'credentials/anthropic.key' : 'credentials/claude-setup-token';
-      await writeCredential(file, value);
-      const backend = fakeBackend(kind, home, { stdout: '2.1.3\n' });
-      const report = await runCheck(
-        CHECK,
-        depsFor(backend, { backend: kind === 'user' ? 'user' : 'none', credential: { kind: credKind, file } }),
-      );
+    ] as const)(
+      '%s: not in the child env, the launch spec, a log line or the finish body',
+      async (_what, kind, credKind) => {
+        const value = credKind === 'api-key' ? sentinels.anthropicKey : sentinels.subscriptionToken;
+        const file = credKind === 'api-key' ? 'credentials/anthropic.key' : 'credentials/claude-setup-token';
+        await writeCredential(file, value);
+        const backend = fakeBackend(kind, home, { stdout: '2.1.3\n' });
+        const report = await runCheck(
+          CHECK,
+          depsFor(backend, {
+            backend: kind === 'user' ? 'user' : 'none',
+            credential: { kind: credKind, file } as CredentialConfig,
+          }),
+        );
 
-      expect(report?.result).toBe('passed');
-      // The file was read (presence and shape), and its value went nowhere.
-      expect(opened).toContain(join(home, file));
-      const everything = JSON.stringify({ specs: backend.specs, logs, finished: client.checksFinished });
-      expect(everything).not.toContain(value);
-      expect(everything).not.toContain(value.slice(0, 16));
-      expect(Object.values(backend.specs[0]?.env ?? {})).not.toContain(value);
-      expect(Object.keys(backend.specs[0]?.env ?? {}).some((name) => /KEY|TOKEN|CLAUDE_CONFIG/.test(name))).toBe(
-        false,
+        expect(report?.result).toBe('passed');
+        // The file was read (presence and shape), and its value went nowhere.
+        expect(opened).toContain(join(home, file));
+        const everything = JSON.stringify({ specs: backend.specs, logs, finished: client.checksFinished });
+        expect(everything).not.toContain(value);
+        expect(everything).not.toContain(value.slice(0, 16));
+        expect(Object.values(backend.specs[0]?.env ?? {})).not.toContain(value);
+        expect(
+          Object.keys(backend.specs[0]?.env ?? {}).some((name) => /KEY|TOKEN|CLAUDE_CONFIG/.test(name)),
+        ).toBe(false);
+      },
+    );
+
+    it('never reaches the Keychain or `security`: the presence check has no way to run a command', async () => {
+      const sources = await Promise.all(
+        ['../env/credential.ts', './run-check.ts'].map(
+          async (path) => await readFile(new URL(path, import.meta.url), 'utf8'),
+        ),
       );
+      for (const source of sources) {
+        expect(source).not.toMatch(/from '(node:child_process|\.\.\/host\/exec|\.\.\/config\/keychain)'/);
+        expect(source).not.toMatch(/\bsecurity\b\s*['"(]/);
+      }
     });
 
     it('claude-config-dir: lstat only, never a file inside opened, and the path goes nowhere', async () => {
@@ -316,7 +347,10 @@ describe('runCheck', () => {
       const backend = fakeBackend('container', home, { stdout: '2.1.3\n' });
       const report = await runCheck(
         CHECK,
-        depsFor(backend, { backend: 'container', credential: { kind: 'claude-config-dir', path: configDir } }),
+        depsFor(backend, {
+          backend: 'container',
+          credential: { kind: 'claude-config-dir', path: configDir },
+        }),
       );
 
       expect(report?.result).toBe('passed');
@@ -456,7 +490,11 @@ describe('runCheck', () => {
       const backend = fakeBackend('none', home, { stdout: '2.1.3\n', exit: { exitCode: 3, signal: null } });
       const report = await runCheck(CHECK, depsFor(backend));
       expect(report?.reason).toBe('claude-failed');
-      expect(client.checksFinished[0]?.input).toEqual({ result: 'failed', reason: 'claude-failed', durationMs: 840 });
+      expect(client.checksFinished[0]?.input).toEqual({
+        result: 'failed',
+        reason: 'claude-failed',
+        durationMs: 840,
+      });
       expect(logs).toContain(`check ${CHECK_ID} smoke: claude --version exited 3`);
       expect(logs).toContain(`check ${CHECK_ID} smoke: failed (claude-failed, 840 ms)`);
     });
@@ -469,7 +507,11 @@ describe('runCheck', () => {
     it('reports the version alone: 2.1.3 <img> is 2.1.3', async () => {
       const backend = fakeBackend('none', home, { stdout: '2.1.3 <img src=x onerror=alert(1)>\n' });
       await runCheck(CHECK, depsFor(backend));
-      expect(client.checksFinished[0]?.input).toEqual({ result: 'passed', claudeVersion: '2.1.3', durationMs: 840 });
+      expect(client.checksFinished[0]?.input).toEqual({
+        result: 'passed',
+        claudeVersion: '2.1.3',
+        durationMs: 840,
+      });
       expect(JSON.stringify(logs)).not.toContain('<img');
     });
 
@@ -492,8 +534,14 @@ describe('runCheck', () => {
     });
 
     it('a shorter server deadline shortens the limit; a longer one is clamped to 30 s', async () => {
-      await runCheck({ ...CHECK, deadlineSeconds: 5 }, depsFor(fakeBackend('none', home, { stdout: '2.1.3' })));
-      await runCheck({ ...CHECK, deadlineSeconds: 3600 }, depsFor(fakeBackend('none', home, { stdout: '2.1.3' })));
+      await runCheck(
+        { ...CHECK, deadlineSeconds: 5 },
+        depsFor(fakeBackend('none', home, { stdout: '2.1.3' })),
+      );
+      await runCheck(
+        { ...CHECK, deadlineSeconds: 3600 },
+        depsFor(fakeBackend('none', home, { stdout: '2.1.3' })),
+      );
       expect(armed).toEqual([5_000, 30_000]);
     });
 
@@ -508,27 +556,46 @@ describe('runCheck', () => {
     });
 
     it('a cleanup failure turns a pass into host-not-ready', async () => {
-      const backend = fakeBackend('none', home, { stdout: '2.1.3', cleanupError: new Error('a _tcjob process survived') });
+      const backend = fakeBackend('none', home, {
+        stdout: '2.1.3',
+        cleanupError: new Error('a _tcjob process survived'),
+      });
       const report = await runCheck(CHECK, depsFor(backend));
       expect(report?.reason).toBe('host-not-ready');
-      expect(client.checksFinished[0]?.input).toEqual({ result: 'failed', reason: 'host-not-ready', durationMs: 840 });
+      expect(client.checksFinished[0]?.input).toEqual({
+        result: 'failed',
+        reason: 'host-not-ready',
+        durationMs: 840,
+      });
     });
 
     it('clamps durationMs to 0–60000', async () => {
       const late = await runCheck(
         CHECK,
-        depsFor(fakeBackend('none', home, { stdout: '2.1.3' }), {}, { clock: (() => {
-          let tick = 0;
-          return () => (tick++ === 0 ? 0 : 90_000);
-        })() }),
+        depsFor(
+          fakeBackend('none', home, { stdout: '2.1.3' }),
+          {},
+          {
+            clock: (() => {
+              let tick = 0;
+              return () => (tick++ === 0 ? 0 : 90_000);
+            })(),
+          },
+        ),
       );
       expect(late?.durationMs).toBe(60_000);
       const skewed = await runCheck(
         CHECK,
-        depsFor(fakeBackend('none', home, { stdout: '2.1.3' }), {}, { clock: (() => {
-          let tick = 0;
-          return () => (tick++ === 0 ? 100 : 0);
-        })() }),
+        depsFor(
+          fakeBackend('none', home, { stdout: '2.1.3' }),
+          {},
+          {
+            clock: (() => {
+              let tick = 0;
+              return () => (tick++ === 0 ? 100 : 0);
+            })(),
+          },
+        ),
       );
       expect(skewed?.durationMs).toBe(0);
     });
@@ -580,12 +647,20 @@ describe('runCheck', () => {
       return path;
     }
 
-    const realDeps = (claude: string, overrides: Partial<CheckRunDeps> = {}): CheckRunDeps => ({
-      ...depsFor(new NoneBackend(home), { toolchain: { path: `${dirname(process.execPath)}:/usr/bin:/bin`, claude } }),
-      clock: undefined,
-      armTimeout: undefined,
-      ...overrides,
-    });
+    /** Real timers and the real clock: only the deps a spec cannot do without. */
+    const realDeps = (claude: string, overrides: Partial<CheckRunDeps> = {}): CheckRunDeps => {
+      const {
+        home: runnerHome,
+        config,
+        client: console,
+        backend,
+        log,
+        shutdown,
+      } = depsFor(new NoneBackend(home), {
+        toolchain: { path: `${dirname(process.execPath)}:/usr/bin:/bin`, claude },
+      });
+      return { home: runnerHome, config, client: console, backend, log, shutdown, ...overrides };
+    };
 
     it('runs with exactly the S6 env and the sandbox HOME as cwd; stderr is never read', async () => {
       const out = join(bin, 'seen.json');
@@ -610,10 +685,7 @@ describe('runCheck', () => {
     });
 
     it('5 MiB of stdout is capped and does not hang', async () => {
-      const claude = await script(
-        'claude',
-        'process.stdout.write("2.1.3 " + "x".repeat(5 * 1024 * 1024))',
-      );
+      const claude = await script('claude', 'process.stdout.write("2.1.3 " + "x".repeat(5 * 1024 * 1024))');
       const report = await runCheck(CHECK, realDeps(claude));
       expect(report?.reason).not.toBe('timeout');
       expect(report?.durationMs).toBeLessThan(15_000);
@@ -626,10 +698,15 @@ describe('runCheck', () => {
 
     it('a hang is killed at the limit', async () => {
       const claude = await script('claude', 'setInterval(() => undefined, 1000)');
-      const report = await runCheck(CHECK, realDeps(claude, { armTimeout: (fire) => {
-        const id = setTimeout(fire, 300);
-        return () => clearTimeout(id);
-      } }));
+      const report = await runCheck(
+        CHECK,
+        realDeps(claude, {
+          armTimeout: (fire) => {
+            const id = setTimeout(fire, 300);
+            return () => clearTimeout(id);
+          },
+        }),
+      );
       expect(report?.reason).toBe('timeout');
     });
   });

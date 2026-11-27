@@ -7,7 +7,15 @@ import { loadRunnerState, saveRunnerState } from '../budget/state';
 import { RunnerClient } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { JobRegistry } from '../proxy/job-registry';
-import { CHECK_ID, JOB_ID, RUNNER_ID, fakeConsole, jobFixture, json, sentinels } from '../testing/fake-console';
+import {
+  CHECK_ID,
+  JOB_ID,
+  RUNNER_ID,
+  fakeConsole,
+  jobFixture,
+  json,
+  sentinels,
+} from '../testing/fake-console';
 import { SCENARIO, makeRunnerHome, recordingConsole, runnerConfigFor } from '../testing/job-fixture';
 import { runLoop } from './loop';
 import { runJob, type JobConsole, type JobRunDeps } from './run-job';
@@ -538,9 +546,17 @@ describe('job lifecycle', () => {
         claims += 1;
         order.push(`claim ${String(claims)} ${JSON.stringify(input)}`);
         if (claims === 1) {
-          return { kind: 'job' as const, job: job(SCENARIO.ok), jobToken: sentinels.jobToken, leaseSeconds: 300 };
+          return {
+            kind: 'job' as const,
+            job: job(SCENARIO.ok),
+            jobToken: sentinels.jobToken,
+            leaseSeconds: 300,
+          };
         }
-        return { kind: 'check' as const, check: { id: CHECK_ID, kind: 'smoke' as const, deadlineSeconds: 30 } };
+        return {
+          kind: 'check' as const,
+          check: { id: CHECK_ID, kind: 'smoke' as const, deadlineSeconds: 30 },
+        };
       },
     });
     // Stops after the check's report: a shutdown during the check would kill it (host-not-ready).
@@ -583,6 +599,8 @@ describe('job lifecycle', () => {
         input: { result: 'passed', claudeVersion: '2.1.3', durationMs: expect.any(Number) },
       },
     ]);
-    expect(logs.some((line) => line.startsWith(`check ${CHECK_ID} smoke: passed (claude 2.1.3, `))).toBe(true);
+    expect(logs.some((line) => line.startsWith(`check ${CHECK_ID} smoke: passed (claude 2.1.3, `))).toBe(
+      true,
+    );
   }, 30_000);
 });

@@ -151,6 +151,8 @@ and the release files are root's alone. L3 checks 5–7 need a running job: see 
 
 An already enrolled Mac (the owner's «Mac»): `sudo … setup --only toolchain,credential,service,check`.
 
+**Runner check (#1059).** Every claim declares `checks: ["smoke"]`; a «Проверить» on the console is picked up by the next poll (never beside a job) and runs `toolchain.claude --version` through the backend in a fresh sandbox (`container`: no mount, `--network none`) with only `PATH`, `HOME`, `TMPDIR`, `DISABLE_AUTOUPDATER=1` and `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1`, 30 s at most; the credential is checked for presence only and never reaches the process, and only the version or a reason code is sent back. `logs/runner.log` shows `check <id> smoke: passed (claude 2.x.y, 840 ms)` or `failed (<reason>, …)` with the cause on the line before; the console's fix lines for a Mac (`setup --only credential,check`, `setup --only toolchain,check`) need no `--url`.
+
 **First install from the console (#634 PR 5).** When the environment names a release that ships node, Add runner
 offers one line per processor (Apple silicon `darwin-arm64`, Intel `darwin-x64`). It downloads the release from
 `github.com/geeera/team-console` with `curl --proto '=https' --tlsv1.2` into a `mktemp -d` directory, checks it with

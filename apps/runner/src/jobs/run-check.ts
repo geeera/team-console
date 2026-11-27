@@ -279,7 +279,9 @@ async function attempt(
     });
   } catch (error: unknown) {
     log(`could not start claude: ${error instanceof Error ? error.message : 'unknown error'}`);
-    return failedWith(error instanceof CommandNotExecutableError ? 'claude-not-executable' : 'host-not-ready');
+    return failedWith(
+      error instanceof CommandNotExecutableError ? 'claude-not-executable' : 'host-not-ready',
+    );
   }
   return outcomeOf(await watch(running, checkTimeoutMs(check.kind, check.deadlineSeconds), deps, log), log);
 }

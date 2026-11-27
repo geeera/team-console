@@ -150,7 +150,11 @@ export interface CheckEnv {
  * sandbox HOME and TMPDIR, and the two switches that stop Claude Code updating itself or calling home during the
  * probe. No `TC_*`, no console URL, no credential variable.
  */
-export function buildCheckEnv(input: { readonly path: string; readonly home: string; readonly tmp: string }): CheckEnv {
+export function buildCheckEnv(input: {
+  readonly path: string;
+  readonly home: string;
+  readonly tmp: string;
+}): CheckEnv {
   return {
     PATH: input.path,
     HOME: input.home,

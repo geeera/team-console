@@ -452,7 +452,9 @@ describe('claim: a runner check', () => {
 
   it('refuses a check this claim did not declare (an old declaration, or none)', async () => {
     const { client } = clientWith(() => json(200, { check }));
-    await expect(client.claim({ accessSources: ['subscription'] })).rejects.toThrow('claim: unexpected answer');
+    await expect(client.claim({ accessSources: ['subscription'] })).rejects.toThrow(
+      'claim: unexpected answer',
+    );
     await expect(client.claim()).rejects.toThrow('claim: unexpected answer');
   });
 
