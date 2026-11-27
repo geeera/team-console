@@ -370,11 +370,27 @@ test('clear a runner’s suspect mark after a confirmation', async ({ page, stac
   await expectAccessible(page, 'Settings › Runners (mark cleared)');
 });
 
-/** A runner row as enrolments wrote it before migration 0036 (#827): no enroller recorded. */
-async function insertLegacyRunner(workerIndex: number, runnerId: string): Promise<void> {
+/**
+ * A runner row as enrolments wrote it before migration 0036 (#827): no enroller recorded. #825: or one another owner
+ * enrolled (`enrolledBy`, never the local bypass's `local-owner`), with the projects it holds.
+ */
+async function insertLegacyRunner(
+  workerIndex: number,
+  runnerId: string,
+  row: { readonly name: string; readonly enrolledBy: string; readonly allowedProjects: readonly string[] } = {
+    name: 'Old Mac',
+    enrolledBy: '',
+    allowedProjects: [],
+  },
+): Promise<void> {
   if (!isRunnerId(runnerId)) {
     throw new Error('not a runner id');
   }
+  const allowed = JSON.stringify(row.allowedProjects);
+  if (![row.name, row.enrolledBy, allowed].every((text) => /^[\w" ,[\]-]*$/.test(text))) {
+    throw new Error('unexpected runner row text');
+  }
+  const enrolledBy = row.enrolledBy === '' ? 'NULL' : `'${row.enrolledBy}'`;
   const jwk = generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' });
   const key = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: jwk.x });
   if (!/^[\w":{},-]+$/.test(key)) {
@@ -383,8 +399,8 @@ async function insertLegacyRunner(workerIndex: number, runnerId: string): Promis
   await localD1(
     workerIndex,
     `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
-     VALUES ('${runnerId}', '${OWNER_ACCOUNT_ID}', 'Old Mac', '${key}', '{"os":"darwin","arch":"arm64","hostname":"old-mac.local"}',
-       '{"local":true,"maxConcurrency":1}', 'user', '[]', '0.2.0', '2026-11-01T09:00:00.000Z', 0, 'selected', NULL)`,
+     VALUES ('${runnerId}', '${OWNER_ACCOUNT_ID}', '${row.name}', '${key}', '{"os":"darwin","arch":"arm64","hostname":"old-mac.local"}',
+       '{"local":true,"maxConcurrency":1}', 'user', '${allowed}', '0.2.0', '2026-11-01T09:00:00.000Z', 0, 'selected', ${enrolledBy})`,
   );
 }
 
@@ -475,4 +491,74 @@ test('a runner under all projects says which projects it does not take for want 
   await expect(note).toHaveAttribute('data-kind', 'projects');
   await expect(note).toHaveText(ru('runners.card.unattributed.projects.few', { n: 2 }));
   await expectAccessible(page, 'Settings › Runners (projects with no recorded creator)');
+});
+
+// #825 (#795, owner decision (a)): a subscription runner another owner enrolled is the reader's to narrow, never to
+// widen. The runner row names another enroller, so the stack's own list answers `canWiden: false` and its own PATCH
+// refuses an addition; only the stale-list case stubs the list's flag, to reach that refusal through the dialog.
+test('another owner’s subscription runner can lose projects but is not offered new ones', async ({
+  page,
+}, testInfo) => {
+  const runnerId = '01M6YSNJ0000000000000825E1';
+  await insertLegacyRunner(testInfo.workerIndex, runnerId, {
+    name: 'Their Mac',
+    enrolledBy: 'other-owner',
+    allowedProjects: ['team-console'],
+  });
+  await page.goto('/settings/runners');
+  const card = page.getByTestId('runner-card').filter({ hasText: 'Their Mac' });
+
+  // Removing stays open: the held project is ticked and enabled, and the save goes through.
+  await card.getByTestId('runner-edit-projects').click();
+  const narrow = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(narrow.getByTestId('runner-scope-all')).toBeDisabled();
+  await expect(narrow.getByTestId('runner-projects-enroller-only')).toHaveText(
+    ru('runners.err.enrollerOnly'),
+  );
+  const row = narrow.locator('[data-slug="team-console"]').getByRole('checkbox');
+  await expect(row).toBeChecked();
+  await expect(row).toBeEnabled();
+  await expectAccessible(page, 'Runner scope dialog (another owner’s runner)');
+  await row.uncheck();
+  await narrow.getByTestId('runner-projects-save').click();
+  await expect(narrow).toHaveCount(0);
+  await expect(card.getByTestId('runner-projects')).toHaveText(ru('runners.card.noProjects'));
+
+  // Adding it back is not offered.
+  await card.getByTestId('runner-edit-projects').click();
+  const widen = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(widen.locator('[data-slug="team-console"]').getByRole('checkbox')).toBeDisabled();
+  await expect(widen.getByTestId('runner-scope-all')).toBeDisabled();
+  await widen.getByRole('button', { name: ru('ui.confirm.cancel') }).click();
+  await expect(widen).toHaveCount(0);
+
+  // A stale list still offers it: the Worker's 403 is the reason, as an alert, and Save stays Save.
+  await page.route(`**/api/v1/accounts/${OWNER_ACCOUNT_ID}/runners`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const body = (await response.json()) as RunnerListDto;
+    await route.fulfill({
+      response,
+      json: {
+        ...body,
+        runners: body.runners.map((runner) =>
+          runner.id === runnerId ? { ...runner, canWiden: true } : runner,
+        ),
+      },
+    });
+  });
+  await page.getByTestId('runners-refresh').click();
+  await card.getByTestId('runner-edit-projects').click();
+  const stale = page.getByRole('dialog', { name: ru('runners.scope.title') });
+  await expect(stale.getByTestId('runner-projects-enroller-only')).toHaveCount(0);
+  await stale.locator('[data-slug="team-console"]').getByRole('checkbox').check();
+  await stale.getByTestId('runner-projects-save').click();
+  const alert = stale.getByRole('alert');
+  await expect(alert).toHaveText(ru('runners.err.enrollerOnly'));
+  await expect(stale.getByTestId('runner-projects-save')).toHaveText(ru('runners.projects.save'));
+  await expect(stale.getByTestId('runner-scope-all')).toBeDisabled();
+  await expectAccessible(page, 'Runner scope dialog (enroller-only refusal)');
 });

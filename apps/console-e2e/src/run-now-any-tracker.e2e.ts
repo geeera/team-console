@@ -58,6 +58,7 @@ function d3Runner(enrolledByYou: boolean, enrolledByName: string | null = null):
     enrolledByYou,
     enrolledByName,
     enroller: 'recorded',
+    canWiden: enrolledByYou,
     unattributedProjects: 0,
   };
 }

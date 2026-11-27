@@ -30,7 +30,7 @@ export interface RunnerProjectOption {
               data-testid="runner-project-option"
               [attr.data-slug]="project.slug"
               [checked]="selected().includes(project.slug)"
-              [disabled]="disabled()"
+              [disabled]="disabled() || lockedSlugs().has(project.slug)"
               (checkedChange)="toggle(project.slug, $event)"
             >
               <span tc-check-title dir="auto">{{ project.displayName }}</span>
@@ -73,6 +73,8 @@ export class RunnerProjectsPicker {
   readonly projects = input.required<readonly RunnerProjectOption[]>();
   readonly selected = model<readonly string[]>([]);
   readonly disabled = input(false, { transform: booleanAttribute });
+  /** Rows the caller may not tick now (#825: projects a non-enroller cannot add); the screen says why. */
+  readonly lockedSlugs = input<ReadonlySet<string>>(new Set());
 
   protected toggle(slug: string, checked: boolean): void {
     this.selected.update((current) =>

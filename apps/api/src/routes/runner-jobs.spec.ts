@@ -1024,7 +1024,8 @@ describe('the job token under owner decision D3 (#794)', () => {
     ).toEqual({
       state: 'cancelled',
       token_hash: null,
-      result: '{"reason":"runner-allow-list"}',
+      // #825: the scope still covers the project; D3 is what dropped it.
+      result: '{"reason":"runner-scope"}',
     });
     const read = await readAsJob(held.runner, held.jobToken, held.slug, held.jobId);
     expect(read.status).toBe(401);

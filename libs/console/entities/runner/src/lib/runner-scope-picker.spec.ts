@@ -13,6 +13,8 @@ import { RunnerScopePicker } from './runner-scope-picker';
     [(scope)]="scope"
     [(selected)]="selected"
     [ownerCount]="ownerCount()"
+    [allLocked]="allLocked()"
+    [lockedSlugs]="lockedSlugs()"
   />`,
 })
 class Host {
@@ -23,6 +25,8 @@ class Host {
   scope: RunnerProjectScope = 'all';
   selected: readonly string[] = ['team-console'];
   readonly ownerCount = signal<number | null>(null);
+  readonly allLocked = signal(false);
+  readonly lockedSlugs = signal<ReadonlySet<string>>(new Set());
 }
 
 describe('RunnerScopePicker (#775)', () => {
@@ -63,6 +67,22 @@ describe('RunnerScopePicker (#775)', () => {
     await pick('all');
     expect(root.querySelector('tc-runner-projects-picker')).toBeNull();
     expect(fixture.componentInstance.selected).toEqual(['team-console', 'storify']);
+  });
+
+  // #825: what a non-enroller cannot add is shown but not offered.
+  it('disables all projects and the locked project rows only, keeping the rest open', async () => {
+    const { root, radio, pick, fixture } = await render();
+    fixture.componentInstance.allLocked.set(true);
+    fixture.componentInstance.lockedSlugs.set(new Set(['storify']));
+    await fixture.whenStable();
+    expect(radio('all').disabled).toBe(true);
+    expect(radio('selected').disabled).toBe(false);
+    await pick('selected');
+    const boxes = [...root.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')];
+    expect(boxes.map((box) => box.disabled)).toEqual([false, true]);
+    boxes[0]?.click();
+    await fixture.whenStable();
+    expect(fixture.componentInstance.selected).toEqual([]);
   });
 
   it('describes each option by its hint for assistive technology', async () => {

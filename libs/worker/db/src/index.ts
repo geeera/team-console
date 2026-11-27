@@ -152,7 +152,12 @@ export type {
 export { RateLimitsRepo, rateWindowOf, retryAfterOf } from './lib/runners/rate-limits.repo';
 export { OPERATOR_STOPS, OperatorStopsRepo } from './lib/operator-stops.repo';
 export type { OperatorStop } from './lib/operator-stops.repo';
-export { JobsRepo, effectivePolicyOf } from './lib/jobs/jobs.repo';
+export {
+  JOB_CANCEL_RUNNER_ALLOW_LIST,
+  JOB_CANCEL_RUNNER_SCOPE,
+  JobsRepo,
+  effectivePolicyOf,
+} from './lib/jobs/jobs.repo';
 export type {
   ActionsExchange,
   ActionsExchangeOutcome,

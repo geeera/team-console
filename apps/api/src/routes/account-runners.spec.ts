@@ -414,6 +414,7 @@ describe('runner list, allowed projects and revoke', () => {
     expect(Object.keys(firstDto ?? {}).sort()).toEqual([
       'allowedProjects',
       'belowMinimum',
+      'canWiden',
       'capabilities',
       'enrolledAt',
       'enrolledByName',
@@ -641,6 +642,23 @@ describe('the scope of a subscription runner in a two-owner account', () => {
     });
   });
 
+  // #825: the projects dialog offers adding projects only where the write above would accept it.
+  it('says canWiden per reader as the scope write judges it', async () => {
+    const canWidenOf = async (as: SessionUser, runnerId: string): Promise<boolean | undefined> =>
+      (
+        (await (await sendAsSession(as, 'GET', runnersPath(enroller.account.id))).json()) as RunnerListDto
+      ).runners.find((runner) => runner.id === runnerId)?.canWiden;
+    const subscription = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected' });
+    expect(await canWidenOf(enroller, subscription.id)).toBe(true);
+    expect(await canWidenOf(other, subscription.id)).toBe(false);
+    const apiKey = await enrolRunner(enroller.account.id, {
+      as: enroller,
+      projectScope: 'selected',
+      enrol: { capabilities: { local: true, maxConcurrency: 1, accessSources: ['api_key'] } },
+    });
+    expect(await canWidenOf(other, apiKey.id)).toBe(true);
+  });
+
   it('leaves a runner that cannot serve a subscription to every owner, as before', async () => {
     const theirs = await projectOf(other);
     const apiKey = await enrolRunner(enroller.account.id, {
@@ -678,12 +696,12 @@ describe('the scope of a subscription runner in a two-owner account', () => {
     const switched = await sendAsRunner(runner, 'POST', CLAIM, {
       accessSources: ['api_key', 'subscription'],
     });
-    // The enroller's subscription takes neither project's job, and the live one is cancelled as a narrowed scope does.
+    // The enroller's subscription takes neither project's job, and the live one is cancelled: D3, not the list (#825).
     expect(switched.status).toBe(204);
     const job = await env.DB.prepare(`SELECT state, result FROM jobs WHERE id = ?1`)
       .bind(jobId)
       .first<{ state: string; result: string }>();
-    expect(job).toEqual({ state: 'cancelled', result: JSON.stringify({ reason: 'runner-allow-list' }) });
+    expect(job).toEqual({ state: 'cancelled', result: JSON.stringify({ reason: 'runner-scope' }) });
     // The entries stay listed (the other owner's choice for an API-key runner); nothing serves them now.
     expect(await storedScope(runner.id)).toEqual({
       project_scope: 'selected',
@@ -766,15 +784,19 @@ describe('claim a runner as its enroller', () => {
       .bind(runnerId)
       .all<{ actor: string; actor_kind: string; details: string }>()
       .then((rows) => rows.results);
-  const listedEnroller = async (as: SessionUser, runnerId: string): Promise<string | undefined> => {
+  const listedOf = async (as: SessionUser, runnerId: string): Promise<RunnerDto | undefined> => {
     const list = (await (await sendAsSession(as, 'GET', runnersPath(as.account.id))).json()) as RunnerListDto;
-    return list.runners.find((runner) => runner.id === runnerId)?.enroller;
+    return list.runners.find((runner) => runner.id === runnerId);
   };
+  const listedEnroller = async (as: SessionUser, runnerId: string): Promise<string | undefined> =>
+    (await listedOf(as, runnerId))?.enroller;
 
   it('lets the sole owner claim it once: the list offers it, the claim records them and audits it', async () => {
     const owner = await seedSessionUser('owner');
     const runnerId = await legacyRunner(owner.account.id);
     expect(await listedEnroller(owner, runnerId)).toBe('claimable');
+    // #825: the scope write counts it as the sole owner's, so the list offers adding projects too.
+    expect((await listedOf(owner, runnerId))?.canWiden).toBe(true);
 
     const response = await claim(owner, runnerId);
     expect(response.status).toBe(200);
@@ -802,6 +824,9 @@ describe('claim a runner as its enroller', () => {
     };
     const runnerId = await legacyRunner(owner.account.id);
     expect(await listedEnroller(owner, runnerId)).toBe('unrecorded');
+    // #825: and nobody's to widen, as `setScope` judges it.
+    expect((await listedOf(owner, runnerId))?.canWiden).toBe(false);
+    expect((await listedOf(second, runnerId))?.canWiden).toBe(false);
     for (const as of [owner, second]) {
       const refused = await claim(as, runnerId);
       expect(refused.status).toBe(403);

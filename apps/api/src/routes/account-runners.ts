@@ -10,6 +10,7 @@ import {
   isRunnerVersionBelow,
   runnerAudienceOf,
   runnerIdsOfPolicy,
+  runnerTakesSubscription,
   type EnrolmentCodeDto,
   type PendingEnrolmentDto,
   type RunnerDto,
@@ -105,14 +106,36 @@ export function servedProjectsDtoOf(
 export interface RunnerReader {
   readonly userId: string | null;
   readonly ownerNames: ReadonlyMap<string, string>;
+  /** The audit actor a scope write by this reader would record, which `setScope` compares with `enrolled_by`. */
+  readonly actor: string;
+  /** The account has at most one owner, so a runner from before `enrolled_by` counts as the reader's (#795). */
+  readonly soleOwner: boolean;
 }
 
 async function runnerReaderOf(c: Context, account: AccountRecord): Promise<RunnerReader> {
   const identity = c.get('identity');
+  const accounts = new AccountsRepo(c.env.DB);
   return {
     userId: identity.kind === 'user' ? identity.userId : null,
-    ownerNames: await new AccountsRepo(c.env.DB).ownerDisplayNamesOf(account.id),
+    ownerNames: await accounts.ownerDisplayNamesOf(account.id),
+    actor: auditActorOf(identity).actor,
+    soleOwner: (await accounts.ownerCountOf(account.id)) <= 1,
   };
+}
+
+/**
+ * #825: whether the reader may add projects to the runner, by the terms of `setScope`'s guard (`scopeWriteAllowedSql`):
+ * a hosted or Actions identity keeps its scope, an API-key-only runner is any owner's to widen, and a subscription
+ * runner only its enroller's. Display only: the write judges it again on the stored row.
+ */
+function canWidenOf(runner: RunnerRecord, reader: RunnerReader): boolean {
+  if (runner.revokedAt !== null || runner.hosted || runner.isolation === 'actions-ephemeral') {
+    return false;
+  }
+  if (!runnerTakesSubscription(runner.capabilities)) {
+    return true;
+  }
+  return runner.enrolledBy === null ? reader.soleOwner : runner.enrolledBy === reader.actor;
 }
 
 /**
@@ -196,6 +219,7 @@ export function runnerDtoOf(
     // The enroller's display name only, and only while they own the account; their id never leaves (#804 condition 2).
     enrolledByName: runner.enrolledBy === null ? null : (reader.ownerNames.get(runner.enrolledBy) ?? null),
     enroller: enrollerStateOf(runner, claimable),
+    canWiden: canWidenOf(runner, reader),
     unattributedProjects: unattributed.get(runner.id) ?? 0,
   };
 }

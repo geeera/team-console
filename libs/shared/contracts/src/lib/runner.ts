@@ -190,6 +190,14 @@ export interface RunnerCapabilitiesDto {
   readonly checks?: readonly RunnerCheckKind[];
 }
 
+/**
+ * The runner may sign in with a Claude subscription, the kind owner decision D3 and #795 judge (#825): it declares
+ * `subscription`, or nothing, so nothing rules it out. The display-side twin of `runnerTakesSubscriptionSql`.
+ */
+export function runnerTakesSubscription(capabilities: RunnerCapabilitiesDto): boolean {
+  return capabilities.accessSources === undefined || capabilities.accessSources.includes('subscription');
+}
+
 /** The runner's declaration, as the claim body carries it: a subset of `ACCESS_SOURCES`, never empty. */
 export function accessSourcesOf(field: string, value: unknown): readonly AccessSource[] {
   if (
@@ -337,6 +345,11 @@ export interface RunnerDto extends RunnerProjectScopeDto {
   readonly enrolledByName: string | null;
   /** #827: never who enrolled it, only whether the console knows and whether the caller may claim it. */
   readonly enroller: RunnerEnrollerState;
+  /**
+   * #825: whether the caller may give the runner a project it does not serve now (#795, owner decision (a)), judged as
+   * the scope write judges it, so the projects dialog offers only what the write accepts. Narrowing is always open.
+   */
+  readonly canWiden: boolean;
   /**
    * #799: how many active projects the scope covers but D3 holds back only because nobody is recorded as their creator
    * or as the runner's enroller (rows from before migration 0036 that 0048 could not attribute). A count, no slugs.
@@ -770,6 +783,7 @@ export function isRunnerDto(value: unknown): value is RunnerDto {
     typeof value['enrolledByYou'] === 'boolean' &&
     isNullable(value['enrolledByName'], isDisplayName) &&
     isRunnerEnrollerState(value['enroller']) &&
+    typeof value['canWiden'] === 'boolean' &&
     isCount(value['unattributedProjects'])
   );
 }
