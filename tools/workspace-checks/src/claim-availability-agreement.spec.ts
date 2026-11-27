@@ -4,7 +4,8 @@ import { join } from 'node:path';
 
 /**
  * #809, the claim-agreement matrix: the jobs tile's `RunnersRepo.availabilityOf` (#775) says `ready` only when the
- * claim (`JobsRepo.claim`) would take the job, so every runner term of the claim must appear in it too. Each term the
+ * claim (`JobsRepo.claim`) would take the job, so every runner term of the claim, with its team-pause and `needs_local`
+ * terms (#810), must appear in it too. Each term the
  * claim interpolates or reads off its runner row is listed here, either as mirrored (with the form availability must
  * use) or as left to the claim on purpose (transient: it makes a job wait, not fail to start). A new claim term fails
  * this check until it is mirrored or listed with its reason. What the terms answer is
@@ -15,6 +16,7 @@ const read = (path: string): string => readFileSync(join(workspaceRoot, path), '
 
 const JOBS = 'libs/worker/db/src/lib/jobs/jobs.repo.ts';
 const RUNNERS = 'libs/worker/db/src/lib/runners/runners.repo.ts';
+const POLL_ROUTE = 'apps/api/src/routes/runner-jobs.ts';
 
 function between(source: string, start: string, end: string, file: string): string {
   const from = source.indexOf(start);
@@ -82,6 +84,18 @@ const MIRRORED: readonly MirroredTerm[] = [
     inClaim: /a\.suspended_at IS NULL AND p\.archived_at IS NULL/u,
     inAvailability: /a\.suspended_at IS NULL AND p\.archived_at IS NULL/u,
   },
+  {
+    name: "the team's pause (#810; the tile reports it as `team-paused`)",
+    inClaim: /LEFT JOIN team_state t ON t\.project_slug = j\.project_slug[\s\S]*AND t\.paused_at IS NULL/u,
+    inAvailability:
+      /\(t\.paused_at IS NULL\) AS team_running[\s\S]*LEFT JOIN team_state t ON t\.project_slug = p\.slug[\s\S]*row\.team_running !== 1/u,
+  },
+  {
+    // ?6 is `request.local`: the claiming runner's stored `capabilities.local` (pinned by its own case below).
+    name: 'needs_local only for a local runner (#810)',
+    inClaim: /\(j\.needs_local = 0 OR \?6 = 1\)/u,
+    inAvailability: /\(\?5 = 0 OR json_extract\(r\.capabilities, '\$\.local'\) = 1\)/u,
+  },
 ];
 
 /** Interpolations of the claim that `availabilityOf` leaves out on purpose, and why. */
@@ -100,6 +114,24 @@ const RUNNER_COLUMNS: Readonly<Record<string, string>> = {
   paused_until: 'the runner pause',
   capabilities:
     "transient: the runner's free slots (maxConcurrency); accessSources is runnerFitsAccessSourceSql",
+};
+
+/**
+ * Columns of the claim's candidate job (`j`) and team row (`t`) by the term that judges them (#810). Availability is
+ * asked for the job a Run now creates: queued, `pull` unless the project dispatches to Actions, of the project's
+ * account, and `needs_local` as its caller says (Run now: never).
+ */
+const JOB_AND_TEAM_COLUMNS: Readonly<Record<string, string>> = {
+  'j.id': 'the candidate job itself',
+  'j.state': 'a queued job, which a Run now creates',
+  'j.dispatch': "the project's dispatch: an Actions project is ready without a runner",
+  'j.account_id': 'the account equality (the job takes its project’s account)',
+  'j.project_slug': 'the project availability is asked for',
+  'j.needs_local': 'needs_local only for a local runner',
+  'j.priority': 'not a term: the order among queued jobs',
+  'j.created_at': 'not a term: the order among queued jobs',
+  't.project_slug':"the team's pause (the join)",
+  't.paused_at': "the team's pause",
 };
 
 const MIRRORED_INTERPOLATIONS = new Set([
@@ -124,6 +156,11 @@ describe('the claim and availabilityOf agree on every runner term', () => {
     ).toEqual([]);
   });
 
+  it("the claim's `local` is the runner's stored `capabilities.local`, which availabilityOf reads", () => {
+    expect(claim).toMatch(/request\.local \? 1 : 0,/u);
+    expect(read(POLL_ROUTE)).toMatch(/local: runner\.capabilities\.local,/u);
+  });
+
   it("the claim's placement policy is the expression availabilityOf uses", () => {
     expect(read(JOBS)).toContain(`const POLICY = \`${POLICY_EXPRESSION}\`;`);
   });
@@ -146,6 +183,17 @@ describe('the claim and availabilityOf agree on every runner term', () => {
     expect(
       unclassified,
       `${JOBS}: the claim judges runner column(s) this matrix does not know; mirror the term in availabilityOf (${RUNNERS})`,
+    ).toEqual([]);
+  });
+
+  it('every column the claim reads off its candidate job and team row is classified', () => {
+    const columns = new Set([...claim.matchAll(/\b(?:j|t)\.\w+/gu)].map((match) => match[0]));
+    expect(columns).toContain('j.needs_local');
+    expect(columns).toContain('t.paused_at');
+    const unclassified = [...columns].filter((column) => !(column in JOB_AND_TEAM_COLUMNS));
+    expect(
+      unclassified,
+      `${JOBS}: the claim judges job or team column(s) this matrix does not know; mirror the term in availabilityOf (${RUNNERS})`,
     ).toEqual([]);
   });
 });

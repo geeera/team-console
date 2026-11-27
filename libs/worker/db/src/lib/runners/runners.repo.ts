@@ -832,16 +832,23 @@ export class RunnersRepo {
 
   /**
    * Whether a Run now of `slug` could be claimed at `now` (#775): the claim's runner terms, read for every unrevoked
-   * runner of the project's account — the account equality, `runnerServesSql` (D3 applied), the access-source fit and
-   * the claim's placement term — then the best of them: online and not paused, online but paused, or seen too long
-   * ago. A suspended account or an archived project claims nothing, so it is `none`; an Actions project needs no
-   * runner (#670), so it is `ready`. What it leaves to the claim is transient: the runner's free slots, the role's
+   * runner of the project's account — the account equality, `runnerServesSql` (D3 applied), the access-source fit, the
+   * claim's placement term and its `needs_local` term — then the best of them: online and not paused, online but
+   * paused, or seen too long ago. A suspended account or an archived project claims nothing, so it is `none`; an Actions
+   * project needs no runner (#670) but for a `needs_local` job, so it is `ready`. A paused team (`team_state`, #810) turns `ready` into
+   * `team-paused`: the claim and the Actions dispatch take nothing while it holds, but a runner that is offline,
+   * paused or missing is still the answer, since resuming alone would not start the job then.
+   *
+   * `needsLocal` is the job's flag. Run now never sets it (its body is the kind alone), hence the default; a
+   * `needs_local` job is claimed only by a runner whose stored `capabilities.local` is true, which is what the claim's
+   * `request.local` reads (#810). What it leaves to the claim is transient: the runner's free slots, the role's
    * `max_parallel`, the budget and the account's concurrency, which make a job wait, not fail to start.
    */
-  async availabilityOf(slug: string, now: string): Promise<RunnerAvailability> {
+  async availabilityOf(slug: string, now: string, needsLocal = false): Promise<RunnerAvailability> {
     const row = await this.db
       .prepare(
         `SELECT p.dispatch, (a.suspended_at IS NULL AND p.archived_at IS NULL) AS live,
+           (t.paused_at IS NULL) AS team_running,
            MAX(CASE
                  WHEN r.id IS NULL THEN 0
                  WHEN r.last_seen_at IS NULL OR (julianday(?2) - julianday(r.last_seen_at)) * 86400.0 > ?3 THEN 1
@@ -849,23 +856,25 @@ export class RunnersRepo {
                  ELSE 3
                END) AS level
          FROM projects p JOIN accounts a ON a.id = p.account_id
+         LEFT JOIN team_state t ON t.project_slug = p.slug
          LEFT JOIN runners r ON r.account_id = p.account_id AND r.revoked_at IS NULL
            AND r.isolation <> 'actions-ephemeral'
+           AND (?5 = 0 OR json_extract(r.capabilities, '$.local') = 1)
            AND ${runnerServesSql('r', 'p.slug')}
            AND ${runnerFitsAccessSourceSql('r', 'p')}
            AND ${claimPlacementAdmitsSql('COALESCE(p.runner_policy, a.default_runner_policy)', 'r.id', '?2', '?4')}
          WHERE p.slug = ?1
          GROUP BY p.slug`,
       )
-      .bind(slug, now, RUNNER_ONLINE_WINDOW_SECONDS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS)
-      .first<{ dispatch: string; live: number; level: number }>();
+      .bind(slug, now, RUNNER_ONLINE_WINDOW_SECONDS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS, needsLocal ? 1 : 0)
+      .first<{ dispatch: string; live: number; team_running: number; level: number }>();
     if (row === null || row.live !== 1) {
       return 'none';
     }
-    if (row.dispatch === 'actions') {
-      return 'ready';
-    }
-    return AVAILABILITY_BY_LEVEL[row.level] ?? 'none';
+    const availability =
+      // A `needs_local` job of an Actions project stays `pull` (#695), so a runner takes it.
+      row.dispatch === 'actions' && !needsLocal ? 'ready' : (AVAILABILITY_BY_LEVEL[row.level] ?? 'none');
+    return availability === 'ready' && row.team_running !== 1 ? 'team-paused' : availability;
   }
 
   /**

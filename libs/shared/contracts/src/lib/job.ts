@@ -361,11 +361,12 @@ export interface JobDto {
 
 /**
  * Whether a runner of the account could take a Run now of the project now (#775), judged with the claim's own terms:
- * `ready` an eligible runner is online and not paused; `paused` every online eligible one is paused; `offline` eligible
- * ones exist but none is online; `none` no runner may serve the project. An enum only: never which runner, its name,
+ * `ready` an eligible runner is online and not paused; `team-paused` one is, but the project's team is paused
+ * (`team_state`, #810), so nothing is taken until it resumes; `paused` every online eligible one is paused; `offline`
+ * eligible ones exist but none is online; `none` no runner may serve the project. An enum only: never which runner, its name,
  * host or country (R-RUN), since members and the project's jobs read it too.
  */
-export const RUNNER_AVAILABILITIES = ['ready', 'paused', 'offline', 'none'] as const;
+export const RUNNER_AVAILABILITIES = ['ready', 'team-paused', 'paused', 'offline', 'none'] as const;
 export type RunnerAvailability = (typeof RUNNER_AVAILABILITIES)[number];
 export const isRunnerAvailability = (value: unknown): value is RunnerAvailability =>
   (RUNNER_AVAILABILITIES as readonly unknown[]).includes(value);
