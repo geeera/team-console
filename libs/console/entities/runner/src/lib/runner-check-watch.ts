@@ -62,7 +62,11 @@ export class RunnerCheckWatch {
       return;
     }
     this.target = { accountId, runnerId, checkId: check.id };
-    this.poll.start({ visibleMs: CHECK_POLL_VISIBLE_MS, hiddenMs: POLL_HIDDEN_MS, limitMs: CHECK_WATCH_LIMIT_MS });
+    this.poll.start({
+      visibleMs: CHECK_POLL_VISIBLE_MS,
+      hiddenMs: POLL_HIDDEN_MS,
+      limitMs: CHECK_WATCH_LIMIT_MS,
+    });
   }
 
   stop(): void {

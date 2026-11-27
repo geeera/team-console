@@ -626,6 +626,269 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     await settle();
     expect(find('wizard-error')?.textContent).toContain('Сессия истекла');
   });
+
+  describe('the runner check on step 4b (#1059 PR 3, UX §12)', () => {
+    const check = (overrides: Partial<RunnerCheck> = {}): RunnerResult<RunnerCheck> => ({
+      ok: true,
+      value: runnerCheckFixture(overrides),
+    });
+    const refused = (kind: string, slug: string | null, extra: Record<string, unknown> = {}) =>
+      ({ ok: false, failure: { kind, slug, field: null, ...extra } }) as RunnerResult<never>;
+    /** Each answer in turn, then the last one for good. */
+    const sequence =
+      (...answers: RunnerResult<RunnerCheck>[]) =>
+      (): RunnerResult<RunnerCheck> =>
+        (answers.length > 1 ? answers.shift() : answers[0]) ?? check();
+    const stateOf = (root: HTMLElement): string | null | undefined =>
+      root.querySelector('[data-testid="wizard-check"]')?.getAttribute('data-state');
+
+    it('starts one check by itself on line, with one announcement, and shows the pass as found, not verified', async () => {
+      const { toOnline, settle, root, find, api, announce } = await render({
+        readCheck: sequence(check({ state: 'running' }), check({ state: 'passed', claudeVersion: '2.1.4' })),
+      });
+      await toOnline();
+      expect(api.startCheck).toHaveBeenCalledWith(OWNER_ACCOUNT_ID, RUNNER_FIXTURE_IDS.mac);
+      const said = announce.mock.calls.map(([message]) => message);
+      expect(said).toContain('Раннер Mac mini на связи. Проверяем, запускается ли Claude.');
+      expect(said).not.toContain('Раннер Mac mini на связи.');
+      expect(stateOf(root)).toBe('queued');
+
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      expect(stateOf(root)).toBe('running');
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      expect(stateOf(root)).toBe('passed');
+      expect(find('wizard-check-version')?.textContent).toBe('2.1.4');
+      expect(find('wizard-check')?.textContent).toContain('вход в Claude найден');
+      expect(root.textContent).not.toMatch(/вход проверен|всё работает|готов к заданиям/i);
+      expect(announce).toHaveBeenCalledWith(
+        'Проверка прошла: Claude Code 2.1.4 запускается на раннере.',
+        'polite',
+      );
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(api.startCheck).toHaveBeenCalledTimes(1);
+      expect(api.check).toHaveBeenCalledTimes(2);
+    });
+
+    it('never moves focus on a result: it stays on the step heading', async () => {
+      const { toOnline, settle, root } = await render({
+        readCheck: () => check({ state: 'failed', reason: 'timeout' }),
+      });
+      await toOnline();
+      const heading = root.querySelector<HTMLElement>('[data-step-heading]');
+      expect(document.activeElement).toBe(heading);
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      expect(stateOf(root)).toBe('timeout');
+      expect(document.activeElement).toBe(heading);
+    });
+
+    it('makes no request for a runner below the minimum and shows C8 with «Как обновить»', async () => {
+      const { toOnline, root, find, api } = await render();
+      await toOnline({ version: '0.1.0', belowMinimum: true });
+      expect(api.startCheck).not.toHaveBeenCalled();
+      expect(stateOf(root)).toBe('outdated');
+      expect(find('wizard-check-update')).not.toBeNull();
+      expect(find('wizard-check-start')).toBeNull();
+    });
+
+    it('waits in C0 while the browser is offline, and starts only on the owner’s press', async () => {
+      const { toConfirm, click, watch, settle, root, find, api } = await render();
+      await toConfirm();
+      await click('wizard-approve');
+      window.dispatchEvent(new Event('offline'));
+      watch.runner.set(runnerFixture({ online: true }));
+      await settle();
+      expect(api.startCheck).not.toHaveBeenCalled();
+      expect(stateOf(root)).toBe('idle');
+      expect(find('wizard-check-start')?.getAttribute('aria-disabled')).toBe('true');
+      find('wizard-check-start')?.click();
+      await settle();
+      expect(api.startCheck).not.toHaveBeenCalled();
+
+      window.dispatchEvent(new Event('online'));
+      await settle();
+      expect(api.startCheck).not.toHaveBeenCalled();
+      find('wizard-check-start')?.click();
+      await settle();
+      expect(api.startCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries a runner-outdated once, silently, 10 s after the automatic start (N8)', async () => {
+      const outdated = refused('error', 'runner-outdated');
+      const answers: RunnerResult<RunnerCheck>[] = [outdated, check()];
+      const { toOnline, settle, root, api, announce } = await render({
+        startCheck: () => answers.shift() ?? check(),
+      });
+      await toOnline();
+      expect(stateOf(root)).toBe('starting');
+      await vi.advanceTimersByTimeAsync(9_000);
+      expect(api.startCheck).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1_000);
+      await settle();
+      expect(api.startCheck).toHaveBeenCalledTimes(2);
+      expect(stateOf(root)).toBe('queued');
+      expect(announce.mock.calls.map(([message]) => message).join('|')).not.toContain('не умеет');
+    });
+
+    it('shows C8 after the second runner-outdated, and never retries a press', async () => {
+      const outdated = refused('error', 'runner-outdated');
+      const { toOnline, settle, root, api } = await render({ startCheck: () => outdated });
+      await toOnline();
+      await vi.advanceTimersByTimeAsync(10_000);
+      await settle();
+      expect(api.startCheck).toHaveBeenCalledTimes(2);
+      expect(stateOf(root)).toBe('outdated');
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(api.startCheck).toHaveBeenCalledTimes(2);
+    });
+
+    it('maps the start’s refusals to their states', async () => {
+      for (const [failure, state] of [
+        [refused('error', 'runner-offline'), 'offline'],
+        [refused('error', 'runner-paused'), 'paused'],
+        [refused('revoked', 'runner-revoked'), 'revoked'],
+        [refused('invalid', 'runner-check-unsupported'), 'unsupported'],
+      ] as const) {
+        const { toOnline, root, find } = await render({ startCheck: () => failure });
+        await toOnline();
+        expect(stateOf(root), state).toBe(state);
+        expect(find('wizard-error'), state).toBeNull();
+        TestBed.resetTestingModule();
+        document.body.innerHTML = '';
+      }
+    });
+
+    it('sends a 403 to the §6 banner and offers no «Проверить снова» after it (review item 1)', async () => {
+      const { toOnline, root, find } = await render({
+        startCheck: () => refused('forbidden', 'account-owner-only'),
+      });
+      await toOnline();
+      expect(find('wizard-error')?.getAttribute('role')).toBe('alert');
+      expect(find('wizard-error')?.textContent).toContain('только владелец аккаунта');
+      expect(stateOf(root)).toBe('idle');
+      expect(find('wizard-check-start')).toBeNull();
+    });
+
+    it('puts the panel back where it was when a press fails as a request', async () => {
+      const answers: RunnerResult<RunnerCheck>[] = [
+        refused('error', 'runner-offline'),
+        refused('offline', null),
+      ];
+      const { toOnline, click, root, find } = await render({ startCheck: () => answers.shift() ?? check() });
+      await toOnline();
+      expect(stateOf(root)).toBe('offline');
+      await click('wizard-check-start');
+      expect(stateOf(root)).toBe('offline');
+      expect(find('wizard-error')).not.toBeNull();
+    });
+
+    it('gives up after 4 minutes (C6) and «Проверить снова» re-attaches to the check in flight', async () => {
+      const { toOnline, settle, click, root, api } = await render();
+      await toOnline();
+      await vi.advanceTimersByTimeAsync(4 * 60_000);
+      await settle();
+      expect(stateOf(root)).toBe('gaveUp');
+      const reads = api.check.mock.calls.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(api.check).toHaveBeenCalledTimes(reads);
+
+      await click('wizard-check-start');
+      expect(api.startCheck).toHaveBeenCalledTimes(2);
+      expect(stateOf(root)).toBe('queued');
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(api.check).toHaveBeenLastCalledWith(
+        OWNER_ACCOUNT_ID,
+        RUNNER_FIXTURE_IDS.mac,
+        runnerCheckFixture().id,
+      );
+    });
+
+    it('turns C2’s sub-line after 30 s in queued', async () => {
+      const { toOnline, settle, find } = await render();
+      await toOnline();
+      expect(find('wizard-check')?.textContent).toContain('Обычно это занимает до 10 секунд');
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settle();
+      expect(find('wizard-check')?.textContent).toContain('Раннер пока не взял проверку');
+    });
+
+    it('holds «Проверить снова» after a 429 until Retry-After, with the local time, and starts nothing itself', async () => {
+      const { toOnline, settle, root, find, api } = await render({
+        startCheck: () => refused('rate-limited', 'rate-limited', { retryAfterSeconds: 90 }),
+      });
+      await toOnline();
+      expect(stateOf(root)).toBe('rateLimited');
+      expect(find('wizard-check-title')?.textContent).toMatch(/Проверить снова можно в \d{2}:\d{2}/);
+      expect(find('wizard-check-start')?.getAttribute('aria-disabled')).toBe('true');
+      await vi.advanceTimersByTimeAsync(90_000);
+      await settle();
+      expect(find('wizard-check-start')?.getAttribute('aria-disabled')).toBeNull();
+      expect(api.startCheck).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a 429 on the watch’s reads in the shared banner and keeps watching (N9)', async () => {
+      const answers: RunnerResult<RunnerCheck>[] = [
+        refused('rate-limited', 'rate-limited', { retryAfterSeconds: 10 }),
+        check({ state: 'running' }),
+      ];
+      const { toOnline, settle, root, find } = await render({ readCheck: () => answers.shift() ?? check() });
+      await toOnline();
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      expect(find('wizard-poll-limited')?.textContent).toContain('через 10 с');
+      expect(stateOf(root)).toBe('queued');
+      await vi.advanceTimersByTimeAsync(10_000);
+      await settle();
+      expect(find('wizard-poll-limited')).toBeNull();
+      expect(stateOf(root)).toBe('running');
+    });
+
+    it('closes at once on «Готово» mid-check, without a confirm, and the polling stops with the sheet', async () => {
+      const { toOnline, settle, click, fixture, api, sheet, close } = await render({
+        readCheck: () => check({ state: 'running' }),
+      });
+      await toOnline();
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      await click('wizard-done');
+      expect(sheet.confirm).not.toHaveBeenCalled();
+      expect(close).toHaveBeenCalledWith({ kind: 'closed', enrolled: true });
+      const reads = api.check.mock.calls.length;
+      fixture.destroy();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(api.check).toHaveBeenCalledTimes(reads);
+    });
+
+    it('gives a Linux runner the Linux credential state and the runbook, not a Mac command', async () => {
+      const { toOnline, settle, find, type, submit, flip, arm, click, watch } = await render({
+        readCheck: () => check({ state: 'failed', reason: 'credential-missing' }),
+        created: () => ({
+          ok: true,
+          value: {
+            ...CREATED,
+            installCommands: null,
+            linuxInstall: { version: '0.3.0', image: 'img', prepare: 'PREPARE', enrol: 'ENROL' },
+          },
+        }),
+      });
+      await type('Build box');
+      (find('wizard-platform-linux') as HTMLInputElement).click();
+      await settle();
+      await submit();
+      await flip(enrolmentIntentFixture({ isolation: 'container' }));
+      await arm();
+      await click('wizard-approve');
+      watch.runner.set(runnerFixture({ online: true, isolation: 'container' }));
+      await settle();
+      await vi.advanceTimersByTimeAsync(2_000);
+      await settle();
+      expect(find('wizard-check-title')?.textContent).toContain('Ключ API не найден');
+      expect(find('wizard-check-setup')).toBeNull();
+      expect(find('wizard-check')?.textContent).toContain('--replace-credential');
+    });
+  });
 });
 
 describe('add-runner model', () => {

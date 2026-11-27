@@ -415,8 +415,7 @@ export class AddRunnerWizard {
     return phase === 'ended' ? this.endedOn() : STEP_OF[phase];
   });
   protected readonly pollFailing = computed(
-    () =>
-      this.watch.failedPolls() >= POLL_FAILURES_SHOWN || this.checks.failedPolls() >= POLL_FAILURES_SHOWN,
+    () => this.watch.failedPolls() >= POLL_FAILURES_SHOWN || this.checks.failedPolls() >= POLL_FAILURES_SHOWN,
   );
   /** A check request that failed as a request (§12.4 «Wizard API errors»): the same §6 banner as the wizard's own. */
   protected readonly checkFailure = computed(() => {

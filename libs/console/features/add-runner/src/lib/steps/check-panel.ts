@@ -72,7 +72,6 @@ let nextPanelId = 0;
       @if (showsRetry()) {
         <p class="check__retry">
           <button
-            #retry
             tc-button
             size="sm"
             type="button"
@@ -81,6 +80,8 @@ let nextPanelId = 0;
             [attr.aria-disabled]="retryDisabled() ? 'true' : null"
             [attr.aria-describedby]="retryReasonId()"
             (click)="press()"
+            (focus)="retryFocus(true, $event.target)"
+            (blur)="retryFocus(false, $event.target)"
           >
             {{ retryLabelKey() | transloco }}
           </button>
@@ -112,7 +113,10 @@ let nextPanelId = 0;
       @switch (view().kind) {
         @case ('queued') {
           <p class="check__line">
-            {{ (queuedSlow() ? 'runners.wizard.check.queuedSlow' : 'runners.wizard.check.queuedSub') | transloco }}
+            {{
+              (queuedSlow() ? 'runners.wizard.check.queuedSlow' : 'runners.wizard.check.queuedSub')
+                | transloco
+            }}
           </p>
         }
         @case ('running') {
@@ -260,7 +264,8 @@ export class AddRunnerCheckPanel {
   protected readonly updateUrl = RUNBOOK_UPDATE_URL;
 
   private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
-  private readonly retry = viewChild<ElementRef<HTMLElement>>('retry');
+  /** Whether focus was on the retry button when it last moved; not a signal, read only once the button goes. */
+  private retryFocused = false;
 
   protected readonly inFlight = computed(() => isCheckInFlight(this.view()));
   protected readonly tone = computed(() => checkToneOf(this.view()));
@@ -315,16 +320,30 @@ export class AddRunnerCheckPanel {
   constructor() {
     // §12.5: in C7 revoked, C7 unsupported and C8 the button goes; focus on it moves to the panel's heading.
     effect(() => {
-      if (this.showsRetry()) {
+      if (this.showsRetry() || !this.retryFocused) {
         return;
       }
-      untracked(() => {
-        const button = this.retry()?.nativeElement;
-        if (button !== undefined && button.ownerDocument.activeElement === button) {
-          afterNextRender(() => this.heading().nativeElement.focus(), { injector: this.injector });
-        }
-      });
+      untracked(() =>
+        afterNextRender(
+          () => {
+            const heading = this.heading().nativeElement;
+            const active = heading.ownerDocument.activeElement;
+            if (this.retryFocused && (active === null || active === heading.ownerDocument.body)) {
+              heading.focus();
+            }
+            this.retryFocused = false;
+          },
+          { injector: this.injector },
+        ),
+      );
     });
+  }
+
+  protected retryFocus(focused: boolean, button: EventTarget | null): void {
+    // A blur from removing the button leaves the mark, so the effect above can still move focus.
+    if (focused || (button instanceof Node && button.isConnected)) {
+      this.retryFocused = focused;
+    }
   }
 
   protected press(): void {
