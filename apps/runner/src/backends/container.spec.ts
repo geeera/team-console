@@ -5,7 +5,9 @@ import { PassThrough } from 'node:stream';
 import type { ContainerSettings } from '../config/config';
 import type { CredentialConfig } from '../env/credential';
 import type { Exec, ExecResult, Spawn } from '../host/exec';
-import { JOB_ID } from '../testing/fake-console';
+import { runCheck } from '../jobs/run-check';
+import { CHECK_ID, JOB_ID } from '../testing/fake-console';
+import { recordingConsole } from '../testing/job-fixture';
 import type { LaunchSpec, Sandbox } from './backend';
 import { CONTAINER_JOB_EXEC, ContainerBackend, JOB_LABEL, containerNameOf } from './container';
 
@@ -21,7 +23,7 @@ const RUNTIME_ENV = { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: '/home/runner'
 
 describe('container backend', () => {
   let home: string;
-  let calls: { line: string; stdin: string | undefined; env: unknown }[];
+  let calls: { line: string; stdin: string | undefined; env: unknown; stderr?: string | undefined }[];
   let answers: Map<string, ExecResult[]>;
 
   const exec: Exec = async (command, args, options) => {
@@ -33,7 +35,12 @@ describe('container backend', () => {
     );
   };
   const spawn: Spawn = async (command, args, options) => {
-    calls.push({ line: [command, ...args].join(' '), stdin: options.stdin, env: options.env });
+    calls.push({
+      line: [command, ...args].join(' '),
+      stdin: options.stdin,
+      env: options.env,
+      stderr: options.stderr,
+    });
     return {
       pid: 99,
       stdout: new PassThrough(),
@@ -198,6 +205,112 @@ describe('container backend', () => {
       `docker ps -aq --filter label=${JOB_LABEL}`,
     ]);
     await expect(stat(join(home, 'jobs', JOB_ID))).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  // #1059 S3 (security test 4): a check's container has every hardening flag of a job's, no network and no mount.
+  it('runs a runner check with these arguments exactly: no mount, --network none', async () => {
+    const configured = backend({
+      settings: { image: IMAGE, network: 'bridge' },
+      credential: { kind: 'claude-config-dir', path: '/Users/me/.claude' },
+    });
+    const sandbox = await configured.prepare({ jobId: CHECK_ID, projectSlug: null });
+    const tmpfs = 'rw,nosuid,nodev,mode=0700,uid=1001,gid=1001';
+    const args = configured.checkRunArgs(sandbox, {
+      command: '/usr/local/bin/claude',
+      argv: ['--version'],
+      env: { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: sandbox.home, TMPDIR: sandbox.tmp },
+      cwd: sandbox.home,
+    });
+    expect(args).toEqual([
+      'run',
+      '--interactive',
+      '--rm',
+      '--name',
+      containerNameOf(CHECK_ID),
+      '--label',
+      `${JOB_LABEL}=${CHECK_ID}`,
+      '--user',
+      '1001:1001',
+      '--read-only',
+      '--cap-drop',
+      'ALL',
+      '--security-opt',
+      'no-new-privileges',
+      '--network',
+      'none',
+      '--pids-limit',
+      '512',
+      '--memory',
+      '4096m',
+      '--tmpfs',
+      '/tmp:rw,nosuid,nodev,mode=1777',
+      '--tmpfs',
+      `${sandbox.home}:${tmpfs}`,
+      '--tmpfs',
+      `${sandbox.tmp}:${tmpfs}`,
+      '--workdir',
+      sandbox.home,
+      '--entrypoint',
+      CONTAINER_JOB_EXEC,
+      IMAGE,
+      'run',
+    ]);
+    for (const absent of [
+      '--mount',
+      '-v',
+      '--volume',
+      '/Users/me/.claude',
+      sandbox.clone,
+      sandbox.socketDir,
+    ]) {
+      expect(args).not.toContain(absent);
+    }
+    expect(args.join(' ')).not.toContain('/Users/me/.claude');
+  });
+
+  it('launches a check with its spec on stdin and stderr discarded at spawn; the config dir is never mounted', async () => {
+    const configDir = join(home, `claude-${'Q'.repeat(24)}`);
+    await mkdir(configDir, { mode: 0o700 });
+    const check = backend({ credential: { kind: 'claude-config-dir', path: configDir } });
+    const client = recordingConsole();
+    const logs: string[] = [];
+    const report = await runCheck(
+      { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 },
+      {
+        home,
+        config: {
+          backend: 'container',
+          credential: { kind: 'claude-config-dir', path: configDir },
+          toolchain: { path: '/usr/local/bin:/usr/bin:/bin', claude: '/usr/local/bin/claude' },
+        },
+        client,
+        backend: check,
+        log: (line) => logs.push(line),
+        shutdown: new AbortController().signal,
+      },
+    );
+    const run = calls.find((call) => call.line.startsWith('docker run'));
+    expect(run?.stderr).toBe('ignore');
+    const sandboxHome = join(home, 'jobs', CHECK_ID, 'home');
+    expect(JSON.parse(run?.stdin ?? '')).toEqual({
+      command: '/usr/local/bin/claude',
+      argv: ['--version'],
+      env: {
+        PATH: '/usr/local/bin:/usr/bin:/bin',
+        HOME: sandboxHome,
+        TMPDIR: join(home, 'jobs', CHECK_ID, 'tmp'),
+        DISABLE_AUTOUPDATER: '1',
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      },
+      cwd: sandboxHome,
+    });
+    expect(run?.line).toContain('--network none');
+    const everything = JSON.stringify({ calls, logs, finished: client.checksFinished });
+    expect(everything).not.toContain(configDir);
+    // The fake spawn's stdout ends without a version.
+    expect(report?.reason).toBe('claude-output-unrecognised');
+    expect(calls.some((call) => call.line.startsWith('docker ps -aq --filter label='))).toBe(true);
+    await expect(stat(join(home, 'jobs', CHECK_ID))).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   describe('refuses', () => {

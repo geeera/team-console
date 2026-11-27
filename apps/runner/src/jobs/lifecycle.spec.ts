@@ -1,12 +1,21 @@
 import { chmod, mkdir, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { generateKeyPairSync } from 'node:crypto';
+import type { IsolationBackend } from '../backends/backend';
 import { NoneBackend } from '../backends/none';
 import { loadRunnerState, saveRunnerState } from '../budget/state';
 import { RunnerClient } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { JobRegistry } from '../proxy/job-registry';
-import { JOB_ID, RUNNER_ID, fakeConsole, jobFixture, json, sentinels } from '../testing/fake-console';
+import {
+  CHECK_ID,
+  JOB_ID,
+  RUNNER_ID,
+  fakeConsole,
+  jobFixture,
+  json,
+  sentinels,
+} from '../testing/fake-console';
 import { SCENARIO, makeRunnerHome, recordingConsole, runnerConfigFor } from '../testing/job-fixture';
 import { runLoop } from './loop';
 import { runJob, type JobConsole, type JobRunDeps } from './run-job';
@@ -493,5 +502,105 @@ describe('job lifecycle', () => {
       expect(wire).not.toContain(secret);
       expect(logs.join('\n')).not.toContain(secret);
     }
+  }, 30_000);
+
+  // #1059 T14: `preflight` reaps every `_tcjob` process, so a check may only start once the job before it is cleaned
+  // up. It comes from the claim poll alone, which runs only when no job is running.
+  it('takes a check only from the claim poll after the previous job’s cleanup, through the real none backend', async () => {
+    await mkdir(join(fixture.home, 'credentials'), { mode: 0o700 });
+    await writeFile(join(fixture.home, 'credentials', 'anthropic.key'), sentinels.anthropicKey, {
+      mode: 0o600,
+    });
+    const order: string[] = [];
+    const none = new NoneBackend(fixture.home);
+    const backend: IsolationBackend = {
+      kind: 'none',
+      preflight: async () => {
+        order.push('preflight');
+        await none.preflight();
+      },
+      prepare: async (context) => {
+        order.push(`prepare ${context.jobId}`);
+        return await none.prepare(context);
+      },
+      launch: async (sandbox, spec) => {
+        order.push('launch');
+        return await none.launch(sandbox, spec);
+      },
+      launchCheck: async (sandbox, spec) => {
+        order.push('launchCheck');
+        return await none.launchCheck(sandbox, spec);
+      },
+      kill: async (running) => {
+        await none.kill(running);
+      },
+      cleanup: async (sandbox) => {
+        await none.cleanup(sandbox);
+        order.push(`cleanup ${sandbox.jobId}`);
+      },
+    };
+    const shutdown = new AbortController();
+    let claims = 0;
+    const client = Object.assign(recordingConsole(), {
+      claim: async (input?: unknown) => {
+        claims += 1;
+        order.push(`claim ${String(claims)} ${JSON.stringify(input)}`);
+        if (claims === 1) {
+          return {
+            kind: 'job' as const,
+            job: job(SCENARIO.ok),
+            jobToken: sentinels.jobToken,
+            leaseSeconds: 300,
+          };
+        }
+        return {
+          kind: 'check' as const,
+          check: { id: CHECK_ID, kind: 'smoke' as const, deadlineSeconds: 30 },
+        };
+      },
+    });
+    // Stops after the check's report: a shutdown during the check would kill it (host-not-ready).
+    const finishCheck = client.finishCheck;
+    client.finishCheck = async (checkId, input) => {
+      await finishCheck(checkId, input);
+      shutdown.abort();
+    };
+    const end = await runLoop('loop', {
+      ...depsFor(client, {
+        config: {
+          ...runnerConfigFor(fixture.repo),
+          credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
+        },
+      }),
+      backend,
+      shutdown: shutdown.signal,
+      timing: { flushMs: 20 },
+    });
+
+    expect(end).toBe('shutdown');
+    const declared = JSON.stringify({ accessSources: ['api_key'], checks: ['smoke'] });
+    expect(order).toEqual([
+      'preflight',
+      `claim 1 ${declared}`,
+      `prepare ${JOB_ID}`,
+      'launch',
+      `cleanup ${JOB_ID}`,
+      'preflight',
+      `claim 2 ${declared}`,
+      'preflight',
+      `prepare ${CHECK_ID}`,
+      'launchCheck',
+      `cleanup ${CHECK_ID}`,
+    ]);
+    expect(client.finished).toHaveLength(1);
+    expect(client.checksFinished).toEqual([
+      {
+        checkId: CHECK_ID,
+        input: { result: 'passed', claudeVersion: '2.1.3', durationMs: expect.any(Number) },
+      },
+    ]);
+    expect(logs.some((line) => line.startsWith(`check ${CHECK_ID} smoke: passed (claude 2.1.3, `))).toBe(
+      true,
+    );
   }, 30_000);
 });

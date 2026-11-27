@@ -13,6 +13,7 @@ import type { ClaimOutcome } from '../client/runner-client';
 import type { RunnerConfig } from '../config/config';
 import { accessSourcesOf } from '../env/credential';
 import { JobRegistry } from '../proxy/job-registry';
+import { DECLARED_CHECKS, runCheck, type CheckConsole, type CheckRunDeps } from './run-check';
 import { runJob, type JobConsole, type JobReport, type JobRunDeps } from './run-job';
 import { scopeOfClaim, scopeOfConfig, scopeOfSelf, type RunnerScope } from './runner-scope';
 
@@ -23,9 +24,11 @@ import { scopeOfClaim, scopeOfConfig, scopeOfSelf, type RunnerScope } from './ru
  * The pause is mirrored to the console (#571) so its claim skips this runner too and Settings › Runners shows it.
  * The scope the runner holds itself to comes from the console (#775): `GET /runner/self` at the start and the scope
  * in every claim, never the enrol-time copy, so a change on Settings › Runners applies without a restart.
+ * Every claim declares the checks this release runs (#1059); a check comes only from that claim poll, so it starts
+ * after the previous job's cleanup and never beside a job (T14).
  */
 
-export interface LoopConsole extends JobConsole {
+export interface LoopConsole extends JobConsole, CheckConsole {
   claim(input?: ClaimRunnerInput): Promise<ClaimOutcome>;
   pause(input: PauseRunnerInput): Promise<void>;
   resume(): Promise<void>;
@@ -46,6 +49,8 @@ export interface LoopDeps {
   readonly timing?: Pick<JobRunDeps, 'heartbeatMs' | 'flushMs' | 'minuteMs'>;
   /** Called before each claim, while no job runs; `true` ends the loop (`update.policy = auto` installed a release). */
   readonly beforeClaim?: () => Promise<boolean>;
+  /** A runner check's clock and time limit; specs only. */
+  readonly checkTiming?: Pick<CheckRunDeps, 'clock' | 'armTimeout'>;
 }
 
 export type LoopEnd = 'ran' | 'idle' | 'paused' | 'shutdown' | 'updated';
@@ -150,7 +155,10 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
   const registry = new JobRegistry();
   let state = await loadRunnerState(deps.home);
   let scope = await startingScope(deps, log);
-  const claimInput: ClaimRunnerInput = { accessSources: accessSourcesOf(deps.config.credential) };
+  const claimInput: ClaimRunnerInput = {
+    accessSources: accessSourcesOf(deps.config.credential),
+    checks: DECLARED_CHECKS,
+  };
   // Nothing mirrored yet in this process: a pause still in force from `state.json` is posted again on start.
   let mirrored: RunnerPause | null = null;
   while (!deps.shutdown.aborted) {
@@ -184,6 +192,22 @@ export async function runLoop(mode: 'once' | 'loop', deps: LoopDeps): Promise<Lo
         return 'idle';
       }
       await sleep(claim.retryAfterSeconds * 1000, deps.shutdown);
+      continue;
+    }
+    if (claim.kind === 'check') {
+      log(`claimed check ${claim.check.id} (${claim.check.kind})`);
+      await runCheck(claim.check, {
+        home: deps.home,
+        config: deps.config,
+        client: deps.client,
+        backend: deps.backend,
+        log: deps.log,
+        shutdown: deps.shutdown,
+        ...deps.checkTiming,
+      });
+      if (mode === 'once') {
+        return 'ran';
+      }
       continue;
     }
     log(`claimed job ${claim.job.id} (${claim.job.kind})`);

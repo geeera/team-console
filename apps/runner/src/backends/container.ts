@@ -7,10 +7,12 @@ import { removeTree } from '../git/workspace';
 import { hostExec, hostSpawn, type Exec, type Spawn } from '../host/exec';
 import {
   BackendError,
+  type CheckLaunchSpec,
   type IsolationBackend,
   type JobContext,
   type LaunchSpec,
   type RunningJob,
+  type RunningProcess,
   type Sandbox,
 } from './backend';
 import { jobExecSpecOf } from './job-exec';
@@ -107,12 +109,12 @@ export class ContainerBackend implements IsolationBackend {
     return await createPrivateSandbox(this.options.home, job);
   }
 
-  /** The `run` arguments of one job; public so the spec asserts the mount list exactly. */
-  runArgs(sandbox: Sandbox, spec: LaunchSpec): string[] {
-    const { settings, credential, uid, gid } = this.options;
-    if (settings === undefined) {
-      throw new BackendError('config.json has no container.image');
-    }
+  /**
+   * What every container of this runner gets, a job's or a check's: one name and label per sandbox, the runner's uid,
+   * a read-only root without capabilities or privilege gain, pid and memory limits, and tmpfs `/tmp`, HOME and TMPDIR.
+   */
+  private hardenedArgs(sandbox: Sandbox, settings: ContainerSettings, network: string): string[] {
+    const { uid, gid } = this.options;
     const owned = `${TMPFS},mode=0700,uid=${String(uid)},gid=${String(gid)}`;
     return [
       'run',
@@ -133,7 +135,7 @@ export class ContainerBackend implements IsolationBackend {
       '--security-opt',
       'no-new-privileges',
       '--network',
-      settings.network ?? 'bridge',
+      network,
       '--pids-limit',
       String(settings.pidsLimit ?? DEFAULT_PIDS_LIMIT),
       '--memory',
@@ -144,6 +146,22 @@ export class ContainerBackend implements IsolationBackend {
       `${sandbox.home}:${owned}`,
       '--tmpfs',
       `${sandbox.tmp}:${owned}`,
+    ];
+  }
+
+  private settingsOrRefuse(): ContainerSettings {
+    if (this.options.settings === undefined) {
+      throw new BackendError('config.json has no container.image');
+    }
+    return this.options.settings;
+  }
+
+  /** The `run` arguments of one job; public so the spec asserts the mount list exactly. */
+  runArgs(sandbox: Sandbox, spec: LaunchSpec): string[] {
+    const settings = this.settingsOrRefuse();
+    const { credential } = this.options;
+    return [
+      ...this.hardenedArgs(sandbox, settings, settings.network ?? 'bridge'),
       ...bind(sandbox.clone, false),
       ...bind(sandbox.socketDir, true),
       ...bind(spec.readOnly.plugin, true),
@@ -160,19 +178,50 @@ export class ContainerBackend implements IsolationBackend {
     ];
   }
 
+  /**
+   * A runner check's `run` arguments (#1059, S3): every hardening flag of a job, `--network none` whatever the config
+   * says, and no mount at all: no clone, socket, plugin, managed settings or Claude config. Public for the spec.
+   */
+  checkRunArgs(sandbox: Sandbox, spec: CheckLaunchSpec): string[] {
+    const settings = this.settingsOrRefuse();
+    return [
+      ...this.hardenedArgs(sandbox, settings, 'none'),
+      '--workdir',
+      spec.cwd,
+      '--entrypoint',
+      CONTAINER_JOB_EXEC,
+      settings.image,
+      'run',
+    ];
+  }
+
   async launch(sandbox: Sandbox, spec: LaunchSpec): Promise<RunningJob> {
     const child = await this.spawn(this.runtime, this.runArgs(sandbox, spec), {
       env: this.options.runtimeEnv,
       stdin: jobExecSpecOf(spec),
     });
-    if (child.pid === undefined) {
+    if (child.pid === undefined || child.stderr === null) {
       throw new BackendError(`could not start ${this.runtime} run`);
     }
     this.running.set(child.pid, containerNameOf(sandbox.jobId));
     return { pid: child.pid, stdout: child.stdout, stderr: child.stderr, exited: child.exited };
   }
 
-  async kill(running: RunningJob): Promise<void> {
+  /** The check's spec travels on stdin to `job-exec run` like a job's; stderr is discarded at spawn (S6). */
+  async launchCheck(sandbox: Sandbox, spec: CheckLaunchSpec): Promise<RunningProcess> {
+    const child = await this.spawn(this.runtime, this.checkRunArgs(sandbox, spec), {
+      env: this.options.runtimeEnv,
+      stdin: jobExecSpecOf(spec),
+      stderr: 'ignore',
+    });
+    if (child.pid === undefined) {
+      throw new BackendError(`could not start ${this.runtime} run`);
+    }
+    this.running.set(child.pid, containerNameOf(sandbox.jobId));
+    return { pid: child.pid, stdout: child.stdout, exited: child.exited };
+  }
+
+  async kill(running: RunningProcess): Promise<void> {
     const name = this.running.get(running.pid);
     if (name !== undefined) {
       // Exit 1 when the container already ended; cleanup proves it is gone.

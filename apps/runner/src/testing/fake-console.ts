@@ -48,6 +48,8 @@ export function problem(status: number, slug: string): Response {
 export const RUNNER_ID = '01JC00000000000000000000R1';
 export const JOB_ID = '01JC00000000000000000000J1';
 export const OTHER_JOB_ID = '01JC00000000000000000000J2';
+/** A runner check's id (#1059). */
+export const CHECK_ID = '01JC00000000000000000000C1';
 export const ACCOUNT_ID = '01M6YSNJ000000000000000001';
 
 /** Synthetic secrets built at run time, so no secret-shaped literal sits in the repository (CLAUDE.md, gitleaks). */

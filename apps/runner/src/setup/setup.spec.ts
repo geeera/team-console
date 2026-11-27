@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runnerKeyFingerprintOf, type Ed25519PublicJwk } from '@shared/contracts';
 import { managedSettingsText } from '../backends/user';
-import { runCli, type CliDeps } from '../cli/cli';
+import { EXIT_OK, runCli, type CliDeps } from '../cli/cli';
 import { loadRunnerConfig } from '../config/config';
 import { hostExec, type Exec } from '../host/exec';
 import type { PathFacts } from '../install/install';
@@ -438,6 +438,45 @@ describe('setup (#634 PR 2)', () => {
     await run(mac, { only: ['enrol', 'toolchain'] });
     expect(mac.claudeRuns).toBe(0);
     expect(mac.execs.some((line) => line.startsWith('/bin/launchctl'))).toBe(false);
+  });
+
+  // #1059 N7: the wizard's fix lines for an enrolled Mac name no --url; the console comes from config.json.
+  it.each([
+    [
+      ['setup', '--only', 'credential,check'],
+      'credential: credentials/claude-setup-token is present and kept',
+    ],
+    [['setup', '--only', 'toolchain,check'], `toolchain: claude ${CLAUDE}; job PATH`],
+  ])('%j runs on an enrolled runner without --url and ends ready', async (argv, stepLine) => {
+    const mac = world();
+    await expect(run(mac)).resolves.toBe(true);
+    mac.rootOut.length = 0;
+    const errors: string[] = [];
+    const exit = await runCli(argv, {
+      env: {},
+      homeDir: '/var/root',
+      host: { os: 'darwin', arch: 'arm64', hostname: 'owner-mac.local' },
+      fetch: async () => {
+        throw new Error('root never calls the console');
+      },
+      stdout: (line) => mac.rootOut.push(line),
+      stderr: (line) => errors.push(line),
+      platform: 'darwin',
+      uid: 0,
+      prefix: PREFIX,
+      setupHost: mac.host,
+      openRequestChannel: () => openRequestChannel(tmpRoot, mac.host.exec),
+      openForUser: async () => undefined,
+      settleMs: 0,
+      tmpRoot,
+    });
+
+    expect(errors).toEqual([]);
+    expect(exit).toBe(EXIT_OK);
+    expect(mac.rootOut.some((line) => line.startsWith(stepLine))).toBe(true);
+    expect(mac.rootOut.some((line) => line.startsWith('enrol:'))).toBe(false);
+    expect(mac.rootOut.at(-1)).toBe('Готово: раннер «Owner Mac» на связи.');
+    await expect(loadRunnerConfig(home)).resolves.toMatchObject({ apiUrl: API, runnerId: RUNNER_ID });
   });
 
   it('self-check fails on a second sudoers rule and names it', async () => {

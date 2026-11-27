@@ -1,5 +1,12 @@
 import { hostExec, type Exec } from '../host/exec';
-import type { IsolationBackend, JobContext, LaunchSpec, RunningJob, Sandbox } from './backend';
+import type {
+  IsolationBackend,
+  JobContext,
+  LaunchSpec,
+  RunningJob,
+  RunningProcess,
+  Sandbox,
+} from './backend';
 import { NoneBackend } from './none';
 
 /**
@@ -30,7 +37,7 @@ export class ActionsEphemeralBackend implements IsolationBackend {
     return await this.none.launch(sandbox, spec);
   }
 
-  async kill(running: RunningJob): Promise<void> {
+  async kill(running: RunningProcess): Promise<void> {
     await this.none.kill(running);
   }
 

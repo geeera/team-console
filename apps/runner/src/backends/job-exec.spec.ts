@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -76,6 +76,22 @@ describe('job-exec run', () => {
       1000,
     );
     expect(code).toBe(137);
+  });
+
+  // #1059: the runner check tells a missing or non-executable CLI (claude-not-executable) from a failing one.
+  it('exits 127 for a command that is not there and 126 for one that may not be executed', async () => {
+    const run = async (command: string): Promise<number> =>
+      await runJobExec(
+        stdin(jobExecSpecOf({ command, argv: ['--version'], env: { PATH: dir }, cwd: dir })),
+        1000,
+      );
+    vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    expect(await run('claude')).toBe(127);
+    expect(await run(join(dir, 'nowhere', 'claude'))).toBe(127);
+    const plain = join(dir, 'claude');
+    await writeFile(plain, '#!/bin/sh\necho 2.1.3\n', { mode: 0o644 });
+    expect(await run(plain)).toBe(126);
+    vi.restoreAllMocks();
   });
 
   it('never runs a job as root', async () => {

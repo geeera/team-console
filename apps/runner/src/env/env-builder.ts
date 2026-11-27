@@ -135,3 +135,31 @@ export function buildJobEnv(input: JobEnvInput): JobEnv {
   }
   return { env, passedThrough };
 }
+
+/** The runner check's environment (#1059, S6). */
+export interface CheckEnv {
+  readonly PATH: string;
+  readonly HOME: string;
+  readonly TMPDIR: string;
+  readonly DISABLE_AUTOUPDATER: '1';
+  readonly CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1';
+}
+
+/**
+ * A runner check's environment (#1059, S6/T7), built from nothing and with no passthrough: the toolchain's PATH, the
+ * sandbox HOME and TMPDIR, and the two switches that stop Claude Code updating itself or calling home during the
+ * probe. No `TC_*`, no console URL, no credential variable.
+ */
+export function buildCheckEnv(input: {
+  readonly path: string;
+  readonly home: string;
+  readonly tmp: string;
+}): CheckEnv {
+  return {
+    PATH: input.path,
+    HOME: input.home,
+    TMPDIR: input.tmp,
+    DISABLE_AUTOUPDATER: '1',
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+  };
+}

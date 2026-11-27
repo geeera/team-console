@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import {
   ACCESS_SOURCES,
   ACTIONS_INFERENCE_KEY_SECRET,
@@ -6,7 +6,7 @@ import {
   type RunnerIsolation,
 } from '@shared/contracts';
 import { ANTHROPIC_OAUTH_TOKEN_PREFIX } from '@shared/redaction';
-import { RunnerFileError, assertPrivateDir, readPrivateFile } from '../config/private-files';
+import { RunnerFileError, assertPrivateDir, lstatOrNull, readPrivateFile } from '../config/private-files';
 import { LaunchRefusal } from '../jobs/refusal';
 
 /**
@@ -196,13 +196,38 @@ export async function jobCredentialOf(
     assertNotSubscriptionShaped(credential.kind, value);
     return { kind: credential.kind, name, value };
   }
+  return { kind: credential.kind, name, value: await fileCredentialValueOf(home, credential, false) };
+}
+
+type FileCredential = Extract<CredentialConfig, { readonly file: string }>;
+
+/**
+ * A file credential's value after every check a launch makes: the private `credentials/` directory, a 0600 regular
+ * file of the runner's user (no symlink), one credential line, an API key not shaped like a subscription login.
+ * `missingIsOwnReason` reports a file that is not there as `credential-missing` (the runner check) instead of
+ * `credential-unreadable` (a job, as before #1059).
+ */
+async function fileCredentialValueOf(
+  home: string,
+  credential: FileCredential,
+  missingIsOwnReason: boolean,
+): Promise<string> {
+  const dir = join(home, CREDENTIALS_DIR);
+  if (missingIsOwnReason && (await lstatOrNull(dir)) === null) {
+    throw new LaunchRefusal('credential-missing', `${CREDENTIALS_DIR}/ does not exist`);
+  }
   let value: string;
   try {
-    await assertPrivateDir(join(home, CREDENTIALS_DIR));
+    await assertPrivateDir(dir);
     value = (await readPrivateFile(join(home, credential.file))).trim();
   } catch (error: unknown) {
     if (error instanceof RunnerFileError) {
-      throw new LaunchRefusal('credential-unreadable', `${credential.file}: ${error.problem}`);
+      throw new LaunchRefusal(
+        missingIsOwnReason && error.problem === 'file-missing'
+          ? 'credential-missing'
+          : 'credential-unreadable',
+        `${credential.file}: ${error.problem}`,
+      );
     }
     throw error;
   }
@@ -210,5 +235,51 @@ export async function jobCredentialOf(
     throw new LaunchRefusal('credential-unreadable', `${credential.file} does not hold one credential line`);
   }
   assertNotSubscriptionShaped(credential.kind, value);
-  return { kind: credential.kind, name, value };
+  return value;
+}
+
+/** Group or others may write. */
+const SHARED_WRITE = 0o022;
+
+/**
+ * Whether a credential is in place, for the runner check (#1059, S4/T6): the same refusals a launch makes, and no
+ * value back. A file kind is read and judged here and the string goes no further; a `claude-config-dir` is judged by
+ * `lstat` alone (an absolute directory that no group or other may write), and nothing inside it is ever opened
+ * (ADR 0008). It never asks the Keychain or `security`. No credential configured is `credential-missing`: a check
+ * never probes the host's own sign-in. A refusal names the file and its problem, never a value.
+ */
+export async function credentialPresenceOf(
+  home: string,
+  credential: CredentialConfig | undefined,
+  backend: RunnerIsolation,
+): Promise<'present'> {
+  if (credential === undefined) {
+    throw new LaunchRefusal('credential-missing', 'config.json names no credential');
+  }
+  assertCredentialAllowed(credential, backend);
+  if (isFromEnv(credential)) {
+    // Only an `actions-ephemeral` run takes a key from its env, and no check ever runs there.
+    throw new LaunchRefusal('credential-not-allowed', 'a runner check never reads a credential from the env');
+  }
+  if (credential.kind === 'claude-config-dir') {
+    if (!isAbsolute(credential.path)) {
+      throw new LaunchRefusal('credential-unreadable', 'the Claude config directory is not an absolute path');
+    }
+    const stats = await lstatOrNull(credential.path);
+    if (stats === null) {
+      throw new LaunchRefusal('credential-missing', `${credential.path} does not exist`);
+    }
+    if (!stats.isDirectory()) {
+      throw new LaunchRefusal(
+        'credential-unreadable',
+        `${credential.path} is not a directory (a symlink is refused too)`,
+      );
+    }
+    if ((stats.mode & SHARED_WRITE) !== 0) {
+      throw new LaunchRefusal('credential-unreadable', `${credential.path} is writable by group or others`);
+    }
+    return 'present';
+  }
+  await fileCredentialValueOf(home, credential, true);
+  return 'present';
 }

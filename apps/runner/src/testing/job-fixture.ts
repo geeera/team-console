@@ -3,9 +3,15 @@ import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import type { FinishJobInput, JobEventInput, PauseRunnerInput } from '@shared/contracts';
+import type {
+  FinishJobInput,
+  FinishRunnerCheckInput,
+  JobEventInput,
+  PauseRunnerInput,
+} from '@shared/contracts';
 import type { RunnerConfig } from '../config/config';
 import { removeTree } from '../git/workspace';
+import type { CheckConsole } from '../jobs/run-check';
 import type { JobConsole } from '../jobs/run-job';
 import { ACCOUNT_ID, RUNNER_ID } from './fake-console';
 
@@ -80,19 +86,23 @@ export function runnerConfigFor(repo: string, overrides: Partial<RunnerConfig> =
 }
 
 /** The console as the job loop sees it, recording what it was sent. */
-export function recordingConsole(): JobConsole & {
-  sent: JobEventInput[];
-  finished: FinishJobInput[];
-  heartbeats: number;
-  onFinish: (() => void) | null;
-  /** What the loop mirrored to the console (#571), in order: a pause, or `'resume'`. */
-  pauses: (PauseRunnerInput | 'resume')[];
-  pause(input: PauseRunnerInput): Promise<void>;
-  resume(): Promise<void>;
-} {
+export function recordingConsole(): JobConsole &
+  CheckConsole & {
+    sent: JobEventInput[];
+    finished: FinishJobInput[];
+    /** Runner check reports (#1059), in order. */
+    checksFinished: { checkId: string; input: FinishRunnerCheckInput }[];
+    heartbeats: number;
+    onFinish: (() => void) | null;
+    /** What the loop mirrored to the console (#571), in order: a pause, or `'resume'`. */
+    pauses: (PauseRunnerInput | 'resume')[];
+    pause(input: PauseRunnerInput): Promise<void>;
+    resume(): Promise<void>;
+  } {
   const fake = {
     sent: [] as JobEventInput[],
     finished: [] as FinishJobInput[],
+    checksFinished: [] as { checkId: string; input: FinishRunnerCheckInput }[],
     heartbeats: 0,
     onFinish: null as (() => void) | null,
     pauses: [] as (PauseRunnerInput | 'resume')[],
@@ -116,6 +126,9 @@ export function recordingConsole(): JobConsole & {
     finish: async (_jobId: string, input: FinishJobInput) => {
       fake.onFinish?.();
       fake.finished.push(input);
+    },
+    finishCheck: async (checkId: string, input: FinishRunnerCheckInput) => {
+      fake.checksFinished.push({ checkId, input });
     },
     forwardForProject: async () => ({ status: 200, headers: {}, body: Buffer.from('{}') }),
     forwardForRunnerJob: async () => ({ status: 201, headers: {}, body: Buffer.from('{}') }),

@@ -119,8 +119,8 @@ describe('the loop refreshes the scope from the console', () => {
     });
     const { shutdown, run } = loopWith(client);
     expect(await run()).toBe('shutdown');
-    // No credential configured: the host's own sign-in serves a subscription project only.
-    expect(claims).toEqual([{ accessSources: ['subscription'] }]);
+    // No credential configured: the host's own sign-in serves a subscription project only. #1059: the checks too.
+    expect(claims).toEqual([{ accessSources: ['subscription'], checks: ['smoke'] }]);
     expect(logs).toContainEqual(expect.stringContaining('scope from the console: all (team-console)'));
   });
 

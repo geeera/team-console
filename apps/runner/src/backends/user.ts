@@ -7,10 +7,12 @@ import { removeTree } from '../git/workspace';
 import { SYSTEM_PATH, hostExec, hostSpawn, type Exec, type ExecResult, type Spawn } from '../host/exec';
 import {
   BackendError,
+  type CheckLaunchSpec,
   type IsolationBackend,
   type JobContext,
   type LaunchSpec,
   type RunningJob,
+  type RunningProcess,
   type Sandbox,
 } from './backend';
 import { jobExecSpecOf } from './job-exec';
@@ -240,13 +242,29 @@ export class UserBackend implements IsolationBackend {
       env: this.sudoEnv,
       stdin: jobExecSpecOf(spec),
     });
-    if (child.pid === undefined) {
+    if (child.pid === undefined || child.stderr === null) {
       throw new BackendError(`could not start sudo -u ${JOB_USER}`);
     }
     return { pid: child.pid, stdout: child.stdout, stderr: child.stderr, exited: child.exited };
   }
 
-  async kill(running: RunningJob): Promise<void> {
+  /**
+   * A runner check (#1059, S6/T7) through the same one sudoers rule and `job-exec run`, its spec on stdin; stderr is
+   * discarded at spawn. A missing `claude` shows as job-exec's exit 127, not as a spawn error.
+   */
+  async launchCheck(_sandbox: Sandbox, spec: CheckLaunchSpec): Promise<RunningProcess> {
+    const child = await this.spawn(SUDO, this.sudoArgs('run'), {
+      env: this.sudoEnv,
+      stdin: jobExecSpecOf(spec),
+      stderr: 'ignore',
+    });
+    if (child.pid === undefined) {
+      throw new BackendError(`could not start sudo -u ${JOB_USER}`);
+    }
+    return { pid: child.pid, stdout: child.stdout, exited: child.exited };
+  }
+
+  async kill(running: RunningProcess): Promise<void> {
     await this.reap();
     await running.exited;
   }
