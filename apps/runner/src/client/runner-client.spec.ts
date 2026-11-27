@@ -2,6 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { decodeJwt, decodeProtectedHeader, jwtVerify } from 'jose';
 import { RUNNER_JWT_MAX_AGE_SECONDS, type JobEventInput } from '@shared/contracts';
 import {
+  CHECK_ID,
   JOB_ID,
   RUNNER_ID,
   fakeConsole,
@@ -414,5 +415,84 @@ describe('pause and resume', () => {
     });
     const revoked = clientWith(() => problem(401, 'runner-revoked'));
     await expect(revoked.client.resume()).rejects.toBeInstanceOf(RunnerApiError);
+  });
+});
+
+// #1059 S2/T4: the check half of the claim answer names a kind and nothing else; the runner's table decides what runs.
+describe('claim: a runner check', () => {
+  const declared = { accessSources: ['subscription' as const], checks: ['smoke' as const] };
+  const check = { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 };
+
+  it('is exactly {check: {id, kind, deadlineSeconds}} with a ULID and a kind this claim declared', async () => {
+    const { client, requests } = clientWith(() => json(200, { check }));
+    await expect(client.claim(declared)).resolves.toEqual({ kind: 'check', check });
+    expect(JSON.parse(requests[0]?.body ?? '')).toEqual({
+      accessSources: ['subscription'],
+      checks: ['smoke'],
+    });
+  });
+
+  it.each([
+    ['an extra command', { check: { ...check, command: '/bin/sh' } }],
+    ['an extra argv', { check: { ...check, argv: ['-c', 'id'] } }],
+    ['an extra env', { check: { ...check, env: { LD_PRELOAD: '/x' } } }],
+    ['an extra path', { check: { ...check, path: '/tmp/x' } }],
+    ['a key beside the check', { check, scope: { projectScope: 'all' } }],
+    ['a job beside the check', { check, job: jobFixture(), jobToken: sentinels.jobToken, leaseSeconds: 300 }],
+    ['an unknown kind', { check: { ...check, kind: 'exec' } }],
+    ['a path-shaped id', { check: { ...check, id: '../../x' } }],
+    ['another non-ULID id', { check: { ...check, id: 'not-a-ulid-at-all-00000000' } }],
+    ['a deadline past the runner’s own limit', { check: { ...check, deadlineSeconds: 3600 } }],
+    ['a deadline that is not a positive integer', { check: { ...check, deadlineSeconds: 0.5 } }],
+    ['a missing deadline', { check: { id: CHECK_ID, kind: 'smoke' } }],
+  ])('refuses %s as an unexpected answer', async (_what, body) => {
+    const { client } = clientWith(() => json(200, body));
+    await expect(client.claim(declared)).rejects.toThrow('claim: unexpected answer');
+  });
+
+  it('refuses a check this claim did not declare (an old declaration, or none)', async () => {
+    const { client } = clientWith(() => json(200, { check }));
+    await expect(client.claim({ accessSources: ['subscription'] })).rejects.toThrow('claim: unexpected answer');
+    await expect(client.claim()).rejects.toThrow('claim: unexpected answer');
+  });
+
+  it('leaves an old console’s answers as they were: a plain job, and a 204', async () => {
+    const job = jobFixture();
+    const jobs = clientWith(() => json(200, { job, jobToken: sentinels.jobToken, leaseSeconds: 300 }));
+    await expect(jobs.client.claim(declared)).resolves.toEqual({
+      kind: 'job',
+      job,
+      jobToken: sentinels.jobToken,
+      leaseSeconds: 300,
+    });
+    const idle = clientWith(() => new Response(null, { status: 204, headers: { 'Retry-After': '10' } }));
+    await expect(idle.client.claim(declared)).resolves.toEqual({ kind: 'idle', retryAfterSeconds: 10 });
+  });
+
+  it('finishCheck: posts exactly the report to the check’s own path and takes the 204', async () => {
+    const { client, requests } = clientWith(() => new Response(null, { status: 204 }));
+    await client.finishCheck(CHECK_ID, { result: 'passed', claudeVersion: '2.1.3', durationMs: 840 });
+    expect(requests).toHaveLength(1);
+    expect(requests[0]).toMatchObject({
+      url: `${API}/api/v1/runner/checks/${CHECK_ID}/finish`,
+      method: 'POST',
+      redirect: 'manual',
+    });
+    expect(JSON.parse(requests[0]?.body ?? '')).toEqual({
+      result: 'passed',
+      claudeVersion: '2.1.3',
+      durationMs: 840,
+    });
+  });
+
+  it('finishCheck: a 404 is an error with its slug, and a path-shaped id never leaves the runner', async () => {
+    const { client, requests } = clientWith(() => problem(404, 'runner-check-not-found'));
+    await expect(
+      client.finishCheck(CHECK_ID, { result: 'failed', reason: 'timeout', durationMs: 30_000 }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      client.finishCheck('../../x', { result: 'failed', reason: 'timeout', durationMs: 1 }),
+    ).rejects.toThrow('not a check id');
+    expect(requests).toHaveLength(1);
   });
 });

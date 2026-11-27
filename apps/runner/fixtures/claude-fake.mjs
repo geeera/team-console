@@ -6,6 +6,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const args = process.argv.slice(2);
+// The runner check (#1059): `claude --version`, in the CLI's own output shape.
+if (args.length === 1 && args[0] === '--version') {
+  process.stdout.write('2.1.3 (Claude Code)\n');
+  process.exit(0);
+}
 const flag = (name) => {
   const at = args.indexOf(name);
   return at === -1 ? undefined : args[at + 1];
