@@ -1,6 +1,12 @@
 import { applyD1Migrations, env } from 'cloudflare:test';
 import { IdempotencyKeysRepo } from '@worker/db';
-import { JOB_KINDS, OWNER_ACCOUNT_ID, OWNER_USER_ID, sprintTitleKeyOf } from '@shared/contracts';
+import {
+  JOB_KINDS,
+  OWNER_ACCOUNT_ID,
+  OWNER_USER_ID,
+  RUNNER_STORED_CHECK_REASONS,
+  sprintTitleKeyOf,
+} from '@shared/contracts';
 
 interface SqliteMasterRow {
   name: string;
@@ -46,6 +52,7 @@ describe('migrations on a fresh D1', () => {
       'push_test_sends',
       'rate_limits',
       'role_keys',
+      'runner_checks',
       'runner_enrolment_requests',
       'runner_enrolments',
       'runner_nonces',
@@ -111,6 +118,7 @@ describe('migrations on a fresh D1', () => {
       '0046_runner_non_enroller_projects.sql',
       '0047_runner_enrolment_requests_deleted_with_owner.sql',
       '0048_backfill_creator_enroller.sql',
+      '0049_runner_checks.sql',
     ]);
   });
 
@@ -422,6 +430,209 @@ describe('migrations on a fresh D1', () => {
         env.DB.prepare(`DELETE FROM runner_enrolment_requests WHERE id = ?1`).bind(kept),
         env.DB.prepare(`DELETE FROM projects WHERE slug = 'm047p'`),
       ]);
+    });
+  });
+
+  // #1059 (architect note §1, A1): the runner_checks schema itself refuses what the API refuses, a second live check,
+  // a cross-account row, a rewrite and a final state that moves; the rows go with their runner, account and requester.
+  describe('0049 runner checks', () => {
+    const account = '01M6YSNJ0000000000000M049A';
+    const other = '01M6YSNJ0000000000000M049B';
+    const runner = '01M6YSNJ0000000000000M049R';
+    const foreignRunner = '01M6YSNJ0000000000000M049S';
+    const user = '01M6YSNJ0000000000000M049V';
+    const T0 = '2026-11-27T10:00:00.000Z';
+    const T1 = '2026-11-27T10:00:05.000Z';
+    const jwkOf = (x: string): string => JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: x.repeat(43) });
+    let counter = 0;
+    const nextId = (): string => {
+      counter += 1;
+      return `01M6YSNJ0000000000000M49${String(counter).padStart(2, '0')}`;
+    };
+    const insert = (columns: Record<string, string | number | null>) => {
+      const row: Record<string, string | number | null> = {
+        id: nextId(),
+        account_id: account,
+        runner_id: runner,
+        kind: 'smoke',
+        requested_by: 'owner',
+        created_at: T0,
+        ...columns,
+      };
+      const names = Object.keys(row);
+      return env.DB.prepare(
+        `INSERT INTO runner_checks (${names.join(', ')}) VALUES (${names.map((_, index) => `?${String(index + 1)}`).join(', ')})`,
+      )
+        .bind(...names.map((name) => row[name] ?? null))
+        .run();
+    };
+    const finished = { state: 'passed', claude_version: '2.1.3', picked_at: T0, finished_at: T1 };
+
+    beforeAll(async () => {
+      const runnerRow = `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+                         VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`;
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049a', 'A', ?2)`,
+        ).bind(account, T0),
+        env.DB.prepare(
+          `INSERT INTO accounts (id, slug, name, created_at) VALUES (?1, 'm049b', 'B', ?2)`,
+        ).bind(other, T0),
+        env.DB.prepare(runnerRow).bind(runner, account, jwkOf('x'), T0),
+        env.DB.prepare(runnerRow).bind(foreignRunner, other, jwkOf('y'), T0),
+        env.DB.prepare(
+          `INSERT INTO users (id, provider, provider_user_id, login, created_at, last_seen_at)
+           VALUES (?1, 'gitlab', '490049', 'm049', ?2, ?2)`,
+        ).bind(user, T0),
+      ]);
+    });
+    afterEach(async () => {
+      await env.DB.prepare(`DELETE FROM runner_checks WHERE account_id IN (?1, ?2)`)
+        .bind(account, other)
+        .run();
+    });
+
+    it('admits the states the flow writes', async () => {
+      await insert({});
+      await insert({ ...finished });
+      await insert({ state: 'failed', reason: 'not-picked-up', finished_at: T1 });
+      await insert({
+        state: 'failed',
+        reason: 'timeout',
+        picked_at: T0,
+        finished_at: T1,
+        duration_ms: 120000,
+      });
+      await insert({ ...finished, claude_version: '2.1.3-beta.1+build.7', duration_ms: 0 });
+    });
+
+    it.each<[string, Record<string, string | number | null>, RegExp]>([
+      ['a non-ULID id', { id: 'check-1' }, /CHECK/],
+      ['another kind', { kind: 'exec' }, /CHECK/],
+      ['another state', { state: 'done' }, /CHECK/],
+      ['a reason on a pass', { ...finished, reason: 'timeout' }, /CHECK/],
+      ['a failure without a reason', { state: 'failed', finished_at: T1 }, /CHECK/],
+      ['an unknown reason', { state: 'failed', reason: 'exploded', finished_at: T1 }, /CHECK/],
+      ['the enqueue-only reason', { state: 'failed', reason: 'rate-limited', finished_at: T1 }, /CHECK/],
+      [
+        'a version on a failure',
+        { state: 'failed', reason: 'timeout', claude_version: '2.1.3', picked_at: T0, finished_at: T1 },
+        /CHECK/,
+      ],
+      ['a pass without a version', { state: 'passed', picked_at: T0, finished_at: T1 }, /CHECK/],
+      ['markup in the version', { ...finished, claude_version: '<img src=x>' }, /CHECK/],
+      ['a newline in the version', { ...finished, claude_version: '2.1.3\n' }, /CHECK/],
+      ['65 characters of version', { ...finished, claude_version: `2.1.3-${'a'.repeat(59)}` }, /CHECK/],
+      ['a non-ASCII version', { ...finished, claude_version: '2.1.3-é' }, /CHECK/],
+      ['a negative duration', { ...finished, duration_ms: -1 }, /CHECK/],
+      ['a duration past 120000', { ...finished, duration_ms: 120001 }, /CHECK/],
+      ['a text duration', { ...finished, duration_ms: 'five' }, /CHECK/],
+      ['a duration on a live check', { duration_ms: 5 }, /CHECK/],
+      ['a time that is not ISO UTC', { created_at: '2026-11-27 10:00:00' }, /CHECK/],
+      [
+        'a final state without finished_at',
+        { state: 'passed', claude_version: '2.1.3', picked_at: T0 },
+        /CHECK/,
+      ],
+      ['finished_at on a live check', { finished_at: T1 }, /CHECK/],
+      ['a queued check that was picked up', { picked_at: T0 }, /CHECK/],
+      ['a running check never picked up', { state: 'running' }, /CHECK/],
+      ['an empty requester', { requested_by: '' }, /CHECK/],
+      ['another account than the runner’s', { account_id: other }, /must be the runner's account/],
+    ])('refuses %s', async (_case, columns, error) => {
+      await expect(insert(columns)).rejects.toThrow(error);
+    });
+
+    it('holds one live check per runner, and any number of final ones', async () => {
+      await insert({});
+      await expect(insert({ state: 'running', picked_at: T0 })).rejects.toThrow(
+        /UNIQUE constraint failed: runner_checks.runner_id/,
+      );
+      await insert({ ...finished });
+      await insert({ ...finished });
+      await insert({ runner_id: foreignRunner, account_id: other });
+    });
+
+    it('keeps the identity, moves the state forward only and keeps a final state final', async () => {
+      const id = nextId();
+      await insert({ id });
+      for (const [column, value] of [
+        ['account_id', other],
+        ['runner_id', foreignRunner],
+        ['kind', 'smoke'],
+        ['requested_by', 'someone'],
+        ['created_at', T1],
+      ] as const) {
+        await expect(
+          env.DB.prepare(`UPDATE runner_checks SET ${column} = ?2 WHERE id = ?1`).bind(id, value).run(),
+        ).rejects.toThrow(/keeps its identity/);
+      }
+      await expect(insert({ id })).rejects.toThrow(/keeps its identity|UNIQUE/);
+      await env.DB.prepare(`UPDATE runner_checks SET state = 'running', picked_at = ?2 WHERE id = ?1`)
+        .bind(id, T0)
+        .run();
+      await expect(
+        env.DB.prepare(`UPDATE runner_checks SET state = 'queued', picked_at = NULL WHERE id = ?1`)
+          .bind(id)
+          .run(),
+      ).rejects.toThrow(/only moves forward/);
+      await env.DB.prepare(
+        `UPDATE runner_checks SET state = 'failed', reason = 'lost', finished_at = ?2 WHERE id = ?1`,
+      )
+        .bind(id, T1)
+        .run();
+      await expect(
+        env.DB.prepare(
+          `UPDATE runner_checks SET state = 'passed', reason = NULL, claude_version = '2.1.3' WHERE id = ?1`,
+        )
+          .bind(id)
+          .run(),
+      ).rejects.toThrow(/only moves forward/);
+      await expect(
+        env.DB.prepare(`UPDATE runner_checks SET reason = 'timeout' WHERE id = ?1`).bind(id).run(),
+      ).rejects.toThrow(/only moves forward/);
+    });
+
+    it('lists exactly the reasons @shared/contracts stores', async () => {
+      const table = await env.DB.prepare(
+        `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'runner_checks'`,
+      ).first<{ sql: string }>();
+      const listed = /reason IN \(([^)]*)\)/.exec(table?.sql ?? '')?.[1] ?? '';
+      expect([...listed.matchAll(/'([a-z-]+)'/g)].map((match) => match[1])).toEqual([
+        ...RUNNER_STORED_CHECK_REASONS,
+      ]);
+    });
+
+    it('deletes a check with its runner, its account and the user who asked, and no other', async () => {
+      const deletedRunner = '01M6YSNJ0000000000000M049T';
+      await env.DB.prepare(
+        `INSERT INTO runners (id, account_id, name, public_key_jwk, isolation, version, enrolled_at)
+         VALUES (?1, ?2, 'mac', ?3, 'user', '0.1.0', ?4)`,
+      )
+        .bind(deletedRunner, account, jwkOf('z'), T0)
+        .run();
+      const ofRunner = nextId();
+      const kept = nextId();
+      const ofUser = nextId();
+      const foreign = nextId();
+      await insert({ id: ofRunner, runner_id: deletedRunner });
+      await insert({ id: kept, ...finished });
+      await insert({ id: ofUser, ...finished, requested_by: user });
+      await insert({ id: foreign, runner_id: foreignRunner, account_id: other });
+      const ids = async (): Promise<string[]> =>
+        (
+          await env.DB.prepare(`SELECT id FROM runner_checks WHERE account_id IN (?1, ?2) ORDER BY id`)
+            .bind(account, other)
+            .all<{ id: string }>()
+        ).results.map((row) => row.id);
+
+      await env.DB.prepare(`DELETE FROM runners WHERE id = ?1`).bind(deletedRunner).run();
+      expect(await ids()).toEqual([kept, ofUser, foreign].sort());
+      await env.DB.prepare(`DELETE FROM users WHERE id = ?1`).bind(user).run();
+      expect(await ids()).toEqual([kept, foreign].sort());
+      await env.DB.prepare(`DELETE FROM runners WHERE id = ?1`).bind(runner).run();
+      await env.DB.prepare(`DELETE FROM accounts WHERE id = ?1`).bind(account).run();
+      expect(await ids()).toEqual([foreign]);
     });
   });
 

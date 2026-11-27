@@ -64,6 +64,9 @@ const RULES: Readonly<Record<string, ServiceRule>> = {
   'POST /api/v1/accounts/:id/runners/enrolment-intents': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/approve': 'no-owner-write',
   'POST /api/v1/accounts/:id/runners/enrolment-intents/:intent/withdraw': 'no-owner-write',
+  // #1059: a runner check is D1 only, owner-of-account (runner-checks.spec.ts); its finish is the runner's JWT alone.
+  'POST /api/v1/accounts/:id/runners/:runner/checks': 'no-owner-write',
+  'POST /api/v1/runner/checks/:id/finish': 'runner-door',
   'POST /api/v1/runner/enrol/start': 'runner-door',
   'POST /api/v1/runner/enrol/poll': 'runner-door',
   'POST /api/v1/runner/enrol': 'runner-door',

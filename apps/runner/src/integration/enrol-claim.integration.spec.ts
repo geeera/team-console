@@ -91,7 +91,8 @@ describe('integration: enrol against the local stack, then claim', () => {
       privateKey: await loadRunnerKey(home),
     });
     await expect(client.release()).resolves.toEqual({ version: '0.3.0', minimumVersion: '0.1.0' });
-    await expect(client.claim()).resolves.toEqual({ kind: 'idle', retryAfterSeconds: 60 });
+    // #1059: a runner the server enrolled under 15 minutes ago is told the fresh-runner interval.
+    await expect(client.claim()).resolves.toEqual({ kind: 'idle', retryAfterSeconds: 10 });
     await expect(client.claim()).resolves.toMatchObject({ kind: 'idle' });
 
     // 5. A JWT presented twice is refused: the runner must mint one per call (single-use jti, C4 row 1).

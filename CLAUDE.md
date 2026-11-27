@@ -67,6 +67,13 @@ visual direction, 0006 the console as the source of truth — the #309 target ar
   never a verdict role. Never touch the claim code (`JobsRepo.claim`, `claim-admission.ts`, `access-source.ts`) for
   this: the one-orchestrator-per-project rule is the existing dedupe index, not a claim term. `ORCHESTRATE_MAX_STEPS`
   (20) ends a run that would loop.
+- Runner checks (#1059, migration 0049, `RunnerChecksRepo` the only reader and writer of `runner_checks`): a check is
+  never a job. It is delivered in the claim handler before `jobs.claim`, only to a poll whose body declares the kind
+  (`capabilities.checks` stored by `json_set` gates the enqueue alone), as exactly `{check: {id, kind,
+  deadlineSeconds}}`; `finish` takes runner and account from the JWT and accepts only its own `running` check inside
+  90 s (one 404 otherwise), a version matching `RUNNER_CHECK_VERSION_PATTERN` and a `RUNNER_REPORTED_CHECK_REASONS`
+  code. The claim declares before it records the sighting (N8). Never read a check in the claim SQL, placement,
+  `jobs`, the streak or a budget (`runner-checks-advisory.spec.ts`); a pass authorises nothing.
 
 ## Workspace
 Node 22 (`.nvmrc`), npm, `npm ci` only — versions are pinned exactly, no `^`. Nx 23 / Angular 22 (Nx 22 does not
@@ -710,7 +717,7 @@ once back to `queued` with a `notice`, the second lapse `lost` with a `failed` e
 no suspended account or archived project, `team_state.paused_at IS NULL`, `needs_local` vs `capabilities.local`, and the
 policy (`COALESCE(projects.runner_policy, accounts.default_runner_policy)`: `any`, `pinned` to this runner, `failover`
 as the preferred or as a fallback while the preferred is revoked or silent past `offline_after_seconds`) — 200
-`{job, jobToken (tcj_ + 43 base64url, SHA-256 in jobs.token_hash), leaseSeconds: 300}` or 204 `Retry-After: 60`; a `none`
+`{job, jobToken (tcj_ + 43 base64url, SHA-256 in jobs.token_hash), leaseSeconds: 300}` or 204 `Retry-After: 60` (10 within 15 min of `enrolled_at`, #1059; a declaring poll may get a check instead, see Rules); a `none`
 runner is 403 `runner-isolation-none` on production; audit `job.claimed` with the country. `POST …/jobs/:id/heartbeat`
 (extends the lease), `…/events` (`{events: [{level, kind, payload}]}`, ≤ 50 per batch, every string through the shared
 redactor in loose mode, `started` marks the job running), `…/finish` (`{result: finished|failed, summary, metrics?, acted?}`;

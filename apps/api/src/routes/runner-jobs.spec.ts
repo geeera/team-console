@@ -34,7 +34,8 @@ const CLAIM = '/api/v1/runner/jobs/claim';
 async function claim(runner: TestRunner): Promise<ClaimResponse | null> {
   const response = await sendAsRunner(runner, 'POST', CLAIM, {});
   if (response.status === 204) {
-    expect(response.headers.get('Retry-After')).toBe('60');
+    // #1059: every runner here was enrolled moments ago, so it is told the fresh-runner interval.
+    expect(response.headers.get('Retry-After')).toBe('10');
     return null;
   }
   expect(response.status).toBe(200);
