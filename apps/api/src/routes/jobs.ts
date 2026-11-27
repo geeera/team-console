@@ -163,9 +163,15 @@ export function createJobRoutes(github: ApiGitHub): Hono<WorkerHonoEnv<ApiEnv>> 
       const { value } = input;
       // #775 (SECURITY Q8): a job is not a tracker write, so a project still on GitHub Issues takes the kinds that act
       // on GitHub through the plugin; the allow-list keeps a kind that writes the console tracker (or a new one) out.
-      const notCutOver = trackerWriteRefusal(c, trackerProjectOf(row));
-      if (notCutOver !== null && !isJobKindBeforeCutover(value.kind)) {
-        return notCutOver;
+      if (!isJobKindBeforeCutover(value.kind)) {
+        // #811: the refusal names the kind, so the caller knows which Run now waits for the cut-over.
+        const notCutOver = trackerWriteRefusal(c, trackerProjectOf(row), {
+          detail: `${value.kind} jobs write the console tracker, so they run only once the project has moved to the console`,
+          extensions: { kind: value.kind },
+        });
+        if (notCutOver !== null) {
+          return notCutOver;
+        }
       }
       const role = roleOfJobKind(value.kind, value.role);
       if (!isJobRole(role)) {

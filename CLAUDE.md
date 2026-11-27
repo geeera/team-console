@@ -703,7 +703,7 @@ CHECK — a new kind is one `INSERT`, not a rebuild), `role`, `payload` (`items`
 and Actions columns for H-2/2-B), `job_events` (append-only, `seq` per job, ≤ 16 KB payloads, 5000 per job),
 `team_state`, `projects.runner_policy`, `accounts.default_runner_policy`). Owner routes behind the matrix (`routes/jobs.ts`):
 `POST /projects/:slug/jobs` (Run now; `{kind, items?, needsLocal?, maxMinutes?, role?}`; 409 `tracker-not-cut-over` on a
-GitHub project, 409 `job-exists` while a slot job of that kind is live — no `Idempotency-Key`, the dedupe key is the
+GitHub project for a kind off `JOB_KINDS_BEFORE_CUTOVER` (extension `kind` and a jobs detail, #811), 409 `job-exists` while a slot job of that kind is live — no `Idempotency-Key`, the dedupe key is the
 replay guard; audit `job.dispatched`), `GET …/jobs[?state=&after=&limit=]`, `GET …/jobs/:id`, `GET …/jobs/:id/events`
 (reads for the owner, a member and the project's own job), `GET|PUT …/runner-policy` and `GET|PUT /accounts/:id/runner-policy`
 (ADR 0008 decision 12: `{mode: any}` | `{mode: pinned, runner}` | `{mode: failover, preferred, fallback, offline_after_seconds}`,
