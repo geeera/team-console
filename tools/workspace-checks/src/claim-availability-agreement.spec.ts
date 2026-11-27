@@ -130,7 +130,7 @@ const JOB_AND_TEAM_COLUMNS: Readonly<Record<string, string>> = {
   'j.needs_local': 'needs_local only for a local runner',
   'j.priority': 'not a term: the order among queued jobs',
   'j.created_at': 'not a term: the order among queued jobs',
-  't.project_slug':"the team's pause (the join)",
+  't.project_slug': "the team's pause (the join)",
   't.paused_at': "the team's pause",
 };
 

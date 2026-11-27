@@ -90,3 +90,44 @@ test('Run now queues a job, a runner claims it, and the board shows it with the 
     await api.dispose();
   }
 });
+
+// #810: the claim takes nothing while the team is paused, so the jobs list no longer says `ready`; the paused banner
+// names the pause, the tile adds no line of its own, and Run now says the job waits for the pause to lift.
+test('with the team paused the tile is team-paused, Run now says the job waits, and resuming lets it be claimed', async ({
+  page,
+  stack,
+}, testInfo) => {
+  await seed(stack, ['geeera/team-console']);
+  await switchToConsoleTracker(testInfo.workerIndex, SLUG, 'TC');
+  const api = await apiClient(stack);
+  try {
+    const runner = await enrolRunner(api, SLUG);
+    expect(await claimStatus(api, runner)).toBe(204);
+    const paused = await api.post(`/api/v1/projects/${SLUG}/team/pause`, { data: { reason: 'e2e' } });
+    expect(paused.status(), await paused.text()).toBe(201);
+
+    await page.goto(`/p/${SLUG}/board?tab=runs`);
+    const runs = page.getByTestId('runs');
+    await expect(page.getByTestId('paused-banner')).toBeVisible();
+    const availability = runs.getByTestId('jobs-availability');
+    await expect(availability).toHaveAttribute('data-availability', 'team-paused');
+    await expect(availability).toHaveText('');
+
+    await runs.getByRole('combobox', { name: ru('jobs.runNow.kind') }).selectOption('digest');
+    await runs.getByTestId('run-now-submit').click();
+    await expect(runs.getByTestId('run-now-outcome')).toHaveText(
+      ru('jobs.runNow.queuedTeamPaused', { kind: ru('jobs.kind.digest') }),
+    );
+    await expectAccessible(page, 'Board, team paused, a queued job waits');
+    // The claim agrees: nothing is handed out while the pause holds.
+    expect(await claimStatus(api, runner)).toBe(204);
+
+    const resumed = await api.post(`/api/v1/projects/${SLUG}/team/resume`, { data: {} });
+    expect(resumed.status(), await resumed.text()).toBe(201);
+    await page.reload();
+    await expect(availability).toHaveAttribute('data-availability', 'ready');
+    expect(await claimStatus(api, runner)).toBe(200);
+  } finally {
+    await api.dispose();
+  }
+});

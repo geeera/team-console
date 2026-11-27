@@ -866,7 +866,13 @@ export class RunnersRepo {
          WHERE p.slug = ?1
          GROUP BY p.slug`,
       )
-      .bind(slug, now, RUNNER_ONLINE_WINDOW_SECONDS, RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS, needsLocal ? 1 : 0)
+      .bind(
+        slug,
+        now,
+        RUNNER_ONLINE_WINDOW_SECONDS,
+        RUNNER_POLICY_OFFLINE_DEFAULT_SECONDS,
+        needsLocal ? 1 : 0,
+      )
       .first<{ dispatch: string; live: number; team_running: number; level: number }>();
     if (row === null || row.live !== 1) {
       return 'none';

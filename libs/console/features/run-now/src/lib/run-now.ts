@@ -85,8 +85,7 @@ const QUEUED_KEY: Readonly<Record<RunNowWait, string>> = {
           }}</span>
         } @else if (queuedKind(); as kind) {
           <span data-testid="run-now-queued">{{
-            queuedKey()
-              | transloco: { kind: ('jobs.kind.' + kind | transloco) }
+            queuedKey() | transloco: { kind: ('jobs.kind.' + kind | transloco) }
           }}</span>
         }
       </p>
