@@ -118,11 +118,12 @@ export function claimPlacementAdmitsSql(
  * The runner row aliased `runner` may take a job of the project aliased `project` by access source: C12 row 6 on the
  * server-set columns (a `subscription` never on a hosted or `actions-ephemeral` runner), then the runner's declared
  * `capabilities.accessSources`, which only ever narrows (SECURITY Q7). Shared by the claim and `runnerAvailability`.
+ * Wrapped whole (#809), so a caller may put `NOT` or a comparison in front of it.
  */
 export function runnerFitsAccessSourceSql(runner: string, project: string): string {
-  return `(${project}.access_source = 'api_key' OR (${runner}.hosted = 0 AND ${runner}.isolation <> 'actions-ephemeral'))
+  return `((${project}.access_source = 'api_key' OR (${runner}.hosted = 0 AND ${runner}.isolation <> 'actions-ephemeral'))
                  AND (json_type(${runner}.capabilities, '$.accessSources') IS NULL
-                      OR ${project}.access_source IN (SELECT value FROM json_each(${runner}.capabilities, '$.accessSources')))`;
+                      OR ${project}.access_source IN (SELECT value FROM json_each(${runner}.capabilities, '$.accessSources'))))`;
 }
 
 /**
