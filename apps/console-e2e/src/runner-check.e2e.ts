@@ -19,6 +19,8 @@ const CHECK_PATH = /\/api\/v1\/accounts\/[^/]+\/runners\/[^/]+\/checks\/[^/]+$/;
 
 const isStart = (request: Request): boolean => request.method() === 'POST' && CHECKS_PATH.test(request.url());
 const isRead = (request: Request): boolean => request.method() === 'GET' && CHECK_PATH.test(request.url());
+/** The check watch's visible poll interval (`CHECK_POLL_VISIBLE_MS`). */
+const CHECK_READ_MS = 2_000;
 
 test.beforeEach(async ({ stack }) => {
   requireLocalStack(stack);
@@ -95,9 +97,8 @@ test('a runner on line is checked by itself and passes: the real API, a real cla
   expect(headers['content-type']).toContain('application/json');
   expect(headers['sec-fetch-site']).toBe('same-origin');
   expect(post.postDataJSON()).toEqual({ kind: 'smoke' });
-  const answer = await post.response();
-  expect(answer?.status()).toBe(201);
-  const created = (await answer?.json()) as RunnerCheckDto;
+  // The status only: the browser may drop a response body once the page moves on, so the id comes from the runner.
+  expect((await post.response())?.status()).toBe(201);
 
   await expect(panel).toHaveAttribute('data-state', 'queued');
   await expect(panel).toHaveAttribute('aria-busy', 'true');
@@ -105,11 +106,14 @@ test('a runner on line is checked by itself and passes: the real API, a real cla
   await expectAccessible(page, 'Runner check, waiting for pickup');
 
   const handed = await withApi(stack, (api) => claimCheck(api, runner));
-  expect(handed?.id).toBe(created.id);
+  const checkId = handed?.id ?? '';
+  expect(checkId).not.toBe('');
+  // The panel follows the check the runner was handed: its reads name that id.
+  await page.waitForRequest((request) => isRead(request) && request.url().endsWith(`/checks/${checkId}`));
   await expect(panel).toHaveAttribute('data-state', 'running');
   await expect(panel).toContainText(ru('runners.wizard.check.running'));
   await withApi(stack, (api) =>
-    finishCheck(api, runner, created.id, { result: 'passed', claudeVersion: '2.1.4' }),
+    finishCheck(api, runner, checkId, { result: 'passed', claudeVersion: '2.1.4' }),
   );
 
   await expect(panel).toHaveAttribute('data-state', 'passed');
@@ -233,14 +237,22 @@ test('after 4 minutes the console stops waiting, and «Проверить сно
   stack,
 }) => {
   await page.clock.install();
-  const ids: string[] = [];
-  page.on('response', async (response) => {
-    if (isStart(response.request()) && response.ok()) {
-      ids.push(((await response.json()) as RunnerCheckDto).id);
+  // Statuses and URLs only, never a response body: the browser may drop one once the page moves on.
+  const starts: number[] = [];
+  page.on('response', (response) => {
+    if (isStart(response.request())) {
+      starts.push(response.status());
     }
   });
+  const readId = async (): Promise<string> => {
+    const read = page.waitForRequest(isRead);
+    await page.clock.runFor(CHECK_READ_MS);
+    return new URL((await read).url()).pathname.split('/').at(-1) ?? '';
+  };
   const { dialog, panel } = await onLine(page, stack, 'E2E Check Gave Up');
   await expect(panel).toHaveAttribute('data-state', 'queued');
+  const firstId = await readId();
+  expect(firstId).not.toBe('');
   await page.clock.fastForward('04:00');
   await expect(panel).toHaveAttribute('data-state', 'gaveUp');
   await expect(panel).toContainText(ru('runners.wizard.check.gaveUp.title'));
@@ -249,8 +261,9 @@ test('after 4 minutes the console stops waiting, and «Проверить сно
   // The check is still queued on the server (its 150 s are the server's), so a press re-attaches, never a second one.
   await dialog.getByTestId('wizard-check-start').click();
   await expect(panel).toHaveAttribute('data-state', 'queued');
-  await expect.poll(() => ids.length).toBe(2);
-  expect(ids[1]).toBe(ids[0]);
+  // 201 created the check; 200 is the API's answer for the live one it already has.
+  await expect.poll(() => starts).toEqual([201, 200]);
+  expect(await readId()).toBe(firstId);
 });
 
 test('a 429 on the start holds «Проверить снова» until Retry-After and names the time (C9)', async ({
