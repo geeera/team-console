@@ -180,6 +180,9 @@ async function watch(
   }
   try {
     const status = await Promise.race([running.exited, stuck]);
+    // Exited in time: the drain below never turns it into a timeout.
+    disarm();
+    deps.shutdown.removeEventListener('abort', onShutdown);
     // A detached child can hold the pipe open; the cleanup's sweep ends it, so the wait is bounded.
     await Promise.race([
       output.done,
