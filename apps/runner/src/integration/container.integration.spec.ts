@@ -4,8 +4,9 @@ import { createInterface } from 'node:readline';
 import { ContainerBackend } from '../backends/container';
 import { JobRegistry } from '../proxy/job-registry';
 import { startJobSocket } from '../proxy/socket-server';
-import { JOB_ID, jobFixture, sentinels } from '../testing/fake-console';
+import { CHECK_ID, JOB_ID, jobFixture, sentinels } from '../testing/fake-console';
 import { SCENARIO, makeRunnerHome, recordingConsole, runnerConfigFor } from '../testing/job-fixture';
+import { runCheck } from '../jobs/run-check';
 import { runJob, type JobRunDeps } from '../jobs/run-job';
 
 /**
@@ -153,6 +154,64 @@ describe.skipIf(IMAGE === undefined || IMAGE === '')('integration: container bac
       });
     } finally {
       await socket.close();
+      await backend.cleanup(sandbox);
+    }
+  }, 120_000);
+
+  // #1059 S3: the runner check in a real container, with the image's fake CLI answering `--version`.
+  it('runs the runner check in a container with no network and no mount, and reports the version only', async () => {
+    await mkdir(join(fixture.home, 'credentials'), { mode: 0o700 });
+    await writeFile(join(fixture.home, 'credentials', 'anthropic.key'), `${sentinels.anthropicKey}\n`, {
+      mode: 0o600,
+    });
+    const client = recordingConsole();
+    const logs: string[] = [];
+    const report = await runCheck(
+      { id: CHECK_ID, kind: 'smoke', deadlineSeconds: 30 },
+      {
+        home: fixture.home,
+        config: {
+          backend: 'container',
+          credential: { kind: 'api-key', file: 'credentials/anthropic.key' },
+          toolchain: { path: IMAGE_PATH, claude: FAKE_CLI_IN_IMAGE },
+        },
+        client,
+        backend,
+        log: (line) => {
+          logs.push(line);
+          console.info(line);
+        },
+        shutdown: new AbortController().signal,
+      },
+    );
+    expect(report).toMatchObject({ result: 'passed', claudeVersion: '2.1.3' });
+    expect(client.checksFinished).toEqual([
+      {
+        checkId: CHECK_ID,
+        input: { result: 'passed', claudeVersion: '2.1.3', durationMs: expect.any(Number) },
+      },
+    ]);
+    expect(JSON.stringify({ logs, finished: client.checksFinished })).not.toContain(sentinels.anthropicKey);
+  }, 120_000);
+
+  it('a check container has no network: a connection from inside fails', async () => {
+    const sandbox = await backend.prepare({ jobId: CHECK_ID, projectSlug: null });
+    try {
+      const running = await backend.launchCheck(sandbox, {
+        command: 'node',
+        argv: [
+          '-e',
+          "require('node:dns').lookup('github.com', (e) => { console.log(e ? 'offline' : 'online'); })",
+        ],
+        env: { PATH: IMAGE_PATH, HOME: sandbox.home, TMPDIR: sandbox.tmp },
+        cwd: sandbox.home,
+      });
+      const lines: string[] = [];
+      createInterface({ input: running.stdout }).on('line', (line) => lines.push(line));
+      expect(await running.exited).toMatchObject({ exitCode: 0 });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(lines).toEqual(['offline']);
+    } finally {
       await backend.cleanup(sandbox);
     }
   }, 120_000);
