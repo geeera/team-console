@@ -166,7 +166,14 @@ describe('POST /projects/:slug/items', () => {
     const slug = await seedGitHubProject();
     const response = await send('POST', itemsPath(slug), { title: 'T', kind: 'bug' });
     expect(response.status).toBe(409);
-    expect(await slugOf(response)).toBe('tracker-not-cut-over');
+    // #811: a tracker route keeps the generic detail; only the jobs route names a `kind`.
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      type: 'https://team-console/problems/tracker-not-cut-over',
+      detail:
+        'Items, sprints, comments and labels are written here only once the project has moved to the console',
+    });
+    expect(body).not.toHaveProperty('kind');
     expect(await countRows('items', slug)).toBe(0);
   });
 
