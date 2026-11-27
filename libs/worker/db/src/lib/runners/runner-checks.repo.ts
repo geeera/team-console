@@ -9,7 +9,7 @@ import {
   type RunnerExpiredCheckReason,
   type RunnerStoredCheckReason,
 } from '@shared/contracts';
-import { auditedWrite, type NewAuditEvent } from '../accounts/audit.repo';
+import { auditedWrite } from '../accounts/audit.repo';
 import { isConstraintError } from '../tracker/constraint-error';
 
 /**
