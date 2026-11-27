@@ -2545,6 +2545,102 @@
         "update": "How to update",
         "pickProjects": "Choose projects"
       },
+      "check": {
+        "heading": "Runner check",
+        "idle": "Let’s check that the runner can start Claude. It usually takes up to a minute, sometimes up to three, and changes nothing on the machine.",
+        "start": "Check",
+        "again": "Check again",
+        "busy": "Checking…",
+        "starting": "Starting the check…",
+        "queued": "Waiting for the runner to pick up the check…",
+        "queuedSub": "This usually takes up to 10 seconds. You can close this window: the check changes nothing on the machine.",
+        "queuedSlow": "The runner hasn’t picked up the check yet. We’ll wait up to two more minutes. You can close this window.",
+        "running": "Starting Claude on the runner…",
+        "runningSub": "This takes up to 30 seconds. You can close this window: the check changes nothing on the machine.",
+        "passed": {
+          "title": "Check passed",
+          "bodyMac": "Claude Code {{version}} starts on the runner as the job user, and a Claude sign-in was found.",
+          "bodyLinux": "Claude Code {{version}} starts in the runner’s container, and an API key was found.",
+          "note": "Whether the sign-in is still valid shows on the first job: the check does not contact Claude over the network."
+        },
+        "offline": {
+          "title": "The runner did not answer the check",
+          "offline": "The runner is not online right now.",
+          "notPickedUp": "The runner did not pick up the check within two and a half minutes. Most likely its service stopped, the machine went to sleep, or it runs a runner version that cannot take the check.",
+          "lost": "The runner picked up the check but sent no result. Most likely its service restarted.",
+          "fix": "Check the runner on the machine:",
+          "update": "If the machine runs an older runner version, update it:"
+        },
+        "claude": {
+          "title": "Claude Code does not start on the runner",
+          "notConfigured": "setup did not find Claude Code for this runner.",
+          "notExecutable": "Claude Code was found but does not start as the job user.",
+          "failed": "Claude Code started and exited with an error.",
+          "unrecognised": "Claude Code answered in a way the runner did not expect.",
+          "fixMac": "Install Claude Code for the whole system, then repeat the setup step that looks for it:",
+          "fixLinux": "Claude Code is part of the runner image. Take the commands again from “Add runner” and run both: that moves the runner to a working image.",
+          "linuxLink": "Guide: Linux"
+        },
+        "credential": {
+          "titleMac": "No Claude sign-in found",
+          "titleLinux": "No API key found",
+          "missingMac": "No Claude sign-in is saved for the runner. Jobs then depend on the Claude sign-in of the Mac itself, which the console neither sees nor checks. Save a sign-in for the runner so jobs start reliably.",
+          "missingLinux": "No Anthropic API key is saved on the runner. Jobs will not start without one.",
+          "unreadableMac": "The runner could not read the saved Claude sign-in.",
+          "unreadableLinux": "The runner could not read the saved API key.",
+          "notAllowedMac": "The saved sign-in does not fit this runner.",
+          "notAllowedLinux": "The saved key does not fit this runner.",
+          "fixMac": "Sign in again: the command opens the Claude sign-in in your browser and checks the runner.",
+          "fixLinux": "Save the key again: run the enrol line once more, with --replace-credential after setup."
+        },
+        "timeout": {
+          "title": "Claude did not answer within 30 seconds",
+          "body": "The machine may be busy right now. Try again in a minute."
+        },
+        "host": {
+          "title": "The machine is not ready for jobs",
+          "bodyMac": "The runner could not prepare a separate user for the job or clean up after it. Check the runner on the machine:",
+          "bodyLinux": "The runner could not start or remove the job’s container. Check the services on the machine:"
+        },
+        "unknown": {
+          "body": "The runner reported a problem this version of the console does not know. Reload the page and check again."
+        },
+        "gaveUp": {
+          "title": "The console stopped waiting for the result",
+          "body": "The check is taking longer than four minutes. Press “Check again”: if it is still running, the console shows it instead of starting a new one."
+        },
+        "paused": {
+          "title": "The runner is paused",
+          "body": "The runner is paused, for example by a subscription limit. Check it once the pause is over."
+        },
+        "revoked": {
+          "title": "The runner is revoked",
+          "body": "The runner is no longer connected to the account; there is nothing to check."
+        },
+        "unsupported": {
+          "title": "This runner cannot be checked",
+          "body": "The check works only for runners on your own machines."
+        },
+        "outdated": {
+          "title": "This runner version cannot take the check",
+          "body": "Jobs are not affected. The check becomes available once you update the runner."
+        },
+        "rateLimited": "Too many checks this hour. You can check again at {{time}}.",
+        "region": {
+          "toolchain": "Claude Code install command",
+          "setup": "Setup step repeat command"
+        },
+        "copyAria": {
+          "toolchain": "Copy the Claude Code install command",
+          "setup": "Copy the setup step repeat command"
+        },
+        "live": {
+          "started": "Checking the runner.",
+          "passed": "Check passed: Claude Code {{version}} starts on the runner.",
+          "passedNoVersion": "Check passed: Claude Code starts on the runner.",
+          "failed": "Check failed: {{title}}."
+        }
+      },
       "rejected": {
         "title": "Request rejected",
         "body": "The machine isn’t enrolled, and Terminal will say the request was rejected. If it was your machine, start again: the console shows a new command."
@@ -2571,7 +2667,8 @@
         "command": "The command is ready. Copy it into Terminal.",
         "bound": "Machine {{host}} asks to enrol. Compare the code {{fingerprint}} with Terminal.",
         "approved": "Confirmed. Waiting for the runner to come online.",
-        "online": "Runner {{name}} is online."
+        "online": "Runner {{name}} is online.",
+        "onlineChecking": "Runner {{name}} is online. Checking that Claude starts."
       },
       "fingerprintDash": "dash",
       "newTab": "(opens in a new tab)",

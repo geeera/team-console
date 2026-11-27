@@ -1,13 +1,17 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { signal as signalOf } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import {
   ENROLMENT_INTENT_FIXTURE_ID,
   EnrolmentWatch,
   RUNNER_FIXTURE_IDS,
+  RunnerCheckWatch,
   RunnersApi,
   enrolmentIntentFixture,
   pendingIntentFixture,
+  runnerCheckFixture,
   runnerFixture,
+  type RunnerCheck,
   type RunnerResult,
 } from '@console/entities/runner';
 import { provideConsoleI18n } from '@console/shared/i18n';
@@ -17,9 +21,11 @@ import {
   type CreateEnrolmentIntentInput,
   type EnrolmentIntentCreatedDto,
   type EnrolmentIntentDto,
+  type RunnerDto,
 } from '@shared/contracts';
 import { AddRunnerWizard, type AddRunnerData } from './add-runner-wizard';
 import { APPROVE_ARM_MS, countryLabelOf, fingerprintSpokenOf, minutesLeftOf } from './add-runner.model';
+import { RunnerCheckFlow } from './runner-check-flow';
 
 const SETUP = `sudo /usr/local/lib/team-console-runner/bin/team-console-runner setup --url https://console.example --enrolment ${ENROLMENT_INTENT_FIXTURE_ID}`;
 const CREATED: EnrolmentIntentCreatedDto = {
@@ -61,6 +67,8 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
     reread = (): RunnerResult<EnrolmentIntentDto> => ({ ok: true, value: enrolmentIntentFixture() }),
     withdraw = (): RunnerResult<null> => ({ ok: true, value: null }),
     owners = (): RunnerResult<number> => ({ ok: true, value: 1 }),
+    startCheck = (): RunnerResult<RunnerCheck> => ({ ok: true, value: runnerCheckFixture() }),
+    readCheck = (): RunnerResult<RunnerCheck> => ({ ok: true, value: runnerCheckFixture() }),
     confirm = true,
   } = {}) {
     const close = vi.fn();
@@ -75,6 +83,8 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       withdrawEnrolmentIntent: vi.fn(
         async (_account: string, _id: string, _options?: { keepalive?: boolean }) => withdraw(),
       ),
+      startCheck: vi.fn(async (_account: string, _runner: string) => startCheck()),
+      check: vi.fn(async (_account: string, _runner: string, _check: string) => readCheck()),
     };
     const sheet = { confirm: vi.fn(async () => confirm) };
     const toaster = { show: vi.fn() };
@@ -97,8 +107,11 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       ],
     });
     TestBed.overrideComponent(AddRunnerWizard, {
-      set: { providers: [{ provide: EnrolmentWatch, useValue: watch }] },
+      set: {
+        providers: [{ provide: EnrolmentWatch, useValue: watch }, RunnerCheckWatch, RunnerCheckFlow],
+      },
     });
+    const announce = vi.spyOn(TestBed.inject(LiveAnnouncer), 'announce').mockResolvedValue();
     const fixture = TestBed.createComponent(AddRunnerWizard);
     document.body.appendChild(fixture.nativeElement);
     const root = fixture.nativeElement as HTMLElement;
@@ -144,8 +157,17 @@ describe('AddRunnerWizard (#634 PR 4)', () => {
       await flip(enrolmentIntentFixture());
       await arm();
     };
+    /** Approves, then the runner comes on line as the list would show it. */
+    const toOnline = async (runner: Partial<RunnerDto> = {}): Promise<void> => {
+      await toConfirm();
+      await click('wizard-approve');
+      watch.runner.set(runnerFixture({ online: true, ...runner }));
+      await settle();
+    };
     return {
       fixture,
+      toOnline,
+      announce,
       root,
       find,
       type,
