@@ -141,6 +141,28 @@ describe('RunnerCard', () => {
     }
   });
 
+  // #799: projects D3 holds back for want of a recorded creator or enroller are counted, worded by the missing side.
+  it('notes the projects it does not take for want of a recorded creator or enroller', async () => {
+    const legacy = await render(
+      runnerFixture({ projectScope: 'all', allowedProjects: [], unattributedProjects: 3 }),
+    );
+    const note = legacy.querySelector('[data-testid="runner-unattributed"]');
+    expect(note?.getAttribute('data-kind')).toBe('projects');
+    expect(note?.textContent?.trim()).toMatch(/^3 проекта аккаунта этот раннер не берёт: они добавлены до того/u);
+    expect(note?.textContent).toContain('выбрать их в «Проекты» раннера');
+    TestBed.resetTestingModule();
+    const one = await render(runnerFixture({ unattributedProjects: 1, enroller: 'unrecorded' }));
+    expect(one.querySelector('[data-testid="runner-unattributed"]')?.getAttribute('data-kind')).toBe('runner');
+    expect(text(one, 'runner-unattributed')).toMatch(/^1 проект аккаунта этот раннер не берёт: неизвестно, кто/u);
+    for (const runner of [
+      runnerFixture(),
+      runnerFixture({ unattributedProjects: 2, revokedAt: '2026-11-12T09:00:00.000Z' }),
+    ]) {
+      TestBed.resetTestingModule();
+      expect((await render(runner)).querySelector('[data-testid="runner-unattributed"]')).toBeNull();
+    }
+  });
+
   it('says a runner with no projects takes no jobs', async () => {
     expect(text(await render(runnerFixture({ allowedProjects: [] })), 'runner-projects')).toBe(
       'ни одного — раннер не возьмёт задания',

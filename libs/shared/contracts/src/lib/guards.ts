@@ -10,6 +10,10 @@ export function isTimestamp(value: unknown): value is string {
   return typeof value === 'string' && Number.isFinite(Date.parse(value));
 }
 
+/** A count: a non-negative safe integer. */
+export const isCount = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
+
 export function isNullable<T>(value: unknown, is: (inner: unknown) => inner is T): value is T | null {
   return value === null || is(value);
 }

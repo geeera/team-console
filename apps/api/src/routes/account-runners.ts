@@ -160,6 +160,7 @@ export function runnerDtoOf(
   reader: RunnerReader,
   served: readonly ServedProjectRecord[] = [],
   claimable: readonly string[] = [],
+  unattributed: ReadonlyMap<string, number> = new Map(),
 ): RunnerDto {
   const online =
     runner.revokedAt === null &&
@@ -194,6 +195,7 @@ export function runnerDtoOf(
     // The enroller's display name only, and only while they own the account; their id never leaves (#804 condition 2).
     enrolledByName: runner.enrolledBy === null ? null : (reader.ownerNames.get(runner.enrolledBy) ?? null),
     enroller: enrollerStateOf(runner, claimable),
+    unattributedProjects: unattributed.get(runner.id) ?? 0,
   };
 }
 
@@ -246,6 +248,7 @@ async function currentRunnerDtoOf(
     await runnerReaderOf(c, account),
     await runners.servedProjectsOf(account.id, before.id),
     await claimableIdsOf(c, runners, account.id),
+    await runners.unattributedProjectCountsOf(account.id, before.id),
   );
 }
 
@@ -381,13 +384,17 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         // One read for every runner's effective projects (#775), the claim's own term.
         const served = await runners.servedProjectsOf(account.id);
         const claimable = await claimableIdsOf(c, runners, account.id);
+        // #799: what D3 holds back for want of a recorded creator or enroller, counted per runner in one read.
+        const unattributed = await runners.unattributedProjectCountsOf(account.id);
         const reader = await runnerReaderOf(c, account);
         const body: RunnerListDto = {
           // #668: an Actions identity is listed while its run is live; revoked, it is one finished job's history (in the
           // audit), not a machine the owner manages, so the list would otherwise grow by a row per run.
           runners: (await runners.listForAccount(account.id))
             .filter((runner) => runner.isolation !== 'actions-ephemeral' || runner.revokedAt === null)
-            .map((runner) => runnerDtoOf(runner, now, release.minimumVersion, reader, served, claimable)),
+            .map((runner) =>
+              runnerDtoOf(runner, now, release.minimumVersion, reader, served, claimable, unattributed),
+            ),
           pendingEnrolments: (await runners.listPendingEnrolments(account.id, now.toISOString())).map(
             pendingEnrolmentDtoOf,
           ),
