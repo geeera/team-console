@@ -645,9 +645,9 @@ describe('the scope of a subscription runner in a two-owner account', () => {
   // #825: the projects dialog offers adding projects only where the write above would accept it.
   it('says canWiden per reader as the scope write judges it', async () => {
     const canWidenOf = async (as: SessionUser, runnerId: string): Promise<boolean | undefined> =>
-      ((await (await sendAsSession(as, 'GET', runnersPath(enroller.account.id))).json()) as RunnerListDto).runners.find(
-        (runner) => runner.id === runnerId,
-      )?.canWiden;
+      (
+        (await (await sendAsSession(as, 'GET', runnersPath(enroller.account.id))).json()) as RunnerListDto
+      ).runners.find((runner) => runner.id === runnerId)?.canWiden;
     const subscription = await enrolRunner(enroller.account.id, { as: enroller, projectScope: 'selected' });
     expect(await canWidenOf(enroller, subscription.id)).toBe(true);
     expect(await canWidenOf(other, subscription.id)).toBe(false);

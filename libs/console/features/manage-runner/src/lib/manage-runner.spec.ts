@@ -435,9 +435,7 @@ describe('RunnerProjectsDialog', () => {
       'Среди проектов есть архивный или чужой.',
     );
     // #825: the same list would be refused again, so the button stays «Save» rather than Try again.
-    expect(root.querySelector('[data-testid="runner-projects-save"]')?.textContent?.trim()).toBe(
-      'Сохранить',
-    );
+    expect(root.querySelector('[data-testid="runner-projects-save"]')?.textContent?.trim()).toBe('Сохранить');
   });
 
   it('offers Try again after a failure the same request may get past', async () => {
@@ -452,7 +450,11 @@ describe('RunnerProjectsDialog', () => {
 
   // #825 (#795): another owner's subscription runner may be narrowed, never widened.
   it('does not offer a non-enroller what they cannot add, says why, and still removes projects', async () => {
-    const theirs = runnerFixture({ canWiden: false, projectScope: 'selected', allowedProjects: ['team-console'] });
+    const theirs = runnerFixture({
+      canWiden: false,
+      projectScope: 'selected',
+      allowedProjects: ['team-console'],
+    });
     const { root, tick, submit, calls } = await render(theirs, () => ({
       ok: true,
       value: runnerFixture({ canWiden: false, allowedProjects: [] }),
@@ -480,9 +482,7 @@ describe('RunnerProjectsDialog', () => {
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('Добавлять проекты этому раннеру может только владелец');
     expect(root.querySelector('[data-testid="runner-projects-enroller-only"]')).toBeNull();
-    expect(root.querySelector('[data-testid="runner-projects-save"]')?.textContent?.trim()).toBe(
-      'Сохранить',
-    );
+    expect(root.querySelector('[data-testid="runner-projects-save"]')?.textContent?.trim()).toBe('Сохранить');
     expect((root.querySelector('[data-testid="runner-scope-all"]') as HTMLInputElement).disabled).toBe(true);
     // The refused addition stays ticked and open, so the owner can take it back.
     expect((root.querySelector('[data-slug="storify"] input') as HTMLInputElement).disabled).toBe(false);

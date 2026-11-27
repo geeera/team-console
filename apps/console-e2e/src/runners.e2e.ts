@@ -512,7 +512,9 @@ test('another owner’s subscription runner can lose projects but is not offered
   await card.getByTestId('runner-edit-projects').click();
   const narrow = page.getByRole('dialog', { name: ru('runners.scope.title') });
   await expect(narrow.getByTestId('runner-scope-all')).toBeDisabled();
-  await expect(narrow.getByTestId('runner-projects-enroller-only')).toHaveText(ru('runners.err.enrollerOnly'));
+  await expect(narrow.getByTestId('runner-projects-enroller-only')).toHaveText(
+    ru('runners.err.enrollerOnly'),
+  );
   const row = narrow.locator('[data-slug="team-console"]').getByRole('checkbox');
   await expect(row).toBeChecked();
   await expect(row).toBeEnabled();
@@ -542,7 +544,9 @@ test('another owner’s subscription runner can lose projects but is not offered
       response,
       json: {
         ...body,
-        runners: body.runners.map((runner) => (runner.id === runnerId ? { ...runner, canWiden: true } : runner)),
+        runners: body.runners.map((runner) =>
+          runner.id === runnerId ? { ...runner, canWiden: true } : runner,
+        ),
       },
     });
   });
