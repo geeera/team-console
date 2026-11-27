@@ -3,6 +3,9 @@
 Low-fidelity wireframe: [634-add-runner-wizard.html](634-add-runner-wizard.html). It covers every state in §6;
 the demo bar switches state, iPhone / Mac, the number of owners and whether the release ships `node`.
 
+**Addendum (#1059, not yet approved):** §12 adds the runner check («Проверка») to step 4b. Everything in §0–§11
+is the approved #634 spec and is unchanged, except two pointers marked «#1059» in §3.5 and §6.
+
 Read: #634 (architect note §2 and §6, PR split §9, security note S1–S5, R-INT-1…7, R-ONE-1, R-PKG-1…3, the PR 4
 acceptance list, owner decisions D1–D5 of 2026-11-17), `libs/shared/contracts/src/lib/enrolment-intent.ts` and
 `apps/api/src/routes/enrolment-intents.ts` (PR 3, on `dev`), `features/enrol-runner` (the code dialog),
@@ -224,6 +227,7 @@ Heading h3: «Подтверждено — ждём первый сигнал».
   {minimum}: раннер не возьмёт задания, пока вы его не обновите.» Link «Как обновить ↗» → the runbook «Update».
 - Footer: primary «Готово». When the scope is «Только выбранные» with none ticked: secondary «Выбрать проекты» (closes;
   the page opens the runner's scope editor, same handover rule as decision 1).
+- **#1059:** under the scope lines, the «Проверка» panel (§12). It never changes the footer: «Готово» always closes.
 
 ### 3.6 Closing the sheet
 - Step 1, 4a, 4b, and the end states (expired, withdrawn, rejected): close at once.
@@ -295,6 +299,7 @@ API's, and so is the text.
 | 13 | **Approved, waiting for the first signal** | §3.4 |
 | 14 | **Poll timing out** (approved, still offline after 5 min) | §3.4 «Раннер пока не вышел на связь». Waiting goes on until 15 min after the approval, then a manual «Проверить снова» (#878). |
 | 15 | **On line** | §3.5, with the below-minimum variant |
+| 15a | **On line, runner check** (#1059) | §12.4, states C0–C9 |
 | 16 | **Network error while polling** | After 2 failed polls in a row: banner warning `role="status"` «Нет связи с консолью, пробуем снова. Запрос на вашей машине продолжает ждать.» It goes away on the next success. The step keeps its last content. |
 | 16a | **429 while polling** (#879: per-user limit on account GETs) | Banner warning `role="status"` `runners.wizard.pollRateLimited` with the `Retry-After` seconds (60 when none); no read before then, wake-ups included. It is not counted as a failed poll and goes away on the next success. |
 | 17 | **Offline** (`navigator.onLine` false) | Banner «Нет сети. Когда связь вернётся, консоль снова проверит запрос.». «Подтвердить», «Отклонить», «Новая команда» `aria-disabled` with the reason «Нет сети». The copy button still works. |
@@ -493,3 +498,339 @@ New keys under `runners.wizard.*`, plus one changed and one new key under `runne
    approval and the first signal), or the architect's 3 minutes.
 5. **Multi-owner sentence:** show it whenever the account has more than one owner or the count is unknown
    (recommended), or show it for every account, as today.
+
+## 12. Addendum #1059: the runner check («Проверка») on step 4b
+
+**Status: approved by the owner on 2026-11-27 («одобряю, по рекомендациям»: U1–U4 as recommended, presence-only sign-in, any owner of the account may start a check).** Read against the #1059 architect note (`runner_checks`, §1–§3, reason codes, Q1–Q4)
+and the code of #877/#881/#883 (`features/add-runner`, `online-step.ts`, `EnrolmentWatch`). The check is a
+`runner_checks` record, not a job: `POST …/runners/:runner/checks {kind: 'smoke'}`, then
+`GET …/runners/:runner/checks/:check` until `passed` or `failed`.
+
+### 12.1 Decisions, with reasons
+
+1. **The check is a panel inside step 4b, not a fifth step.** The indicator stays «Шаг 4 из 4 · На связи». Reason:
+   the check is optional and must never block finishing (the issue). A fifth step would read as one more thing to get
+   through, and «Готово» would sit on a step the owner may skip. Owner question U2.
+2. **It starts by itself, once, when step 4b appears** (recommended; owner question U1). The owner is already
+   watching and the check spends nothing from the subscription (`claude --version`, no model call). A press-to-start
+   button would add a click to the one moment that should end in green. After any final result the panel offers
+   «Проверить снова». It does not start by itself when:
+   - the runner is below the minimum version (§3.5 callout): such a runner takes no work, so the check would only
+     time out. The panel shows C8 «Раннер устарел» at once, without a request;
+   - the browser is offline: the panel waits in C0 with «Проверить» `aria-disabled`, reason «Нет сети»;
+   - the sheet was opened on a runner that went online while the sheet was hidden for more than 4 minutes. It still
+     starts: the first visible poll triggers it. There is no second automatic start in the same sheet.
+3. **«Готово» always closes, in every check state.** Closing mid-check needs no confirm. The check finishes on the
+   runner in at most 30 s (or is swept by the server after 150 s or 90 s) and changes nothing there. The footer from
+   §3.5 is unchanged: primary «Готово», secondary «Выбрать проекты» when no project is ticked.
+4. **A pass says what was proved and nothing more.** It proves that Claude Code runs as the job user and that a
+   sign-in (Mac) or API key (Linux) is stored in the right shape. It does not prove that the sign-in is still valid.
+   The success copy says «запускается» and «найден», never «вход проверен», «работает» about the sign-in, or «готов к
+   заданиям» as a guarantee. One quiet line says where an expired sign-in would show.
+5. **Failure is a result, not an error.** The check ran and told us something. A failure shows in a warning callout
+   with what to do on the machine, never a `danger` banner or `role="alert"`. API errors of the wizard's own requests
+   (network, 5xx, 401) keep the §6 banners.
+6. **Copy is per platform where the fix differs.** A Mac runner signs in with Claude (`setup-token`), a Linux runner
+   uses an Anthropic API key (#883). The credential state and the fix commands differ; everything else is shared.
+7. **One retry control, and it stays in place.** «Проверить» / «Проверить снова» is one button inside the panel, under
+   the result. Its label changes («Проверяем…» while queued or running) but the element stays, so focus never
+   drops. It is not in the footer: the footer stays «Готово».
+
+### 12.2 Flow
+
+```mermaid
+flowchart TD
+  ON[4b Раннер на связи] -->|below minimum| C8[C8 Раннер устарел: Как обновить]
+  ON -->|browser offline| C0[C0 Проверить, aria-disabled]
+  ON -->|auto, once| P{POST …/checks}
+  C0 -->|Проверить| P
+  P -->|200 queued / existing live check| Q[C2 Ждём, когда раннер возьмёт проверку]
+  P -->|409 runner-offline| F1[C5 Раннер не ответил]
+  P -->|409 runner-outdated| C8
+  P -->|409 runner-paused / runner-revoked, 422 unsupported| FX[C7 other]
+  P -->|429 rate-limited| RL[C9 Слишком много проверок]
+  P -->|network / 5xx / 401 / 403| E[§6 banner; panel back to C0 or last result]
+  Q -->|running| R[C3 Запускаем Claude на раннере]
+  Q -->|failed not-picked-up| F1
+  R -->|passed| OK[C4 Проверка прошла]
+  R -->|failed: reason| F[C5–C7 by reason]
+  Q & R -->|4 min, no final state| G[C6 Консоль перестала ждать]
+  OK & F & F1 & G & FX -->|Проверить снова| P
+  RL -->|after Retry-After| P
+  ON & Q & R & OK & F -->|Готово / × / Esc| X[close at once; the check finishes on its own]
+```
+
+**Polling** (`RunnerCheckWatch` in `entities/runner`, the `EnrolmentWatch` timers): `GET …/checks/:id` every 2 s
+while visible, every 15 s while hidden, once at once on `visibilitychange` → visible and on `online`. It honours 429
+`Retry-After` (the shared `pollRateLimited` banner). It stops at `passed`/`failed`, at 401/403, when the sheet closes,
+or 4 minutes after the POST (C6). A repeated press returns the check in flight (architect §2), so «Проверить снова»
+after C6 re-attaches to a check that is still alive instead of starting a second one.
+
+### 12.3 Layout (inside 4b, under the scope lines, above the §3.5 below-minimum callout)
+
+- A `section` labelled by its own heading h4 «Проверка раннера», so a screen reader can jump to it.
+- One status row: icon slot (spinner, check or alert; ui-designer's call) + the state's title as text.
+- The state's body (zero to three lines), then the fix block (a `CopyCode`, a log line or a link) when the state has
+  one.
+- The retry button, `size="sm"`, secondary, left-aligned under the text.
+- The «Проверка на самой машине: смотрите вывод setup…» line (§3.5) stays above the panel, unchanged.
+
+**iPhone (390 px), C3 running:**
+
+```
+┌──────────────────────────────────────────┐
+│ Новый раннер                          ×  │
+│ Шаг 4 из 4 · На связи                    │
+├──────────────────────────────────────────┤
+│ ✓ Раннер на связи                  (h3)  │  ← focus on arrival (unchanged)
+│ Раннер «MacBook» подключён и ждёт        │
+│ задания.                                 │
+│ Обслуживает все проекты аккаунта.        │
+│ Проверка на самой машине: смотрите …     │
+│ ┌──────────────────────────────────────┐ │
+│ │ Проверка раннера              (h4)   │ │
+│ │ ◌ Запускаем Claude на раннере…       │ │
+│ │ Это займёт до 30 секунд. Окно можно  │ │
+│ │ закрыть: проверка ничего не меняет   │ │
+│ │ на машине.                           │ │
+│ │ [ Проверяем… ]   (aria-disabled)     │ │
+│ └──────────────────────────────────────┘ │
+├──────────────────────────────────────────┤
+│ [              Готово              ]     │  sticky, always enabled
+└──────────────────────────────────────────┘
+```
+
+**Mac (wide dialog), C5 credential missing:**
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│ Новый раннер                                                        ×  │
+│ 1 Параметры · 2 Команда · 3 Подтверждение · [4 На связи]               │
+├────────────────────────────────────────────────────────────────────────┤
+│ ✓ Раннер на связи                                                (h3)  │
+│ Раннер «MacBook» подключён и ждёт задания.                             │
+│ Обслуживает все проекты аккаунта.                                      │
+│ Проверка на самой машине: смотрите вывод setup. …                      │
+│ ┌────────────────────────────────────────────────────────────────────┐ │
+│ │ Проверка раннера                                              (h4) │ │
+│ │ ▌! Вход в Claude не найден                                         │ │
+│ │ ▌Для раннера не сохранён вход в Claude. Задания будут зависеть от  │ │
+│ │ ▌входа самого Mac, который консоль не видит. Сохраните вход:       │ │
+│ │ ▌┌──────────────────────────────────────────────────┐ [Копировать] │ │
+│ │ ▌│ sudo /usr/local/lib/team-console-runner/bin/team-…│             │ │
+│ │ ▌└──────────────────────────────────────────────────┘             │ │
+│ │ [ Проверить снова ]                                                │ │
+│ └────────────────────────────────────────────────────────────────────┘ │
+├────────────────────────────────────────────────────────────────────────┤
+│                                              [Выбрать проекты] [Готово]│
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+**Mac, C4 passed:**
+
+```
+│ │ Проверка раннера                                              (h4) │ │
+│ │ ✓ Проверка прошла                                                  │ │
+│ │ Claude Code 2.1.4 запускается на раннере от пользователя заданий,  │ │
+│ │ вход в Claude найден.                                              │ │
+│ │ Действует ли вход, станет видно на первом задании: проверка не     │ │
+│ │ обращается к Claude по сети.                                       │ │
+│ │ [ Проверить снова ]                                                │ │
+```
+
+Mobile: the panel is full width, the `CopyCode` scrolls sideways inside itself (as §7), the retry button is full
+width under 360 px. Mac: the panel keeps the step's text width. No layout shift on result: the panel keeps a minimum
+height of the running state (ui-designer sets it), so the footer does not jump while the owner reaches for «Готово».
+
+### 12.4 States
+
+| # | State | Trigger | Title / body (keys in §12.6) | Fix block | Retry button |
+|---|---|---|---|---|---|
+| C0 | **Idle** | not started: offline at arrival, or the auto start was not made | `check.idle` | – | «Проверить»; `aria-disabled` + «Нет сети» when offline |
+| C1 | **Starting** | POST in flight | `check.starting` | – | «Проверяем…», `aria-disabled` |
+| C2 | **Waiting for pickup** | `queued` | `check.queued` + `check.queuedSub`; after 30 s in `queued` the sub-line becomes `check.queuedSlow` (pickup can take up to 150 s) | – | «Проверяем…», `aria-disabled` |
+| C3 | **Running** | `running` | `check.running` + `check.runningSub` | – | «Проверяем…», `aria-disabled` |
+| C4 | **Passed** | `passed` | `check.passed.title`; `check.passed.body{Mac,Linux}` with `claudeVersion` (`<bdi>`); `check.passed.note` | – | «Проверить снова» |
+| C5a | **Runner did not answer** | enqueue 409 `runner-offline`; `failed` with `not-picked-up` or `lost` | `check.offline.title`; body by code: `check.offline.{offline,notPickedUp,lost}` | Mac: `SELF_CHECK_COMMAND` `CopyCode` + `runners.wizard.slow.log` with `RUNNER_LOG_PATH`. Linux: `LINUX_STATUS_COMMAND` + log line with `LINUX_LOG_COMMAND` (the #883 pair) | «Проверить снова» |
+| C5b | **Claude Code does not run** | `claude-not-configured`, `claude-not-executable`, `claude-failed`, `claude-output-unrecognised` | `check.claude.title`; first line by code `check.claude.{notConfigured,notExecutable,failed,unrecognised}`; then `check.claude.fix{Mac,Linux}` | Mac: `CopyCode` `brew install --cask claude-code`, then `CopyCode` `sudo {launcher} setup --only toolchain,check` (N7). Linux: link «Инструкция: Linux ↗» (runbook «Linux: one command») | «Проверить снова» |
+| C5c | **Sign-in / key not found** | `credential-missing`, `credential-unreadable`, `credential-not-allowed` | Mac `check.credential.titleMac`, Linux `check.credential.titleLinux`; first line by code `check.credential.{missing,unreadable,notAllowed}{Mac,Linux}`; then `check.credential.fix{Mac,Linux}` | Mac: `CopyCode` `sudo {launcher} setup --only credential,check` (N7). Linux: link to the runbook «Linux: one command» (the `--replace-credential` line) | «Проверить снова» |
+| C5d | **Timeout** | `timeout` | `check.timeout.title` + `.body` | – | «Проверить снова» |
+| C5e | **Machine not ready** | `host-not-ready` | `check.host.title` + `.body{Mac,Linux}` | the C5a command and log line | «Проверить снова» |
+| C6 | **Console stopped waiting** | 4 min after the POST, no final state | `check.gaveUp.title` + `.body` | – | «Проверить снова» (re-attaches to a live check) |
+| C7 | **Other** | 409 `runner-paused`; 409 / `failed` `runner-revoked`; 422 `runner-check-unsupported` | `check.paused.*` / `check.revoked.*` / `check.unsupported.*` | – | paused: «Проверить снова»; revoked and unsupported: none |
+| C8 | **Runner outdated** | 409 `runner-outdated`, or `belowMinimum` on arrival (no request) | `check.outdated.title` + `.body`; tone neutral, not warning: jobs are not affected | link «Как обновить ↗» (`RUNBOOK_UPDATE_URL`, reused) | none (after an update the owner checks from a fresh wizard or, later, the runner card: architect Q4) |
+| C9 | **Rate-limited** | 429 `rate-limited` on POST | `check.rateLimited` with the local time `Retry-After` ends | – | «Проверить снова» `aria-disabled` until then, `aria-describedby` → the message; it re-enables itself, no automatic start |
+| – | **Wizard API errors** | POST or GET: offline, timeout, 5xx, 401, 403 | the §6 banners (16, 16a, 17, 18, 20) at the top of the sheet; for a POST failure the panel returns to C0 (or to its last result) | – | as C0 |
+| – | **Closed mid-check** | «Готово», ×, Esc in C1–C3 | closes at once, no confirm; polling stops. The check ends on the runner by itself; there is nothing to cancel and nothing to tell the owner later | – | – |
+| – | **Unknown reason code** | a code this console does not know (newer API) | title `check.host.title`, body `check.unknown.body` (no platform line) | – | «Проверить снова» |
+
+Severity and tone: C4 positive; C5a–C5e, C6 and C9 warning; C7 paused and C8 neutral; C7 revoked warning. None uses
+`danger`.
+
+### 12.5 Accessibility
+
+- **Focus.** Arriving at 4b moves focus to the h3 «Раннер на связи» (unchanged, §5). The automatic start and every
+  check result **never move focus**: the owner may be reading or on «Готово». «Проверить снова» keeps focus through
+  C1–C3 and back to a result, because it is the same element (`aria-disabled`, not `disabled`, the existing
+  pattern). In C7 revoked and C8 the button is removed: focus is then only lost if it was on the button, and goes to
+  the panel's h4 (`tabindex="-1"`).
+- **Order:** h3 → scope → self-check line → panel h4 → fix block (Копировать, link) → «Проверить снова» → below-minimum
+  link (if shown) → footer («Выбрать проекты», «Готово»).
+- **Announcements** through the sheet's one polite `LiveAnnouncer` (§5), one per phase change, never for the 2 s polls:
+  - online with the automatic start: `live.onlineChecking` replaces `live.online` («Раннер {name} на связи.
+    Проверяем, запускается ли Claude.»), so the two messages do not cut each other off;
+  - a manual start: `check.live.started`;
+  - C4: `check.live.passed`; C5–C7: `check.live.failed` with the state's title; C6: its title; C8: its title; C9:
+    the message.
+  - C2 → C3 and the 30 s sub-line are not announced (noise; the result follows within 30 s).
+  - The panel itself is not a live region (no double reading); its status text is plain text.
+- **Busy:** the panel has `aria-busy="true"` in C1–C3.
+- **Fix commands:** `CopyCode` as in §5 (focusable region, named: `check.region.toolchain`, `check.region.setup`;
+  copy buttons `check.copyAria.*`).
+- **Reduced motion:** the spinner does not turn (kit default). No success animation, no transition when the panel
+  changes state; the minimum height keeps the footer still either way.
+- **Colour:** the state is always in the title text; the icon is decorative (`aria-hidden`).
+- **Targets:** 44 px for the retry and copy buttons, as everywhere in the sheet.
+
+### 12.6 Copy (ru is the reference, «вы»; en follows ru, the developer writes it, as §8)
+
+New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineChecking`. Reused: `runners.wizard.slow.log`,
+`runners.wizard.online.update`, `runners.wizard.newTab`, `runners.wizard.offlineReason`, `runners.enrol.copy`,
+`.copied`, `.copyFailed`. `{launcher}` is `RUNNER_INSTALLED_LAUNCHER`; commands are built from constants in
+`add-runner.model.ts`, never from translations.
+
+| Key | ru |
+|---|---|
+| `check.heading` | Проверка раннера |
+| `check.idle` | Проверим, что раннер может запустить Claude. Обычно это занимает до минуты, иногда до трёх, и ничего не меняет на машине. |
+| `check.start` | Проверить |
+| `check.again` | Проверить снова |
+| `check.busy` | Проверяем… |
+| `check.starting` | Запускаем проверку… |
+| `check.queued` | Ждём, когда раннер возьмёт проверку… |
+| `check.queuedSub` | Обычно это занимает до 10 секунд. Окно можно закрыть: проверка ничего не меняет на машине. |
+| `check.queuedSlow` | Раннер пока не взял проверку. Подождём ещё до двух минут. Окно можно закрыть. |
+| `check.running` | Запускаем Claude на раннере… |
+| `check.runningSub` | Это займёт до 30 секунд. Окно можно закрыть: проверка ничего не меняет на машине. |
+| `check.passed.title` | Проверка прошла |
+| `check.passed.bodyMac` | Claude Code {{version}} запускается на раннере от пользователя заданий, вход в Claude найден. |
+| `check.passed.bodyLinux` | Claude Code {{version}} запускается в контейнере раннера, ключ API найден. |
+| `check.passed.note` | Действует ли вход, станет видно на первом задании: проверка не обращается к Claude по сети. |
+| `check.offline.title` | Раннер не ответил на проверку |
+| `check.offline.offline` | Раннер сейчас не на связи. |
+| `check.offline.notPickedUp` | Раннер не взял проверку за две с половиной минуты. Скорее всего, служба остановилась или машина уснула. |
+| `check.offline.lost` | Раннер взял проверку, но не прислал результат. Скорее всего, служба перезапустилась. |
+| `check.offline.fix` | Проверьте раннер на машине: |
+| `check.claude.title` | Claude Code не запускается на раннере |
+| `check.claude.notConfigured` | setup не нашёл Claude Code для этого раннера. |
+| `check.claude.notExecutable` | Claude Code найден, но не запускается от пользователя заданий. |
+| `check.claude.failed` | Claude Code запустился и завершился с ошибкой. |
+| `check.claude.unrecognised` | Claude Code ответил не так, как ожидалось. |
+| `check.claude.fixMac` | Установите Claude Code для всей системы, затем повторите шаг setup, который его ищет: |
+| `check.claude.fixLinux` | Claude Code входит в образ раннера. Возьмите команды заново в «Подключить раннер» и выполните обе: так раннер перейдёт на исправный образ. |
+| `check.claude.linuxLink` | Инструкция: Linux |
+| `check.credential.titleMac` | Вход в Claude не найден |
+| `check.credential.titleLinux` | Ключ API не найден |
+| `check.credential.missingMac` | Для раннера не сохранён вход в Claude. Тогда задания зависят от входа в Claude на самом Mac, который консоль не видит и не проверяет. Сохраните вход для раннера, чтобы задания запускались надёжно. |
+| `check.credential.missingLinux` | На раннере нет сохранённого ключа API Anthropic. Без него задания не запустятся. |
+| `check.credential.unreadableMac` | Раннер не смог прочитать сохранённый вход в Claude. |
+| `check.credential.unreadableLinux` | Раннер не смог прочитать сохранённый ключ API. |
+| `check.credential.notAllowedMac` | Сохранённый вход не подходит для этого раннера. |
+| `check.credential.notAllowedLinux` | Сохранённый ключ не подходит для этого раннера. |
+| `check.credential.fixMac` | Войдите заново: команда откроет вход в Claude в браузере и проверит раннер. |
+| `check.credential.fixLinux` | Сохраните ключ заново: выполните строку подключения ещё раз, добавив --replace-credential после setup. |
+| `check.timeout.title` | Claude не ответил за 30 секунд |
+| `check.timeout.body` | Возможно, машина сейчас занята. Попробуйте ещё раз через минуту. |
+| `check.host.title` | Машина не готова к заданиям |
+| `check.host.bodyMac` | Раннер не смог подготовить отдельного пользователя для задания или убрать за ним. Проверьте раннер на машине: |
+| `check.host.bodyLinux` | Раннер не смог запустить или убрать контейнер задания. Проверьте службы на машине: |
+| `check.unknown.body` | Раннер сообщил о проблеме, которую эта версия консоли не знает. Обновите страницу и проверьте снова. |
+| `check.gaveUp.title` | Консоль перестала ждать результат |
+| `check.gaveUp.body` | Проверка идёт дольше четырёх минут. Нажмите «Проверить снова»: если она ещё идёт, консоль покажет её, а не начнёт новую. |
+| `check.paused.title` | Раннер на паузе |
+| `check.paused.body` | Раннер приостановлен, например из-за лимита подписки. Проверьте его, когда пауза закончится. |
+| `check.revoked.title` | Раннер отозван |
+| `check.revoked.body` | Раннер больше не подключён к аккаунту, проверять нечего. |
+| `check.unsupported.title` | Этот раннер не проверяется |
+| `check.unsupported.body` | Проверка работает только для раннеров на ваших машинах. |
+| `check.outdated.title` | Эта версия раннера не умеет проходить проверку |
+| `check.outdated.body` | На задания это не влияет. Проверка появится, когда вы обновите раннер. |
+| `check.rateLimited` | Слишком много проверок за час. Проверить снова можно в {{time}}. |
+| `check.region.toolchain` | Команда установки Claude Code |
+| `check.region.setup` | Команда повтора шага setup |
+| `check.copyAria.toolchain` | Копировать команду установки Claude Code |
+| `check.copyAria.setup` | Копировать команду повтора шага setup |
+| `check.live.started` | Проверяем раннер. |
+| `check.live.passed` | Проверка прошла: Claude Code {{version}} запускается на раннере. |
+| `check.live.failed` | Проверка не прошла: {{title}}. |
+| `live.onlineChecking` | Раннер {{name}} на связи. Проверяем, запускается ли Claude. |
+
+Words avoided on purpose: «вход проверен», «всё работает», «готов к заданиям» (decision 4); «ошибка» in a title
+(decision 5); «smoke» and «тест» (internal words; the owner sees «проверка», as on the button).
+
+### 12.7 Success signal
+
+The spec has no client analytics, and this adds none. The signal is the architect's audit pair:
+`runner.check-requested` and `runner.check-finished {result, reason}`. Two numbers for the PM, from the audit log:
+the share of wizard-enrolled runners whose first check passed, and the distribution of `reason` for the rest. The
+second tells us which fix copy to improve first. The client does not log whether the owner closed mid-check.
+
+### 12.8 Notes for the architect and the developer (not owner decisions)
+
+- **N7, fix commands.** The C5b/C5c commands assume `sudo {launcher} setup --only toolchain,check` and
+  `--only credential,check` work on an enrolled Mac without `--url`/`--enrolment` (the runbook's «already enrolled
+  Mac» line suggests so). If either needs more flags, the developer adds constants beside `SELF_CHECK_COMMAND`; if it
+  cannot be one line, C5b/C5c fall back to the runbook link. Never put a command in a translation.
+- **N8, auto start vs the declaration race.** `online` comes from `last_seen_at`; the `checks` declaration is stored
+  on the claim poll. If `last_seen_at` can be set by another call first (for example `self-check`'s `GET
+  /runner/self`), the automatic start may get a false `runner-outdated`. Then: if `runner-outdated` comes within 60 s
+  of the online flip, wait 10 s and retry once, silently, before showing C8. The architect confirms which call sets
+  `last_seen_at`.
+- **N9, read budget.** 2 s polls for up to 4 min are up to 120 GETs per check, on top of the runners poll, which
+  stops at online. Check against the #879 per-user read limit; 429 falls into the shared banner and does not end
+  the watch. Resolved: #879 allows 120 account reads per identity per minute; the watch at 2 s is 30 a minute, so
+  no server change is needed.
+- **N10, release order.** Until a runner release with PR 2 is out, every runner answers `runner-outdated`, so every
+  wizard ends in C8. C8 is neutral for that reason. Recommended to the hub: merge PR 3 after the runner release, so
+  owners never see a check that cannot pass.
+- **N11, `claudeVersion` display.** Shown as the server sends it, inside `<bdi dir="auto">`, never parsed. `null` on
+  `passed` (should not happen) drops the version from the sentence: «Claude Code запускается…».
+- **N12, stories and e2e (stubbed API).** Stories for C0–C9, each C5 reason on Mac and Linux, and C9 with a time.
+  e2e: automatic start → passed; credential-missing → «Проверить снова» → passed; not-picked-up; the 4-minute give-up
+  (clock) then re-attach to the same id; 429 with `Retry-After`; below-minimum makes no POST; «Готово» during C3
+  closes without a confirm and stops polling.
+
+### 12.9 Acceptance additions (for the PM to add to #1059, PR 3)
+
+- [ ] Reaching «Раннер на связи» starts one check by itself, unless the runner is below the minimum version or the
+      browser is offline. No second automatic start in the same sheet.
+- [ ] «Готово» is enabled and closes at once in every check state; closing stops the polling and shows no confirm.
+- [ ] Every reason code in `RUNNER_CHECK_REASONS` maps to a §12.4 state; an unknown code shows `check.unknown.body`.
+- [ ] Mac and Linux show the credential and Claude Code fixes of their platform (§12.6).
+- [ ] No copy in the check says or implies that the sign-in was verified (`вход проверен`, `всё работает`).
+- [ ] Polls run every 2 s visible / 15 s hidden and stop at a final state or at 4 minutes; «Проверить снова» after
+      the give-up re-attaches to the check in flight (same id), it does not create a second one.
+- [ ] 429 on start disables «Проверить снова» until `Retry-After` and shows the local time.
+- [ ] Check results never move focus; «Проверить снова» keeps focus through the run; each phase is announced once,
+      politely; the online + automatic start is one announcement.
+- [ ] With reduced motion nothing moves; the footer does not shift when the panel changes state.
+- [ ] Any owner of the account may start a check; a member sees no «Проверить» / «Проверить снова», and a 403 falls
+      into the §6 banner.
+- [ ] A hostile `claudeVersion` (for example `<img src=x onerror=alert(1)>`) renders literally as text; no element
+      is created. An unknown `reason` is never rendered as markup.
+- [ ] `POST …/checks` carries the CSRF header; a 429 `Retry-After` is honoured by both the start and the watch.
+- [ ] On the automatic start only, a `runner-outdated` answer is retried once, silently, after 10 s before C8 (N8).
+
+### 12.10 Owner questions
+
+- **U1, start.** The check starts by itself when the runner comes on line, with «Проверить снова» afterwards
+  (recommended: no extra click, nothing is spent). Or a «Проверить» button the owner presses.
+- **U2, step or panel.** A panel inside step 4 «На связи», the indicator stays «Шаг 4 из 4» (recommended: the check is
+  optional and never blocks «Готово»). Or a fifth step «Проверка».
+- **U3, the pass wording.** «Claude Code {version} запускается на раннере, вход в Claude найден» plus «Действует ли
+  вход, станет видно на первом задании» (recommended; it follows architect Q2 «presence only»). If the owner picks
+  the authenticated probe in Q2, the pass line can say «вход действует», and C5c gains a «вход истёк» variant.
+  **Decided 2026-11-27: presence only; the probe variant is out.**
+- **U4, outdated runners.** A neutral «Эта версия раннера не умеет проходить проверку» with «Как обновить»
+  (recommended, together with N10: ship PR 3 after the runner release). Or hide the panel when the runner is
+  outdated.
