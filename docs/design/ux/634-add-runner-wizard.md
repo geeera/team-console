@@ -3,7 +3,7 @@
 Low-fidelity wireframe: [634-add-runner-wizard.html](634-add-runner-wizard.html). It covers every state in §6;
 the demo bar switches state, iPhone / Mac, the number of owners and whether the release ships `node`.
 
-**Addendum (#1059, not yet approved):** §12 adds the runner check («Проверка») to step 4b. Everything in §0–§11
+**Addendum (#1059, approved by the owner on 2026-11-27):** §12 adds the runner check («Проверка») to step 4b. Everything in §0–§11
 is the approved #634 spec and is unchanged, except two pointers marked «#1059» in §3.5 and §6.
 
 Read: #634 (architect note §2 and §6, PR split §9, security note S1–S5, R-INT-1…7, R-ONE-1, R-PKG-1…3, the PR 4
@@ -614,8 +614,9 @@ after C6 re-attaches to a check that is still alive instead of starting a second
 │ ┌────────────────────────────────────────────────────────────────────┐ │
 │ │ Проверка раннера                                              (h4) │ │
 │ │ ▌! Вход в Claude не найден                                         │ │
-│ │ ▌Для раннера не сохранён вход в Claude. Задания будут зависеть от  │ │
-│ │ ▌входа самого Mac, который консоль не видит. Сохраните вход:       │ │
+│ │ ▌Для раннера не сохранён вход в Claude. Тогда задания зависят от   │ │
+│ │ ▌входа в Claude на самом Mac, который консоль не видит … Войдите   │ │
+│ │ ▌заново: команда откроет вход в Claude в браузере и проверит …     │ │
 │ │ ▌┌──────────────────────────────────────────────────┐ [Копировать] │ │
 │ │ ▌│ sudo /usr/local/lib/team-console-runner/bin/team-…│             │ │
 │ │ ▌└──────────────────────────────────────────────────┘             │ │
@@ -651,7 +652,7 @@ height of the running state (ui-designer sets it), so the footer does not jump w
 | C2 | **Waiting for pickup** | `queued` | `check.queued` + `check.queuedSub`; after 30 s in `queued` the sub-line becomes `check.queuedSlow` (pickup can take up to 150 s) | – | «Проверяем…», `aria-disabled` |
 | C3 | **Running** | `running` | `check.running` + `check.runningSub` | – | «Проверяем…», `aria-disabled` |
 | C4 | **Passed** | `passed` | `check.passed.title`; `check.passed.body{Mac,Linux}` with `claudeVersion` (`<bdi>`); `check.passed.note` | – | «Проверить снова» |
-| C5a | **Runner did not answer** | enqueue 409 `runner-offline`; `failed` with `not-picked-up` or `lost` | `check.offline.title`; body by code: `check.offline.{offline,notPickedUp,lost}` | Mac: `SELF_CHECK_COMMAND` `CopyCode` + `runners.wizard.slow.log` with `RUNNER_LOG_PATH`. Linux: `LINUX_STATUS_COMMAND` + log line with `LINUX_LOG_COMMAND` (the #883 pair) | «Проверить снова» |
+| C5a | **Runner did not answer** | enqueue 409 `runner-offline`; `failed` with `not-picked-up` or `lost` | `check.offline.title`; body by code: `check.offline.{offline,notPickedUp,lost}`, then `check.offline.fix` | Mac: `SELF_CHECK_COMMAND` `CopyCode` + `runners.wizard.slow.log` with `RUNNER_LOG_PATH`. Linux: `LINUX_STATUS_COMMAND` + log line with `LINUX_LOG_COMMAND` (the #883 pair). `not-picked-up` adds `check.offline.update` + «Как обновить ↗»: a runner downgraded after it declared the check keeps its stored capability, so its check ends here, not in C8 | «Проверить снова» |
 | C5b | **Claude Code does not run** | `claude-not-configured`, `claude-not-executable`, `claude-failed`, `claude-output-unrecognised` | `check.claude.title`; first line by code `check.claude.{notConfigured,notExecutable,failed,unrecognised}`; then `check.claude.fix{Mac,Linux}` | Mac: `CopyCode` `brew install --cask claude-code`, then `CopyCode` `sudo {launcher} setup --only toolchain,check` (N7). Linux: link «Инструкция: Linux ↗» (runbook «Linux: one command») | «Проверить снова» |
 | C5c | **Sign-in / key not found** | `credential-missing`, `credential-unreadable`, `credential-not-allowed` | Mac `check.credential.titleMac`, Linux `check.credential.titleLinux`; first line by code `check.credential.{missing,unreadable,notAllowed}{Mac,Linux}`; then `check.credential.fix{Mac,Linux}` | Mac: `CopyCode` `sudo {launcher} setup --only credential,check` (N7). Linux: link to the runbook «Linux: one command» (the `--replace-credential` line) | «Проверить снова» |
 | C5d | **Timeout** | `timeout` | `check.timeout.title` + `.body` | – | «Проверить снова» |
@@ -664,8 +665,8 @@ height of the running state (ui-designer sets it), so the footer does not jump w
 | – | **Closed mid-check** | «Готово», ×, Esc in C1–C3 | closes at once, no confirm; polling stops. The check ends on the runner by itself; there is nothing to cancel and nothing to tell the owner later | – | – |
 | – | **Unknown reason code** | a code this console does not know (newer API) | title `check.host.title`, body `check.unknown.body` (no platform line) | – | «Проверить снова» |
 
-Severity and tone: C4 positive; C5a–C5e, C6 and C9 warning; C7 paused and C8 neutral; C7 revoked warning. None uses
-`danger`.
+Severity and tone: C4 positive (the kit's `success` callout); C5a–C5e, C6, C9 and an unknown code warning; C7 paused,
+C7 unsupported and C8 neutral; C7 revoked warning. None uses `danger`.
 
 ### 12.5 Accessibility
 
@@ -718,9 +719,10 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.passed.note` | Действует ли вход, станет видно на первом задании: проверка не обращается к Claude по сети. |
 | `check.offline.title` | Раннер не ответил на проверку |
 | `check.offline.offline` | Раннер сейчас не на связи. |
-| `check.offline.notPickedUp` | Раннер не взял проверку за две с половиной минуты. Скорее всего, служба остановилась или машина уснула. |
+| `check.offline.notPickedUp` | Раннер не взял проверку за две с половиной минуты. Скорее всего, служба остановилась, машина уснула или на ней стоит версия раннера, которая не умеет проходить проверку. |
 | `check.offline.lost` | Раннер взял проверку, но не прислал результат. Скорее всего, служба перезапустилась. |
 | `check.offline.fix` | Проверьте раннер на машине: |
+| `check.offline.update` | Если на машине стоит старая версия раннера, обновите её: (then «Как обновить ↗», `notPickedUp` only) |
 | `check.claude.title` | Claude Code не запускается на раннере |
 | `check.claude.notConfigured` | setup не нашёл Claude Code для этого раннера. |
 | `check.claude.notExecutable` | Claude Code найден, но не запускается от пользователя заданий. |
@@ -762,6 +764,7 @@ New keys under `runners.wizard.check.*`, plus `runners.wizard.live.onlineCheckin
 | `check.copyAria.setup` | Копировать команду повтора шага setup |
 | `check.live.started` | Проверяем раннер. |
 | `check.live.passed` | Проверка прошла: Claude Code {{version}} запускается на раннере. |
+| `check.live.passedNoVersion` | Проверка прошла: Claude Code запускается на раннере. (N11: a pass without a version) |
 | `check.live.failed` | Проверка не прошла: {{title}}. |
 | `live.onlineChecking` | Раннер {{name}} на связи. Проверяем, запускается ли Claude. |
 
@@ -827,10 +830,10 @@ second tells us which fix copy to improve first. The client does not log whether
   (recommended: no extra click, nothing is spent). Or a «Проверить» button the owner presses.
 - **U2, step or panel.** A panel inside step 4 «На связи», the indicator stays «Шаг 4 из 4» (recommended: the check is
   optional and never blocks «Готово»). Or a fifth step «Проверка».
-- **U3, the pass wording.** «Claude Code {version} запускается на раннере, вход в Claude найден» plus «Действует ли
-  вход, станет видно на первом задании» (recommended; it follows architect Q2 «presence only»). If the owner picks
-  the authenticated probe in Q2, the pass line can say «вход действует», and C5c gains a «вход истёк» variant.
-  **Decided 2026-11-27: presence only; the probe variant is out.**
+- **U3, the pass wording.** **Decided 2026-11-27: presence only.** The pass line is `check.passed.body{Mac,Linux}`
+  («Claude Code {version} запускается на раннере от пользователя заданий, вход в Claude найден») plus
+  `check.passed.note` («Действует ли вход, станет видно на первом задании»), as architect Q2 «presence only». There is
+  no «вход действует» line and no «вход истёк» variant of C5c.
 - **U4, outdated runners.** A neutral «Эта версия раннера не умеет проходить проверку» with «Как обновить»
   (recommended, together with N10: ship PR 3 after the runner release). Or hide the panel when the runner is
   outdated.
