@@ -107,8 +107,22 @@ export class ProjectSpacePage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  /** Bound from the route by `withComponentInputBinding()`. */
-  readonly slug = input.required<string>();
+  /** Set by the slug's `transform` below, read by the focus-retention effect in the constructor (#964). */
+  private wasHeadingFocused = false;
+
+  /**
+   * Bound from the route by `withComponentInputBinding()`. The heading is keyed on the slug (#506), so a switch
+   * destroys and recreates it; `transform` is the one hook Angular calls synchronously when the Router sets this
+   * input, strictly before the view (and the old heading) update — the only reliable moment to ask whether the
+   * about-to-be-destroyed heading currently holds focus. A later effect, reacting once the new one exists, acts on
+   * what was captured here.
+   */
+  readonly slug = input.required<string, string>({
+    transform: (value: string): string => {
+      this.wasHeadingFocused = this.query('.space__title') === document.activeElement;
+      return value;
+    },
+  });
 
   protected readonly sections = VISIBLE_SPACE_SECTIONS.map((section) => ({
     section,
@@ -138,6 +152,16 @@ export class ProjectSpacePage {
     effect(() => {
       const slug = this.slug();
       untracked(() => void this.teamStatus.load(slug));
+    });
+    // Refocus the new heading, once it exists, only when the old one held focus (captured by `slug`'s transform):
+    // a switch never steals focus from something else the owner was using (#964).
+    effect(() => {
+      this.slug();
+      if (untracked(() => this.wasHeadingFocused)) {
+        untracked(() =>
+          afterNextRender(() => this.query('.space__title')?.focus(), { injector: this.injector }),
+        );
+      }
     });
     effect(() => {
       if (this.isPhone()) {

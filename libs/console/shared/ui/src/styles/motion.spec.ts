@@ -69,9 +69,9 @@ describe('motion classes (#506, #964)', () => {
     expect(keyframes('m-leave')).toMatch(/to \{[^}]*opacity: 0;/);
   });
 
-  it('.m-stagger delays a row by its place, by the --stagger token', () => {
+  it('.m-stagger delays a row by its place, by the --stagger token, held at the shared --stagger-max cap (#968)', () => {
     expect(rule('.m-stagger')).toMatch(
-      /animation-delay:\s*calc\(min\(var\(--i, 0\), \d+\) \* var\(--stagger\)\);/,
+      /animation-delay:\s*calc\(min\(var\(--i, 0\), var\(--stagger-max\)\) \* var\(--stagger\)\);/,
     );
   });
 
@@ -83,10 +83,10 @@ describe('motion classes (#506, #964)', () => {
   });
 
   describe('under reduced motion', () => {
-    // `.m-fade` is not in the list yet: its override is a product change that waits for the freeze to lift (#972).
-    const enters = '.m-enter, .m-push, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)';
+    // `.m-fade` joined the override in #972: it was already opacity-only, so this only shortens its duration.
+    const enters = '.m-enter, .m-push, .m-fade, .m-stagger, .m-route > :not(router-outlet, .m-route-skip)';
 
-    it('the media query swaps each rising or sliding enter for the --dur-fade fade', () => {
+    it('the media query swaps each rising, sliding or fading enter for the --dur-fade fade', () => {
       const media = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(motionCss)?.[1] ?? '';
       expect(media).toContain(`:root:not([data-motion='full']) :is(${enters})`);
       expect(media).toContain('animation-duration: var(--dur-fade);');
@@ -99,7 +99,5 @@ describe('motion classes (#506, #964)', () => {
         ),
       );
     });
-
-    it.todo('.m-fade takes the --dur-fade fade too (#972, after the freeze)');
   });
 });
