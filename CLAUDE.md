@@ -695,7 +695,12 @@ Run now and the job view (#464 part B): on a console-tracker project (`isOnConso
 board, polls every 10 s with a job live and every 60 s otherwise, only while the page is visible, events incrementally
 for held jobs; `jobsTileOf`; `JobCard`, runner text interpolated as one plain line via `withoutInvisibles`),
 `@console/features/run-now` (`RunNow`: `RUN_NOW_KINDS`, the kinds the API runs from the kind alone). Runner names come
-from `RunnersStore` (a member sees a short id).
+from `RunnersStore` (a member sees a short id). The team's Start/Stop (#1042, ADR 0010): `@console/entities/orchestration`
+(`OrchestrationApi` over `GET|POST …/orchestration[/start|/stop]`, answers through the contract's `isOrchestrationDto`,
+failures by slug in `orchestrationFailureOf`; `OrchestrationStore`, polling at the jobs cadence through the shared
+`pollWhileVisible` of `@console/shared/utils`, which `JobsStore` uses too) and `@console/features/orchestration`
+(`OrchestrationControls`: one button, Start or Stop by the run's state, Stop through `Sheet.confirm()`, Start held back
+with its reason when `runnerAvailability` is `none`), hosted by `BoardJobs` under Run now for `canRunNow` only.
 Jobs and job tokens (#467, ADR 0008 row 2-A part 3, migration `0022_jobs`: `jobs` (ULID id, `account_id` copied from the
 project and kept equal by trigger, `kind` (migration 0045, #1039: a reference to the `job_kinds` lookup table, not a
 CHECK — a new kind is one `INSERT`, not a rebuild), `role`, `payload` (`items`), `state` with final states kept by trigger,

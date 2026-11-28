@@ -103,6 +103,8 @@
       "@console/features/runner-policy": ["./libs/console/features/runner-policy/src/index.ts"],
       "@console/entities/job": ["./libs/console/entities/job/src/index.ts"],
       "@console/features/run-now": ["./libs/console/features/run-now/src/index.ts"],
+      "@console/entities/orchestration": ["./libs/console/entities/orchestration/src/index.ts"],
+      "@console/features/orchestration": ["./libs/console/features/orchestration/src/index.ts"],
       "@console/features/budget-stop": ["./libs/console/features/budget-stop/src/index.ts"],
       "@console/features/team-config": ["./libs/console/features/team-config/src/index.ts"],
       "@console/entities/actions-setup": ["./libs/console/entities/actions-setup/src/index.ts"],

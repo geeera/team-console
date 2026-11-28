@@ -2589,7 +2589,9 @@
       "chat": "PM chat",
       "kickoff": "Kickoff",
       "import": "Import",
-      "digest": "Digest"
+      "digest": "Digest",
+      "orchestrate": "Team step",
+      "task": "Developer task"
     },
     "state": {
       "queued": "Queued",
@@ -2711,6 +2713,50 @@
     "member": {
       "line": "Only the account owner can start jobs.",
       "lineNamed": "Only the account owner can start jobs — {{owners}}."
+    }
+  },
+  "orchestration": {
+    "title": "Team",
+    "start": "Start the team",
+    "stop": "Stop",
+    "state": {
+      "loading": "Checking whether the team is working…",
+      "idle": "The team is not working. Once started, it takes approved tasks step by step.",
+      "running": "The team is working: step {{steps}} of {{max}}.",
+      "waitingOwner": "The team is waiting for your decision: step {{steps}} of {{max}}.",
+      "stopping": "The team is stopping…",
+      "unknown": "Could not tell whether the team is working."
+    },
+    "reason": {
+      "noRunner": "The team can’t be started yet: no runner serves this project."
+    },
+    "outcome": {
+      "started": "The team has started: its first step is queued.",
+      "startedWaiting": "The team has started: its first step begins when the runner is back.",
+      "stopped": "The team has stopped and its jobs were cancelled."
+    },
+    "confirm": {
+      "title": "Stop the team?",
+      "message": "The current step and every job of this run are cancelled, usually within a minute.",
+      "note": "An unfinished branch may stay in the repository. You can start the team again at any time.",
+      "ok": "Stop",
+      "cancel": "Keep working",
+      "busy": "Stopping…",
+      "retry": "Try again"
+    },
+    "err": {
+      "active": "The team is already working. To start over, stop it first.",
+      "idle": "The team has already stopped — there is nothing to stop.",
+      "paused": "Development is paused. Resume it, then start the team.",
+      "exists": "Another orchestrator job is running, such as a slot started with Run. Wait for it to end.",
+      "forbidden": "Only the account owner can start and stop the team. Nothing changed.",
+      "notFound": "The project was not found. Reload the page.",
+      "invalid": "The console refused the request. Reload the page and try again.",
+      "rateLimited": "Too many requests. Wait a minute and try again.",
+      "offline": "No network. Nothing changed — try again once you are back online.",
+      "timeout": "The console did not answer in time. Reload the page: the team may have started or stopped.",
+      "sessionExpired": "Your session expired. Sign in again.",
+      "error": "Something went wrong. Try again."
     }
   },
   "quickTask": {
