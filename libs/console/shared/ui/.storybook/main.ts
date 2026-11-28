@@ -25,6 +25,8 @@ const config: StorybookConfig = {
     '../../../features/add-runner/src/**/*.stories.ts',
     // The job card's states (#464, the board's runs section).
     '../../../entities/job/src/**/*.stories.ts',
+    // The team's Start/Stop beside Run now (#1042, the board's runs section).
+    '../../../features/orchestration/src/**/*.stories.ts',
     // The GitHub Actions setup ledger's states (#759).
     '../../../features/actions-setup/src/**/*.stories.ts',
     // The board's folder states (#557).
