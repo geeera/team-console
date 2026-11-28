@@ -69,14 +69,17 @@ for (const colorScheme of ['light', 'dark'] as const) {
             response.request().method() === 'POST' && response.url().endsWith(`${ORCHESTRATION}/start`),
         );
         await start.click();
-        const started = await startAnswer;
-        expect(started.status()).toBe(201);
-        const run = (await started.json()) as OrchestrationDto;
-        expect(run.state).toBe('running');
-        expect(run.liveStepId).not.toBeNull();
+        expect((await startAnswer).status()).toBe(201);
         await expect(controls.getByTestId('orchestration-outcome')).toHaveText(
           ru('orchestration.outcome.started'),
         );
+        // The run as the Worker holds it, read directly: the captured response's body is not kept by every browser
+        // once the page has moved on, so it is never the source of truth here.
+        const read = await api.get(ORCHESTRATION);
+        expect(read.status()).toBe(200);
+        const run = (await read.json()) as OrchestrationDto;
+        expect(run.state).toBe('running');
+        expect(run.liveStepId).not.toBeNull();
         const stop = controls.getByRole('button', { name: ru('orchestration.stop') });
         // The same button changed: focus stays on it.
         await expect(stop).toBeFocused();

@@ -310,6 +310,7 @@ export class SprintBoard {
   private readonly restoreRetryFocus = injectRetryFocus(() => this.boardTitle());
   private readonly pullsHeading = viewChild<ElementRef<HTMLElement>>('pullsHeading');
   private readonly runsHeading = viewChild<ElementRef<HTMLElement>>('runsHeading');
+  private readonly runLog = viewChild(BoardRunLog, { read: ElementRef<HTMLElement> });
   private ring: Arrival | null = null;
   private loadToken = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -613,6 +614,13 @@ export class SprintBoard {
     if (this.compact()) {
       this.onTab(target);
       this.tabs()?.select(target, { focusPanel: true });
+      if (target === 'runs' && !this.isJobsBoard()) {
+        // The tile reads the GitHub run log here (Q1 on #775), which sits under «Team jobs»: once the panel has focus,
+        // the log is brought on screen, however tall the owner's jobs block above it is (#1042).
+        afterNextRender(() => this.runLog()?.nativeElement.scrollIntoView({ block: 'start' }), {
+          injector: this.injector,
+        });
+      }
       return;
     }
     const heading = (target === 'pr' ? this.pullsHeading() : this.runsHeading())?.nativeElement;

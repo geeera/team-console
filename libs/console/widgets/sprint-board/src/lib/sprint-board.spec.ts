@@ -1016,10 +1016,14 @@ describe('SprintBoard', () => {
       const { root, settle } = await render(true);
       http.expectOne(projectSprintUrl(TC.slug)).flush(sprint());
       await settle();
+      // #1042: the tile reads the GitHub run log, under «Team jobs»; the jump brings the log on screen.
+      const log = root.querySelector('tc-board-run-log') as HTMLElement;
+      log.scrollIntoView = vi.fn();
 
       (root.querySelector('[data-testid="team-stat"] button') as HTMLButtonElement).click();
       await settle();
       expect(document.activeElement).toBe(root.querySelector('[data-testid="runs"]'));
+      expect(log.scrollIntoView).toHaveBeenCalledWith({ block: 'start' });
 
       // The remembered tab survives a new board for the same project.
       const fixture = TestBed.createComponent(Host);
