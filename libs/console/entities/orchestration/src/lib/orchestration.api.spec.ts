@@ -139,7 +139,11 @@ describe('the model', () => {
   it.each([
     ['idle', idleOrchestrationFixture(), false],
     ['running', runningOrchestrationFixture(), true],
-    ['waiting for the owner', runningOrchestrationFixture({ state: 'waiting-owner', liveStepId: null }), true],
+    [
+      'waiting for the owner',
+      runningOrchestrationFixture({ state: 'waiting-owner', liveStepId: null }),
+      true,
+    ],
     ['stopping', runningOrchestrationFixture({ state: 'stopping' }), true],
   ])('a run %s is active: %s', (_name, run, active) => {
     expect(isRunActive(run)).toBe(active);

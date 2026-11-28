@@ -1,3 +1,4 @@
+import { NgTemplateOutlet } from '@angular/common';
 import {
   ChangeDetectionStrategy,
   Component,
@@ -10,6 +11,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { JobCard, jobFailureKeyOf, JobsStore, runnerLabelOf, type JobFailure } from '@console/entities/job';
 import { projectActionsRouteOf } from '@console/entities/project';
+import { OrchestrationControls } from '@console/features/orchestration';
 import { RunNow, type RunNowWait } from '@console/features/run-now';
 import { TranslocoPipe } from '@console/shared/i18n';
 import { Button, Callout, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
@@ -34,14 +36,27 @@ export function isolatedName(name: string): string {
 /**
  * The board's «Team jobs» (#464, #775): on every project a runner may serve, whatever its tracker. Above the lists, by
  * `runnerAvailability` and the caller's role on this project: the owner's Run now (with an offline or paused line
- * above it), the member's one line, or the «no runner» block instead of the form. The form waits until availability
+ * above it) and the team's Start/Stop under it (#1042, kept with its reason beside the «no runner» block), the
+ * member's one line, or the «no runner» block instead of the form. The form waits until availability
  * is known, so it never flashes before a «no runner» block. Then the jobs a runner holds and the queue, then the last
  * jobs that ended. Reads the board's `JobsStore`; runner names, the pause and the D3 runner come from the caller, who
  * reads the account's runners.
  */
 @Component({
   selector: 'tc-board-jobs',
-  imports: [BoardJobsNone, Button, Callout, Icon, JobCard, RouterLink, RunNow, StateBlock, TranslocoPipe],
+  imports: [
+    BoardJobsNone,
+    Button,
+    Callout,
+    Icon,
+    JobCard,
+    NgTemplateOutlet,
+    OrchestrationControls,
+    RouterLink,
+    RunNow,
+    StateBlock,
+    TranslocoPipe,
+  ],
   template: `
     <h3 #heading class="board-jobs__heading" tabindex="-1">{{ 'jobs.view.title' | transloco }}</h3>
 
@@ -60,6 +75,10 @@ export function isolatedName(name: string): string {
           [runnerName]="d3RunnerLabel()"
           [people]="nonePeople()"
         />
+        @if (canRun()) {
+          <!-- No runner: Start stays in place, held back with its reason; Stop still works on a run already on. -->
+          <ng-container [ngTemplateOutlet]="orchestration" />
+        }
       } @else {
         <!-- One polite region: a change from ready to offline on refresh is announced once. -->
         <div
@@ -109,11 +128,14 @@ export function isolatedName(name: string): string {
         </div>
         @if (showsRunNow()) {
           <tc-run-now
-            class="board-jobs__run-now"
+            class="board-jobs__panel"
             [slug]="slug()"
             [waiting]="waitsFor()"
             (enqueued)="onEnqueued($event)"
           />
+          @if (canRun()) {
+            <ng-container [ngTemplateOutlet]="orchestration" />
+          }
         } @else if (store.status() === 'ready') {
           <p class="board-jobs__member" data-testid="jobs-member-line">
             <tc-icon name="lock" size="sm" />
@@ -220,6 +242,15 @@ export function isolatedName(name: string): string {
         }
       }
     }
+
+    <ng-template #orchestration>
+      <tc-orchestration-controls
+        class="board-jobs__panel"
+        [slug]="slug()"
+        [availability]="store.availability()"
+        (changed)="onOrchestrationChanged()"
+      />
+    </ng-template>
   `,
   styles: `
     :host {
@@ -254,7 +285,7 @@ export function isolatedName(name: string): string {
       white-space: nowrap;
     }
 
-    .board-jobs__run-now {
+    .board-jobs__panel {
       display: block;
       padding: var(--space-3) var(--space-4);
       border: var(--border-w) solid var(--border);
@@ -428,6 +459,11 @@ export class BoardJobs {
 
   protected onEnqueued(job: JobDto): void {
     this.store.add(job);
+    void this.store.refresh();
+  }
+
+  /** Start queued a step, or Stop cancelled the run's jobs: «Team jobs» reads them now, not at the next poll. */
+  protected onOrchestrationChanged(): void {
     void this.store.refresh();
   }
 

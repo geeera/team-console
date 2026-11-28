@@ -33,8 +33,7 @@ export interface OrchestrationFailure {
 }
 
 export type OrchestrationResult<T> =
-  | { readonly ok: true; readonly value: T }
-  | { readonly ok: false; readonly failure: OrchestrationFailure };
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly failure: OrchestrationFailure };
 
 /** A call with no answer in this long is reported as `timeout`. */
 export const ORCHESTRATION_CALL_TIMEOUT_MS = 20_000;

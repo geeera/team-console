@@ -214,12 +214,14 @@ describe('SprintBoard', () => {
   });
 
   afterEach(() => {
-    // #775: every board reads the project's jobs and, for runner names, the accounts; a case about the sprint alone
-    // leaves those reads unanswered.
+    // #775: every board reads the project's jobs and, for runner names, the accounts; an owner's board also reads the
+    // team run (#1042). A case about the sprint alone leaves those reads unanswered.
     http.match(
       (request) =>
         request.method === 'GET' &&
-        (/\/jobs$/.test(request.url) || request.url.startsWith('/api/v1/accounts')),
+        (/\/jobs$/.test(request.url) ||
+          /\/orchestration$/.test(request.url) ||
+          request.url.startsWith('/api/v1/accounts')),
     );
     http.verify();
     document.body.innerHTML = '';
@@ -1556,6 +1558,13 @@ describe('SprintBoard', () => {
       expect(jobs.compareDocumentPosition(log) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(root.querySelector('[data-testid="team-stat"]')?.getAttribute('data-team')).toBe('running');
       expect(lane.querySelector('.board__section-count')?.textContent?.trim()).toBe('1');
+      // #1042: the team's Start/Stop sits under Run now, for the owner.
+      const controls = lane.querySelector('[data-testid="orchestration"]') as HTMLElement;
+      expect(controls).not.toBeNull();
+      expect(
+        (lane.querySelector('[data-testid="run-now"]') as HTMLElement).compareDocumentPosition(controls) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
     });
 
     it('ready, member: no form and no header Run, one line about the account owner', async () => {
@@ -1571,6 +1580,9 @@ describe('SprintBoard', () => {
       expect(lane.querySelector('[data-testid="jobs-empty"]')?.textContent).toContain(
         'Здесь появятся задачи, которые запустит владелец аккаунта.',
       );
+      // #1042: a member sees neither Start nor Stop, and the board never asks for the run.
+      expect(lane.querySelector('[data-testid="orchestration"]')).toBeNull();
+      expect(http.match((request) => /\/orchestration$/.test(request.url))).toHaveLength(0);
     });
 
     it('offline, owner: an ochre line with the Runners link, Run stays enabled and says the job waits', async () => {
@@ -1687,7 +1699,7 @@ describe('SprintBoard', () => {
     });
 
     it('none, owner: a block instead of the form, naming the project, with the Runners link and no Run button', async () => {
-      const { root } = await renderGitHub({
+      const { root, settle } = await renderGitHub({
         runnerAvailability: 'none',
         canRunNow: true,
         runnerUnavailableReason: 'no-runner',
@@ -1702,6 +1714,19 @@ describe('SprintBoard', () => {
       );
       expect(lane.querySelector('[data-testid="run-now"]')).toBeNull();
       expect(lane.querySelector('[data-testid="run-now-submit"]')).toBeNull();
+      // #1042: Start stays, held back with its visible reason.
+      http.expectOne(`/api/v1/projects/${TC.slug}/orchestration`).flush({
+        runId: null,
+        steps: 0,
+        state: 'idle',
+        liveStepId: null,
+        children: { queued: 0, running: 0, finished: 0, failed: 0 },
+      });
+      await settle();
+      const start = lane.querySelector('[data-testid="orchestration-action"]') as HTMLButtonElement;
+      expect(start.getAttribute('aria-disabled')).toBe('true');
+      const reason = document.getElementById(start.getAttribute('aria-describedby') ?? '');
+      expect(reason?.textContent).toContain('ни один раннер не обслуживает этот проект');
     });
 
     it('none, member: the generic copy without a name and no action', async () => {
