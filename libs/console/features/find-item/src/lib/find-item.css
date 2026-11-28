@@ -29,11 +29,8 @@
   gap: var(--space-2);
 }
 
-.tc-find__label {
-  font-size: var(--fs-sm);
-  font-weight: var(--fw-semibold);
-}
-
+/* tc-field already draws a border via its shared .tc-input style; this wrapper only adds the
+   leading icon, so the input's own box styling is reset here to keep a single border, not two. */
 .tc-find__field {
   display: flex;
   align-items: center;
@@ -51,10 +48,13 @@
   box-shadow: 0 0 0 var(--border-w) var(--focus);
 }
 
-.tc-find__input {
+.tc-find__field input.tc-input {
   flex: 1;
   min-width: 0;
+  min-height: auto;
+  padding: 0;
   border: 0;
+  border-radius: 0;
   background: none;
   outline: none;
   font: inherit;
@@ -62,7 +62,11 @@
   color: var(--text);
 }
 
-.tc-find__hint,
+.tc-find__field input.tc-input:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 .tc-find__count {
   margin: 0;
   font-size: var(--fs-xs);

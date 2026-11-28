@@ -16,7 +16,7 @@ import { Router, RouterLink } from '@angular/router';
 import { ItemsApi, itemRouteOf, shownStatusOf } from '@console/entities/item';
 import { NetworkStatus } from '@console/shared/api';
 import { TranslocoPipe } from '@console/shared/i18n';
-import { Icon } from '@console/shared/ui';
+import { Field, FieldControl, Icon } from '@console/shared/ui';
 import { debounce } from '@console/shared/utils';
 import type { ItemSummaryDto } from '@shared/contracts';
 import { findQueryOf, githubIssueUrl, matchesOf, type FindProject, type FindQuery } from './find-query';
@@ -42,7 +42,7 @@ type Outcome =
  */
 @Component({
   selector: 'tc-find-item',
-  imports: [Icon, RouterLink, TranslocoPipe],
+  imports: [Field, FieldControl, Icon, RouterLink, TranslocoPipe],
   templateUrl: './find-item.html',
   styleUrl: './find-item.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

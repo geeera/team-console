@@ -1793,7 +1793,9 @@
       "langRu": "Russian",
       "langEn": "English",
       "offlineLabel": "Not available offline",
-      "repoNote": "Address in the console: /p/team-console"
+      "repoNote": "Address in the console: /p/team-console",
+      "searchLabel": "Filter by name",
+      "searchHint": "optionalHint off: no “(optional)” suffix even though the field isn't required"
     },
     "list": {
       "ariaProjects": "Projects",
