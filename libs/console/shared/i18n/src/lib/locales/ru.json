@@ -1793,7 +1793,9 @@
       "langRu": "Русский",
       "langEn": "English",
       "offlineLabel": "Недоступно офлайн",
-      "repoNote": "Адрес в консоли: /p/team-console"
+      "repoNote": "Адрес в консоли: /p/team-console",
+      "searchLabel": "Поиск по названию",
+      "searchHint": "optionalHint выключен: суффикса «(необязательно)» нет, хотя поле не обязательно"
     },
     "list": {
       "ariaProjects": "Проекты",

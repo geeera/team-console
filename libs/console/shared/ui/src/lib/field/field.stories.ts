@@ -27,6 +27,9 @@ const form = `
     <tc-field [label]="'stories.field.offlineLabel' | transloco">
       <input tcInput type="text" name="offline" value="geeera/team-console" disabled />
     </tc-field>
+    <tc-field [label]="'stories.field.searchLabel' | transloco" [hint]="'stories.field.searchHint' | transloco" [required]="false" [optionalHint]="false">
+      <input tcInput type="search" name="search" placeholder="geeera/team-console" />
+    </tc-field>
   </form>
 `;
 
