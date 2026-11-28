@@ -316,6 +316,7 @@ export class SprintControls {
       github: this.t('commands.error.github'),
       'github-rate-limited': this.t('commands.error.githubRate', { time: retryAt }),
       'not-connected': this.t('commands.error.connect'),
+      'permission-not-accepted': this.t('commands.error.permissionNotAccepted'),
       offline: this.t('commands.error.offline'),
     };
     return new ConfirmFailure(messages[failure.kind] ?? this.t('commands.error.unknown'));

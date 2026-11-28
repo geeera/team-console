@@ -17,6 +17,7 @@ import { DeploymentStore } from '@console/entities/app-info';
 import { ConnectGitHubButton, GitHubConnectionStore } from '@console/entities/github-connection';
 import {
   pendingSetupSteps,
+  PermissionSettingsLink,
   projectSetupRouteOf,
   SetupChecklist,
   setupSummaryOf,
@@ -50,6 +51,7 @@ export type AddRepositorySheetResult = 'done' | 'open-setup' | undefined;
     ConnectGitHubButton,
     LocalTimePipe,
     NgTemplateOutlet,
+    PermissionSettingsLink,
     RouterLink,
     SetupChecklist,
     SheetFooter,
@@ -93,6 +95,14 @@ export class AddRepositorySheet {
   protected readonly isAuthFailure = computed(() => {
     const refusal = this.refusal();
     return refusal?.kind === 'unavailable' && refusal.reason === 'auth';
+  });
+  protected readonly isPermissionFailure = computed(() => {
+    const refusal = this.refusal();
+    return refusal?.kind === 'unavailable' && refusal.reason === 'permission';
+  });
+  protected readonly settingsUrl = computed(() => {
+    const refusal = this.refusal();
+    return refusal?.kind === 'unavailable' && refusal.reason === 'permission' ? refusal.settingsUrl : null;
   });
   protected readonly retryAt = computed(() => {
     const refusal = this.refusal();

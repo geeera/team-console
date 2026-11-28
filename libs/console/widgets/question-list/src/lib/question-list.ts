@@ -64,7 +64,7 @@ import {
   StateBlock,
 } from '@console/shared/ui';
 import type { AnswerCommand, NeedsYouProjectRef, Section } from '@shared/contracts';
-import { problemSlugOf } from '@shared/contracts';
+import { PERMISSION_NOT_ACCEPTED_PROBLEM, problemSlugOf } from '@shared/contracts';
 import { QuestionDesignPreviews, type DesignOpenRequest } from './question-design-previews';
 
 /** How long the ink stamp shows on an answered card before it folds into its receipt (ADR 0002). */
@@ -72,6 +72,7 @@ export const STAMP_HOLD_MS = 900;
 
 const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
   'github-app-not-installed',
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
   'project-config-invalid',
   'github-rate-limit',
 ]);

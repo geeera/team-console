@@ -14,8 +14,10 @@ export { APP_NAME, appIconDirOf, appNameOf, appShortNameOf, environmentLabelOf }
 export {
   githubAuthorizeUrlOf,
   isGitHubAuthorizeUrl,
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
   isGitHubLogin,
   isGitHubPageUrl,
+  permissionSettingsUrlOf,
 } from './lib/github-urls';
 export {
   GITHUB_AUTHORIZED_APPS_URL,

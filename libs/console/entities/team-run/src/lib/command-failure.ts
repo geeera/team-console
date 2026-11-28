@@ -47,6 +47,8 @@ export type CommandFailureKind =
   | 'github'
   | 'github-rate-limited'
   | 'not-connected'
+  // #792: the console app's new permissions are not accepted on its installation
+  | 'permission-not-accepted'
   | 'no-run-log'
   | 'pause-unreliable'
   // sprint commands (#218): the live milestones disagree with the form
@@ -107,6 +109,7 @@ const BY_PROBLEM: Readonly<Record<string, CommandFailureKind>> = {
   'request-in-progress': 'request-in-progress',
   'github-owner-not-connected': 'not-connected',
   'github-owner-mismatch': 'not-connected',
+  'github-permission-not-accepted': 'permission-not-accepted',
   'github-rate-limit': 'github-rate-limited',
   'github-unavailable': 'github',
   'github-unexpected': 'github',

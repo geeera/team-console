@@ -1,4 +1,4 @@
-import { isGitHubAuthorizeUrl, isGitHubLogin, isGitHubPageUrl } from './github-urls';
+import { isGitHubAuthorizeUrl, isGitHubLogin, isGitHubPageUrl, permissionSettingsUrlOf } from './github-urls';
 
 describe('isGitHubAuthorizeUrl', () => {
   it.each([
@@ -42,6 +42,22 @@ describe('isGitHubPageUrl', () => {
     expect(isGitHubPageUrl('http://github.com/settings/applications')).toBe(false);
     expect(isGitHubPageUrl('https://evil.example/settings/applications')).toBe(false);
     expect(isGitHubPageUrl('javascript:alert(1)')).toBe(false);
+  });
+});
+
+describe('permissionSettingsUrlOf (#792)', () => {
+  it('reads the installation settings page from the problem', () => {
+    const url = 'https://github.com/organizations/acme/settings/installations/7';
+    expect(permissionSettingsUrlOf({ settingsUrl: url })).toBe(url);
+  });
+
+  it.each([
+    ['no member', {}],
+    ['a page off github.com', { settingsUrl: 'https://evil.example/settings/installations/7' }],
+    ['a script URL', { settingsUrl: 'javascript:alert(1)' }],
+    ['a number', { settingsUrl: 7 }],
+  ])('answers null for %s', (_label, extensions) => {
+    expect(permissionSettingsUrlOf(extensions)).toBeNull();
   });
 });
 

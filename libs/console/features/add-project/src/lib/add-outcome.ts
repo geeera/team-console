@@ -1,6 +1,11 @@
 import type { HttpProblem } from '@console/shared/api';
 import { refusedSetupSteps, type SetupStep } from '@console/entities/project';
-import { isGitHubLogin, isGitHubPageUrl } from '@shared/contracts';
+import {
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
+  isGitHubLogin,
+  isGitHubPageUrl,
+  permissionSettingsUrlOf,
+} from '@shared/contracts';
 
 /** What New project shows after a check; `checking` while the Worker runs it. */
 export type AddOutcome =
@@ -14,6 +19,8 @@ export type AddOutcome =
     }
   | { readonly kind: 'unavailable'; readonly reason: 'github' | 'auth' }
   | { readonly kind: 'unavailable'; readonly reason: 'rate'; readonly retryAt: string }
+  /** #792: the console app's new permissions are not accepted; the installation's settings page when known. */
+  | { readonly kind: 'unavailable'; readonly reason: 'permission'; readonly settingsUrl: string | null }
   /** No usable owner connection on the Worker (403): nothing was saved, connect first. */
   | { readonly kind: 'not-connected' }
   /** 409 `project-exists`: which project holds the repository is looked up next. */
@@ -51,6 +58,12 @@ export function addOutcomeOf(
     }
     case 'github-auth':
       return { kind: 'unavailable', reason: 'auth' };
+    case PERMISSION_NOT_ACCEPTED_PROBLEM:
+      return {
+        kind: 'unavailable',
+        reason: 'permission',
+        settingsUrl: permissionSettingsUrlOf(problem.extensions),
+      };
     case 'github-app-not-installed':
     case 'github-owner-mismatch':
     case 'project-yml-missing': {

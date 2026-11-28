@@ -447,6 +447,31 @@ describe('QuestionList', () => {
     expect(root.querySelectorAll('tc-question-card')).toHaveLength(1);
   });
 
+  it('names a project whose console app has new permissions to accept (#792)', async () => {
+    const { settle, root } = await render(null);
+    const body = needsYouBody([needsYouItem(TC, 72)]);
+    http.expectOne(NEEDS_YOU_ITEMS_URL).flush({
+      ...body,
+      projects: [
+        ...body.projects,
+        {
+          slug: 'broken',
+          name: 'Broken',
+          setup: false,
+          setupUrl: null,
+          paused: false,
+          pausedUrl: null,
+          problem: { type: 'github-permission-not-accepted', title: 'x', status: 409 },
+        },
+      ],
+    });
+    await settle();
+
+    expect(root.querySelector('[data-testid="project-problem"]')?.textContent).toContain(
+      'Broken: вопросы не прочитаны — новые разрешения приложения консоли не приняты на GitHub',
+    );
+  });
+
   describe('projects that need the owner outside a card (#205)', () => {
     const CHECKLIST = 'https://github.com/geeera/private-product/blob/HEAD/.product-team/owner-checklist.md';
     const PRIVATE = {

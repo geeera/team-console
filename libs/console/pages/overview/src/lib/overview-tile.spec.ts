@@ -87,3 +87,23 @@ describe('OverviewTile demo countdown (#359)', () => {
     expect(meter.style.getPropertyValue('--i')).toBe('8');
   });
 });
+
+describe('OverviewTile problem (#792)', () => {
+  it('names the console app’s new permissions to accept instead of “GitHub didn’t respond”', async () => {
+    TestBed.configureTestingModule({ providers: [provideConsoleI18n(), provideRouter([])] });
+    await TestBed.inject(ApplicationInitStatus).donePromise;
+    const fixture = TestBed.createComponent(OverviewTile);
+    fixture.componentRef.setInput('project', {
+      kind: 'failed',
+      slug: 'broken',
+      name: 'Broken',
+      problem: 'github-permission-not-accepted',
+    } satisfies OverviewProject);
+    fixture.componentRef.setInput('now', NOW);
+    await fixture.whenStable();
+    const problem = (fixture.nativeElement as HTMLElement).querySelector('[data-testid="problem"]');
+    expect(problem?.textContent?.trim()).toBe(
+      'Не удалось прочитать: новые разрешения приложения консоли не приняты на GitHub',
+    );
+  });
+});

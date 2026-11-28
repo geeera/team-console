@@ -221,7 +221,8 @@
       "github-app-not-installed": "the console app is not installed on the repository",
       "project-config-invalid": "project.yml can't be read",
       "github-rate-limit": "GitHub asks to wait",
-      "other": "GitHub didn't respond"
+      "other": "GitHub didn't respond",
+      "github-permission-not-accepted": "the console app’s new permissions aren’t accepted on GitHub"
     },
     "preview": "Preview for #{{n}}",
     "onGitHub": "On GitHub:",
@@ -453,6 +454,10 @@
       "not-installed": {
         "title": "The console app is not installed on the repository",
         "hint": "Install it from the project's setup page, then try again."
+      },
+      "permission-not-accepted": {
+        "title": "The console app’s new permissions aren’t accepted",
+        "hint": "The console app asks for permissions its installation hasn’t accepted yet, so GitHub refuses to read the repository. The account owner opens the installation settings on GitHub (Settings → Integrations → GitHub Apps → the app → Configure), selects Review request → Accept new permissions, then tries again."
       }
     },
     "moveDemo": "Move demo",
@@ -982,7 +987,8 @@
       "project-config-invalid": "project.yml can’t be read",
       "github-rate-limit": "GitHub asks to wait",
       "project-invalid": "the registry holds an invalid repository address",
-      "other": "GitHub didn’t respond"
+      "other": "GitHub didn’t respond",
+      "github-permission-not-accepted": "the console app’s new permissions aren’t accepted on GitHub"
     },
     "partial": {
       "title": "Not every project is loaded",
@@ -1223,7 +1229,8 @@
         "title": "Couldn’t check",
         "github": "GitHub didn’t respond. Nothing was saved.",
         "rate": "GitHub asks us to wait until {{time}}. Nothing was saved.",
-        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repository’s: check the app with the owner checklist. Nothing was saved."
+        "auth": "The console can’t sign in to GitHub as the {{app}} app: its key was replaced or the app was removed. This is the console’s setup, not the repository’s: check the app with the owner checklist. Nothing was saved.",
+        "permission": "GitHub refused to read the repository: the console app’s new permissions aren’t accepted. Accept them in the app’s installation settings on GitHub (Settings → Integrations → GitHub Apps → the app → Configure → Review request → Accept new permissions), then try again. Nothing was saved."
       },
       "saved": {
         "title": {
@@ -1482,7 +1489,8 @@
       "noLog": "The team has no run log yet. Nothing changed.",
       "pauseUnreliable": "Pause from the console isn’t reliable for this project yet: its run log was opened by the team, and the next run could lift the pause. Pause from the team chat instead (the pause skill). Nothing changed.",
       "offline": "You’re offline. The command wasn’t sent.",
-      "unknown": "Something went wrong. Nothing changed."
+      "unknown": "Something went wrong. Nothing changed.",
+      "permissionNotAccepted": "GitHub refused: the console app’s new permissions aren’t accepted. Accept them in the app’s installation settings on GitHub (Settings → Integrations → GitHub Apps → the app → Configure → Review request), then try again. Nothing changed."
     },
     "when": {
       "today": "today {{time}}",
@@ -3491,5 +3499,8 @@
         "unknown": "Not checked"
       }
     }
+  },
+  "permissionNotAccepted": {
+    "open": "Open installation settings"
   }
 }

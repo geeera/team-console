@@ -18,6 +18,7 @@ import { ConnectGitHubButton, GitHubConnectionStore } from '@console/entities/gi
 import {
   normalizeRepoInput,
   pendingSetupSteps,
+  PermissionSettingsLink,
   projectSetupRouteOf,
   SetupChecklist,
   type SetupChecklistContext,
@@ -47,6 +48,7 @@ export const JUST_ADDED_STATE = 'tcJustAdded';
     FieldControl,
     Icon,
     LocalTimePipe,
+    PermissionSettingsLink,
     RouterLink,
     SetupChecklist,
     TranslocoPipe,
@@ -122,6 +124,10 @@ export class AddProjectForm {
   protected readonly unavailableReason = computed(() => {
     const outcome = this.outcome();
     return outcome?.kind === 'unavailable' ? outcome.reason : null;
+  });
+  protected readonly settingsUrl = computed(() => {
+    const outcome = this.outcome();
+    return outcome?.kind === 'unavailable' && outcome.reason === 'permission' ? outcome.settingsUrl : null;
   });
   protected readonly duplicateSlug = computed(() => {
     const outcome = this.outcome();

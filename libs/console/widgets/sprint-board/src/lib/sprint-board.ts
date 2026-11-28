@@ -21,7 +21,7 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
-import { NeedsYouCounts, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
+import { NeedsYouCounts, PermissionSettingsLink, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
 import { d3RunnerOf, projectAccountRoleOf, projectPauseOf, RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
@@ -75,7 +75,14 @@ import {
   Tabs,
   Toaster,
 } from '@console/shared/ui';
-import { currentSprintOf, type ItemDto, type ItemSummaryDto, type TrackerSprintDto } from '@shared/contracts';
+import {
+  currentSprintOf,
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
+  permissionSettingsUrlOf,
+  type ItemDto,
+  type ItemSummaryDto,
+  type TrackerSprintDto,
+} from '@shared/contracts';
 import { map } from 'rxjs';
 import { BoardJobs, type JobsPauseLine } from './board-jobs';
 import { BoardRunLog } from './board-run-log';
@@ -159,7 +166,8 @@ export function laneNameOf(status: string, translate: (key: string) => string): 
   return KNOWN_STATUSES.has(status) ? translate(`board.status.${status}`) : status;
 }
 
-export type BoardFailure = 'rate-limited' | 'not-installed' | 'offline' | 'unavailable';
+export type BoardFailure =
+  'rate-limited' | 'not-installed' | 'permission-not-accepted' | 'offline' | 'unavailable';
 
 type TrackerReadFailure = Extract<TrackerRead<never>, { ok: false }>['reason'];
 
@@ -184,15 +192,18 @@ interface TrackerSprintRead {
   readonly items: readonly ItemSummaryDto[];
 }
 
+interface BoardLoadFailure {
+  readonly failure: BoardFailure;
+  /** When the automatic retry fires; `null` when none is scheduled (then only Retry is offered). */
+  readonly retryAt: number | null;
+  /** `permission-not-accepted` (#792): the installation's settings page, when the Worker named one on github.com. */
+  readonly settingsUrl: string | null;
+}
+
 type BoardState =
   | { readonly kind: 'loading' }
   | { readonly kind: 'ready'; readonly board: SprintBoardModel }
-  | {
-      readonly kind: 'failed';
-      readonly failure: BoardFailure;
-      /** When the automatic retry fires; `null` when none is scheduled (then only Retry is offered). */
-      readonly retryAt: number | null;
-    };
+  | ({ readonly kind: 'failed' } & BoardLoadFailure);
 
 /** The project the board reads; the slug picks the read model, the name is for copy only. */
 export interface SprintBoardProject {
@@ -233,6 +244,7 @@ type TileTarget = 'pulls' | 'runs' | 'questions';
     Lanes,
     LocalNumberPipe,
     NgTemplateOutlet,
+    PermissionSettingsLink,
     ProjectSetupLink,
     SprintItemList,
     SprintRunList,
@@ -783,7 +795,7 @@ export class SprintBoard {
       }
       const failed = this.failureOf(error);
       const retryAt = mayAutoRetry ? failed.retryAt : null;
-      this.state.set({ kind: 'failed', failure: failed.failure, retryAt });
+      this.state.set({ kind: 'failed', failure: failed.failure, retryAt, settingsUrl: failed.settingsUrl });
       if (retryAt !== null) {
         // At most one automatic retry per load or Retry tap; a second 429 leaves only the Retry button.
         this.retryTimer = setTimeout(() => void this.retry(false), retryAt - Date.now());
@@ -816,31 +828,39 @@ export class SprintBoard {
     return { sprint: current, items: items.filter((item) => item.sprint === current.number) };
   }
 
-  private failureOf(error: unknown): { failure: BoardFailure; retryAt: number | null } {
+  private failureOf(error: unknown): BoardLoadFailure {
     if (error instanceof TrackerBoardReadError) {
-      return { failure: error.reason === 'offline' ? 'offline' : 'unavailable', retryAt: null };
+      return { failure: error.reason === 'offline' ? 'offline' : 'unavailable', retryAt: null, settingsUrl: null };
     }
     if (!(error instanceof HttpErrorResponse)) {
       // A bad response shape, or a bug: the board shows the generic failure and the error handler gets the cause.
       if (!(error instanceof UnexpectedSprintResponse)) {
         this.errors.handleError(error);
       }
-      return { failure: 'unavailable', retryAt: null };
+      return { failure: 'unavailable', retryAt: null, settingsUrl: null };
     }
     const problem = httpProblemOf(error);
     if (problem.slug === 'github-rate-limit' || problem.status === 429) {
       return {
         failure: 'rate-limited',
         retryAt: Date.now() + retryDelaySeconds(problem.retryAfterSeconds) * 1000,
+        settingsUrl: null,
+      };
+    }
+    if (problem.slug === PERMISSION_NOT_ACCEPTED_PROBLEM) {
+      return {
+        failure: 'permission-not-accepted',
+        retryAt: null,
+        settingsUrl: permissionSettingsUrlOf(problem.extensions),
       };
     }
     if (problem.slug === 'github-app-not-installed') {
-      return { failure: 'not-installed', retryAt: null };
+      return { failure: 'not-installed', retryAt: null, settingsUrl: null };
     }
     if (problem.status === 0) {
-      return { failure: 'offline', retryAt: null };
+      return { failure: 'offline', retryAt: null, settingsUrl: null };
     }
-    return { failure: 'unavailable', retryAt: null };
+    return { failure: 'unavailable', retryAt: null, settingsUrl: null };
   }
 
   private clearRetry(): void {
