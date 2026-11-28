@@ -79,11 +79,14 @@ export type {
 } from './lib/client';
 export {
   GitHubError,
+  INTEGRATION_REFUSAL_MESSAGE,
   appNotInstalledForAccountError,
   githubUnexpectedError,
+  isGitHubRefusal,
   mapGitHubResponse,
   ownerMismatchError,
   ownerNotConnectedError,
+  permissionNotAcceptedError,
   requestBudgetError,
 } from './lib/errors';
 export type { GitHubProblem, GitHubProblemType } from './lib/errors';

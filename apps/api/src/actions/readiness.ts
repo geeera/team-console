@@ -28,11 +28,11 @@ import {
   ACTIONS_DISPATCH_PERMISSIONS,
   ENVIRONMENT_READ_PERMISSIONS,
   GitHubClient,
-  GitHubError,
   InvalidRepoNameError,
   RUNNER_WORKFLOW_PATH,
   hasInferenceKeySecret,
   installationGrants,
+  isGitHubRefusal,
   judgePullProvenance,
   parseRepoName,
   readActionsEnvironment,
@@ -196,18 +196,6 @@ const unknownEnvironment = (): EnvironmentItems => ({
   protectionRules: item('protection-rules', 'unknown'),
   secret: item('secret', 'unknown'),
 });
-
-/**
- * GitHub answered `status` to the call. A rate limit is never a refusal: GitHub sends some as 403, and the error
- * mapping keeps them `github-rate-limit` so they still surface as one.
- */
-function isGitHubRefusal(error: unknown, status: 403 | 422): boolean {
-  return (
-    error instanceof GitHubError &&
-    error.githubStatus === status &&
-    error.problem.type !== 'github-rate-limit'
-  );
-}
 
 /** A mint GitHub refused because the installer has not accepted the permission (GitHub answers 422). */
 const isPermissionRefusal = (error: unknown): boolean => isGitHubRefusal(error, 422);

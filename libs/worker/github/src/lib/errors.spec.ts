@@ -1,9 +1,12 @@
 import {
   GitHubError,
   appNotInstalledError,
+  githubUnexpectedError,
+  isGitHubRefusal,
   mapGitHubResponse,
   ownerMismatchError,
   ownerNotConnectedError,
+  permissionNotAcceptedError,
   requestBudgetError,
   retryAfterOf,
 } from './errors';
@@ -98,6 +101,38 @@ describe('appNotInstalledError', () => {
       status: 409,
       detail: 'Install the team-console app on geeera/team-console',
     });
+  });
+});
+
+describe('permissionNotAcceptedError (#792)', () => {
+  it('is a 409 with a fixed detail and the settings page as an extension member', () => {
+    const error = permissionNotAcceptedError(422, 'https://github.com/settings/installations/1');
+    expect(error.githubStatus).toBe(422);
+    expect(error.problem).toEqual({
+      type: 'github-permission-not-accepted',
+      title: "The console app's new permissions are not accepted",
+      status: 409,
+      detail: "Accept the console app's new permissions in its installation settings on GitHub",
+      extensions: { settingsUrl: 'https://github.com/settings/installations/1' },
+    });
+  });
+
+  it('carries no extension members when the settings page is not known', () => {
+    expect(permissionNotAcceptedError(403).problem.extensions).toBeUndefined();
+  });
+});
+
+describe('isGitHubRefusal (#803, #792)', () => {
+  it('is true for a GitHub error answered with that status', () => {
+    expect(isGitHubRefusal(mapGitHubResponse(reply(403), NOW), 403)).toBe(true);
+    expect(isGitHubRefusal(githubUnexpectedError('x', 422), 422)).toBe(true);
+    expect(isGitHubRefusal(permissionNotAcceptedError(403), 403)).toBe(true);
+  });
+
+  it('is false for another status, a rate limit or anything but a GitHubError', () => {
+    expect(isGitHubRefusal(mapGitHubResponse(reply(403), NOW), 422)).toBe(false);
+    expect(isGitHubRefusal(mapGitHubResponse(reply(403, { 'retry-after': '5' }), NOW), 403)).toBe(false);
+    expect(isGitHubRefusal(new Error('403'), 403)).toBe(false);
   });
 });
 

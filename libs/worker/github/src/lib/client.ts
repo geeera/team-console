@@ -1,5 +1,13 @@
 import { isRepoFullName } from '@shared/contracts';
-import { githubUnexpectedError, mapGitHubResponse, ownerNotConnectedError } from './errors';
+import {
+  INTEGRATION_REFUSAL_MESSAGE,
+  GitHubError,
+  githubUnexpectedError,
+  isGitHubRefusal,
+  mapGitHubResponse,
+  ownerNotConnectedError,
+  permissionNotAcceptedError,
+} from './errors';
 import { githubPath, githubPathOf, type GitHubPath } from './github-path';
 import type { InstallationListTokenSource, RequestTokenSource, TokenSource } from './token-source';
 import { discardBody, githubRequest, onGitHubApi, readGitHubJson, type FetchLike } from './transport';
@@ -166,10 +174,44 @@ async function authorizedGet(
     response = await request(token);
   }
   if (!response.ok) {
-    await discardBody(response);
-    throw mapGitHubResponse(response);
+    throw await failureOf(response);
   }
   return response;
+}
+
+// GitHub's refusal body is a short JSON object; anything longer is not the one `isIntegrationRefusal` looks for.
+const REFUSAL_BODY_MAX_BYTES = 4096;
+
+function isIntegrationRefusal(bytes: Uint8Array): boolean {
+  let body: unknown;
+  try {
+    body = JSON.parse(new TextDecoder().decode(bytes));
+  } catch {
+    // Not JSON: not GitHub's refusal, so the status alone decides.
+    return false;
+  }
+  return isRecord(body) && body['message'] === INTEGRATION_REFUSAL_MESSAGE;
+}
+
+/**
+ * A non-2xx answer as `mapGitHubResponse` maps it, except a 403 whose body says the app lacks the permission
+ * (#792): that is 409 `github-permission-not-accepted`, not 503 `github-auth`. Only that 403's body is read, at
+ * most `REFUSAL_BODY_MAX_BYTES` of it, and it never reaches the problem.
+ */
+async function failureOf(response: Response): Promise<GitHubError> {
+  const mapped = mapGitHubResponse(response);
+  if (!isGitHubRefusal(mapped, 403)) {
+    await discardBody(response);
+    return mapped;
+  }
+  let read: BytesResult;
+  try {
+    read = await readBytesUpTo(response, REFUSAL_BODY_MAX_BYTES);
+  } catch {
+    // A body cut off mid-stream says nothing more than the status: keep the status's mapping.
+    return mapped;
+  }
+  return read.kind === 'bytes' && isIntegrationRefusal(read.bytes) ? permissionNotAcceptedError(403) : mapped;
 }
 
 async function parseBody<T>(response: Response, guard: JsonGuard<T>): Promise<T> {
@@ -364,8 +406,7 @@ export class GitHubClient {
       }
     }
     if (!response.ok) {
-      await discardBody(response);
-      throw mapGitHubResponse(response);
+      throw await failureOf(response);
     }
     return response;
   }
