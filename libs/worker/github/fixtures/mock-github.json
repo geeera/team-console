@@ -2418,6 +2418,10 @@
       "reply": {
         "status": 401
       }
+    },
+    "geeera/mock-checks-not-accepted": {
+      "installationId": 1004,
+      "checksNotAccepted": true
     }
   }
 }

@@ -26,6 +26,11 @@ export interface MockRepository {
   readonly repository?: Readonly<Record<string, unknown>>;
   /** Replaces that answer, to exercise an error row locally. */
   readonly reply?: MockReply;
+  /**
+   * #792: the installation has not accepted Checks: read (an app created before #197), so the read-only mint for this
+   * repository answers 422 as GitHub does and `GET /app/installations/{id}` leaves `checks` out.
+   */
+  readonly checksNotAccepted?: boolean;
   /** Text files `GET /repos/{owner}/{repo}/contents/{path}` serves, by path (e.g. `.product-team/project.yml`). */
   readonly files?: Readonly<Record<string, string>>;
   /**
@@ -941,7 +946,8 @@ class MockGitHubServer {
 
   /**
    * `GET /app/installations/{id}`: the first fixture repository on the installation names what was accepted —
-   * the read set always, `actions: write`, `environments: read` and the setup write set by its flags.
+   * the read set (without `checks` under `checksNotAccepted`), `actions: write`, `environments: read` and the setup
+   * write set by its flags.
    */
   private installation(installationId: number): Response {
     const fixture = Object.values(this.fixtures.repositories).find(
@@ -965,6 +971,7 @@ class MockGitHubServer {
         pull_requests: fixture.setupWrite === true ? 'write' : 'read',
         contents: fixture.setupWrite === true ? 'write' : 'read',
         actions: fixture.actionsWrite === true ? 'write' : 'read',
+        ...(fixture.checksNotAccepted === true ? {} : { checks: 'read' }),
         ...(fixture.environmentsRead === true ? { environments: 'read' } : {}),
         ...(fixture.setupWrite === true ? { workflows: 'write' } : {}),
       },
@@ -1091,6 +1098,9 @@ class MockGitHubServer {
       JSON.stringify(request['permissions']) !== JSON.stringify(INSTALLATION_PERMISSIONS)
     ) {
       return json(422, { message: 'The console must mint read-only tokens for exactly one repository' });
+    }
+    if (target[1].checksNotAccepted === true) {
+      return json(422, { message: 'The permissions requested are not granted to this installation.' });
     }
     return this.issue201({ scope: 'repo', repo: target[0], expiresAt: Date.now() + TOKEN_LIFETIME_MS });
   }
