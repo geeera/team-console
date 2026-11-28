@@ -377,7 +377,13 @@ test('clear a runner’s suspect mark after a confirmation', async ({ page, stac
 async function insertLegacyRunner(
   workerIndex: number,
   runnerId: string,
-  row: { readonly name: string; readonly enrolledBy: string; readonly allowedProjects: readonly string[] } = {
+  row: {
+    readonly name: string;
+    readonly enrolledBy: string;
+    readonly allowedProjects: readonly string[];
+    /** #797: a hosted or GitHub Actions identity, whose scope the console fixed. */
+    readonly identity?: 'machine' | 'hosted' | 'actions';
+  } = {
     name: 'Old Mac',
     enrolledBy: '',
     allowedProjects: [],
@@ -391,6 +397,8 @@ async function insertLegacyRunner(
     throw new Error('unexpected runner row text');
   }
   const enrolledBy = row.enrolledBy === '' ? 'NULL' : `'${row.enrolledBy}'`;
+  const isolation = row.identity === 'actions' ? 'actions-ephemeral' : 'user';
+  const hosted = row.identity === 'hosted' ? 1 : 0;
   const jwk = generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' });
   const key = JSON.stringify({ kty: 'OKP', crv: 'Ed25519', x: jwk.x });
   if (!/^[\w":{},-]+$/.test(key)) {
@@ -400,7 +408,7 @@ async function insertLegacyRunner(
     workerIndex,
     `INSERT INTO runners (id, account_id, name, public_key_jwk, host, capabilities, isolation, allowed_projects, version, enrolled_at, hosted, project_scope, enrolled_by)
      VALUES ('${runnerId}', '${OWNER_ACCOUNT_ID}', '${row.name}', '${key}', '{"os":"darwin","arch":"arm64","hostname":"old-mac.local"}',
-       '{"local":true,"maxConcurrency":1}', 'user', '${allowed}', '0.2.0', '2026-11-01T09:00:00.000Z', 0, 'selected', ${enrolledBy})`,
+       '{"local":true,"maxConcurrency":1}', '${isolation}', '${allowed}', '0.2.0', '2026-11-01T09:00:00.000Z', ${hosted}, 'selected', ${enrolledBy})`,
   );
 }
 
@@ -561,4 +569,50 @@ test('another owner’s subscription runner can lose projects but is not offered
   await expect(stale.getByTestId('runner-projects-save')).toHaveText(ru('runners.projects.save'));
   await expect(stale.getByTestId('runner-scope-all')).toBeDisabled();
   await expectAccessible(page, 'Runner scope dialog (enroller-only refusal)');
+});
+
+// #797: a hosted or GitHub Actions runner keeps the scope the console gave it (the Worker's 422 `runner-scope-fixed`),
+// so its card shows «Изменить проекты» locked with the reason instead of a dialog whose save is bound to fail.
+test('a hosted or GitHub Actions runner shows its projects as fixed, with the reason', async ({
+  page,
+}, testInfo) => {
+  await insertLegacyRunner(testInfo.workerIndex, '01M6YSNJ0000000000000797H1', {
+    name: 'Hosted box',
+    enrolledBy: '',
+    allowedProjects: ['team-console'],
+    identity: 'hosted',
+  });
+  await insertLegacyRunner(testInfo.workerIndex, '01M6YSNJ0000000000000797A1', {
+    name: 'actions-797',
+    enrolledBy: '',
+    allowedProjects: ['team-console'],
+    identity: 'actions',
+  });
+  await insertLegacyRunner(testInfo.workerIndex, '01M6YSNJ0000000000000797M1', {
+    name: 'Own Mac',
+    enrolledBy: '',
+    allowedProjects: [],
+  });
+  await page.goto('/settings/runners');
+
+  for (const name of ['Hosted box', 'actions-797']) {
+    const card = page.getByTestId('runner-card').filter({ hasText: name });
+    const edit = card.getByTestId('runner-edit-projects');
+    await expect(edit).toHaveAttribute('aria-disabled', 'true');
+    await expect(card.getByTestId('runner-scope-fixed')).toHaveText(ru('runners.err.scopeFixed'));
+    await expect(edit).toHaveAccessibleDescription(ru('runners.err.scopeFixed'));
+    // `aria-disabled` keeps it focusable, so the reason reaches a keyboard user; pressing it opens nothing.
+    await edit.focus();
+    await expect(edit).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.getByRole('dialog', { name: ru('runners.scope.title') })).toHaveCount(0);
+  }
+  await expectAccessible(page, 'Settings › Runners (fixed-scope runners)');
+
+  // A machine runner's scope is still the owner's to change.
+  const own = page.getByTestId('runner-card').filter({ hasText: 'Own Mac' });
+  await expect(own.getByTestId('runner-scope-fixed')).toHaveCount(0);
+  await expect(own.getByTestId('runner-edit-projects')).not.toHaveAttribute('aria-disabled', 'true');
+  await own.getByTestId('runner-edit-projects').click();
+  await expect(page.getByRole('dialog', { name: ru('runners.scope.title') })).toBeVisible();
 });

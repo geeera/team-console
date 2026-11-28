@@ -7,6 +7,7 @@ import {
   checkUpdateRunnerInput,
   isEnrolmentId,
   isRunnerId,
+  isRunnerScopeFixed,
   isRunnerVersionBelow,
   runnerAudienceOf,
   runnerIdsOfPolicy,
@@ -129,7 +130,7 @@ async function runnerReaderOf(c: Context, account: AccountRecord): Promise<Runne
  * runner only its enroller's. Display only: the write judges it again on the stored row.
  */
 function canWidenOf(runner: RunnerRecord, reader: RunnerReader): boolean {
-  if (runner.revokedAt !== null || runner.hosted || runner.isolation === 'actions-ephemeral') {
+  if (runner.revokedAt !== null || isRunnerScopeFixed(runner)) {
     return false;
   }
   if (!runnerTakesSubscription(runner.capabilities)) {
@@ -514,7 +515,7 @@ export function createAccountRunnerRoutes(): Hono<WorkerHonoEnv<ApiEnv>> {
         }
         // R-SCOPE-4 (C12 row 6): a hosted or Actions identity serves exactly what the server gave it; its scope is not
         // the owner's to widen, nor to touch at all.
-        if (runner.hosted || runner.isolation === 'actions-ephemeral') {
+        if (isRunnerScopeFixed(runner)) {
           return invalid(
             c,
             'runner-scope-fixed',

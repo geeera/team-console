@@ -67,6 +67,17 @@ export function runnerScopeCovers(scope: RunnerProjectScopeDto, slug: string): b
   return scope.projectScope === 'all' || scope.allowedProjects.includes(slug);
 }
 
+/**
+ * R-SCOPE-4 (C12 row 6): a hosted or GitHub Actions identity serves exactly the scope the console gave it, so no owner
+ * may change it (`PATCH …/runners/:runner` answers 422 `runner-scope-fixed`). The console shows its scope read-only.
+ */
+export function isRunnerScopeFixed(runner: {
+  readonly hosted: boolean;
+  readonly isolation: RunnerIsolation;
+}): boolean {
+  return runner.hosted || runner.isolation === 'actions-ephemeral';
+}
+
 export const RUNNER_SUSPECT_REASONS = ['new-country', 'two-pollers'] as const;
 export type RunnerSuspectReason = (typeof RUNNER_SUSPECT_REASONS)[number];
 

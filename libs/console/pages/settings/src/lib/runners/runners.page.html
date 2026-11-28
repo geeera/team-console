@@ -92,13 +92,17 @@
         <tc-runner-card [runner]="runner" [minimumVersion]="store.release().minimumVersion">
           @if (runner.revokedAt === null) {
           <span tc-runner-actions class="runners__actions">
+            @let scopeFixed = isScopeFixed(runner);
             <button
               tc-button
               size="sm"
               type="button"
               data-testid="runner-edit-projects"
+              [off]="scopeFixed"
+              [attr.aria-disabled]="scopeFixed ? 'true' : null"
+              [attr.aria-describedby]="scopeFixed ? 'runner-scope-fixed-' + runner.id : null"
               [attr.aria-label]="'runners.scope.editAria' | transloco: { name: runner.name }"
-              (click)="editProjects(runner)"
+              (click)="scopeFixed ? sayScopeFixed() : editProjects(runner)"
             >
               {{ 'runners.scope.edit' | transloco }}
             </button>
@@ -136,6 +140,15 @@
             >
               {{ 'runners.revoke.open' | transloco }}
             </button>
+            @if (scopeFixed) {
+            <span
+              class="runners__note"
+              data-testid="runner-scope-fixed"
+              [id]="'runner-scope-fixed-' + runner.id"
+            >
+              {{ 'runners.err.scopeFixed' | transloco }}
+            </span>
+            }
           </span>
           }
         </tc-runner-card>

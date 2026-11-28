@@ -299,6 +299,28 @@ describe('ManageRunner.editProjects', () => {
       }),
     );
   });
+
+  // #797: the Worker would answer 422 `runner-scope-fixed`.
+  it.each([
+    ['a hosted runner', runnerFixture({ hosted: true, isolation: 'container' })],
+    ['a GitHub Actions runner', runnerFixture({ isolation: 'actions-ephemeral' })],
+  ])('never opens the dialog for %s', async (_, runner) => {
+    const sheet = { open: vi.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        provideConsoleI18n(),
+        { provide: Sheet, useValue: sheet },
+        { provide: RunnersApi, useValue: {} },
+      ],
+    });
+    const result = await TestBed.inject(ManageRunner).editProjects({
+      accountId: OWNER_ACCOUNT_ID,
+      runner,
+      projects: [],
+    });
+    expect(result).toBeNull();
+    expect(sheet.open).not.toHaveBeenCalled();
+  });
 });
 
 describe('RunnerProjectsDialog', () => {
@@ -436,6 +458,14 @@ describe('RunnerProjectsDialog', () => {
     );
     // #825: the same list would be refused again, so the button stays «Save» rather than Try again.
     expect(root.querySelector('[data-testid="runner-projects-save"]')?.textContent?.trim()).toBe('Сохранить');
+  });
+
+  it('sends nothing for a fixed-scope runner and says why', async () => {
+    const { root, submit, calls, close } = await render(runnerFixture({ isolation: 'actions-ephemeral' }));
+    await submit();
+    expect(calls).toEqual([]);
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('Изменить их нельзя.');
   });
 
   it('offers Try again after a failure the same request may get past', async () => {
