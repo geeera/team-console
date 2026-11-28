@@ -11,7 +11,7 @@ import {
   TranslocoPluralPipe,
   TranslocoService,
 } from '@console/shared/i18n';
-import { Chip, ChipTone, Icon, Meter } from '@console/shared/ui';
+import { Chip, ChipTone, Icon, Meter, staggerIndex } from '@console/shared/ui';
 import {
   isSnoozeActive,
   NOT_SNOOZED,
@@ -26,10 +26,6 @@ const TEAM_TONE: Readonly<Record<OverviewTeamState, ChipTone>> = {
   failing: 'danger',
   unknown: 'warning',
 };
-
-/** Neighbouring cards' meters fill one after another (#359, via `--i` and the #506 `--stagger` token); past this
- *  many cards the rest fill with the last. */
-const MAX_STAGGERED_CARDS = 8;
 
 /** Not read in this request: the Worker's subrequest budget ran out first; the next request continues. */
 export const OVERVIEW_PENDING_PROBLEM = 'github-request-budget';
@@ -184,8 +180,8 @@ export class OverviewTile {
     return days < 0 ? null : { n: days };
   });
 
-  /** This card's place in the stagger (#506's `--stagger` token does the timing, in CSS). */
-  protected readonly meterIndex = computed(() => Math.min(this.index(), MAX_STAGGERED_CARDS));
+  /** This card's place in the stagger, held at the shared cap (#359; #506's `--stagger` token does the timing, in CSS). */
+  protected readonly meterIndex = computed(() => staggerIndex(this.index()));
 
   protected readonly snoozeLine = computed<string | null>(() => {
     const snooze = this.snooze();
