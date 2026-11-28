@@ -601,7 +601,10 @@ test('a hosted or GitHub Actions runner shows its projects as fixed, with the re
     await expect(edit).toHaveAttribute('aria-disabled', 'true');
     await expect(card.getByTestId('runner-scope-fixed')).toHaveText(ru('runners.err.scopeFixed'));
     await expect(edit).toHaveAccessibleDescription(ru('runners.err.scopeFixed'));
-    await edit.click();
+    // `aria-disabled` keeps it focusable, so the reason reaches a keyboard user; pressing it opens nothing.
+    await edit.focus();
+    await expect(edit).toBeFocused();
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('dialog', { name: ru('runners.scope.title') })).toHaveCount(0);
   }
   await expectAccessible(page, 'Settings › Runners (fixed-scope runners)');
