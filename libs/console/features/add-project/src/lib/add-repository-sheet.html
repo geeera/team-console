@@ -75,9 +75,13 @@
     <p>
       @if (retryAt(); as retryAt) { {{ 'settings.add.unavailable.rate' | transloco: { time: (retryAt |
       localTime) } }} } @else if (isAuthFailure()) { {{ 'settings.add.unavailable.auth' | transloco: { app:
-      connection.appName() ?? 'team-console' } }} } @else { {{ 'settings.add.unavailable.github' | transloco
-      }} }
+      connection.appName() ?? 'team-console' } }} } @else if (isPermissionFailure()) { {{
+      'settings.add.unavailable.permission' | transloco }} } @else { {{ 'settings.add.unavailable.github' |
+      transloco }} }
     </p>
+    @if (settingsUrl(); as settingsUrl) {
+    <tc-permission-settings-link variant="secondary" [url]="settingsUrl" />
+    }
   </section>
   } } } }
 </div>

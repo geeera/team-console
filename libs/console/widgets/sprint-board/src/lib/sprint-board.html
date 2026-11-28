@@ -10,6 +10,8 @@
 >
   @if (failed.failure === 'not-installed') {
   <tc-project-setup-link tc-state-action [slug]="project().slug" />
+  } @if (failed.settingsUrl; as settingsUrl) {
+  <tc-permission-settings-link tc-state-action [url]="settingsUrl" />
   }
   <button tc-button tc-state-action type="button" (click)="reload()">
     {{ 'ui.error.retry' | transloco }}

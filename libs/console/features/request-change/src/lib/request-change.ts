@@ -160,6 +160,8 @@ export class RequestChange {
         };
       case 'not-connected':
         return { ok: false, message: this.t('commands.error.connect') };
+      case 'permission-not-accepted':
+        return { ok: false, message: this.t('commands.error.permissionNotAccepted') };
       case 'offline':
         return { ok: false, message: this.t('commands.error.offline') };
       default:

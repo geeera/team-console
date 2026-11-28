@@ -341,6 +341,18 @@ describe('createMockGitHub', () => {
     expect(error.problem.type).toBe(type);
   });
 
+  it('serves geeera/mock-checks-not-accepted as an installation that has not accepted Checks: read (#792)', async () => {
+    const repo = parseRepoName('geeera/mock-checks-not-accepted');
+    const error = await rejection(
+      client('geeera/mock-checks-not-accepted').getJson(githubPath`/repos/${repo}`, isObject),
+    );
+    expect(error.problem).toMatchObject({
+      type: 'github-permission-not-accepted',
+      status: 409,
+      extensions: { settingsUrl: 'https://github.com/settings/installations/1004' },
+    });
+  });
+
   describe('the installation list (#194)', () => {
     it('finds the owner account installation by id and lists its repositories with the list token', async () => {
       const installationId = await auth.installationIdForAccount(MOCK_OWNER_ACCOUNT.userId);

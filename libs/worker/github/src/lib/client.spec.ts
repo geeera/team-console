@@ -94,6 +94,69 @@ describe('GitHubClient.getJson', () => {
     expect(error.problem).toMatchObject({ type, status: problemStatus });
   });
 
+  describe('a 403 for a permission the installation has not accepted (#792)', () => {
+    const refusal = { message: 'Resource not accessible by integration', status: '403' };
+
+    it('answers 409 github-permission-not-accepted with a fixed detail, never GitHub’s body', async () => {
+      const github = scriptedGitHub(() => json(403, refusal));
+      const error = await rejection(
+        new GitHubClient(github.fetch, fixedTokens()).getJson(githubPath`/x`, isRepo),
+      );
+      expect(error.problem).toEqual({
+        type: 'github-permission-not-accepted',
+        title: "The console app's new permissions are not accepted",
+        status: 409,
+        detail: "Accept the console app's new permissions in its installation settings on GitHub",
+      });
+      expect(error.githubStatus).toBe(403);
+      expect(JSON.stringify(error.problem)).not.toContain('Resource not accessible');
+    });
+
+    it('maps the same refusal on an owner write', async () => {
+      const github = scriptedGitHub(() => json(403, refusal));
+      const tokens: RequestTokenSource = { ...fixedTokens(), kind: 'owner' };
+      const error = await rejection(
+        new GitHubClient(github.fetch, tokens).postJson(githubPath`/x`, {}, isNumber),
+      );
+      expect(error.problem.type).toBe('github-permission-not-accepted');
+    });
+
+    it.each([
+      ['another message', () => json(403, { message: 'Must have admin rights to Repository.' })],
+      [
+        'a body that is not JSON',
+        () => new Response('Resource not accessible by integration', { status: 403 }),
+      ],
+      ['an empty body', () => new Response(null, { status: 403 })],
+      [
+        'a body past the size cap',
+        () => json(403, { message: 'Resource not accessible by integration', pad: 'x'.repeat(5000) }),
+      ],
+    ])('keeps 503 github-auth for a 403 with %s', async (_label, answer) => {
+      const github = scriptedGitHub(answer);
+      const error = await rejection(
+        new GitHubClient(github.fetch, fixedTokens()).getJson(githubPath`/x`, isRepo),
+      );
+      expect(error.problem).toMatchObject({ type: 'github-auth', status: 503 });
+    });
+
+    it('keeps a rate-limited 403 a rate limit, whatever its body', async () => {
+      const github = scriptedGitHub(() => json(403, refusal, { 'x-ratelimit-remaining': '0' }));
+      const error = await rejection(
+        new GitHubClient(github.fetch, fixedTokens()).getJson(githubPath`/x`, isRepo),
+      );
+      expect(error.problem.type).toBe('github-rate-limit');
+    });
+
+    it('leaves a 422 as it was', async () => {
+      const github = scriptedGitHub(() => json(422, refusal));
+      const error = await rejection(
+        new GitHubClient(github.fetch, fixedTokens()).getJson(githubPath`/x`, isRepo),
+      );
+      expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+    });
+  });
+
   it('evicts a cached installation token on 401 and retries once with a fresh one', async () => {
     let reads = 0;
     const github = appFlow(() => {

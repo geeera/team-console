@@ -8,6 +8,7 @@ const KIND_OF_PROBLEM: Readonly<Record<GitHubProblemType, VcsErrorKind>> = {
   'github-app-not-installed': 'forbidden',
   'github-owner-mismatch': 'forbidden',
   'github-owner-not-connected': 'forbidden',
+  'github-permission-not-accepted': 'forbidden',
   'github-request-budget': 'unavailable',
   'github-unavailable': 'unavailable',
   'github-unexpected': 'unavailable',

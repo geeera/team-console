@@ -5,7 +5,9 @@ import {
   githubAuthError,
   GitHubError,
   githubUnexpectedError,
+  isGitHubRefusal,
   mapGitHubResponse,
+  permissionNotAcceptedError,
 } from './errors';
 import { githubPath } from './github-path';
 import type { RepoName } from './repo-name';
@@ -613,11 +615,45 @@ export class GitHubAppAuth {
 
   private async mintForRepo(repo: RepoName): Promise<CachedToken> {
     const installationId = await this.installationIdFor(repo);
-    return this.mint(
-      installationId,
-      { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
-      repoMint(repo),
-    );
+    try {
+      return await this.mint(
+        installationId,
+        { repositories: [repo.name], permissions: INSTALLATION_PERMISSIONS },
+        repoMint(repo),
+      );
+    } catch (error: unknown) {
+      if (isGitHubRefusal(error, 422)) {
+        throw await this.refusedReadMintError(installationId, error);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * #792: GitHub answers 422 to a mint asking for a permission the installation has not accepted, e.g. Checks: read
+   * on an app created before #197 — then every repository read fails. GitHub's other 422s look the same, so the
+   * installation's grants (app JWT, no mint) decide: a missing read permission is 409
+   * `github-permission-not-accepted` with the settings page; anything else, or grants that cannot be read, keeps
+   * the refusal as it was.
+   */
+  private async refusedReadMintError(installationId: number, refusal: GitHubError): Promise<GitHubError> {
+    let granted: InstallationPermissions | null;
+    try {
+      granted = await this.readInstallationPermissions(installationId);
+    } catch (error: unknown) {
+      if (!(error instanceof GitHubError)) {
+        throw error;
+      }
+      this.logger.warn('installation grants not read after a refused mint', {
+        installationId,
+        reason: error.problem.type,
+      });
+      return refusal;
+    }
+    if (granted === null || installationGrants(granted, INSTALLATION_PERMISSIONS)) {
+      return refusal;
+    }
+    return permissionNotAcceptedError(422, granted.htmlUrl);
   }
 
   /**

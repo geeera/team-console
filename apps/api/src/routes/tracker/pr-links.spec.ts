@@ -184,11 +184,13 @@ describe('POST /projects/:slug/items/:key/pr-links', () => {
     ],
     ['an outage', () => json(503, { message: 'unavailable' }), 502, 'github-unavailable'],
     // #537: a permission error (403 without rate-limit headers) is the installation's, never a missing pull request.
+    ['a permission error', () => json(403, { message: 'Bad credentials' }), 503, 'github-auth'],
+    // #792: GitHub's refusal for a permission the installation has not accepted names the owner's fix instead.
     [
-      'a permission error',
+      'an un-accepted permission',
       () => json(403, { message: 'Resource not accessible by integration' }),
-      503,
-      'github-auth',
+      409,
+      'github-permission-not-accepted',
     ],
   ] as const)(
     'answers %s during the lookup as retryable, writing nothing and keeping the key usable',

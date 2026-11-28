@@ -7,6 +7,8 @@ export type GitHubProblemType =
   | 'github-not-found'
   | 'github-owner-mismatch'
   | 'github-owner-not-connected'
+  /** #792: the installation has not accepted a permission the app asks for since an update (e.g. Checks: read). */
+  | 'github-permission-not-accepted'
   | 'github-rate-limit'
   | 'github-request-budget'
   | 'github-unavailable'
@@ -142,6 +144,46 @@ export function ownerMismatchError(repo: string, repoOwner: string): GitHubError
       detail: `${repo} belongs to ${repoOwner}`,
     },
     null,
+  );
+}
+
+/**
+ * GitHub's `message` on a 403 to an installation or user-to-server token whose app lacks the permission the call
+ * needs. Compared exactly, never echoed: it only tells this refusal apart from GitHub's other 403s.
+ */
+export const INTEGRATION_REFUSAL_MESSAGE = 'Resource not accessible by integration';
+
+/**
+ * 409 `github-permission-not-accepted` (#792): the app asks for a permission the installation has not accepted yet,
+ * so GitHub refuses the mint (422) or the read (403 "Resource not accessible by integration"). The owner fixes it on
+ * GitHub, never the operator, so it is not `github-auth`. `settingsUrl` is the installation's settings page as
+ * `readInstallationPermissions` checked it (github.com only); omitted when the installation is not known.
+ */
+export function permissionNotAcceptedError(
+  githubStatus: 403 | 422,
+  settingsUrl: string | null = null,
+): GitHubError {
+  return new GitHubError(
+    {
+      type: 'github-permission-not-accepted',
+      title: "The console app's new permissions are not accepted",
+      status: 409,
+      detail: "Accept the console app's new permissions in its installation settings on GitHub",
+      ...(settingsUrl === null ? {} : { extensions: { settingsUrl } }),
+    },
+    githubStatus,
+  );
+}
+
+/**
+ * GitHub answered `status` to the call. A rate limit is never a refusal: GitHub sends some as 403, and the error
+ * mapping keeps them `github-rate-limit` so they still surface as one (#803).
+ */
+export function isGitHubRefusal(error: unknown, status: 403 | 422): error is GitHubError {
+  return (
+    error instanceof GitHubError &&
+    error.githubStatus === status &&
+    error.problem.type !== 'github-rate-limit'
   );
 }
 

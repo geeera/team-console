@@ -859,6 +859,50 @@ describe('SprintBoard', () => {
     expect(actions[0]?.getAttribute('href')).toBe(`/settings/projects/${TC.slug}`);
   });
 
+  describe("the console app's new permissions not accepted (#792)", () => {
+    const notAccepted = (extensions: Record<string, unknown>) => ({
+      type: 'https://team-console/problems/github-permission-not-accepted',
+      title: 'x',
+      status: 409,
+      ...extensions,
+    });
+
+    it('says what to accept where, and links to the installation settings before Retry', async () => {
+      const { root, settle } = await render();
+      const settingsUrl = 'https://github.com/settings/installations/7';
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(notAccepted({ settingsUrl }), { status: 409, statusText: 'Conflict' });
+      await settle();
+
+      const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+      expect(block.getAttribute('data-failure')).toBe('permission-not-accepted');
+      expect(block.textContent).toContain('Новые разрешения приложения консоли не приняты');
+      expect(block.textContent).toContain('Review request → Accept new permissions');
+      const link = block.querySelector<HTMLAnchorElement>('[data-testid="permission-settings-link"]');
+      expect(link?.getAttribute('href')).toBe(settingsUrl);
+      expect(link?.getAttribute('rel')).toBe('noopener noreferrer');
+      const actions = [...block.querySelectorAll('a, button')];
+      expect(actions.at(-1)?.textContent?.trim()).toBe('Повторить');
+      expect(root.querySelector('[data-testid="project-setup-link"]')).toBeNull();
+    });
+
+    it('offers no link when the settings page is missing or off github.com', async () => {
+      const { root, settle } = await render();
+      http
+        .expectOne(projectSprintUrl(TC.slug))
+        .flush(notAccepted({ settingsUrl: 'https://evil.example/settings' }), {
+          status: 409,
+          statusText: 'Conflict',
+        });
+      await settle();
+
+      const block = root.querySelector('[data-testid="load-error"]') as HTMLElement;
+      expect(block.getAttribute('data-failure')).toBe('permission-not-accepted');
+      expect(block.querySelector('[data-testid="permission-settings-link"]')).toBeNull();
+    });
+  });
+
   it('offers no setup link for a failure the setup page cannot fix', async () => {
     const { root, settle } = await render();
     http.expectOne(projectSprintUrl(TC.slug)).error(new ProgressEvent('error'), { status: 0 });

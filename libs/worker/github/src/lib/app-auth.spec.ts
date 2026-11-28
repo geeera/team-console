@@ -896,3 +896,86 @@ describe('readInstallationPermissions', () => {
     expect(github.calls).toHaveLength(0);
   });
 });
+
+describe('a read mint the installation refuses for a permission it has not accepted (#792)', () => {
+  const SETTINGS = `https://github.com/settings/installations/${String(INSTALLATION_ID)}`;
+  const WITHOUT_CHECKS = Object.fromEntries(
+    Object.entries(INSTALLATION_PERMISSIONS).filter(([name]) => name !== 'checks'),
+  );
+
+  /** Lookup, a 422 mint, and the installation's grants answered by `grants`. */
+  function refusedMint(grants: () => Response) {
+    return scriptedGitHub((call) => {
+      const path = new URL(call.url).pathname;
+      if (call.method === 'GET' && path === '/repos/geeera/team-console/installation') {
+        return json(200, { id: INSTALLATION_ID });
+      }
+      if (call.method === 'POST' && path === `/app/installations/${INSTALLATION_ID}/access_tokens`) {
+        return json(422, { message: 'The permissions requested are not granted to this installation.' });
+      }
+      if (call.method === 'GET' && path === `/app/installations/${INSTALLATION_ID}`) {
+        return grants();
+      }
+      throw new Error(`unexpected ${call.method} ${path}`);
+    });
+  }
+
+  const installationWith = (permissions: Record<string, string>, htmlUrl: string = SETTINGS) =>
+    json(200, { id: INSTALLATION_ID, html_url: htmlUrl, permissions, suspended_at: null });
+
+  const authOver = (github: ReturnType<typeof scriptedGitHub>) =>
+    new GitHubAppAuth({ appId: APP_ID, privateKeyPem: key.pem }, { fetch: github.fetch, now: () => NOW });
+
+  it('answers 409 github-permission-not-accepted with the settings page when Checks: read is not granted', async () => {
+    const github = refusedMint(() => installationWith(WITHOUT_CHECKS));
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+
+    expect(error.problem).toEqual({
+      type: 'github-permission-not-accepted',
+      title: "The console app's new permissions are not accepted",
+      status: 409,
+      detail: "Accept the console app's new permissions in its installation settings on GitHub",
+      extensions: { settingsUrl: SETTINGS },
+    });
+    expect(error.githubStatus).toBe(422);
+    // GitHub's own message never reaches the problem.
+    expect(JSON.stringify(error.problem)).not.toContain('not granted');
+  });
+
+  it('leaves the settings page out when GitHub names one off github.com', async () => {
+    const github = refusedMint(() => installationWith(WITHOUT_CHECKS, 'https://evil.example.com/settings'));
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem.type).toBe('github-permission-not-accepted');
+    expect(error.problem.extensions).toBeUndefined();
+  });
+
+  it('keeps 502 github-unexpected for a 422 while every read permission is granted', async () => {
+    const github = refusedMint(() => installationWith({ ...INSTALLATION_PERMISSIONS }));
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem).toMatchObject({ type: 'github-unexpected', status: 502 });
+    expect(error.githubStatus).toBe(422);
+  });
+
+  it('keeps 502 github-unexpected when the grants cannot be read', async () => {
+    const github = refusedMint(() => json(502, {}));
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem.type).toBe('github-unexpected');
+    expect(error.githubStatus).toBe(422);
+  });
+
+  it('reads no grants for a mint refused with another status', async () => {
+    const github = scriptedGitHub((call) => {
+      const path = new URL(call.url).pathname;
+      if (path === '/repos/geeera/team-console/installation') {
+        return json(200, { id: INSTALLATION_ID });
+      }
+      return json(403, { message: 'Resource not accessible by integration' });
+    });
+    const error = await rejection(authOver(github).tokenSourceFor(REPO).getToken());
+    expect(error.problem.type).toBe('github-auth');
+    expect(github.calls.map((call) => new URL(call.url).pathname)).toEqual([
+      '/repos/geeera/team-console/installation',
+      `/app/installations/${String(INSTALLATION_ID)}/access_tokens`,
+    ]);
+  });
+});

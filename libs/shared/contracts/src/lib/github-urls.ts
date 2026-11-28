@@ -42,6 +42,18 @@ export function isGitHubPageUrl(value: unknown): value is string {
   return url !== null && url.origin === GITHUB_ORIGIN && url.username === '' && url.password === '';
 }
 
+/**
+ * #792: 409 `github-permission-not-accepted`: the console app asks for a permission its installation has not accepted.
+ * `settingsUrl` names the installation's settings page when the Worker knows the installation.
+ */
+export const PERMISSION_NOT_ACCEPTED_PROBLEM = 'github-permission-not-accepted';
+
+/** The installation settings page of a `github-permission-not-accepted` problem, or `null` unless on github.com. */
+export function permissionSettingsUrlOf(extensions: Readonly<Record<string, unknown>>): string | null {
+  const url = extensions['settingsUrl'];
+  return isGitHubPageUrl(url) ? url : null;
+}
+
 export function isGitHubLogin(value: unknown): value is string {
   return typeof value === 'string' && GITHUB_LOGIN.test(value);
 }

@@ -12,7 +12,13 @@ import {
   TranslocoService,
 } from '@console/shared/i18n';
 import { Chip, ChipTone, Icon, Meter } from '@console/shared/ui';
-import { isSnoozeActive, NOT_SNOOZED, type OverviewTeamState, type SnoozeDto } from '@shared/contracts';
+import {
+  isSnoozeActive,
+  NOT_SNOOZED,
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
+  type OverviewTeamState,
+  type SnoozeDto,
+} from '@shared/contracts';
 
 const TEAM_TONE: Readonly<Record<OverviewTeamState, ChipTone>> = {
   running: 'success',
@@ -30,6 +36,7 @@ export const OVERVIEW_PENDING_PROBLEM = 'github-request-budget';
 
 const KNOWN_PROBLEMS: ReadonlySet<string> = new Set([
   'github-app-not-installed',
+  PERMISSION_NOT_ACCEPTED_PROBLEM,
   'project-config-invalid',
   'github-rate-limit',
   'project-invalid',

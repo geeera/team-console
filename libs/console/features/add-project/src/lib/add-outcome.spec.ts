@@ -73,6 +73,19 @@ describe('addOutcomeOf', () => {
     expect(addOutcomeOf(problem(slug))).toEqual(outcome);
   });
 
+  it('an un-accepted App permission → its own reason with the installation settings page (#792)', () => {
+    const settingsUrl = 'https://github.com/organizations/acme/settings/installations/7';
+    expect(
+      addOutcomeOf(problem('github-permission-not-accepted', { step: 'repo-owner', settingsUrl })),
+    ).toEqual({ kind: 'unavailable', reason: 'permission', settingsUrl });
+  });
+
+  it('drops a settings page that is not a github.com page (#792)', () => {
+    expect(
+      addOutcomeOf(problem('github-permission-not-accepted', { settingsUrl: 'https://evil.example/x' })),
+    ).toEqual({ kind: 'unavailable', reason: 'permission', settingsUrl: null });
+  });
+
   it('a GitHub step problem without a known step reads as GitHub not responding', () => {
     expect(addOutcomeOf(problem('github-owner-mismatch', { step: 'whatever' }))).toEqual({
       kind: 'unavailable',

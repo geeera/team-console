@@ -14,6 +14,23 @@ describe('commandFailureOf', () => {
     expect(commandFailureOf(problemError('team-already-paused', 409)).kind).toBe('already-paused');
   });
 
+  it('an un-accepted App permission is its own kind, keeping the settings page for the copy (#792)', () => {
+    const settingsUrl = 'https://github.com/settings/installations/7';
+    const error = new HttpErrorResponse({
+      status: 409,
+      headers: new HttpHeaders({ 'Content-Type': 'application/problem+json' }),
+      error: {
+        type: 'https://team-console/problems/github-permission-not-accepted',
+        title: 'Problem',
+        status: 409,
+        settingsUrl,
+      },
+    });
+    const failure = commandFailureOf(error);
+    expect(failure.kind).toBe('permission-not-accepted');
+    expect(failure.extensions['settingsUrl']).toBe(settingsUrl);
+  });
+
   it('a dropped connection is offline; a non-HTTP error is unknown', () => {
     expect(commandFailureOf(new HttpErrorResponse({ status: 0 })).kind).toBe('offline');
     expect(commandFailureOf(new Error('boom')).kind).toBe('unknown');

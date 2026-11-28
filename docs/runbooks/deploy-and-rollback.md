@@ -307,6 +307,38 @@ What the result means:
 Until the first row of the table is recorded in the fake's header comment, treat the reconnect path as unverified
 against real GitHub.
 
+## Every repository read fails: the App's new permissions are not accepted (#792)
+
+When a release adds a permission to the console's read token (`INSTALLATION_PERMISSIONS` in
+`libs/worker/github/src/lib/app-auth.ts`; #197 added **Checks: read**), every installation of that environment's App
+must hold it before the deploy. GitHub refuses to mint a token that asks for a permission the installation has not
+accepted (422 on `POST /app/installations/{id}/access_tokens`), so **every repository read of that installation
+fails**, not only the new one. An App created before #197 is in this state until its owner adds and accepts
+**Checks: read**.
+
+**Before the deploy** (owner checklist, step 10):
+
+1. github.com → Settings → Developer settings → GitHub Apps → `team-console-<env>` → Permissions & events →
+   Repository permissions → set the new permission (for #197: **Checks: Read-only**) → Save.
+2. Accept it on every installation: the account owner opens the installation's settings page (Settings →
+   Integrations → GitHub Apps → the app → Configure) and clicks **Review request → Accept new permissions**. Until an
+   installation accepts, it keeps its old permissions.
+
+**If it was missed** (the board says «Новые разрешения приложения консоли не приняты» / "The console app's new
+permissions aren't accepted", the overview and Needs you give the same reason, and the api logs show 409
+`github-permission-not-accepted` with `githubStatus` 422 or 403):
+
+1. Do steps 1–2 above. On the board, **Open installation settings** goes straight to that installation's settings
+   page when the Worker could read it.
+2. Retry on the board. Nothing has to be redeployed: the next read mints with the accepted permissions.
+3. Do **not** roll back just to get reads working again unless the owner cannot accept soon: the previous release
+   does not ask for the permission, but it also lacks what the permission is for.
+
+The console reads the installation's grants (app JWT, no token) only after a refused mint, and reports
+`github-permission-not-accepted` only when a permission the read token asks for is missing there; any other 422 stays
+502 `github-unexpected`. A 403 "Resource not accessible by integration" on a read or an owner write is reported the
+same way, without the settings link (the client does not know the installation there).
+
 ## What this does not cover
 
 - **Production** is out of scope for #25 (`stage` → `main` only after the owner's recorded **go** on the

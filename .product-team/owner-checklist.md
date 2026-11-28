@@ -209,6 +209,16 @@ workflows. Tick an item by editing this file in a PR, or comment `/approve` on t
     экране подтверждения, и скрипт зависнет в ожидании редиректа, который никогда не придёт (сам оборвётся по
     таймауту через 15 минут, если забыть отменить).
 
+    - [ ] **Приложение создано до #197 (в его правах нет `checks: read`) — до следующего деплоя этого окружения**
+      (#792). Консоль просит право **Checks: read** в каждом токене чтения; пока установка его не приняла, GitHub
+      отказывает в каждом чтении репозитория, а не только в проверках CI. github.com → Settings → Developer
+      settings → GitHub Apps → `team-console-<env>` → Permissions & events → Repository permissions → **Checks:
+      Read-only** → Save. Затем примите новое право в каждой установке приложения: Settings → Integrations →
+      GitHub Apps → приложение → Configure → **Review request → Accept new permissions**. Так же поступайте с любым
+      правом, которое добавит следующий релиз. Если шаг пропущен, доска покажет «Новые разрешения приложения
+      консоли не приняты» с кнопкой «Открыть настройки установки»; что делать дальше — раздел «Every repository
+      read fails» в `docs/runbooks/deploy-and-rollback.md`.
+
 11. **`ROUTINE_TOKEN_<SLUG>`** — токен PM-чата на продукт (ADR 0001 решение 11); делать не раньше, чем появится
     задача, реализующая решения 11/20 — здесь только чтобы имя секрета сразу было верным:
     1. claude.ai/code → создай Claude Code routine для продукта с API-триггером, скопируй её bearer-токен.
