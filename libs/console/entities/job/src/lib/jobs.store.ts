@@ -1,14 +1,15 @@
 import { DOCUMENT } from '@angular/common';
 import { computed, inject, Injectable, signal } from '@angular/core';
+import { IDLE_POLL_MS, LIVE_POLL_MS, pollWhileVisible } from '@console/shared/utils';
 import type { JobDto, JobEventDto, RunnerAvailability, RunnerUnavailableReason } from '@shared/contracts';
 import { currentJobsOf, isHeldJob, isLiveJob, jobsTileOf, recentJobsOf } from './job.model';
 import type { JobFailure } from './job-failure';
 import { JobsApi } from './jobs.api';
 
 /** While a job is queued or held the view refreshes this often; a runner polls the queue every minute or so. */
-export const JOBS_LIVE_POLL_MS = 10_000;
+export const JOBS_LIVE_POLL_MS = LIVE_POLL_MS;
 /** With nothing live, a refresh a minute is enough to notice a scheduled job. */
-export const JOBS_IDLE_POLL_MS = 60_000;
+export const JOBS_IDLE_POLL_MS = IDLE_POLL_MS;
 /** Events kept per job: the newest ones, the view is a tail, not the whole log. */
 export const JOB_EVENTS_KEPT = 100;
 
@@ -63,47 +64,13 @@ export class JobsStore {
   /** Reads `slug` now and keeps it fresh until the returned function is called. */
   watch(slug: string): () => void {
     this.reset(slug);
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let stopped = false;
-    let visibilityRefreshInFlight = false;
-    const clear = (): void => {
-      if (timer !== null) {
-        clearTimeout(timer);
-        timer = null;
-      }
-    };
-    const schedule = (): void => {
-      clear();
-      if (stopped || this.document.visibilityState !== 'visible') {
-        return;
-      }
-      timer = setTimeout(() => void tick(), this.hasLive() ? JOBS_LIVE_POLL_MS : JOBS_IDLE_POLL_MS);
-    };
-    const tick = async (): Promise<void> => {
-      await this.refresh();
-      schedule();
-    };
-    const onVisibility = (): void => {
-      if (this.document.visibilityState === 'visible') {
-        // The tab can fire several visibilitychange events in quick succession (e.g. alt-tab bounce);
-        // without this guard each one would start its own overlapping refresh.
-        if (visibilityRefreshInFlight) {
-          return;
-        }
-        visibilityRefreshInFlight = true;
-        void tick().finally(() => {
-          visibilityRefreshInFlight = false;
-        });
-      } else {
-        clear();
-      }
-    };
-    this.document.addEventListener('visibilitychange', onVisibility);
-    void tick();
+    const stop = pollWhileVisible(
+      this.document,
+      async () => this.refresh(),
+      () => (this.hasLive() ? JOBS_LIVE_POLL_MS : JOBS_IDLE_POLL_MS),
+    );
     return () => {
-      stopped = true;
-      clear();
-      this.document.removeEventListener('visibilitychange', onVisibility);
+      stop();
       // A read still on its way must not land in the next project's view.
       this.ticket += 1;
     };
