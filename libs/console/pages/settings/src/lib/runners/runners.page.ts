@@ -26,7 +26,7 @@ import { RunnerPolicyEditor } from '@console/features/runner-policy';
 import { teamSettingsUrlOf } from '@console/features/team-config';
 import { LocalTimePipe, TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Button, Field, FieldControl, Icon, injectRetryFocus, StateBlock } from '@console/shared/ui';
-import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
+import { isRunnerScopeFixed, type PendingEnrolmentDto, type RunnerDto } from '@shared/contracts';
 
 /**
  * `/settings/runners` (#464, ADR 0008 row 2-E part A): the account's runners — enrol a new one with a one-time
@@ -94,6 +94,9 @@ export class RunnersPage {
     return slug === null ? null : { kind: 'project', slug };
   });
 
+  /** #797: a hosted or Actions runner keeps the scope the console gave it; its card shows «Изменить проекты» locked. */
+  protected readonly isScopeFixed = isRunnerScopeFixed;
+
   /** A saved account default changes what a project on the default runs on: its editor reads it again. */
   protected readonly accountRevision = signal(0);
 
@@ -153,7 +156,7 @@ export class RunnersPage {
       case 'pick-projects': {
         await this.store.load();
         const runner = this.store.runners().find((row) => row.id === outcome.runnerId);
-        if (runner !== undefined) {
+        if (runner !== undefined && !isRunnerScopeFixed(runner)) {
           await this.editProjects(runner);
         }
         return;
@@ -174,6 +177,11 @@ export class RunnersPage {
     if (updated !== null) {
       this.store.apply(updated);
     }
+  }
+
+  /** The locked «Изменить проекты» says why on a press instead of opening a save the Worker would refuse. */
+  protected sayScopeFixed(): void {
+    void this.announcer.announce(this.transloco.translate('runners.err.scopeFixed'), 'polite');
   }
 
   protected async revoke(runner: RunnerDto): Promise<void> {

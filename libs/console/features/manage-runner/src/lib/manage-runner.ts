@@ -7,7 +7,7 @@ import {
 } from '@console/entities/runner';
 import { TranslocoService } from '@console/shared/i18n';
 import { ConfirmFailure, Sheet } from '@console/shared/ui';
-import type { PendingEnrolmentDto, RunnerDto } from '@shared/contracts';
+import { isRunnerScopeFixed, type PendingEnrolmentDto, type RunnerDto } from '@shared/contracts';
 import { firstValueFrom } from 'rxjs';
 import { RunnerProjectsDialog, type RunnerProjectsData } from './runner-projects-dialog';
 
@@ -57,10 +57,16 @@ export class ManageRunner {
   private readonly sheet = inject(Sheet);
   private readonly transloco = inject(TranslocoService);
 
-  /** The runner after the change, or `null` when the owner backed out. */
+  /**
+   * The runner after the change, or `null` when the owner backed out. #797: a hosted or Actions runner's scope is
+   * fixed, so its dialog never opens (the Worker would answer 422 `runner-scope-fixed`); its card says why.
+   */
   async editProjects(
     target: ManagedRunnerTarget & { readonly projects: readonly RunnerProjectOption[] },
   ): Promise<RunnerDto | null> {
+    if (isRunnerScopeFixed(target.runner)) {
+      return null;
+    }
     const ref = this.sheet.open<RunnerDto, RunnerProjectsData>(RunnerProjectsDialog, {
       title: this.t('runners.scope.title'),
       width: 'wide',

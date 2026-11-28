@@ -10,7 +10,12 @@ import {
 } from '@console/entities/runner';
 import { TranslocoPipe, TranslocoService } from '@console/shared/i18n';
 import { Banner, Button, DIALOG_DATA, DialogRef, Icon, SheetFooter } from '@console/shared/ui';
-import { runnerScopeCovers, type RunnerDto, type RunnerProjectScope } from '@shared/contracts';
+import {
+  isRunnerScopeFixed,
+  runnerScopeCovers,
+  type RunnerDto,
+  type RunnerProjectScope,
+} from '@shared/contracts';
 import { scopeWideningOf } from './scope-widening';
 
 export interface RunnerProjectsData {
@@ -176,6 +181,11 @@ export class RunnerProjectsDialog {
   protected async submit(event: Event): Promise<void> {
     event.preventDefault();
     if (this.running()) {
+      return;
+    }
+    // #797: a dialog opened past the card's lock still never sends a write the Worker refuses.
+    if (isRunnerScopeFixed(this.data.runner)) {
+      this.failure.set({ kind: 'invalid', slug: 'runner-scope-fixed', field: 'projectScope' });
       return;
     }
     this.running.set(true);

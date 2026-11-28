@@ -126,6 +126,7 @@ export {
   isRunnerProjectScopeDto,
   isRunnerReleaseDto,
   isRunnerScopeDto,
+  isRunnerScopeFixed,
   isRunnerSelfDto,
   isRunnerVersion,
   isRunnerVersionBelow,

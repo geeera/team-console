@@ -1,4 +1,5 @@
 import {
+  isRunnerScopeFixed,
   runnerScopeCovers,
   runnerTakesSubscription,
   type AccountMembershipDto,
@@ -63,8 +64,7 @@ export function d3RunnerOf(runners: readonly RunnerDto[], slug: string): RunnerD
   const held = liveRunnersOf(runners).filter(
     (runner) =>
       runner.projectScope === 'all' &&
-      !runner.hosted &&
-      runner.isolation !== 'actions-ephemeral' &&
+      !isRunnerScopeFixed(runner) &&
       runnerTakesSubscription(runner.capabilities) &&
       !runner.servedProjects.some((project) => project.slug === slug),
   );

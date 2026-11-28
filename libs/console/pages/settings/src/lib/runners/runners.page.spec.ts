@@ -1,3 +1,4 @@
+import { LiveAnnouncer } from '@angular/cdk/a11y';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -251,6 +252,58 @@ describe('RunnersPage (/settings/runners, #464)', () => {
       expect.objectContaining({ accountId: OWNER_ACCOUNT_ID, runner: runnerFixture() }),
     );
     expect(find('runner-projects')?.textContent?.trim()).toBe('storify');
+  });
+
+  // #797: the Worker refuses a hosted or Actions runner's scope change (422 `runner-scope-fixed`).
+  it.each([
+    ['a hosted runner', { hosted: true, isolation: 'container' }],
+    ['a GitHub Actions runner', { isolation: 'actions-ephemeral' }],
+  ] as const)('shows «Изменить проекты» locked with the reason on %s', async (_, fixed) => {
+    const { find, manage } = await open({
+      list: () => ({
+        ok: true,
+        value: { runners: [runnerFixture(fixed)], pendingEnrolments: [], release: RELEASE },
+      }),
+    });
+    const announce = vi.spyOn(TestBed.inject(LiveAnnouncer), 'announce');
+    const button = find('runner-edit-projects') as HTMLButtonElement;
+    const reason = find('runner-scope-fixed');
+    expect(button.getAttribute('aria-disabled')).toBe('true');
+    expect(button.classList).toContain('tc-button--off');
+    expect(reason?.textContent?.trim()).toBe(
+      'У размещённого у нас раннера и у раннера GitHub Actions проекты задаёт консоль. Изменить их нельзя.',
+    );
+    expect(button.getAttribute('aria-describedby')).toBe(reason?.id);
+    button.click();
+    await settle();
+    expect(manage.editProjects).not.toHaveBeenCalled();
+    expect(announce).toHaveBeenCalledWith(reason?.textContent?.trim(), 'polite');
+  });
+
+  it('keeps «Изменить проекты» pressable with no reason on a machine runner', async () => {
+    const { find } = await open();
+    const button = find('runner-edit-projects') as HTMLButtonElement;
+    expect(button.getAttribute('aria-disabled')).toBeNull();
+    expect(button.getAttribute('aria-describedby')).toBeNull();
+    expect(button.classList).not.toContain('tc-button--off');
+    expect(find('runner-scope-fixed')).toBeNull();
+  });
+
+  it('does not open the scope editor for «Выбрать проекты» when the new runner’s scope is fixed', async () => {
+    const { find, manage } = await open({
+      list: () => ({
+        ok: true,
+        value: {
+          runners: [runnerFixture({ isolation: 'actions-ephemeral' })],
+          pendingEnrolments: [],
+          release: RELEASE,
+        },
+      }),
+      wizardOutcome: { kind: 'pick-projects', runnerId: runnerFixture().id },
+    });
+    (find('runners-enrol') as HTMLButtonElement).click();
+    await settle();
+    expect(manage.editProjects).not.toHaveBeenCalled();
   });
 
   // #492

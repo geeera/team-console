@@ -9,6 +9,7 @@ import {
   isPendingEnrolmentDto,
   isRunnerDto,
   isRunnerListDto,
+  isRunnerScopeFixed,
   isRunnerVersionBelow,
   runnerReleaseChannelOf,
   runnerTakesSubscription,
@@ -134,6 +135,17 @@ describe('runnerTakesSubscription', () => {
         ? { local: true, maxConcurrency: 1 }
         : { local: true, maxConcurrency: 1, accessSources };
     expect(runnerTakesSubscription(capabilities)).toBe(takes);
+  });
+});
+
+describe('isRunnerScopeFixed (#797)', () => {
+  it.each([
+    ['a hosted runner', { hosted: true, isolation: 'container' } as const, true],
+    ['a GitHub Actions identity', { hosted: false, isolation: 'actions-ephemeral' } as const, true],
+    ['a machine runner', { hosted: false, isolation: 'user' } as const, false],
+    ['a container runner on the owner’s host', { hosted: false, isolation: 'container' } as const, false],
+  ])('judges %s', (_, runner, fixed) => {
+    expect(isRunnerScopeFixed({ ...RUNNER, ...runner })).toBe(fixed);
   });
 });
 

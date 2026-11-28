@@ -40,6 +40,12 @@
   gap: var(--space-2);
 }
 
+.runners__note {
+  flex-basis: 100%;
+  font-size: var(--fs-sm);
+  color: var(--text-2);
+}
+
 .runners__list,
 .runners__pending-list {
   display: grid;
