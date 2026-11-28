@@ -1,5 +1,5 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
-import { isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { PROBLEM_TYPE_PREFIX, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createWorkerApp } from '@worker/core';
 import type { ApiEnv } from '../env';
 import type { Identity } from './auth.types';
@@ -60,6 +60,26 @@ describe('ownerOnlyMiddleware', () => {
     const response = await probe(session, deployed);
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('owner-only');
+  });
+
+  // Pins the whole body for `ownerOnlyRefusal`'s own default `detail` — `ownerOrServiceRefusal`
+  // (`../projects/lookup.ts`) reuses this function and pins its route-specific detail separately.
+  it('answers the standard Problem Details shape with its own default detail', async () => {
+    const session: Identity = {
+      kind: 'user',
+      door: 'session',
+      userId: '01M6YSNJ00000000000000US01',
+      memberships: ACCESS_OWNER_MEMBERSHIPS,
+    };
+    const response = await probe(session, deployed);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      type: `${PROBLEM_TYPE_PREFIX}owner-only`,
+      title: 'Forbidden',
+      status: 403,
+      detail: 'Only the owner can use this route',
+    });
+    expect(body['instance']).toBe(response.headers.get('x-request-id'));
   });
 
   it('lets the local bypass through only with ENVIRONMENT=local and AUTH_MODE=local', async () => {
