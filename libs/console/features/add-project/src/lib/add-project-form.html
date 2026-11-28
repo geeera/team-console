@@ -98,9 +98,9 @@
   <p>
     @switch (unavailableReason()) { @case ('rate') { {{ 'settings.add.unavailable.rate' | transloco: { time:
     (retryAt() | localTime) } }} } @case ('auth') { {{ 'settings.add.unavailable.auth' | transloco: { app:
-    connection.appName() ?? 'team-console' } }} } @case ('permission') {
-    {{ 'settings.add.unavailable.permission' | transloco }} } @default {
-    {{ 'settings.add.unavailable.github' | transloco }} } }
+    connection.appName() ?? 'team-console' } }} } @case ('permission') { {{
+    'settings.add.unavailable.permission' | transloco }} } @default { {{ 'settings.add.unavailable.github' |
+    transloco }} } }
   </p>
   @if (settingsUrl(); as settingsUrl) {
   <tc-permission-settings-link variant="secondary" [url]="settingsUrl" />

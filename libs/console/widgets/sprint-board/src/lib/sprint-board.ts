@@ -21,7 +21,12 @@ import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { Router } from '@angular/router';
 import { ItemsApi, TrackerFailureBlock, type FailedWrite, type TrackerRead } from '@console/entities/item';
 import { JOBS_TILE_ICONS, JobsStore } from '@console/entities/job';
-import { NeedsYouCounts, PermissionSettingsLink, ProjectSetupLink, spaceUrlOf } from '@console/entities/project';
+import {
+  NeedsYouCounts,
+  PermissionSettingsLink,
+  ProjectSetupLink,
+  spaceUrlOf,
+} from '@console/entities/project';
 import { d3RunnerOf, projectAccountRoleOf, projectPauseOf, RunnersStore } from '@console/entities/runner';
 import {
   ciSummaryOf,
@@ -830,7 +835,11 @@ export class SprintBoard {
 
   private failureOf(error: unknown): BoardLoadFailure {
     if (error instanceof TrackerBoardReadError) {
-      return { failure: error.reason === 'offline' ? 'offline' : 'unavailable', retryAt: null, settingsUrl: null };
+      return {
+        failure: error.reason === 'offline' ? 'offline' : 'unavailable',
+        retryAt: null,
+        settingsUrl: null,
+      };
     }
     if (!(error instanceof HttpErrorResponse)) {
       // A bad response shape, or a bug: the board shows the generic failure and the error handler gets the cause.

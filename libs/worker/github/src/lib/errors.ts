@@ -159,7 +159,10 @@ export const INTEGRATION_REFUSAL_MESSAGE = 'Resource not accessible by integrati
  * GitHub, never the operator, so it is not `github-auth`. `settingsUrl` is the installation's settings page as
  * `readInstallationPermissions` checked it (github.com only); omitted when the installation is not known.
  */
-export function permissionNotAcceptedError(githubStatus: 403 | 422, settingsUrl: string | null = null): GitHubError {
+export function permissionNotAcceptedError(
+  githubStatus: 403 | 422,
+  settingsUrl: string | null = null,
+): GitHubError {
   return new GitHubError(
     {
       type: 'github-permission-not-accepted',

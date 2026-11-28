@@ -123,7 +123,10 @@ describe('GitHubClient.getJson', () => {
 
     it.each([
       ['another message', () => json(403, { message: 'Must have admin rights to Repository.' })],
-      ['a body that is not JSON', () => new Response('Resource not accessible by integration', { status: 403 })],
+      [
+        'a body that is not JSON',
+        () => new Response('Resource not accessible by integration', { status: 403 }),
+      ],
       ['an empty body', () => new Response(null, { status: 403 })],
       [
         'a body past the size cap',

@@ -859,7 +859,7 @@ describe('SprintBoard', () => {
     expect(actions[0]?.getAttribute('href')).toBe(`/settings/projects/${TC.slug}`);
   });
 
-  describe('the console app\'s new permissions not accepted (#792)', () => {
+  describe("the console app's new permissions not accepted (#792)", () => {
     const notAccepted = (extensions: Record<string, unknown>) => ({
       type: 'https://team-console/problems/github-permission-not-accepted',
       title: 'x',
