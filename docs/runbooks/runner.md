@@ -376,7 +376,10 @@ job and is revoked at its `finish`.
    Save, then accept the new permissions on every installation of that App (the account owner opens the
    installation's settings page, Settings → Integrations → GitHub Apps → the app → Configure, and clicks **Review
    request → Accept new permissions**). Until an installation accepts, it keeps its old permissions and the console's
-   readiness check reads those items as unknown.
+   readiness check reads those items as unknown. Accepting is the same for any permission a release adds, not only
+   these: a missing permission of the read token (e.g. **Checks: read**, #197) stops every repository read instead —
+   see "Every repository read fails: the App's new permissions are not accepted" in
+   [deploy-and-rollback.md](deploy-and-rollback.md).
 6. **Switch the project.** In the console: Settings › Runners → the project → **Where jobs run** → **On GitHub
    Actions** → Save. The console refuses the switch while the project's access source is a subscription (switch it
    to an API key first) or while its placement pins a runner (choose **Any runner** first). Jobs marked "own machine
