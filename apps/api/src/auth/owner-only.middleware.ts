@@ -53,7 +53,14 @@ export const userOrOwnerMiddleware: MiddlewareHandler<WorkerHonoEnv<ApiEnv>> = a
   return;
 };
 
-function ownerOnlyRefusal(c: Context<WorkerHonoEnv<ApiEnv>>): Response {
+/**
+ * 403 `owner-only`, shared with `ownerOrServiceRefusal` (`../projects/lookup.ts`) so both routes' refusals stay one
+ * shape: `detail` says which route; the default is this middleware's own text.
+ */
+export function ownerOnlyRefusal(
+  c: Context<WorkerHonoEnv<ApiEnv>>,
+  detail = 'Only the owner can use this route',
+): Response {
   c.get('logger').warn('owner route refused', {
     reason: c.get('identity').kind,
     method: c.req.method,
@@ -63,6 +70,6 @@ function ownerOnlyRefusal(c: Context<WorkerHonoEnv<ApiEnv>>): Response {
     type: 'owner-only',
     title: 'Forbidden',
     status: 403,
-    detail: 'Only the owner can use this route',
+    detail,
   });
 }

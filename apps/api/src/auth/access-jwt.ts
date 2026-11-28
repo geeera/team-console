@@ -36,7 +36,11 @@ function isJwksLoadCoolingDown(href: string): boolean {
   return failedAt !== undefined && Date.now() - failedAt < JWKS_LOAD_NEGATIVE_CACHE_MS;
 }
 
-/** The shape jose's `isJwkSet` accepts; anything else makes it throw after the load "succeeded" (#283). */
+/**
+ * The shape jose's `isJwkSet` accepts (jose 6.2.12: a plain object with a `keys` array whose members are all
+ * objects too — `{"keys":[]}` included, vacuously); anything else makes it throw after the load "succeeded"
+ * (#283). Re-check against `isJwkSet` on a jose upgrade, since nothing ties this mirror to jose's definition.
+ */
 async function isKeySetBody(response: Response): Promise<boolean> {
   let body: unknown;
   try {

@@ -1,5 +1,5 @@
 import { createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
-import { OWNER_ACCOUNT_ID, isProblemDetails, problemSlugOf } from '@shared/contracts';
+import { OWNER_ACCOUNT_ID, PROBLEM_TYPE_PREFIX, isProblemDetails, problemSlugOf } from '@shared/contracts';
 import { createWorkerApp } from '@worker/core';
 import type { Identity } from '../auth/auth.types';
 import type { ApiEnv } from '../env';
@@ -81,6 +81,20 @@ describe('ownerOrServiceRefusal', () => {
     expect(response.status).toBe(403);
     expect(await slugOf(response)).toBe('owner-only');
     expect(((await response.json()) as { detail: string }).detail).toBe(DETAIL);
+  });
+
+  // Pins the whole body: this gate shares its refusal with `ownerOnlyMiddleware` (`owner-only.middleware.ts`), so
+  // a change there cannot silently drop or rename a standard member here.
+  it('answers the standard Problem Details shape, not just the type and detail', async () => {
+    const response = await probe('session-owner', DEPLOYED);
+    const body = (await response.json()) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      type: `${PROBLEM_TYPE_PREFIX}owner-only`,
+      title: 'Forbidden',
+      status: 403,
+      detail: DETAIL,
+    });
+    expect(body['instance']).toBe(response.headers.get('x-request-id'));
   });
 
   it('logs the identity kind as the reason, never the user id', async () => {

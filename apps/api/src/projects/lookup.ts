@@ -1,7 +1,7 @@
 import { problem, type WorkerContext } from '@worker/core';
 import { ProjectsRepo, RunnersRepo, type ProjectRow, type TrackerProject } from '@worker/db';
 import { InvalidRepoNameError, parseRepoName, type RepoName } from '@worker/github';
-import { isOwnerIdentity } from '../auth/owner-only.middleware';
+import { isOwnerIdentity, ownerOnlyRefusal } from '../auth/owner-only.middleware';
 import { admits, roleIn, scopeOf, type Scope } from '../auth/scope';
 import type { ApiEnv } from '../env';
 
@@ -134,12 +134,7 @@ export function ownerOrServiceRefusal(c: WorkerContext<ApiEnv>, detail: string):
   if (isOwnerIdentity(identity, c.env) || identity.kind === 'service') {
     return null;
   }
-  c.get('logger').warn('owner route refused', {
-    reason: identity.kind,
-    method: c.req.method,
-    path: c.req.path,
-  });
-  return problem(c, { type: 'owner-only', title: 'Forbidden', status: 403, detail });
+  return ownerOnlyRefusal(c, detail);
 }
 
 export function projectNotFound(c: WorkerContext<ApiEnv>): Response {
